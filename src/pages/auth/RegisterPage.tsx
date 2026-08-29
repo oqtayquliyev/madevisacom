@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Building2, Check, ChevronDown, Search, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/AuthUI';
+import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
 
 type Country = { id: string; name: string; flag_emoji: string | null };
 type Role = 'customer' | 'agency' | null;

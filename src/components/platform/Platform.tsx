@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import { agencies, agencyRequests, defaultSteps, demoTrip, destinations, italyService, nationalities, tripCards } from '@/data';
 import type { Agency, RequirementStep, RouteCountry, Trip, View } from '@/types';
-import { StatusBadge } from '@/components/StatusBadge';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useAuth } from '@/lib/auth';
 
 type PlatformProps = { view: View; go: (view: View) => void };

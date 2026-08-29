@@ -1,19 +1,17 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { LoginPage } from '@/components/LoginPage';
-import { RegisterPage } from '@/components/RegisterPage';
-import {
-  AgencyDashboard,
-  AgencyProfilePage,
-  AgenciesPage,
-  CustomerDashboard,
-  ExplorePage,
-  HomePage,
-  PlannerPage,
-  ResultsPage,
-  TripWorkspace,
-} from '@/components/Platform';
+import { LoginPage } from '@/pages/auth/LoginPage';
+import { RegisterPage } from '@/pages/auth/RegisterPage';
+import { LandingPage } from '@/pages/landing/LandingPage';
+import { AgencyDashboard } from '@/pages/agency/AgencyDashboard';
+import { AgencyProfilePage } from '@/pages/agency/AgencyProfilePage';
+import { AgenciesPage } from '@/pages/agencies/AgenciesPage';
+import { CustomerDashboard } from '@/pages/customer/CustomerDashboard';
+import { TripWorkspace } from '@/pages/customer/TripWorkspace';
+import { ExplorePage } from '@/pages/explore/ExplorePage';
+import { PlannerPage } from '@/pages/planner/PlannerPage';
+import { ResultsPage } from '@/pages/results/ResultsPage';
 import type { View } from '@/types';
 
 type AuthPage = 'login' | 'register';
@@ -21,11 +19,16 @@ type AuthPage = 'login' | 'register';
 export default function App() {
   const { session, profile, loading } = useAuth();
   const [view, setView] = useState<View>('home');
-  const [authPage, setAuthPage] = useState<AuthPage>('login');
+  const [authPage, setAuthPage] = useState<AuthPage>(() => window.location.pathname === '/register' ? 'register' : 'login');
 
   const go = (next: View) => {
     setView(next);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const goToAuth = (page: AuthPage) => {
+    setAuthPage(page);
+    window.history.pushState({}, '', page === 'login' ? '/login' : '/register');
   };
 
   if (loading) {
@@ -36,12 +39,16 @@ export default function App() {
     );
   }
 
-  // Not signed in → show auth pages
+  // Not signed in → show the landing page unless an auth route was requested.
   if (!session) {
+    if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+      return <LandingPage go={go} onAuth={goToAuth} />;
+    }
+
     return authPage === 'login' ? (
-      <LoginPage onSwitchToRegister={() => setAuthPage('register')} />
+      <LoginPage onSwitchToRegister={() => goToAuth('register')} />
     ) : (
-      <RegisterPage onSwitchToLogin={() => setAuthPage('login')} />
+      <RegisterPage onSwitchToLogin={() => goToAuth('login')} />
     );
   }
 
@@ -88,6 +95,7 @@ export default function App() {
 
 function renderPublicView(view: View, go: (view: View) => void) {
   switch (view) {
+    case 'home': return <LandingPage go={go} />;
     case 'planner': return <PlannerPage view={view} go={go} />;
     case 'results': return <ResultsPage view={view} go={go} />;
     case 'agencies': return <AgenciesPage view={view} go={go} />;
@@ -96,7 +104,7 @@ function renderPublicView(view: View, go: (view: View) => void) {
     case 'explore': return <ExplorePage view={view} go={go} />;
     case 'agency-dashboard': return <AgencyDashboard view={view} go={go} />;
     case 'agency-profile': return <AgencyProfilePage view={view} go={go} />;
-    default: return <HomePage view={view} go={go} />;
+    default: return <LandingPage go={go} />;
   }
 }
 

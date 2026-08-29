@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/AuthUI';
+import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
 
 export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
   const [email, setEmail] = useState('');
