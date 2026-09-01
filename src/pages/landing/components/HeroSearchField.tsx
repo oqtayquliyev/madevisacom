@@ -110,7 +110,7 @@ export function LandingHero({ go }: LandingHeroProps) {
           </div>
 
           <h1 className="mt-6 text-4xl font-bold tracking-[-0.04em] text-ink-950 sm:text-6xl lg:text-7xl">
-            Everything you need to
+            TESST you need to
             <span className="text-brand-600"> move abroad.</span>
           </h1>
 
