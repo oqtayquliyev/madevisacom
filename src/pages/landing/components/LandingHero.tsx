@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   ArrowRight,
-  BriefcaseBusiness,
+  Briefcase,
   Building2,
   GraduationCap,
   Globe2,
@@ -209,7 +209,7 @@ export function LandingHero({ go }: LandingHeroProps) {
                   : 'border-white/30 text-white/85 hover:border-white/60'
               }`}
             >
-              <BriefcaseBusiness className="h-4 w-4" />
+              <Briefcase className="h-4 w-4" />
               Work
             </button>
 
