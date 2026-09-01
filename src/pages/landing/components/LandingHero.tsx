@@ -1,21 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
-  BadgeCheck,
+  Briefcase,
   Building2,
   Calculator,
-  CalendarDays,
   CheckCircle2,
+  ChevronDown,
+  FileCheck2,
   Globe2,
   GraduationCap,
   Heart,
   Home,
+  Loader2,
   Plane,
   Search,
-  ShieldCheck,
-  Sparkles,
   Users,
-  Briefcase,
 } from 'lucide-react';
 import type { View } from '@/types';
 
@@ -38,10 +37,14 @@ type Journey =
   | 'family'
   | 'relocation';
 
-type Tool =
-  | 'calculator'
-  | 'requirements'
-  | null;
+type Currency = 'USD' | 'EUR' | 'GBP' | 'AZN';
+
+type Country = {
+  name: string;
+  code: string;
+  flag: string;
+  image: string;
+};
 
 const services: {
   id: Service;
@@ -112,87 +115,306 @@ const journeys: {
   },
 ];
 
-const countries = [
+const countries: Country[] = [
   {
     name: 'Germany',
     code: 'DE',
-    description: 'Work, study and relocation',
+    flag: 'https://flagcdn.com/w80/de.png',
+    image:
+      'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1200&q=80',
   },
   {
     name: 'Italy',
     code: 'IT',
-    description: 'Study, work and lifestyle',
+    flag: 'https://flagcdn.com/w80/it.png',
+    image:
+      'https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=1200&q=80',
   },
   {
     name: 'United Kingdom',
     code: 'GB',
-    description: 'Work, study and family',
+    flag: 'https://flagcdn.com/w80/gb.png',
+    image:
+      'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=1200&q=80',
   },
   {
     name: 'Canada',
     code: 'CA',
-    description: 'Immigration and study',
+    flag: 'https://flagcdn.com/w80/ca.png',
+    image:
+      'https://images.unsplash.com/photo-1517935706615-2717063c2225?auto=format&fit=crop&w=1200&q=80',
   },
   {
     name: 'Australia',
     code: 'AU',
-    description: 'Work and study pathways',
+    flag: 'https://flagcdn.com/w80/au.png',
+    image:
+      'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?auto=format&fit=crop&w=1200&q=80',
   },
   {
     name: 'Switzerland',
     code: 'CH',
-    description: 'Work and relocation',
+    flag: 'https://flagcdn.com/w80/ch.png',
+    image:
+      'https://images.unsplash.com/photo-1527668752968-14dc70a27c95?auto=format&fit=crop&w=1200&q=80',
   },
   {
     name: 'Netherlands',
     code: 'NL',
-    description: 'Work, study and business',
+    flag: 'https://flagcdn.com/w80/nl.png',
+    image:
+      'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?auto=format&fit=crop&w=1200&q=80',
   },
   {
     name: 'Spain',
     code: 'ES',
-    description: 'Relocation and lifestyle',
+    flag: 'https://flagcdn.com/w80/es.png',
+    image:
+      'https://images.unsplash.com/photo-1507501336603-6e31b3d4d1f8?auto=format&fit=crop&w=1200&q=80',
   },
 ];
 
-const serviceDescriptions: Record<Service, string> = {
-  visa:
-    'Explore visa pathways, eligibility requirements and trusted providers for your move.',
-  flights:
-    'Flight search will be available here. Compare routes, dates and prices in one place.',
-  hotels:
-    'Hotel search will be available here. Find accommodation near your destination.',
-  airbnb:
-    'Airbnb and short stay search will be available here for your arrival and relocation.',
-  experts:
-    'Find immigration lawyers, visa advisors, relocation specialists and other trusted experts.',
+const currencyRates: Record<Currency, number> = {
+  USD: 1,
+  EUR: 0.86,
+  GBP: 0.74,
+  AZN: 1.7,
 };
 
+const currencySymbols: Record<Currency, string> = {
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  AZN: '₼',
+};
+
+const costEstimates: Record<Journey, number> = {
+  work: 2850,
+  study: 4200,
+  vocational: 3100,
+  business: 5200,
+  family: 2400,
+  relocation: 3350,
+};
+
+const requirementsByJourney: Record<Journey, string[]> = {
+  work: [
+    'Valid passport',
+    'Employment contract or job offer',
+    'Proof of qualifications',
+    'Proof of professional experience',
+    'Proof of accommodation',
+    'Health insurance',
+    'Proof of sufficient funds',
+    'Visa application form',
+  ],
+  study: [
+    'Valid passport',
+    'University or school admission letter',
+    'Proof of education',
+    'Proof of sufficient funds',
+    'Health insurance',
+    'Proof of accommodation',
+    'Visa application form',
+    'Academic documents',
+  ],
+  vocational: [
+    'Valid passport',
+    'Vocational training agreement',
+    'Proof of education',
+    'Language certificate',
+    'Proof of accommodation',
+    'Health insurance',
+    'Proof of sufficient funds',
+    'Visa application form',
+  ],
+  business: [
+    'Valid passport',
+    'Business plan',
+    'Proof of business activity',
+    'Proof of sufficient funds',
+    'Business registration documents',
+    'Health insurance',
+    'Proof of accommodation',
+    'Visa application form',
+  ],
+  family: [
+    'Valid passport',
+    'Proof of family relationship',
+    'Sponsor documents',
+    'Proof of accommodation',
+    'Proof of sufficient funds',
+    'Health insurance',
+    'Civil status documents',
+    'Visa application form',
+  ],
+  relocation: [
+    'Valid passport',
+    'Proof of purpose of relocation',
+    'Proof of accommodation',
+    'Proof of sufficient funds',
+    'Health insurance',
+    'Civil status documents',
+    'Background documents',
+    'Visa application form',
+  ],
+};
+
+function getCountry(name: string) {
+  return countries.find((country) => country.name === name);
+}
+
+function CountryFlag({
+  country,
+  size = 'h-5 w-7',
+}: {
+  country: Country;
+  size?: string;
+}) {
+  return (
+    <img
+      src={country.flag}
+      alt={`${country.name} flag`}
+      className={`${size} rounded-sm object-cover shadow-sm`}
+    />
+  );
+}
+
+function SearchCountryButton({
+  label,
+  country,
+  countries: availableCountries,
+  onChange,
+}: {
+  label: string;
+  country: Country;
+  countries: Country[];
+  onChange: (country: Country) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative min-w-0">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex min-h-[82px] w-full items-center gap-3 px-5 text-left transition hover:bg-ink-50"
+      >
+        <CountryFlag country={country} size="h-6 w-9" />
+
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium text-ink-400">
+            {label}
+          </p>
+
+          <p className="mt-1 truncate text-sm font-semibold text-ink-900">
+            {country.name}
+          </p>
+        </div>
+
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-ink-400 transition ${
+            open ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-label="Close country selector"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-30 cursor-default"
+          />
+
+          <div className="absolute left-2 right-2 top-[86px] z-40 max-h-72 overflow-auto border border-ink-200 bg-white p-2 shadow-xl">
+            {availableCountries.map((option) => (
+              <button
+                key={option.code}
+                type="button"
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition hover:bg-ink-50 ${
+                  option.code === country.code
+                    ? 'bg-brand-50'
+                    : ''
+                }`}
+              >
+                <CountryFlag country={option} />
+
+                <span className="text-sm font-medium text-ink-800">
+                  {option.name}
+                </span>
+
+                {option.code === country.code && (
+                  <CheckCircle2 className="ml-auto h-4 w-4 text-brand-600" />
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function LandingHero({ go }: LandingHeroProps) {
-  const [activeService, setActiveService] =
-    useState<Service>('visa');
+  const [fromCountry, setFromCountry] = useState<Country>(
+    countries.find((country) => country.code === 'AZ') ??
+      countries[0]
+  );
+
+  const [toCountry, setToCountry] = useState<Country>(
+    countries.find((country) => country.code === 'DE') ??
+      countries[0]
+  );
 
   const [activeJourney, setActiveJourney] =
     useState<Journey>('work');
 
-  const [activeTool, setActiveTool] =
-    useState<Tool>(null);
+  const [activeService, setActiveService] =
+    useState<Service>('visa');
 
-  const [selectedCountry, setSelectedCountry] =
-    useState<string | null>(null);
+  const [currency, setCurrency] =
+    useState<Currency>('USD');
 
-  const handleServiceChange = (service: Service) => {
-    setActiveService(service);
-    setActiveTool(null);
-  };
+  const [showRequirements, setShowRequirements] =
+    useState(false);
+
+  const [loading, setLoading] = useState(false);
+
+  const requirements = useMemo(
+    () => requirementsByJourney[activeJourney],
+    [activeJourney]
+  );
+
+  const baseCost = costEstimates[activeJourney];
+
+  const convertedCost = Math.round(
+    baseCost * currencyRates[currency]
+  );
+
+  useEffect(() => {
+    setLoading(true);
+
+    const timer = window.setTimeout(() => {
+      setLoading(false);
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [fromCountry.code, toCountry.code, activeJourney]);
 
   const handleJourneyChange = (journey: Journey) => {
     setActiveJourney(journey);
-    setActiveTool(null);
+    setShowRequirements(false);
   };
 
-  const handleSearch = () => {
-    setActiveTool(null);
+  const handleServiceChange = (service: Service) => {
+    setActiveService(service);
+    setShowRequirements(false);
   };
 
   return (
@@ -200,27 +422,30 @@ export function LandingHero({ go }: LandingHeroProps) {
 
       {/* HERO */}
 
-      <section className="relative overflow-hidden bg-brand-700 text-white">
+      <section className="bg-brand-700 text-white">
 
-        <div className="mx-auto max-w-7xl px-5 pb-28 pt-12 sm:px-8 sm:pb-32 sm:pt-16">
+        <div className="mx-auto max-w-7xl px-5 pb-24 pt-10 sm:px-8 sm:pb-28 sm:pt-12">
 
-          {/* SERVICE NAVIGATION */}
+          {/* SERVICES */}
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-2">
 
             {services.map((service) => {
               const Icon = service.icon;
-              const isActive = activeService === service.id;
+              const active =
+                activeService === service.id;
 
               return (
                 <button
                   key={service.id}
                   type="button"
-                  onClick={() => handleServiceChange(service.id)}
+                  onClick={() =>
+                    handleServiceChange(service.id)
+                  }
                   className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
-                    isActive
+                    active
                       ? 'border-white bg-white text-brand-700'
-                      : 'border-white/40 bg-transparent text-white hover:border-white hover:bg-white/10'
+                      : 'border-white/35 text-white hover:border-white hover:bg-white/10'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -231,43 +456,50 @@ export function LandingHero({ go }: LandingHeroProps) {
 
           </div>
 
-          {/* HERO COPY */}
+          {/* HERO CONTENT */}
 
-          <div className="mt-16 max-w-3xl">
+          <div className="mt-14 max-w-4xl">
 
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold">
-              <Sparkles className="h-3.5 w-3.5" />
-              Your journey starts here
-            </div>
+            <p className="text-sm font-medium text-white/70">
+              {activeService === 'visa'
+                ? 'Visa & relocation'
+                : services.find(
+                    (service) =>
+                      service.id === activeService
+                  )?.label}
+            </p>
 
-            <h1 className="mt-6 max-w-3xl text-4xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
+            <h1 className="mt-3 max-w-4xl text-4xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
               Find your path to a new life abroad.
             </h1>
 
-            <p className="mt-6 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
-              Explore visas, flights, accommodation, experts and everything
-              you need to plan your move to another country.
+            <p className="mt-5 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">
+              Choose where you are coming from, where you want
+              to go and what you want to do there.
             </p>
 
           </div>
 
-          {/* JOURNEY TYPES */}
+          {/* JOURNEY */}
 
-          <div className="mt-10 flex flex-wrap gap-2">
+          <div className="mt-9 flex flex-wrap gap-2">
 
             {journeys.map((journey) => {
               const Icon = journey.icon;
-              const isActive = activeJourney === journey.id;
+              const active =
+                activeJourney === journey.id;
 
               return (
                 <button
                   key={journey.id}
                   type="button"
-                  onClick={() => handleJourneyChange(journey.id)}
+                  onClick={() =>
+                    handleJourneyChange(journey.id)
+                  }
                   className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
-                    isActive
+                    active
                       ? 'border-white bg-white/15 text-white'
-                      : 'border-white/25 text-white/75 hover:border-white/50 hover:text-white'
+                      : 'border-white/25 text-white/70 hover:border-white/50 hover:text-white'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -280,232 +512,224 @@ export function LandingHero({ go }: LandingHeroProps) {
 
         </div>
 
-        {/* SEARCH PANEL */}
-
-        <div className="absolute bottom-0 left-1/2 w-full max-w-6xl -translate-x-1/2 translate-y-1/2 px-5 sm:px-8">
-
-          <div className="border border-ink-200 bg-white p-2 shadow-xl">
-
-            <div className="grid lg:grid-cols-[1fr_1fr_1fr_auto]">
-
-              {/* DESTINATION */}
-
-              <button
-                type="button"
-                onClick={() => setSelectedCountry(null)}
-                className="flex min-h-20 items-center gap-3 border-b border-ink-100 px-5 text-left transition hover:bg-ink-50 lg:border-b-0 lg:border-r"
-              >
-                <div className="rounded-lg bg-brand-50 p-2.5">
-                  <Globe2 className="h-5 w-5 text-brand-600" />
-                </div>
-
-                <div>
-                  <p className="text-xs font-medium text-ink-400">
-                    Destination
-                  </p>
-
-                  <p className="mt-1 text-sm font-semibold text-ink-900">
-                    {selectedCountry ?? 'Choose a country'}
-                  </p>
-                </div>
-              </button>
-
-              {/* JOURNEY */}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveService('visa');
-                  setActiveTool(null);
-                }}
-                className="flex min-h-20 items-center gap-3 border-b border-ink-100 px-5 text-left transition hover:bg-ink-50 lg:border-b-0 lg:border-r"
-              >
-                <div className="rounded-lg bg-brand-50 p-2.5">
-                  <Briefcase className="h-5 w-5 text-brand-600" />
-                </div>
-
-                <div>
-                  <p className="text-xs font-medium text-ink-400">
-                    I'm looking to
-                  </p>
-
-                  <p className="mt-1 text-sm font-semibold capitalize text-ink-900">
-                    {activeJourney}
-                  </p>
-                </div>
-              </button>
-
-              {/* SERVICE */}
-
-              <button
-                type="button"
-                onClick={() => setActiveTool(null)}
-                className="flex min-h-20 items-center gap-3 border-b border-ink-100 px-5 text-left transition hover:bg-ink-50 lg:border-b-0 lg:border-r"
-              >
-                <div className="rounded-lg bg-brand-50 p-2.5">
-                  {(() => {
-                    const Icon =
-                      services.find(
-                        (service) => service.id === activeService
-                      )?.icon ?? Globe2;
-
-                    return (
-                      <Icon className="h-5 w-5 text-brand-600" />
-                    );
-                  })()}
-                </div>
-
-                <div>
-                  <p className="text-xs font-medium text-ink-400">
-                    I need
-                  </p>
-
-                  <p className="mt-1 text-sm font-semibold text-ink-900">
-                    {services.find(
-                      (service) => service.id === activeService
-                    )?.label}
-                  </p>
-                </div>
-              </button>
-
-              {/* SEARCH */}
-
-              <button
-                type="button"
-                onClick={handleSearch}
-                className="m-1 flex min-h-16 items-center justify-center gap-2 rounded-lg bg-brand-600 px-7 text-sm font-semibold text-white transition hover:bg-brand-700"
-              >
-                <Search className="h-4 w-4" />
-                Search
-              </button>
-
-            </div>
-
-          </div>
-
-        </div>
-
       </section>
 
-      {/* TOOL BAR */}
+      {/* SEARCH AREA */}
 
-      <section className="border-b border-ink-100 bg-white pt-20">
+      <section className="relative z-10 mx-auto -mt-10 max-w-6xl px-5 sm:px-8">
 
-        <div className="mx-auto max-w-6xl px-5 sm:px-8">
+        <div className="border border-ink-200 bg-white shadow-xl">
 
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* COST AND REQUIREMENTS */}
 
-            <div>
-              <p className="text-sm font-semibold text-ink-900">
-                Plan your move
-              </p>
+          <div className="flex flex-col gap-4 border-b border-ink-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
 
-              <p className="mt-1 text-xs text-ink-400">
-                Useful tools to help you understand the journey.
-              </p>
-            </div>
+            <div className="flex items-center gap-6">
 
-            <div className="flex gap-2">
+              <div>
+                <p className="text-xs font-medium text-ink-400">
+                  Approximate cost
+                </p>
 
-              <button
-                type="button"
-                onClick={() =>
-                  setActiveTool(
-                    activeTool === 'calculator'
-                      ? null
-                      : 'calculator'
+                <div className="mt-1 flex items-center gap-2">
+
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-brand-600" />
+                  ) : (
+                    <Calculator className="h-4 w-4 text-brand-600" />
+                  )}
+
+                  <span className="text-xl font-bold text-ink-950">
+                    {currencySymbols[currency]}
+                    {convertedCost.toLocaleString()}
+                  </span>
+
+                  <span className="text-xs text-ink-400">
+                    estimated
+                  </span>
+
+                </div>
+              </div>
+
+              {/* CURRENCY */}
+
+              <select
+                value={currency}
+                onChange={(event) =>
+                  setCurrency(
+                    event.target.value as Currency
                   )
                 }
-                className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition ${
-                  activeTool === 'calculator'
-                    ? 'border-brand-600 bg-brand-50 text-brand-700'
-                    : 'border-ink-200 text-ink-700 hover:border-brand-300 hover:bg-brand-50'
-                }`}
+                className="h-9 rounded-md border border-ink-200 bg-white px-2 text-xs font-semibold text-ink-700 outline-none focus:border-brand-500"
               >
-                <Calculator className="h-4 w-4" />
-                Cost calculator
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setActiveTool(
-                    activeTool === 'requirements'
-                      ? null
-                      : 'requirements'
-                  )
-                }
-                className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition ${
-                  activeTool === 'requirements'
-                    ? 'border-brand-600 bg-brand-50 text-brand-700'
-                    : 'border-ink-200 text-ink-700 hover:border-brand-300 hover:bg-brand-50'
-                }`}
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                Requirements
-              </button>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="AZN">AZN</option>
+              </select>
 
             </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowRequirements(
+                  (value) => !value
+                )
+              }
+              className={`flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition ${
+                showRequirements
+                  ? 'border-brand-600 bg-brand-50 text-brand-700'
+                  : 'border-ink-200 text-ink-700 hover:border-brand-300 hover:bg-brand-50'
+              }`}
+            >
+              <FileCheck2 className="h-4 w-4" />
+
+              Requirements
+
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1.5 text-[10px] font-bold text-white">
+                {requirements.length}
+              </span>
+
+              <ChevronDown
+                className={`h-4 w-4 transition ${
+                  showRequirements ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
 
           </div>
 
-          {/* TOOL PLACEHOLDER */}
+          {/* COUNTRY PAIR */}
 
-          {activeTool && (
-            <div className="mt-5 border border-brand-100 bg-brand-50/50 p-6">
+          <div className="grid lg:grid-cols-[1fr_1fr_1fr_auto]">
 
-              {activeTool === 'calculator' ? (
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <SearchCountryButton
+              label="I'm from"
+              country={fromCountry}
+              countries={countries}
+              onChange={setFromCountry}
+            />
 
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Calculator className="h-5 w-5 text-brand-600" />
+            <SearchCountryButton
+              label="I want to go to"
+              country={toCountry}
+              countries={countries}
+              onChange={setToCountry}
+            />
 
-                      <h3 className="font-semibold text-ink-900">
-                        Moving cost calculator
-                      </h3>
-                    </div>
+            {/* JOURNEY */}
 
-                    <p className="mt-2 max-w-xl text-sm leading-6 text-ink-500">
-                      Calculator placeholder. This will estimate visa,
-                      application, flight, accommodation and relocation
-                      costs based on your selected destination.
-                    </p>
-                  </div>
+            <div className="border-t border-ink-100 lg:border-l lg:border-t-0">
 
-                  <button
-                    type="button"
-                    className="rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700"
-                  >
-                    Start calculator
-                  </button>
+              <div className="relative">
 
+                <select
+                  value={activeJourney}
+                  onChange={(event) =>
+                    handleJourneyChange(
+                      event.target.value as Journey
+                    )
+                  }
+                  className="min-h-[82px] w-full appearance-none bg-white px-5 pr-10 text-sm font-semibold text-ink-900 outline-none transition hover:bg-ink-50"
+                >
+                  {journeys.map((journey) => (
+                    <option
+                      key={journey.id}
+                      value={journey.id}
+                    >
+                      {journey.label}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2">
+                  <ChevronDown className="h-4 w-4 text-ink-400" />
                 </div>
+
+                <div className="pointer-events-none absolute left-5 top-3 text-xs font-medium text-ink-400">
+                  I'm looking to
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* SEARCH BUTTON */}
+
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+
+                window.setTimeout(() => {
+                  setLoading(false);
+                }, 650);
+              }}
+              className="m-2 flex min-h-[74px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-7 text-sm font-semibold text-white transition hover:bg-brand-700"
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <Search className="h-4 w-4" />
+              )}
 
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-5 w-5 text-brand-600" />
+              Search
+            </button>
 
-                      <h3 className="font-semibold text-ink-900">
-                        Visa requirements
-                      </h3>
-                    </div>
+          </div>
 
-                    <p className="mt-2 max-w-xl text-sm leading-6 text-ink-500">
-                      Requirements placeholder. This area will show
-                      documents, eligibility criteria, application steps
-                      and other requirements for your selected destination.
-                    </p>
+          {/* REQUIREMENTS */}
+
+          {showRequirements && (
+            <div className="border-t border-ink-100 bg-ink-50/50 px-5 py-6 sm:px-6">
+
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+                    {fromCountry.name} → {toCountry.name}
+                  </p>
+
+                  <h2 className="mt-1 text-lg font-bold text-ink-950">
+                    {requirements.length} requirements for{' '}
+                    {activeJourney}
+                  </h2>
+
+                  <p className="mt-1 text-sm text-ink-500">
+                    Approximate requirements based on your
+                    current selections.
+                  </p>
+                </div>
+
+                {loading && (
+                  <div className="flex items-center gap-2 text-xs font-medium text-brand-600">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Updating information
                   </div>
+                )}
 
-                  <button
-                    type="button"
-                    className="rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700"
-                  >
-                    Check requirements
-                  </button>
+              </div>
+
+              {!loading && (
+                <div className="mt-6 grid gap-2 sm:grid-cols-2">
+
+                  {requirements.map(
+                    (requirement, index) => (
+                      <div
+                        key={requirement}
+                        className="flex items-center gap-3 border border-ink-100 bg-white px-4 py-3"
+                      >
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-600">
+                          {index + 1}
+                        </span>
+
+                        <span className="text-sm font-medium text-ink-800">
+                          {requirement}
+                        </span>
+                      </div>
+                    )
+                  )}
 
                 </div>
               )}
@@ -517,240 +741,98 @@ export function LandingHero({ go }: LandingHeroProps) {
 
       </section>
 
-      {/* ACTIVE SERVICE PLACEHOLDER */}
+      {/* COUNTRIES */}
 
-      <section className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
+      <section className="mx-auto max-w-6xl px-5 pb-16 pt-16 sm:px-8">
 
-        <div className="border border-ink-100 bg-white p-6 shadow-soft-lg sm:p-8">
+        <div className="flex items-end justify-between gap-4">
 
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+              Destinations
+            </p>
 
-            <div className="flex items-start gap-4">
-
-              <div className="rounded-xl bg-brand-50 p-3">
-                <ShieldCheck className="h-6 w-6 text-brand-600" />
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-                  {services.find(
-                    (service) => service.id === activeService
-                  )?.label}
-                </p>
-
-                <h2 className="mt-1 text-xl font-bold text-ink-900">
-                  {serviceDescriptions[activeService]}
-                </h2>
-
-                <p className="mt-2 text-sm leading-6 text-ink-500">
-                  This feature is currently a placeholder and will become
-                  a full searchable experience.
-                </p>
-              </div>
-
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setActiveTool('requirements')}
-              className="flex shrink-0 items-center justify-center gap-2 rounded-lg border border-ink-200 px-5 py-3 text-sm font-semibold text-ink-800 transition hover:border-brand-300 hover:bg-brand-50"
-            >
-              Explore
-              <ArrowRight className="h-4 w-4" />
-            </button>
-
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">
+              Choose your destination
+            </h2>
           </div>
+
+          <button
+            type="button"
+            onClick={() => go('explore')}
+            className="hidden items-center gap-2 text-sm font-semibold text-brand-600 hover:text-brand-700 sm:flex"
+          >
+            View all
+            <ArrowRight className="h-4 w-4" />
+          </button>
 
         </div>
 
-      </section>
+        <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
 
-      {/* COUNTRIES */}
+          {countries.map((country) => {
+            const selected =
+              toCountry.code === country.code;
 
-      <section className="border-t border-ink-100 bg-ink-50/40">
+            return (
+              <button
+                key={country.code}
+                type="button"
+                onClick={() => {
+                  setToCountry(country);
+                  setShowRequirements(false);
 
-        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8">
+                  window.scrollTo({
+                    top: 0,
+                    behavior: 'smooth',
+                  });
+                }}
+                className={`group relative h-40 overflow-hidden text-left transition sm:h-48 ${
+                  selected
+                    ? 'ring-2 ring-brand-600 ring-offset-2'
+                    : ''
+                }`}
+              >
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                {/* BACKGROUND IMAGE */}
 
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-                Explore destinations
-              </p>
+                <img
+                  src={country.image}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                />
 
-              <h2 className="mt-2 text-3xl font-bold tracking-tight text-ink-950">
-                Where do you want to go?
-              </h2>
+                {/* GRADIENT */}
 
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-500">
-                Choose a destination to explore available pathways,
-                services and opportunities.
-              </p>
-            </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-black/5" />
 
-            <button
-              type="button"
-              onClick={() => setActiveService('visa')}
-              className="flex items-center gap-2 text-sm font-semibold text-brand-600 hover:text-brand-700"
-            >
-              View all countries
-              <ArrowRight className="h-4 w-4" />
-            </button>
+                {/* COUNTRY CONTENT */}
 
-          </div>
+                <div className="absolute inset-x-0 bottom-0 p-4">
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="flex items-center gap-2">
 
-            {countries.map((country) => {
-              const isSelected =
-                selectedCountry === country.name;
-
-              return (
-                <button
-                  key={country.code}
-                  type="button"
-                  onClick={() =>
-                    setSelectedCountry(country.name)
-                  }
-                  className={`group border bg-white p-5 text-left transition ${
-                    isSelected
-                      ? 'border-brand-500 shadow-md'
-                      : 'border-ink-100 hover:border-brand-300 hover:shadow-sm'
-                  }`}
-                >
-
-                  <div className="flex items-start justify-between">
-
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-xs font-bold text-brand-600">
-                      {country.code}
-                    </div>
-
-                    <ArrowRight
-                      className={`h-4 w-4 transition ${
-                        isSelected
-                          ? 'text-brand-600'
-                          : 'text-ink-300 group-hover:text-brand-600'
-                      }`}
+                    <CountryFlag
+                      country={country}
+                      size="h-5 w-7"
                     />
+
+                    <span className="text-sm font-bold text-white">
+                      {country.name}
+                    </span>
 
                   </div>
 
-                  <h3 className="mt-5 font-semibold text-ink-900">
-                    {country.name}
-                  </h3>
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-white/70">
+                    Explore pathways
+                    <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+                  </div>
 
-                  <p className="mt-1 text-xs leading-5 text-ink-500">
-                    {country.description}
-                  </p>
+                </div>
 
-                </button>
-              );
-            })}
-
-          </div>
-
-        </div>
-
-      </section>
-
-      {/* FEATURES */}
-
-      <section className="mx-auto max-w-6xl px-5 py-16 sm:px-8">
-
-        <div className="grid gap-4 sm:grid-cols-3">
-
-          <button
-            type="button"
-            onClick={() => setActiveService('visa')}
-            className="border border-ink-100 bg-white p-6 text-left transition hover:border-brand-200 hover:shadow-sm"
-          >
-            <div className="rounded-lg bg-brand-50 p-2.5 w-fit">
-              <Globe2 className="h-5 w-5 text-brand-600" />
-            </div>
-
-            <h3 className="mt-5 font-semibold text-ink-900">
-              Explore pathways
-            </h3>
-
-            <p className="mt-2 text-sm leading-6 text-ink-500">
-              Discover different ways to work, study, relocate or build a
-              life abroad.
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveService('experts')}
-            className="border border-ink-100 bg-white p-6 text-left transition hover:border-brand-200 hover:shadow-sm"
-          >
-            <div className="rounded-lg bg-brand-50 p-2.5 w-fit">
-              <BadgeCheck className="h-5 w-5 text-brand-600" />
-            </div>
-
-            <h3 className="mt-5 font-semibold text-ink-900">
-              Find trusted providers
-            </h3>
-
-            <p className="mt-2 text-sm leading-6 text-ink-500">
-              Compare agencies, lawyers, advisors and relocation experts.
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTool('calculator')}
-            className="border border-ink-100 bg-white p-6 text-left transition hover:border-brand-200 hover:shadow-sm"
-          >
-            <div className="rounded-lg bg-brand-50 p-2.5 w-fit">
-              <Calculator className="h-5 w-5 text-brand-600" />
-            </div>
-
-            <h3 className="mt-5 font-semibold text-ink-900">
-              Understand the cost
-            </h3>
-
-            <p className="mt-2 text-sm leading-6 text-ink-500">
-              Estimate the cost of visas, travel, accommodation and moving.
-            </p>
-          </button>
-
-        </div>
-
-      </section>
-
-      {/* FINAL CTA */}
-
-      <section className="border-t border-ink-100 bg-white">
-
-        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8">
-
-          <div className="flex flex-col gap-6 border border-brand-100 bg-brand-50 p-8 sm:flex-row sm:items-center sm:justify-between">
-
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-                MadeVisa
-              </p>
-
-              <h2 className="mt-2 text-2xl font-bold text-ink-950">
-                Everything for your move, in one place.
-              </h2>
-
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-500">
-                From discovering a pathway to finding accommodation and
-                trusted experts, build your journey step by step.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setActiveService('visa')}
-              className="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-700"
-            >
-              Start exploring
-              <ArrowRight className="h-4 w-4" />
-            </button>
-
-          </div>
+              </button>
+            );
+          })}
 
         </div>
 
