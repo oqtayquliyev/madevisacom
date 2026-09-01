@@ -45,7 +45,7 @@ export function LandingHero({ go }: LandingHeroProps) {
 
           <div className="inline-flex items-center gap-2 rounded-full border border-brand-100 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700">
             <Sparkles className="h-3.5 w-3.5" />
-            Your journey starts here
+            Your j starts here
           </div>
 
           <h1 className="mt-6 text-4xl font-bold tracking-[-0.04em] text-ink-950 sm:text-6xl lg:text-7xl">
