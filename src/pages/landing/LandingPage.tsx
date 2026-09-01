@@ -5,6 +5,7 @@ import {
   Building2,
   CheckCircle2,
   ChevronDown,
+  Globe,
   GraduationCap,
   Heart,
   Home,
@@ -70,7 +71,7 @@ const services: {
   {
     id: 'visa',
     label: 'Visa & pathways',
-    icon: GlobeIcon,
+    icon: Globe,
   },
   {
     id: 'flights',
