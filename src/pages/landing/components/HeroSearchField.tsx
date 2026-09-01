@@ -65,7 +65,7 @@ export function LandingHero({ go }: LandingHeroProps) {
 
           <div className="mb-4 text-center">
             <p className="text-sm font-semibold text-ink-700">
-              Tell us where you want to go
+              Tell where you want to go
             </p>
             <p className="mt-1 text-xs text-ink-400">
               We'll show you the options available for your journey.
