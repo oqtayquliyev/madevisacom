@@ -3,14 +3,11 @@ import {
   ArrowRight,
   Briefcase,
   Building2,
-  Calculator,
-  CalendarDays,
   CheckCircle2,
   ChevronDown,
   GraduationCap,
   Heart,
   Home,
-  Info,
   Loader2,
   Plane,
   Search,
@@ -23,22 +20,13 @@ type LandingHeroProps = {
   go: (view: View) => void;
 };
 
-type Service =
-  | 'visa'
-  | 'flights'
-  | 'hotels'
-  | 'airbnb'
-  | 'experts';
-
 type Journey =
   | 'work'
   | 'study'
-  | 'vocational'
+  | 'programs'
   | 'business'
   | 'family'
   | 'relocation';
-
-type Currency = 'USD' | 'EUR' | 'GBP' | 'AZN';
 
 type ResultTab =
   | 'best'
@@ -53,45 +41,20 @@ type Country = {
   image: string;
 };
 
-type ResultItem = {
-  title: string;
-  subtitle: string;
-  description: string;
-  price: string;
-  tag: string;
+type Question = {
+  id: string;
+  label: string;
+  placeholder: string;
+  options?: string[];
+  type?: 'select' | 'text' | 'number';
 };
 
-const services: {
-  id: Service;
-  label: string;
-  icon: typeof Plane;
-}[] = [
-  {
-    id: 'visa',
-    label: 'Visa & pathways',
-    icon: GlobeIcon,
-  },
-  {
-    id: 'flights',
-    label: 'Flights',
-    icon: Plane,
-  },
-  {
-    id: 'hotels',
-    label: 'Hotels',
-    icon: Building2,
-  },
-  {
-    id: 'airbnb',
-    label: 'Airbnbs',
-    icon: Home,
-  },
-  {
-    id: 'experts',
-    label: 'Experts',
-    icon: Users,
-  },
-];
+type ResultCounts = {
+  best: number;
+  cheapest: number;
+  suggested: number;
+  sponsored: number;
+};
 
 const journeys: {
   id: Journey;
@@ -109,8 +72,8 @@ const journeys: {
     icon: GraduationCap,
   },
   {
-    id: 'vocational',
-    label: 'Vocational training',
+    id: 'programs',
+    label: 'Programs',
     icon: Building2,
   },
   {
@@ -132,11 +95,11 @@ const journeys: {
 
 const countries: Country[] = [
   {
-    name: 'Azerbaijan',
-    code: 'AZ',
-    flag: 'https://flagcdn.com/w80/az.png',
+    name: 'Canada',
+    code: 'CA',
+    flag: 'https://flagcdn.com/w80/ca.png',
     image:
-      'https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1517935706615-2717063c2225?auto=format&fit=crop&w=1200&q=80',
   },
   {
     name: 'Germany',
@@ -146,11 +109,11 @@ const countries: Country[] = [
       'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1200&q=80',
   },
   {
-    name: 'Italy',
-    code: 'IT',
-    flag: 'https://flagcdn.com/w80/it.png',
+    name: 'United States',
+    code: 'US',
+    flag: 'https://flagcdn.com/w80/us.png',
     image:
-      'https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1485871981521-5b1fd3805eee?auto=format&fit=crop&w=1200&q=80',
   },
   {
     name: 'United Kingdom',
@@ -160,25 +123,11 @@ const countries: Country[] = [
       'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=1200&q=80',
   },
   {
-    name: 'Canada',
-    code: 'CA',
-    flag: 'https://flagcdn.com/w80/ca.png',
-    image:
-      'https://images.unsplash.com/photo-1517935706615-2717063c2225?auto=format&fit=crop&w=1200&q=80',
-  },
-  {
     name: 'Australia',
     code: 'AU',
     flag: 'https://flagcdn.com/w80/au.png',
     image:
       'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?auto=format&fit=crop&w=1200&q=80',
-  },
-  {
-    name: 'Switzerland',
-    code: 'CH',
-    flag: 'https://flagcdn.com/w80/ch.png',
-    image:
-      'https://images.unsplash.com/photo-1527668752968-14dc70a27c95?auto=format&fit=crop&w=1200&q=80',
   },
   {
     name: 'Netherlands',
@@ -188,611 +137,353 @@ const countries: Country[] = [
       'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?auto=format&fit=crop&w=1200&q=80',
   },
   {
-    name: 'Spain',
-    code: 'ES',
-    flag: 'https://flagcdn.com/w80/es.png',
+    name: 'Switzerland',
+    code: 'CH',
+    flag: 'https://flagcdn.com/w80/ch.png',
     image:
-      'https://images.unsplash.com/photo-1507501336603-6e31b3d4d1f8?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1527668752968-14dc70a27c95?auto=format&fit=crop&w=1200&q=80',
+  },
+  {
+    name: 'France',
+    code: 'FR',
+    flag: 'https://flagcdn.com/w80/fr.png',
+    image:
+      'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=80',
+  },
+  {
+    name: 'Ireland',
+    code: 'IE',
+    flag: 'https://flagcdn.com/w80/ie.png',
+    image:
+      'https://images.unsplash.com/photo-1590089415225-401ed6f9db8e?auto=format&fit=crop&w=1200&q=80',
+  },
+  {
+    name: 'New Zealand',
+    code: 'NZ',
+    flag: 'https://flagcdn.com/w80/nz.png',
+    image:
+      'https://images.unsplash.com/photo-1469521669194-babb45599def?auto=format&fit=crop&w=1200&q=80',
   },
 ];
 
-const currencyRates: Record<Currency, number> = {
-  USD: 1,
-  EUR: 0.86,
-  GBP: 0.74,
-  AZN: 1.7,
-};
-
-const currencySymbols: Record<Currency, string> = {
-  USD: '$',
-  EUR: '€',
-  GBP: '£',
-  AZN: '₼',
-};
-
-const journeyCosts: Record<
-  Journey,
-  {
-    total: number;
-    visa: number;
-    accommodation: number;
-    documents: number;
-    insurance: number;
-    other: number;
-  }
-> = {
-  work: {
-    total: 2850,
-    visa: 300,
-    accommodation: 850,
-    documents: 300,
-    insurance: 250,
-    other: 1150,
-  },
-  study: {
-    total: 4200,
-    visa: 150,
-    accommodation: 1500,
-    documents: 450,
-    insurance: 300,
-    other: 1800,
-  },
-  vocational: {
-    total: 3100,
-    visa: 250,
-    accommodation: 900,
-    documents: 350,
-    insurance: 250,
-    other: 1350,
-  },
-  business: {
-    total: 5200,
-    visa: 400,
-    accommodation: 1000,
-    documents: 600,
-    insurance: 300,
-    other: 2900,
-  },
-  family: {
-    total: 2400,
-    visa: 200,
-    accommodation: 750,
-    documents: 350,
-    insurance: 250,
-    other: 850,
-  },
-  relocation: {
-    total: 3350,
-    visa: 300,
-    accommodation: 1000,
-    documents: 400,
-    insurance: 250,
-    other: 1400,
-  },
-};
-
-const flightPrices: Record<string, number> = {
-  DE: 320,
-  IT: 285,
-  GB: 390,
-  CA: 640,
-  AU: 920,
-  CH: 350,
-  NL: 360,
-  ES: 330,
-};
-
-const requirementsByJourney: Record<Journey, string[]> = {
+const journeyQuestions: Record<Journey, Question[]> = {
   work: [
-    'Valid passport',
-    'Employment contract or job offer',
-    'Proof of qualifications',
-    'Proof of professional experience',
-    'Proof of accommodation',
-    'Health insurance',
-    'Proof of sufficient funds',
-    'Visa application form',
+    {
+      id: 'specialization',
+      label: 'Specialization',
+      placeholder: 'Select your field',
+      options: [
+        'Technology',
+        'Engineering',
+        'Healthcare',
+        'Finance',
+        'Design',
+        'Marketing',
+        'Education',
+        'Skilled trades',
+        'Other',
+      ],
+    },
+    {
+      id: 'experience',
+      label: 'Experience',
+      placeholder: 'Select experience',
+      options: [
+        'No experience',
+        '1 to 2 years',
+        '3 to 5 years',
+        '6 to 10 years',
+        '10+ years',
+      ],
+    },
+    {
+      id: 'education',
+      label: 'Education',
+      placeholder: 'Select education',
+      options: [
+        'High school',
+        'College',
+        'Bachelor',
+        'Master',
+        'Doctorate',
+      ],
+    },
+    {
+      id: 'salary',
+      label: 'Salary expectation',
+      placeholder: 'Optional',
+      type: 'number',
+    },
   ],
+
   study: [
-    'Valid passport',
-    'University or school admission',
-    'Proof of education',
-    'Proof of sufficient funds',
-    'Health insurance',
-    'Proof of accommodation',
-    'Visa application form',
-    'Academic documents',
+    {
+      id: 'field',
+      label: 'Field of study',
+      placeholder: 'Select a field',
+      options: [
+        'Business',
+        'Computer Science',
+        'Engineering',
+        'Healthcare',
+        'Design',
+        'Arts',
+        'Social Sciences',
+        'Other',
+      ],
+    },
+    {
+      id: 'level',
+      label: 'Study level',
+      placeholder: 'Select level',
+      options: [
+        'College',
+        'Bachelor',
+        'Master',
+        'Doctorate',
+      ],
+    },
+    {
+      id: 'budget',
+      label: 'Annual budget',
+      placeholder: 'Select budget',
+      options: [
+        'Under $10,000',
+        '$10,000 to $20,000',
+        '$20,000 to $40,000',
+        '$40,000+',
+      ],
+    },
+    {
+      id: 'intake',
+      label: 'Preferred intake',
+      placeholder: 'Select intake',
+      options: [
+        'January',
+        'May',
+        'September',
+        'Flexible',
+      ],
+    },
   ],
-  vocational: [
-    'Valid passport',
-    'Vocational training agreement',
-    'Proof of education',
-    'Language certificate',
-    'Proof of accommodation',
-    'Health insurance',
-    'Proof of sufficient funds',
-    'Visa application form',
+
+  programs: [
+    {
+      id: 'programType',
+      label: 'Program type',
+      placeholder: 'Select program',
+      options: [
+        'Professional training',
+        'Exchange program',
+        'Certificate',
+        'Apprenticeship',
+        'Short course',
+        'Language program',
+      ],
+    },
+    {
+      id: 'field',
+      label: 'Field or interest',
+      placeholder: 'Select a field',
+      options: [
+        'Technology',
+        'Business',
+        'Healthcare',
+        'Engineering',
+        'Design',
+        'Hospitality',
+        'Other',
+      ],
+    },
+    {
+      id: 'duration',
+      label: 'Duration',
+      placeholder: 'Select duration',
+      options: [
+        'Under 3 months',
+        '3 to 6 months',
+        '6 to 12 months',
+        '1+ year',
+      ],
+    },
+    {
+      id: 'budget',
+      label: 'Budget',
+      placeholder: 'Select budget',
+      options: [
+        'Under $5,000',
+        '$5,000 to $10,000',
+        '$10,000 to $20,000',
+        '$20,000+',
+      ],
+    },
   ],
+
   business: [
-    'Valid passport',
-    'Business plan',
-    'Proof of business activity',
-    'Proof of sufficient funds',
-    'Business registration documents',
-    'Health insurance',
-    'Proof of accommodation',
-    'Visa application form',
+    {
+      id: 'businessType',
+      label: 'Business type',
+      placeholder: 'Select business type',
+      options: [
+        'Startup',
+        'Existing business',
+        'Freelance',
+        'Investor',
+        'Entrepreneur',
+      ],
+    },
+    {
+      id: 'investment',
+      label: 'Investment budget',
+      placeholder: 'Select budget',
+      options: [
+        'Under $25,000',
+        '$25,000 to $100,000',
+        '$100,000 to $250,000',
+        '$250,000+',
+      ],
+    },
+    {
+      id: 'businessStatus',
+      label: 'Current situation',
+      placeholder: 'Select one',
+      options: [
+        'Starting a business',
+        'Already operating',
+        'Expanding abroad',
+        'Looking to invest',
+      ],
+    },
   ],
+
   family: [
-    'Valid passport',
-    'Proof of family relationship',
-    'Sponsor documents',
-    'Proof of accommodation',
-    'Proof of sufficient funds',
-    'Health insurance',
-    'Civil status documents',
-    'Visa application form',
+    {
+      id: 'familySize',
+      label: 'Family members',
+      placeholder: 'How many people?',
+      options: [
+        '1 person',
+        '2 people',
+        '3 people',
+        '4 people',
+        '5+ people',
+      ],
+    },
+    {
+      id: 'relationship',
+      label: 'Relationship',
+      placeholder: 'Select relationship',
+      options: [
+        'Spouse',
+        'Partner',
+        'Children',
+        'Parents',
+        'Other family',
+      ],
+    },
+    {
+      id: 'movingTogether',
+      label: 'Moving together?',
+      placeholder: 'Select one',
+      options: [
+        'Yes, everyone',
+        'Some family members',
+        'Not yet',
+      ],
+    },
   ],
+
   relocation: [
-    'Valid passport',
-    'Proof of relocation purpose',
-    'Proof of accommodation',
-    'Proof of sufficient funds',
-    'Health insurance',
-    'Civil status documents',
-    'Background documents',
-    'Visa application form',
+    {
+      id: 'reason',
+      label: 'Main reason',
+      placeholder: 'Select your reason',
+      options: [
+        'Better career',
+        'Quality of life',
+        'Family',
+        'Long term move',
+        'Lifestyle',
+        'Other',
+      ],
+    },
+    {
+      id: 'budget',
+      label: 'Moving budget',
+      placeholder: 'Select budget',
+      options: [
+        'Under $5,000',
+        '$5,000 to $10,000',
+        '$10,000 to $20,000',
+        '$20,000+',
+      ],
+    },
+    {
+      id: 'employment',
+      label: 'Employment status',
+      placeholder: 'Select status',
+      options: [
+        'Employed',
+        'Self employed',
+        'Looking for work',
+        'Student',
+        'Not currently working',
+      ],
+    },
   ],
 };
 
-const resultData: Record<
-  Journey,
-  Record<ResultTab, ResultItem[]>
-> = {
+const resultCounts: Record<Journey, ResultCounts> = {
   work: {
-    best: [
-      {
-        title: 'Sponsored job opportunity',
-        subtitle: 'Software Engineer · Berlin',
-        description:
-          'Placeholder for a verified job with potential visa sponsorship.',
-        price: '€58k+ / year',
-        tag: 'Best match',
-      },
-      {
-        title: 'Skilled worker opportunity',
-        subtitle: 'Engineering · Munich',
-        description:
-          'Placeholder sponsored employment opportunity.',
-        price: '€54k+ / year',
-        tag: 'Recommended',
-      },
-    ],
-    cheapest: [
-      {
-        title: 'Entry level sponsored role',
-        subtitle: 'Operations · Germany',
-        description:
-          'Placeholder for a lower cost pathway into employment.',
-        price: '€42k+ / year',
-        tag: 'Lower cost',
-      },
-      {
-        title: 'Junior specialist role',
-        subtitle: 'Technology · Hamburg',
-        description:
-          'Placeholder employment listing.',
-        price: '€40k+ / year',
-        tag: 'Budget',
-      },
-    ],
-    suggested: [
-      {
-        title: 'EU Blue Card pathway',
-        subtitle: 'Germany',
-        description:
-          'Placeholder pathway matched to your profile.',
-        price: 'From €300',
-        tag: 'Suggested',
-      },
-      {
-        title: 'Skilled worker pathway',
-        subtitle: 'Germany',
-        description:
-          'Placeholder immigration pathway.',
-        price: 'From €250',
-        tag: 'Suggested',
-      },
-    ],
-    sponsored: [
-      {
-        title: 'Sponsored Software Engineer',
-        subtitle: 'Berlin · Full time',
-        description:
-          'Placeholder sponsored job from a verified employer.',
-        price: '€60k+ / year',
-        tag: 'Sponsored',
-      },
-      {
-        title: 'Sponsored Product Designer',
-        subtitle: 'Munich · Full time',
-        description:
-          'Placeholder sponsored opportunity.',
-        price: '€55k+ / year',
-        tag: 'Sponsored',
-      },
-    ],
+    best: 3,
+    cheapest: 1,
+    suggested: 4,
+    sponsored: 4,
   },
-
   study: {
-    best: [
-      {
-        title: 'Top university option',
-        subtitle: 'Business & Management',
-        description:
-          'Placeholder university matched to your destination.',
-        price: 'From €8,500 / year',
-        tag: 'Best match',
-      },
-      {
-        title: 'International study program',
-        subtitle: 'Computer Science',
-        description:
-          'Placeholder study opportunity.',
-        price: 'From €9,200 / year',
-        tag: 'Recommended',
-      },
-    ],
-    cheapest: [
-      {
-        title: 'Affordable university program',
-        subtitle: 'Germany',
-        description:
-          'Placeholder lower cost study option.',
-        price: 'From €2,500 / year',
-        tag: 'Lower cost',
-      },
-      {
-        title: 'Public university pathway',
-        subtitle: 'Multiple cities',
-        description:
-          'Placeholder affordable education option.',
-        price: 'From €1,800 / year',
-        tag: 'Budget',
-      },
-    ],
-    suggested: [
-      {
-        title: 'University application pathway',
-        subtitle: 'Germany',
-        description:
-          'Placeholder service for finding suitable programs.',
-        price: 'From €150',
-        tag: 'Suggested',
-      },
-      {
-        title: 'Student visa pathway',
-        subtitle: 'Germany',
-        description:
-          'Placeholder student immigration pathway.',
-        price: 'From €150',
-        tag: 'Suggested',
-      },
-    ],
-    sponsored: [
-      {
-        title: 'Scholarship opportunity',
-        subtitle: 'International students',
-        description:
-          'Placeholder scholarship listing.',
-        price: 'Up to €5,000',
-        tag: 'Sponsored',
-      },
-      {
-        title: 'Partner university',
-        subtitle: 'Study program',
-        description:
-          'Placeholder promoted education provider.',
-        price: 'View program',
-        tag: 'Sponsored',
-      },
-    ],
+    best: 3,
+    cheapest: 2,
+    suggested: 5,
+    sponsored: 3,
   },
-
-  vocational: {
-    best: [
-      {
-        title: 'Vocational training program',
-        subtitle: 'Germany',
-        description:
-          'Placeholder Ausbildung opportunity.',
-        price: 'Paid training',
-        tag: 'Best match',
-      },
-      {
-        title: 'Technical training',
-        subtitle: 'Munich',
-        description:
-          'Placeholder vocational program.',
-        price: 'Paid training',
-        tag: 'Recommended',
-      },
-    ],
-    cheapest: [
-      {
-        title: 'Low cost vocational pathway',
-        subtitle: 'Germany',
-        description:
-          'Placeholder affordable training route.',
-        price: 'From €300',
-        tag: 'Lower cost',
-      },
-      {
-        title: 'Employer training program',
-        subtitle: 'Multiple cities',
-        description:
-          'Placeholder employer sponsored training.',
-        price: 'Potentially free',
-        tag: 'Budget',
-      },
-    ],
-    suggested: [
-      {
-        title: 'Ausbildung pathway',
-        subtitle: 'Germany',
-        description:
-          'Placeholder pathway matching service.',
-        price: 'From €200',
-        tag: 'Suggested',
-      },
-      {
-        title: 'Language + training pathway',
-        subtitle: 'Germany',
-        description:
-          'Placeholder combined pathway.',
-        price: 'From €800',
-        tag: 'Suggested',
-      },
-    ],
-    sponsored: [
-      {
-        title: 'Sponsored Ausbildung',
-        subtitle: 'German employer',
-        description:
-          'Placeholder employer sponsored training.',
-        price: 'Salary included',
-        tag: 'Sponsored',
-      },
-    ],
+  programs: {
+    best: 4,
+    cheapest: 2,
+    suggested: 4,
+    sponsored: 2,
   },
-
   business: {
-    best: [
-      {
-        title: 'Business relocation pathway',
-        subtitle: 'Germany',
-        description:
-          'Placeholder business immigration route.',
-        price: 'From €400',
-        tag: 'Best match',
-      },
-      {
-        title: 'Entrepreneur pathway',
-        subtitle: 'Berlin',
-        description:
-          'Placeholder business establishment option.',
-        price: 'From €2,000',
-        tag: 'Recommended',
-      },
-    ],
-    cheapest: [
-      {
-        title: 'Freelancer pathway',
-        subtitle: 'Germany',
-        description:
-          'Placeholder self employment route.',
-        price: 'From €300',
-        tag: 'Lower cost',
-      },
-      {
-        title: 'Small business route',
-        subtitle: 'Germany',
-        description:
-          'Placeholder lower investment pathway.',
-        price: 'From €1,000',
-        tag: 'Budget',
-      },
-    ],
-    suggested: [
-      {
-        title: 'Business visa pathway',
-        subtitle: 'Germany',
-        description:
-          'Placeholder business visa route.',
-        price: 'From €400',
-        tag: 'Suggested',
-      },
-      {
-        title: 'Company formation',
-        subtitle: 'Germany',
-        description:
-          'Placeholder company setup service.',
-        price: 'From €1,500',
-        tag: 'Suggested',
-      },
-    ],
-    sponsored: [
-      {
-        title: 'Business relocation provider',
-        subtitle: 'Berlin',
-        description:
-          'Placeholder promoted business provider.',
-        price: 'View provider',
-        tag: 'Sponsored',
-      },
-    ],
+    best: 2,
+    cheapest: 1,
+    suggested: 3,
+    sponsored: 3,
   },
-
   family: {
-    best: [
-      {
-        title: 'Family reunification',
-        subtitle: 'Germany',
-        description:
-          'Placeholder family reunification pathway.',
-        price: 'From €200',
-        tag: 'Best match',
-      },
-      {
-        title: 'Family residence pathway',
-        subtitle: 'Germany',
-        description:
-          'Placeholder family residence route.',
-        price: 'From €250',
-        tag: 'Recommended',
-      },
-    ],
-    cheapest: [
-      {
-        title: 'Family visa pathway',
-        subtitle: 'Germany',
-        description:
-          'Placeholder lower cost family pathway.',
-        price: 'From €200',
-        tag: 'Lower cost',
-      },
-    ],
-    suggested: [
-      {
-        title: 'Family immigration support',
-        subtitle: 'Germany',
-        description:
-          'Placeholder professional assistance.',
-        price: 'From €300',
-        tag: 'Suggested',
-      },
-      {
-        title: 'Document preparation',
-        subtitle: 'Germany',
-        description:
-          'Placeholder document service.',
-        price: 'From €100',
-        tag: 'Suggested',
-      },
-    ],
-    sponsored: [
-      {
-        title: 'Family relocation specialist',
-        subtitle: 'Germany',
-        description:
-          'Placeholder promoted immigration provider.',
-        price: 'View provider',
-        tag: 'Sponsored',
-      },
-    ],
+    best: 3,
+    cheapest: 1,
+    suggested: 3,
+    sponsored: 2,
   },
-
   relocation: {
-    best: [
-      {
-        title: 'Full relocation package',
-        subtitle: 'Germany',
-        description:
-          'Placeholder complete relocation service.',
-        price: 'From €1,500',
-        tag: 'Best match',
-      },
-      {
-        title: 'Relocation support',
-        subtitle: 'Berlin',
-        description:
-          'Placeholder relocation provider.',
-        price: 'From €900',
-        tag: 'Recommended',
-      },
-    ],
-    cheapest: [
-      {
-        title: 'DIY relocation package',
-        subtitle: 'Germany',
-        description:
-          'Placeholder self service relocation option.',
-        price: 'From €250',
-        tag: 'Lower cost',
-      },
-      {
-        title: 'Essential relocation support',
-        subtitle: 'Germany',
-        description:
-          'Placeholder basic package.',
-        price: 'From €500',
-        tag: 'Budget',
-      },
-    ],
-    suggested: [
-      {
-        title: 'Relocation consultant',
-        subtitle: 'Germany',
-        description:
-          'Placeholder professional relocation service.',
-        price: 'From €150',
-        tag: 'Suggested',
-      },
-      {
-        title: 'Housing + registration',
-        subtitle: 'Germany',
-        description:
-          'Placeholder arrival support.',
-        price: 'From €400',
-        tag: 'Suggested',
-      },
-    ],
-    sponsored: [
-      {
-        title: 'Premium relocation provider',
-        subtitle: 'Germany',
-        description:
-          'Placeholder promoted relocation company.',
-        price: 'View provider',
-        tag: 'Sponsored',
-      },
-    ],
+    best: 3,
+    cheapest: 1,
+    suggested: 4,
+    sponsored: 3,
   },
 };
 
-function GlobeIcon({
-  className,
-}: {
-  className?: string;
-}) {
-  return (
-    <Globe2Icon className={className} />
-  );
-}
+const journeyDescriptions: Record<Journey, string> = {
+  work: 'Find jobs and immigration pathways that fit your profile.',
+  study: 'Find study options that fit your goals and budget.',
+  programs: 'Find programs and training opportunities abroad.',
+  business: 'Find business and investment pathways abroad.',
+  family: 'Find pathways for moving with your family.',
+  relocation: 'Find realistic options for your move abroad.',
+};
 
-function Globe2Icon({
-  className,
-}: {
-  className?: string;
-}) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M2 12h20" />
-      <path d="M12 2a15.3 15.3 0 0 1 0 20" />
-      <path d="M12 2a15.3 15.3 0 0 0 0 20" />
-    </svg>
-  );
-}
+const destinationCountries = countries.filter(
+  (country) => country.code !== 'CA'
+);
 
 function CountryFlag({
   country,
@@ -815,11 +506,13 @@ function CountrySelector({
   country,
   onChange,
   availableCountries,
+  disabled,
 }: {
   label: string;
   country: Country;
   onChange: (country: Country) => void;
   availableCountries: Country[];
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -827,8 +520,13 @@ function CountrySelector({
     <div className="relative min-w-0">
       <button
         type="button"
+        disabled={disabled}
         onClick={() => setOpen((value) => !value)}
-        className="flex min-h-[82px] w-full items-center gap-3 px-5 text-left transition hover:bg-ink-50"
+        className={`flex min-h-[78px] w-full items-center gap-3 px-5 text-left transition ${
+          disabled
+            ? 'cursor-default'
+            : 'hover:bg-ink-50'
+        }`}
       >
         <CountryFlag
           country={country}
@@ -845,14 +543,16 @@ function CountrySelector({
           </p>
         </div>
 
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-ink-400 transition ${
-            open ? 'rotate-180' : ''
-          }`}
-        />
+        {!disabled && (
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-ink-400 transition ${
+              open ? 'rotate-180' : ''
+            }`}
+          />
+        )}
       </button>
 
-      {open && (
+      {open && !disabled && (
         <>
           <button
             type="button"
@@ -861,7 +561,7 @@ function CountrySelector({
             className="fixed inset-0 z-30 cursor-default"
           />
 
-          <div className="absolute left-2 right-2 top-[86px] z-50 max-h-72 overflow-auto border border-ink-200 bg-white p-2 shadow-xl">
+          <div className="absolute left-2 right-2 top-[82px] z-50 max-h-72 overflow-auto border border-ink-200 bg-white p-2 shadow-xl">
             {availableCountries.map((option) => (
               <button
                 key={option.code}
@@ -894,133 +594,222 @@ function CountrySelector({
   );
 }
 
+function QuestionField({
+  question,
+  value,
+  onChange,
+}: {
+  question: Question;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  if (question.type === 'number') {
+    return (
+      <div>
+        <label className="mb-2 block text-xs font-semibold text-ink-500">
+          {question.label}
+        </label>
+
+        <input
+          type="number"
+          value={value}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+          placeholder={question.placeholder}
+          className="h-12 w-full rounded-lg border border-ink-200 bg-white px-4 text-sm font-medium text-ink-900 outline-none transition placeholder:text-ink-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <label className="mb-2 block text-xs font-semibold text-ink-500">
+        {question.label}
+      </label>
+
+      <div className="relative">
+        <select
+          value={value}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+          className="h-12 w-full appearance-none rounded-lg border border-ink-200 bg-white px-4 pr-10 text-sm font-medium text-ink-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        >
+          <option value="">
+            {question.placeholder}
+          </option>
+
+          {question.options?.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+
+        <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
+      </div>
+    </div>
+  );
+}
+
 export function LandingHero({
   go,
 }: LandingHeroProps) {
-  const [fromCountry, setFromCountry] =
-    useState<Country>(
-      countries.find(
-        (country) => country.code === 'AZ'
-      ) ?? countries[0]
-    );
+  const canada =
+    countries.find(
+      (country) => country.code === 'CA'
+    ) ?? countries[0];
+
+  const [fromCountry] =
+    useState<Country>(canada);
 
   const [toCountry, setToCountry] =
     useState<Country>(
       countries.find(
         (country) => country.code === 'DE'
-      ) ?? countries[1]
+      ) ?? destinationCountries[0]
     );
 
   const [activeJourney, setActiveJourney] =
     useState<Journey>('work');
 
-  const [activeService, setActiveService] =
-    useState<Service>('visa');
-
-  const [activeTab, setActiveTab] =
-    useState<ResultTab>('best');
-
-  const [currency, setCurrency] =
-    useState<Currency>('USD');
-
-  const [showRequirements, setShowRequirements] =
-    useState(false);
-
-  const [showExtraCosts, setShowExtraCosts] =
-    useState(false);
+  const [answers, setAnswers] = useState<
+    Record<string, string>
+  >({});
 
   const [loading, setLoading] =
     useState(false);
 
-  const [flightDate, setFlightDate] =
-    useState('2026-09-15');
+  const [hasSearched, setHasSearched] =
+    useState(false);
 
-  const [flightPrice, setFlightPrice] =
-    useState(320);
+  const [activeResultTab, setActiveResultTab] =
+    useState<ResultTab>('best');
 
-  const requirements =
-    requirementsByJourney[activeJourney];
+  const [showDestinationMenu, setShowDestinationMenu] =
+    useState(false);
 
-  const costs =
-    journeyCosts[activeJourney];
+  const questions =
+    journeyQuestions[activeJourney];
 
-  const convertedTotal = Math.round(
-    costs.total * currencyRates[currency]
-  );
+  const counts =
+    resultCounts[activeJourney];
 
-  const convertedFlight = Math.round(
-    flightPrice * currencyRates[currency]
-  );
-
-  const resultItems =
-    resultData[activeJourney][activeTab];
-
-  const selectedJourneyLabel =
+  const selectedJourney =
     journeys.find(
       (journey) => journey.id === activeJourney
-    )?.label ?? 'Work';
+    );
 
-  const flightBasePrice =
-    flightPrices[toCountry.code] ?? 350;
+  const answeredCount = questions.filter(
+    (question) =>
+      Boolean(answers[question.id])
+  ).length;
 
-  useEffect(() => {
-    setLoading(true);
-    setActiveTab('best');
+  const canSearch =
+    answeredCount === questions.length &&
+    Boolean(toCountry);
 
-    const timer = window.setTimeout(() => {
-      setFlightPrice(flightBasePrice);
-      setLoading(false);
-    }, 700);
-
-    return () => window.clearTimeout(timer);
-  }, [
-    fromCountry.code,
-    toCountry.code,
-    activeJourney,
-    activeService,
-    flightBasePrice,
-  ]);
-
-  const extraCosts = useMemo(
+  const resultCategories = useMemo(
     () => [
       {
-        label: 'Visa / application',
-        value: costs.visa,
+        id: 'best' as ResultTab,
+        label: 'Best options',
+        count: counts.best,
       },
       {
-        label: 'Accommodation',
-        value: costs.accommodation,
+        id: 'cheapest' as ResultTab,
+        label: 'Cheapest',
+        count: counts.cheapest,
       },
       {
-        label: 'Documents',
-        value: costs.documents,
+        id: 'suggested' as ResultTab,
+        label: 'Suggested',
+        count: counts.suggested,
       },
       {
-        label: 'Insurance',
-        value: costs.insurance,
-      },
-      {
-        label: 'Other estimated costs',
-        value: costs.other,
+        id: 'sponsored' as ResultTab,
+        label: 'Sponsored',
+        count: counts.sponsored,
       },
     ],
-    [costs]
+    [counts]
   );
+
+  useEffect(() => {
+    setAnswers({});
+    setHasSearched(false);
+    setActiveResultTab('best');
+  }, [activeJourney]);
 
   const handleJourneyChange = (
     journey: Journey
   ) => {
+    if (journey === activeJourney) {
+      return;
+    }
+
     setActiveJourney(journey);
-    setShowRequirements(false);
-    setShowExtraCosts(false);
+    setLoading(false);
   };
 
-  const handleServiceChange = (
-    service: Service
+  const handleAnswerChange = (
+    id: string,
+    value: string
   ) => {
-    setActiveService(service);
-    setShowRequirements(false);
-    setShowExtraCosts(false);
+    setAnswers((current) => ({
+      ...current,
+      [id]: value,
+    }));
+
+    setHasSearched(false);
+  };
+
+  const handleSearch = () => {
+    if (!canSearch || loading) {
+      return;
+    }
+
+    setLoading(true);
+    setHasSearched(false);
+
+    window.setTimeout(() => {
+      setLoading(false);
+      setHasSearched(true);
+      setActiveResultTab('best');
+    }, 900);
+  };
+
+  const handleResultCategory = (
+    tab: ResultTab
+  ) => {
+    setActiveResultTab(tab);
+
+    const params = new URLSearchParams({
+      journey: activeJourney,
+      result: tab,
+      from: fromCountry.code,
+      to: toCountry.code,
+    });
+
+    Object.entries(answers).forEach(
+      ([key, value]) => {
+        if (value) {
+          params.set(key, value);
+        }
+      }
+    );
+
+    window.history.pushState(
+      {},
+      '',
+      `/results?${params.toString()}`
+    );
+
+    window.dispatchEvent(
+      new PopStateEvent('popstate')
+    );
   };
 
   return (
@@ -1032,54 +821,20 @@ export function LandingHero({
 
         <div className="mx-auto max-w-7xl px-5 pb-28 pt-10 sm:px-8 sm:pb-32 sm:pt-12">
 
-          {/* SERVICE NAV */}
-
-          <div className="flex flex-wrap gap-2">
-
-            {services.map((service) => {
-              const Icon = service.icon;
-
-              const active =
-                activeService === service.id;
-
-              return (
-                <button
-                  key={service.id}
-                  type="button"
-                  onClick={() =>
-                    handleServiceChange(service.id)
-                  }
-                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
-                    active
-                      ? 'border-white bg-white text-brand-700'
-                      : 'border-white/35 text-white hover:border-white hover:bg-white/10'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {service.label}
-                </button>
-              );
-            })}
-
+          <div className="flex items-center gap-2 text-sm font-medium text-white/70">
+            <Sparkles className="h-4 w-4" />
+            Your journey starts here
           </div>
 
-          {/* HERO TITLE */}
+          <div className="mt-5 max-w-4xl">
 
-          <div className="mt-14 max-w-4xl">
-
-            <div className="flex items-center gap-2 text-sm font-medium text-white/70">
-              <Sparkles className="h-4 w-4" />
-              Your journey starts here
-            </div>
-
-            <h1 className="mt-4 max-w-4xl text-4xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
+            <h1 className="text-4xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
               Find your path to a new life abroad.
             </h1>
 
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">
-              Compare pathways, opportunities, flights,
-              accommodation and professional support for
-              your move.
+              Tell us what you want to do and we will
+              help you find the right way to get there.
             </p>
 
           </div>
@@ -1099,12 +854,14 @@ export function LandingHero({
                   key={journey.id}
                   type="button"
                   onClick={() =>
-                    handleJourneyChange(journey.id)
+                    handleJourneyChange(
+                      journey.id
+                    )
                   }
                   className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
                     active
-                      ? 'border-white bg-white/15 text-white'
-                      : 'border-white/25 text-white/70 hover:border-white/50 hover:text-white'
+                      ? 'border-white bg-white text-brand-700'
+                      : 'border-white/25 text-white/75 hover:border-white/60 hover:text-white'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -1119,514 +876,369 @@ export function LandingHero({
 
       </section>
 
-      {/* SEARCH AND RESULTS */}
+      {/* SEARCH */}
 
       <section className="relative z-10 mx-auto -mt-12 max-w-6xl px-5 sm:px-8">
 
         <div className="border border-ink-200 bg-white shadow-xl">
 
-          {/* SELECTED JOURNEY AND COST */}
+          {/* SEARCH HEADER */}
 
           <div className="border-b border-ink-100 px-5 py-5 sm:px-6">
 
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 
               <div>
+                <div className="flex items-center gap-2">
 
-                <div className="flex flex-wrap items-center gap-3">
+                  {selectedJourney && (
+                    <selectedJourney.icon className="h-5 w-5 text-brand-600" />
+                  )}
 
                   <h2 className="text-xl font-bold text-ink-950">
-                    {selectedJourneyLabel}
+                    {selectedJourney?.label}
                   </h2>
 
-                  <span className="hidden h-5 w-px bg-ink-200 sm:block" />
-
-                  <span className="text-sm font-semibold text-ink-500">
-                    Approximate costs
-                  </span>
-
                 </div>
 
-                <p className="mt-1 text-xs text-ink-400">
-                  Estimated for a {selectedJourneyLabel.toLowerCase()} journey from{' '}
-                  {fromCountry.name} to {toCountry.name}.
+                <p className="mt-1 text-sm text-ink-500">
+                  {journeyDescriptions[activeJourney]}
                 </p>
-
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-
-                <div className="flex items-center gap-2 rounded-lg bg-brand-50 px-4 py-2.5">
-
-                  <Calculator className="h-4 w-4 text-brand-600" />
-
-                  <span className="text-lg font-bold text-brand-700">
-                    {currencySymbols[currency]}
-                    {convertedTotal.toLocaleString()}
-                  </span>
-
-                  <span className="text-xs text-brand-600">
-                    approx.
-                  </span>
-
-                </div>
-
-                <select
-                  value={currency}
-                  onChange={(event) =>
-                    setCurrency(
-                      event.target.value as Currency
-                    )
-                  }
-                  className="h-10 rounded-lg border border-ink-200 bg-white px-3 text-xs font-semibold text-ink-700 outline-none focus:border-brand-500"
-                >
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                  <option value="GBP">GBP</option>
-                  <option value="AZN">AZN</option>
-                </select>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowExtraCosts(
-                      (value) => !value
-                    )
-                  }
-                  className="flex h-10 items-center gap-2 rounded-lg border border-ink-200 px-3 text-xs font-semibold text-ink-700 transition hover:border-brand-300 hover:bg-brand-50"
-                >
-                  <Info className="h-4 w-4" />
-                  Extra costs
-                  <ChevronDown
-                    className={`h-4 w-4 transition ${
-                      showExtraCosts
-                        ? 'rotate-180'
-                        : ''
-                    }`}
-                  />
-                </button>
-
+              <div className="text-xs font-medium text-ink-400">
+                {answeredCount} of {questions.length}{' '}
+                answered
               </div>
 
             </div>
-
-            {showExtraCosts && (
-              <div className="mt-5 grid gap-2 border-t border-ink-100 pt-5 sm:grid-cols-2 lg:grid-cols-5">
-
-                {extraCosts.map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-lg border border-ink-100 bg-ink-50/50 p-3"
-                  >
-                    <p className="text-xs text-ink-400">
-                      {item.label}
-                    </p>
-
-                    <p className="mt-1 text-sm font-bold text-ink-900">
-                      {currencySymbols[currency]}
-                      {Math.round(
-                        item.value *
-                          currencyRates[currency]
-                      ).toLocaleString()}
-                    </p>
-
-                  </div>
-                ))}
-
-              </div>
-            )}
 
           </div>
 
           {/* COUNTRY PAIR */}
 
-          <div className="grid lg:grid-cols-[1fr_1fr_1fr_auto]">
+          <div className="grid lg:grid-cols-2">
 
-            <CountrySelector
-              label="I'm from"
-              country={fromCountry}
-              countries={countries}
-              availableCountries={countries}
-              onChange={setFromCountry}
-            />
-
-            <div className="border-t border-ink-100 lg:border-l lg:border-t-0">
+            <div className="border-b border-ink-100 lg:border-b-0">
 
               <CountrySelector
-                label="I want to go to"
-                country={toCountry}
-                countries={countries}
-                availableCountries={countries.filter(
-                  (country) =>
-                    country.code !==
-                    fromCountry.code
-                )}
-                onChange={setToCountry}
+                label="I'm from"
+                country={fromCountry}
+                availableCountries={[fromCountry]}
+                onChange={() => undefined}
+                disabled
               />
 
-            </div>
+              <div className="px-5 pb-4">
 
-            <div className="border-t border-ink-100 lg:border-l lg:border-t-0">
-
-              <div className="relative">
-
-                <select
-                  value={activeJourney}
-                  onChange={(event) =>
-                    handleJourneyChange(
-                      event.target.value as Journey
-                    )
-                  }
-                  className="min-h-[82px] w-full appearance-none bg-white px-5 pr-10 pt-5 text-sm font-semibold text-ink-900 outline-none transition hover:bg-ink-50"
-                >
-                  {journeys.map((journey) => (
-                    <option
-                      key={journey.id}
-                      value={journey.id}
-                    >
-                      {journey.label}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="pointer-events-none absolute right-5 top-1/2 mt-2 -translate-y-1/2">
-                  <ChevronDown className="h-4 w-4 text-ink-400" />
-                </div>
-
-                <div className="pointer-events-none absolute left-5 top-3 text-xs font-medium text-ink-400">
-                  I'm looking to
+                <div className="flex items-center gap-2 text-[11px] text-ink-400">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-brand-600" />
+                  Canada is the first supported market
                 </div>
 
               </div>
 
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setLoading(true);
+            <div className="relative border-ink-100 lg:border-l">
 
-                window.setTimeout(() => {
-                  setLoading(false);
-                }, 700);
-              }}
-              className="m-2 flex min-h-[74px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-7 text-sm font-semibold text-white transition hover:bg-brand-700"
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4" />
-              )}
+              <button
+                type="button"
+                onClick={() =>
+                  setShowDestinationMenu(
+                    (value) => !value
+                  )
+                }
+                className="flex min-h-[78px] w-full items-center gap-3 px-5 text-left transition hover:bg-ink-50"
+              >
 
-              Search
-            </button>
+                <CountryFlag
+                  country={toCountry}
+                  size="h-6 w-9"
+                />
 
-          </div>
+                <div className="min-w-0 flex-1">
 
-          {/* FLIGHT ESTIMATE */}
+                  <p className="text-xs font-medium text-ink-400">
+                    I want to go to
+                  </p>
 
-          <div className="border-t border-ink-100 bg-ink-50/40 px-5 py-5 sm:px-6">
+                  <p className="mt-1 truncate text-sm font-semibold text-ink-900">
+                    {toCountry.name}
+                  </p>
 
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-
-              <div className="flex items-start gap-3">
-
-                <div className="rounded-lg bg-white p-2.5 shadow-sm">
-                  <Plane className="h-5 w-5 text-brand-600" />
                 </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-                    Flight estimate
-                  </p>
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-ink-400 transition ${
+                    showDestinationMenu
+                      ? 'rotate-180'
+                      : ''
+                  }`}
+                />
 
-                  <p className="mt-1 text-sm font-semibold text-ink-900">
-                    Cheapest nearby flight
-                  </p>
+              </button>
 
-                  <p className="mt-1 text-xs text-ink-500">
-                    {fromCountry.name} → {toCountry.name}
-                  </p>
-                </div>
+              {showDestinationMenu && (
+                <>
 
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-
-                <div className="flex items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-2">
-
-                  <CalendarDays className="h-4 w-4 text-ink-400" />
-
-                  <input
-                    type="date"
-                    value={flightDate}
-                    onChange={(event) => {
-                      setFlightDate(
-                        event.target.value
-                      );
-                      setLoading(true);
-
-                      window.setTimeout(() => {
-                        setLoading(false);
-                      }, 500);
-                    }}
-                    className="bg-transparent text-xs font-semibold text-ink-700 outline-none"
+                  <button
+                    type="button"
+                    aria-label="Close destination selector"
+                    onClick={() =>
+                      setShowDestinationMenu(false)
+                    }
+                    className="fixed inset-0 z-30 cursor-default"
                   />
 
-                </div>
+                  <div className="absolute left-2 right-2 top-[82px] z-50 max-h-80 overflow-auto border border-ink-200 bg-white p-2 shadow-xl">
 
-                <div className="flex items-center gap-2">
-
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-brand-600" />
-                  ) : (
-                    <Plane className="h-4 w-4 text-brand-600" />
-                  )}
-
-                  <span className="text-lg font-bold text-ink-950">
-                    {currencySymbols[currency]}
-                    {convertedFlight.toLocaleString()}
-                  </span>
-
-                  <span className="text-xs text-ink-400">
-                    approx.
-                  </span>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-          {/* REQUIREMENTS */}
-
-          <div className="border-t border-ink-100">
-
-            <button
-              type="button"
-              onClick={() =>
-                setShowRequirements(
-                  (value) => !value
-                )
-              }
-              className="flex w-full items-center justify-between px-5 py-4 text-left transition hover:bg-ink-50 sm:px-6"
-            >
-
-              <div className="flex items-center gap-3">
-
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-600">
-                  {requirements.length}
-                </div>
-
-                <div>
-                  <p className="text-sm font-bold text-ink-900">
-                    Requirements
-                  </p>
-
-                  <p className="text-xs text-ink-400">
-                    {fromCountry.name} → {toCountry.name} ·{' '}
-                    {selectedJourneyLabel}
-                  </p>
-                </div>
-
-              </div>
-
-              <ChevronDown
-                className={`h-5 w-5 text-ink-400 transition ${
-                  showRequirements
-                    ? 'rotate-180'
-                    : ''
-                }`}
-              />
-
-            </button>
-
-            {showRequirements && (
-              <div className="border-t border-ink-100 bg-white px-5 py-5 sm:px-6">
-
-                {loading ? (
-                  <div className="flex items-center gap-2 py-5 text-sm text-ink-500">
-                    <Loader2 className="h-4 w-4 animate-spin text-brand-600" />
-                    Updating requirements...
-                  </div>
-                ) : (
-                  <div className="grid gap-2 sm:grid-cols-2">
-
-                    {requirements.map(
-                      (requirement, index) => (
-                        <div
-                          key={requirement}
-                          className="flex items-center gap-3 rounded-lg border border-ink-100 px-4 py-3"
+                    {destinationCountries.map(
+                      (country) => (
+                        <button
+                          key={country.code}
+                          type="button"
+                          onClick={() => {
+                            setToCountry(country);
+                            setShowDestinationMenu(
+                              false
+                            );
+                            setHasSearched(false);
+                          }}
+                          className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition hover:bg-ink-50 ${
+                            country.code ===
+                            toCountry.code
+                              ? 'bg-brand-50'
+                              : ''
+                          }`}
                         >
 
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-600">
-                            {index + 1}
-                          </span>
+                          <CountryFlag
+                            country={country}
+                          />
 
                           <span className="text-sm font-medium text-ink-800">
-                            {requirement}
+                            {country.name}
                           </span>
 
-                        </div>
+                          {country.code ===
+                            toCountry.code && (
+                            <CheckCircle2 className="ml-auto h-4 w-4 text-brand-600" />
+                          )}
+
+                        </button>
                       )
                     )}
 
                   </div>
-                )}
 
-              </div>
-            )}
-
-          </div>
-
-          {/* DYNAMIC RESULTS */}
-
-          <div className="border-t border-ink-100">
-
-            <div className="flex flex-col gap-4 px-5 py-5 sm:px-6">
-
-              <div>
-
-                <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-                  {selectedJourneyLabel}
-                </p>
-
-                <h3 className="mt-1 text-lg font-bold text-ink-950">
-                  Best options for your journey
-                </h3>
-
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-
-                {(
-                  [
-                    ['best', 'Best options'],
-                    ['cheapest', 'Cheapest'],
-                    ['suggested', 'Suggested'],
-                    ['sponsored', 'Sponsored'],
-                  ] as [ResultTab, string][]
-                ).map(([tab, label]) => {
-
-                  const active =
-                    activeTab === tab;
-
-                  return (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() =>
-                        setActiveTab(tab)
-                      }
-                      className={`rounded-lg border px-4 py-2 text-xs font-semibold transition ${
-                        active
-                          ? 'border-brand-600 bg-brand-600 text-white'
-                          : 'border-ink-200 bg-white text-ink-600 hover:border-brand-300 hover:text-brand-600'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-
-              </div>
-
-            </div>
-
-            <div className="border-t border-ink-100">
-
-              {loading ? (
-                <div className="flex min-h-[220px] items-center justify-center">
-
-                  <div className="flex items-center gap-2 text-sm text-ink-500">
-                    <Loader2 className="h-5 w-5 animate-spin text-brand-600" />
-                    Finding options for your journey...
-                  </div>
-
-                </div>
-              ) : (
-                <div className="grid gap-3 p-5 sm:p-6">
-
-                  {resultItems.map(
-                    (item, index) => (
-                      <button
-                        key={`${item.title}-${index}`}
-                        type="button"
-                        onClick={() => {
-                          setLoading(true);
-
-                          window.setTimeout(() => {
-                            setLoading(false);
-                          }, 500);
-                        }}
-                        className="group flex flex-col gap-4 rounded-xl border border-ink-200 bg-white p-4 text-left transition hover:border-brand-300 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
-                      >
-
-                        <div className="flex items-start gap-4">
-
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-50">
-                            {activeJourney === 'study' ? (
-                              <GraduationCap className="h-5 w-5 text-brand-600" />
-                            ) : activeJourney === 'business' ? (
-                              <Briefcase className="h-5 w-5 text-brand-600" />
-                            ) : activeJourney === 'relocation' ? (
-                              <Home className="h-5 w-5 text-brand-600" />
-                            ) : (
-                              <Briefcase className="h-5 w-5 text-brand-600" />
-                            )}
-                          </div>
-
-                          <div>
-
-                            <div className="flex flex-wrap items-center gap-2">
-
-                              <h4 className="text-sm font-bold text-ink-900">
-                                {item.title}
-                              </h4>
-
-                              <span className="rounded-full bg-brand-50 px-2 py-1 text-[10px] font-semibold text-brand-600">
-                                {item.tag}
-                              </span>
-
-                            </div>
-
-                            <p className="mt-1 text-xs font-medium text-ink-500">
-                              {item.subtitle}
-                            </p>
-
-                            <p className="mt-2 max-w-2xl text-xs leading-5 text-ink-400">
-                              {item.description}
-                            </p>
-
-                          </div>
-
-                        </div>
-
-                        <div className="flex shrink-0 items-center justify-between gap-5 sm:flex-col sm:items-end">
-
-                          <span className="text-sm font-bold text-ink-900">
-                            {item.price}
-                          </span>
-
-                          <span className="flex items-center gap-1 text-xs font-semibold text-brand-600">
-                            View option
-                            <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" />
-                          </span>
-
-                        </div>
-
-                      </button>
-                    )
-                  )}
-
-                </div>
+                </>
               )}
 
             </div>
 
           </div>
+
+          {/* QUESTIONS */}
+
+          <div className="border-t border-ink-100 px-5 py-6 sm:px-6">
+
+            <div className="mb-5">
+
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+                About your journey
+              </p>
+
+              <h3 className="mt-1 text-base font-bold text-ink-950">
+                A few questions so we can find relevant options
+              </h3>
+
+            </div>
+
+            <div
+              className={`grid gap-4 ${
+                questions.length === 3
+                  ? 'md:grid-cols-3'
+                  : 'md:grid-cols-2'
+              }`}
+            >
+
+              {questions.map((question) => (
+                <QuestionField
+                  key={question.id}
+                  question={question}
+                  value={
+                    answers[question.id] ?? ''
+                  }
+                  onChange={(value) =>
+                    handleAnswerChange(
+                      question.id,
+                      value
+                    )
+                  }
+                />
+              ))}
+
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3 border-t border-ink-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+
+              <p className="text-xs text-ink-400">
+                Your answers help us match the most relevant pathways.
+              </p>
+
+              <button
+                type="button"
+                disabled={!canSearch || loading}
+                onClick={handleSearch}
+                className={`flex min-h-[48px] items-center justify-center gap-2 rounded-lg px-7 text-sm font-semibold text-white transition ${
+                  canSearch && !loading
+                    ? 'bg-brand-600 hover:bg-brand-700'
+                    : 'cursor-not-allowed bg-ink-200 text-ink-400'
+                }`}
+              >
+
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Finding options
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-4 w-4" />
+                    Find my options
+                  </>
+                )}
+
+              </button>
+
+            </div>
+
+          </div>
+
+          {/* LOADING */}
+
+          {loading && (
+            <div className="border-t border-ink-100 bg-ink-50/40 px-5 py-8 sm:px-6">
+
+              <div className="flex items-center justify-center gap-3 text-sm text-ink-500">
+
+                <Loader2 className="h-5 w-5 animate-spin text-brand-600" />
+
+                <span>
+                  Finding the best options for your journey...
+                </span>
+
+              </div>
+
+            </div>
+          )}
+
+          {/* RESULT CATEGORIES */}
+
+          {hasSearched && !loading && (
+            <div className="border-t border-ink-100">
+
+              <div className="px-5 py-6 sm:px-6">
+
+                <div className="mb-5">
+
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+                    Your results
+                  </p>
+
+                  <h3 className="mt-1 text-lg font-bold text-ink-950">
+                    Choose how you want to explore
+                  </h3>
+
+                  <p className="mt-1 text-sm text-ink-500">
+                    We found options for {toCountry.name}.
+                    Choose a category to view them.
+                  </p>
+
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+
+                  {resultCategories.map(
+                    (category) => {
+                      const active =
+                        activeResultTab ===
+                        category.id;
+
+                      return (
+                        <button
+                          key={category.id}
+                          type="button"
+                          onClick={() =>
+                            handleResultCategory(
+                              category.id
+                            )
+                          }
+                          className={`group rounded-xl border p-5 text-left transition ${
+                            active
+                              ? 'border-brand-600 bg-brand-50'
+                              : 'border-ink-200 bg-white hover:border-brand-300 hover:shadow-md'
+                          }`}
+                        >
+
+                          <div className="flex items-center justify-between">
+
+                            <span
+                              className={`text-sm font-bold ${
+                                active
+                                  ? 'text-brand-700'
+                                  : 'text-ink-900'
+                              }`}
+                            >
+                              {category.label}
+                            </span>
+
+                            <ArrowRight
+                              className={`h-4 w-4 transition group-hover:translate-x-1 ${
+                                active
+                                  ? 'text-brand-600'
+                                  : 'text-ink-400'
+                              }`}
+                            />
+
+                          </div>
+
+                          <div className="mt-4 flex items-end gap-2">
+
+                            <span className="text-3xl font-bold tracking-tight text-ink-950">
+                              {category.count}
+                            </span>
+
+                            <span className="pb-1 text-xs text-ink-400">
+                              options found
+                            </span>
+
+                          </div>
+
+                          <p className="mt-3 text-xs leading-5 text-ink-400">
+                            View matching options based on your answers.
+                          </p>
+
+                        </button>
+                      );
+                    }
+                  )}
+
+                </div>
+
+                <div className="mt-5 flex items-center gap-2 rounded-lg bg-ink-50 px-4 py-3 text-xs text-ink-500">
+
+                  <Sparkles className="h-4 w-4 shrink-0 text-brand-600" />
+
+                  Select a category to open the full results page.
+
+                </div>
+
+              </div>
+
+            </div>
+          )}
 
         </div>
 
@@ -1639,13 +1251,19 @@ export function LandingHero({
         <div className="flex items-end justify-between">
 
           <div>
+
             <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
               Destinations
             </p>
 
             <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">
-              Where do you want to go?
+              Popular destinations
             </h2>
+
+            <p className="mt-2 max-w-xl text-sm text-ink-500">
+              Canada is our first source market. More
+              destinations and source countries are coming soon.
+            </p>
 
           </div>
 
@@ -1662,15 +1280,13 @@ export function LandingHero({
 
         <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
 
-          {countries
-            .filter(
-              (country) =>
-                country.code !== 'AZ'
-            )
+          {destinationCountries
+            .slice(0, 8)
             .map((country) => {
 
               const selected =
-                toCountry.code === country.code;
+                toCountry.code ===
+                country.code;
 
               return (
                 <button
@@ -1678,7 +1294,7 @@ export function LandingHero({
                   type="button"
                   onClick={() => {
                     setToCountry(country);
-                    setShowRequirements(false);
+                    setHasSearched(false);
 
                     window.scrollTo({
                       top: 0,
