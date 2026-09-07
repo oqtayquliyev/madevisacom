@@ -114,7 +114,7 @@ export default function App() {
     view === 'results' ||
     view === 'agencies' ||
     view === 'explore' ||
-    view === 'jobs'
+    view === 'jobs' ||
   ) {
     return renderPublicView(view, go);
   }

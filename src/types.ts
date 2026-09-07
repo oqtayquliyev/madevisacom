@@ -69,6 +69,7 @@ export type AgencyRequest = {
 export type View =
   | 'home'
   | 'planner'
+  | 'jobs'
   | 'results'
   | 'agencies'
   | 'customer-dashboard'
@@ -76,3 +77,4 @@ export type View =
   | 'agency-dashboard'
   | 'agency-profile'
   | 'explore';
+  
