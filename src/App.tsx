@@ -12,14 +12,21 @@ import { TripWorkspace } from '@/pages/customer/TripWorkspace';
 import { ExplorePage } from '@/pages/explore/ExplorePage';
 import { PlannerPage } from '@/pages/planner/PlannerPage';
 import { ResultsPage } from '@/pages/results/ResultsPage';
+import { JobsPage } from '@/pages/jobs/JobsPage';
 import type { View } from '@/types';
 
 type AuthPage = 'login' | 'register';
 
 export default function App() {
   const { session, profile, loading } = useAuth();
-  const [view, setView] = useState<View>('home');
-  const [authPage, setAuthPage] = useState<AuthPage>(() => window.location.pathname === '/register' ? 'register' : 'login');
+
+  const [view, setView] = useState<View>(
+    window.location.pathname === '/jobs' ? 'jobs' : 'home'
+  );
+
+  const [authPage, setAuthPage] = useState<AuthPage>(
+    window.location.pathname === '/register' ? 'register' : 'login'
+  );
 
   const go = (next: View) => {
     setView(next);
@@ -28,7 +35,12 @@ export default function App() {
 
   const goToAuth = (page: AuthPage) => {
     setAuthPage(page);
-    window.history.pushState({}, '', page === 'login' ? '/login' : '/register');
+
+    window.history.pushState(
+      {},
+      '',
+      page === 'login' ? '/login' : '/register'
+    );
   };
 
   if (loading) {
@@ -39,20 +51,50 @@ export default function App() {
     );
   }
 
-  // Not signed in → show the landing page unless an auth route was requested.
+  /*
+   * Jobs is a public page.
+   * It does not require the user to be signed in.
+   */
+  if (
+    view === 'jobs' ||
+    window.location.pathname === '/jobs'
+  ) {
+    return <JobsPage go={go} />;
+  }
+
+  /*
+   * Not signed in
+   *
+   * Show the landing page unless the user requested
+   * the login or register page.
+   */
   if (!session) {
-    if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-      return <LandingPage go={go} onAuth={goToAuth} />;
+    if (
+      window.location.pathname !== '/login' &&
+      window.location.pathname !== '/register'
+    ) {
+      return (
+        <LandingPage
+          go={go}
+          onAuth={goToAuth}
+        />
+      );
     }
 
     return authPage === 'login' ? (
-      <LoginPage onSwitchToRegister={() => goToAuth('register')} />
+      <LoginPage
+        onSwitchToRegister={() => goToAuth('register')}
+      />
     ) : (
-      <RegisterPage onSwitchToLogin={() => goToAuth('login')} />
+      <RegisterPage
+        onSwitchToLogin={() => goToAuth('login')}
+      />
     );
   }
 
-  // Signed in but profile not loaded yet → show loading
+  /*
+   * Signed in but profile is still loading
+   */
   if (!profile) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#f7f9fc]">
@@ -61,54 +103,173 @@ export default function App() {
     );
   }
 
-  // Role-based routing after authentication
   const role = profile.role;
 
-  // Public views accessible to everyone
-  if (view === 'home' || view === 'planner' || view === 'results' || view === 'agencies' || view === 'explore') {
+  /*
+   * Public views accessible to everyone
+   */
+  if (
+    view === 'home' ||
+    view === 'planner' ||
+    view === 'results' ||
+    view === 'agencies' ||
+    view === 'explore' ||
+    view === 'jobs'
+  ) {
     return renderPublicView(view, go);
   }
 
-  // Customer-only views
-  if (view === 'customer-dashboard' || view === 'trip-workspace') {
-    if (role === 'agency' || role === 'admin') {
+  /*
+   * Customer-only views
+   */
+  if (
+    view === 'customer-dashboard' ||
+    view === 'trip-workspace'
+  ) {
+    if (
+      role === 'agency' ||
+      role === 'admin'
+    ) {
       return renderRoleHome(role, go);
     }
+
     return renderPublicView(view, go);
   }
 
-  // Agency-only views
-  if (view === 'agency-dashboard' || view === 'agency-profile') {
+  /*
+   * Agency-only views
+   */
+  if (
+    view === 'agency-dashboard' ||
+    view === 'agency-profile'
+  ) {
     if (role === 'customer') {
-      return renderPublicView('customer-dashboard', go);
+      return renderPublicView(
+        'customer-dashboard',
+        go
+      );
     }
+
     return renderPublicView(view, go);
   }
 
-  // Admin → admin home (for now, agency dashboard)
+  /*
+   * Admin home
+   *
+   * For now admins use the agency dashboard.
+   */
   if (role === 'admin') {
-    return <AgencyDashboard view="agency-dashboard" go={go} />;
+    return (
+      <AgencyDashboard
+        view="agency-dashboard"
+        go={go}
+      />
+    );
   }
 
   return renderPublicView('home', go);
 }
 
-function renderPublicView(view: View, go: (view: View) => void) {
+function renderPublicView(
+  view: View,
+  go: (view: View) => void
+) {
   switch (view) {
-    case 'home': return <LandingPage go={go} />;
-    case 'planner': return <PlannerPage view={view} go={go} />;
-    case 'results': return <ResultsPage view={view} go={go} />;
-    case 'agencies': return <AgenciesPage view={view} go={go} />;
-    case 'customer-dashboard': return <CustomerDashboard view={view} go={go} />;
-    case 'trip-workspace': return <TripWorkspace view={view} go={go} />;
-    case 'explore': return <ExplorePage view={view} go={go} />;
-    case 'agency-dashboard': return <AgencyDashboard view={view} go={go} />;
-    case 'agency-profile': return <AgencyProfilePage view={view} go={go} />;
-    default: return <LandingPage go={go} />;
+    case 'home':
+      return <LandingPage go={go} />;
+
+    case 'planner':
+      return (
+        <PlannerPage
+          view={view}
+          go={go}
+        />
+      );
+
+    case 'results':
+      return (
+        <ResultsPage
+          view={view}
+          go={go}
+        />
+      );
+
+    case 'agencies':
+      return (
+        <AgenciesPage
+          view={view}
+          go={go}
+        />
+      );
+
+    case 'explore':
+      return (
+        <ExplorePage
+          view={view}
+          go={go}
+        />
+      );
+
+    case 'jobs':
+      return <JobsPage go={go} />;
+
+    case 'customer-dashboard':
+      return (
+        <CustomerDashboard
+          view={view}
+          go={go}
+        />
+      );
+
+    case 'trip-workspace':
+      return (
+        <TripWorkspace
+          view={view}
+          go={go}
+        />
+      );
+
+    case 'agency-dashboard':
+      return (
+        <AgencyDashboard
+          view={view}
+          go={go}
+        />
+      );
+
+    case 'agency-profile':
+      return (
+        <AgencyProfilePage
+          view={view}
+          go={go}
+        />
+      );
+
+    default:
+      return <LandingPage go={go} />;
   }
 }
 
-function renderRoleHome(role: 'customer' | 'agency' | 'admin', go: (view: View) => void) {
-  if (role === 'agency' || role === 'admin') return <AgencyDashboard view="agency-dashboard" go={go} />;
-  return <CustomerDashboard view="customer-dashboard" go={go} />;
+function renderRoleHome(
+  role: 'customer' | 'agency' | 'admin',
+  go: (view: View) => void
+) {
+  if (
+    role === 'agency' ||
+    role === 'admin'
+  ) {
+    return (
+      <AgencyDashboard
+        view="agency-dashboard"
+        go={go}
+      />
+    );
+  }
+
+  return (
+    <CustomerDashboard
+      view="customer-dashboard"
+      go={go}
+    />
+  );
 }
