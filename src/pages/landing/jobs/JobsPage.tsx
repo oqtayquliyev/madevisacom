@@ -1,0 +1,921 @@
+import { useMemo, useState } from 'react';
+import {
+  ArrowRight,
+  Briefcase,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  Globe2,
+  MapPin,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  X,
+} from 'lucide-react';
+import type { View } from '@/types';
+
+type JobsPageProps = {
+  go: (view: View) => void;
+};
+
+type Job = {
+  id: string;
+  title: string;
+  company: string;
+  country: string;
+  countryCode: string;
+  city: string;
+  salary?: string;
+  type: string;
+  remote: boolean;
+  category: string;
+  source: string;
+  published: string;
+  url: string;
+  verified: boolean;
+};
+
+const countries = [
+  {
+    name: 'Canada',
+    code: 'CA',
+    flag: 'https://flagcdn.com/w80/ca.png',
+  },
+  {
+    name: 'Germany',
+    code: 'DE',
+    flag: 'https://flagcdn.com/w80/de.png',
+  },
+  {
+    name: 'United Kingdom',
+    code: 'GB',
+    flag: 'https://flagcdn.com/w80/gb.png',
+  },
+  {
+    name: 'Australia',
+    code: 'AU',
+    flag: 'https://flagcdn.com/w80/au.png',
+  },
+  {
+    name: 'United States',
+    code: 'US',
+    flag: 'https://flagcdn.com/w80/us.png',
+  },
+  {
+    name: 'Netherlands',
+    code: 'NL',
+    flag: 'https://flagcdn.com/w80/nl.png',
+  },
+  {
+    name: 'Ireland',
+    code: 'IE',
+    flag: 'https://flagcdn.com/w80/ie.png',
+  },
+  {
+    name: 'Switzerland',
+    code: 'CH',
+    flag: 'https://flagcdn.com/w80/ch.png',
+  },
+];
+
+const jobs: Job[] = [
+  {
+    id: 'job-001',
+    title: 'Senior Product Designer',
+    company: 'Shopify',
+    country: 'Canada',
+    countryCode: 'CA',
+    city: 'Toronto',
+    salary: 'CAD 100k to 130k',
+    type: 'Full time',
+    remote: true,
+    category: 'Design',
+    source: 'Adzuna',
+    published: '2 hours ago',
+    url: 'https://www.shopify.com/careers',
+    verified: true,
+  },
+  {
+    id: 'job-002',
+    title: 'Software Engineer',
+    company: 'Tech Company',
+    country: 'Canada',
+    countryCode: 'CA',
+    city: 'Vancouver',
+    salary: 'CAD 90k to 120k',
+    type: 'Full time',
+    remote: false,
+    category: 'Technology',
+    source: 'Adzuna',
+    published: '4 hours ago',
+    url: 'https://www.adzuna.ca/',
+    verified: true,
+  },
+  {
+    id: 'job-003',
+    title: 'UX Designer',
+    company: 'Digital Studio',
+    country: 'Germany',
+    countryCode: 'DE',
+    city: 'Berlin',
+    salary: '€55k to €75k',
+    type: 'Full time',
+    remote: true,
+    category: 'Design',
+    source: 'Jooble',
+    published: '5 hours ago',
+    url: 'https://de.jooble.org/',
+    verified: true,
+  },
+  {
+    id: 'job-004',
+    title: 'Frontend Developer',
+    company: 'Technology Group',
+    country: 'Germany',
+    countryCode: 'DE',
+    city: 'Munich',
+    salary: '€60k to €85k',
+    type: 'Full time',
+    remote: false,
+    category: 'Technology',
+    source: 'Adzuna',
+    published: '7 hours ago',
+    url: 'https://de.indeed.com/',
+    verified: true,
+  },
+  {
+    id: 'job-005',
+    title: 'Product Manager',
+    company: 'Fintech Company',
+    country: 'United Kingdom',
+    countryCode: 'GB',
+    city: 'London',
+    salary: '£70k to £95k',
+    type: 'Full time',
+    remote: true,
+    category: 'Business',
+    source: 'Adzuna',
+    published: '1 day ago',
+    url: 'https://www.adzuna.co.uk/',
+    verified: true,
+  },
+  {
+    id: 'job-006',
+    title: 'Mechanical Engineer',
+    company: 'Engineering Group',
+    country: 'Australia',
+    countryCode: 'AU',
+    city: 'Sydney',
+    salary: 'AUD 95k to 125k',
+    type: 'Full time',
+    remote: false,
+    category: 'Engineering',
+    source: 'Jooble',
+    published: '1 day ago',
+    url: 'https://au.jooble.org/',
+    verified: true,
+  },
+  {
+    id: 'job-007',
+    title: 'Data Analyst',
+    company: 'Analytics Company',
+    country: 'Netherlands',
+    countryCode: 'NL',
+    city: 'Amsterdam',
+    salary: '€50k to €70k',
+    type: 'Full time',
+    remote: true,
+    category: 'Technology',
+    source: 'Adzuna',
+    published: '1 day ago',
+    url: 'https://www.adzuna.nl/',
+    verified: true,
+  },
+  {
+    id: 'job-008',
+    title: 'Healthcare Specialist',
+    company: 'Health Group',
+    country: 'Ireland',
+    countryCode: 'IE',
+    city: 'Dublin',
+    salary: '€48k to €68k',
+    type: 'Full time',
+    remote: false,
+    category: 'Healthcare',
+    source: 'Jooble',
+    published: '2 days ago',
+    url: 'https://ie.jooble.org/',
+    verified: true,
+  },
+  {
+    id: 'job-009',
+    title: 'Software Developer',
+    company: 'Technology Company',
+    country: 'Switzerland',
+    countryCode: 'CH',
+    city: 'Zurich',
+    salary: 'CHF 90k to 120k',
+    type: 'Full time',
+    remote: true,
+    category: 'Technology',
+    source: 'Adzuna',
+    published: '2 days ago',
+    url: 'https://www.adzuna.ch/',
+    verified: true,
+  },
+  {
+    id: 'job-010',
+    title: 'Marketing Manager',
+    company: 'Consumer Brand',
+    country: 'United States',
+    countryCode: 'US',
+    city: 'New York',
+    salary: 'USD 80k to 110k',
+    type: 'Full time',
+    remote: true,
+    category: 'Marketing',
+    source: 'Adzuna',
+    published: '2 days ago',
+    url: 'https://www.adzuna.com/',
+    verified: true,
+  },
+];
+
+const categories = [
+  'All categories',
+  'Technology',
+  'Design',
+  'Engineering',
+  'Business',
+  'Healthcare',
+  'Marketing',
+];
+
+const jobTypes = [
+  'All types',
+  'Full time',
+  'Part time',
+  'Contract',
+];
+
+function Flag({
+  countryCode,
+}: {
+  countryCode: string;
+}) {
+  const country = countries.find(
+    (item) => item.code === countryCode
+  );
+
+  if (!country) {
+    return null;
+  }
+
+  return (
+    <img
+      src={country.flag}
+      alt={`${country.name} flag`}
+      className="h-5 w-7 rounded-sm object-cover shadow-sm"
+    />
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative min-w-0">
+      <label className="mb-1.5 block text-xs font-semibold text-ink-500">
+        {label}
+      </label>
+
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex h-11 w-full items-center justify-between rounded-lg border border-ink-200 bg-white px-3 text-left text-sm font-medium text-ink-800 transition hover:border-brand-300"
+      >
+        <span className="truncate">
+          {value}
+        </span>
+
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-ink-400 transition ${
+            open ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-label={`Close ${label}`}
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-20 cursor-default"
+          />
+
+          <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-ink-200 bg-white p-1 shadow-xl">
+            {options.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center justify-between rounded-md px-3 py-2.5 text-left text-sm text-ink-700 transition hover:bg-ink-50"
+              >
+                {option}
+
+                {option === value && (
+                  <CheckCircle2 className="h-4 w-4 text-brand-600" />
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function JobCard({
+  job,
+}: {
+  job: Job;
+}) {
+  return (
+    <article className="border border-ink-200 bg-white p-5 transition hover:border-brand-300 hover:shadow-soft-lg">
+
+      <div className="flex items-start justify-between gap-4">
+
+        <div className="min-w-0">
+
+          <div className="flex items-center gap-2">
+
+            <Flag
+              countryCode={job.countryCode}
+            />
+
+            <span className="text-xs font-medium text-ink-400">
+              {job.country}
+            </span>
+
+          </div>
+
+          <h2 className="mt-3 text-base font-bold text-ink-950">
+            {job.title}
+          </h2>
+
+          <p className="mt-1 text-sm font-medium text-ink-600">
+            {job.company}
+          </p>
+
+        </div>
+
+        {job.verified && (
+          <span
+            title="Verified source"
+            className="shrink-0"
+          >
+            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          </span>
+        )}
+
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-ink-500">
+
+        <span className="flex items-center gap-1.5">
+          <MapPin className="h-3.5 w-3.5 text-ink-400" />
+          {job.city}
+        </span>
+
+        <span className="flex items-center gap-1.5">
+          <Briefcase className="h-3.5 w-3.5 text-ink-400" />
+          {job.type}
+        </span>
+
+        {job.remote && (
+          <span className="rounded-md bg-emerald-50 px-2 py-1 font-medium text-emerald-700">
+            Remote
+          </span>
+        )}
+
+      </div>
+
+      {job.salary && (
+        <div className="mt-4">
+          <p className="text-xs text-ink-400">
+            Salary
+          </p>
+
+          <p className="mt-0.5 text-sm font-bold text-ink-900">
+            {job.salary}
+          </p>
+        </div>
+      )}
+
+      <div className="mt-5 flex items-center justify-between border-t border-ink-100 pt-4">
+
+        <div>
+
+          <p className="text-[11px] text-ink-400">
+            {job.source}
+          </p>
+
+          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-400">
+            <Clock3 className="h-3 w-3" />
+            {job.published}
+          </p>
+
+        </div>
+
+        <a
+          href={job.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+        >
+          View job
+          <ArrowRight className="h-3.5 w-3.5" />
+        </a>
+
+      </div>
+
+    </article>
+  );
+}
+
+export function JobsPage({
+  go,
+}: JobsPageProps) {
+  const [search, setSearch] =
+    useState('');
+
+  const [country, setCountry] =
+    useState('All countries');
+
+  const [category, setCategory] =
+    useState('All categories');
+
+  const [jobType, setJobType] =
+    useState('All types');
+
+  const [remoteOnly, setRemoteOnly] =
+    useState(false);
+
+  const [showFilters, setShowFilters] =
+    useState(false);
+
+  const filteredJobs = useMemo(() => {
+    const normalizedSearch =
+      search.trim().toLowerCase();
+
+    return jobs.filter((job) => {
+
+      const matchesSearch =
+        !normalizedSearch ||
+        job.title
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        job.company
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        job.category
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        job.city
+          .toLowerCase()
+          .includes(normalizedSearch);
+
+      const matchesCountry =
+        country === 'All countries' ||
+        job.country === country;
+
+      const matchesCategory =
+        category === 'All categories' ||
+        job.category === category;
+
+      const matchesType =
+        jobType === 'All types' ||
+        job.type === jobType;
+
+      const matchesRemote =
+        !remoteOnly ||
+        job.remote;
+
+      return (
+        matchesSearch &&
+        matchesCountry &&
+        matchesCategory &&
+        matchesType &&
+        matchesRemote
+      );
+    });
+  }, [
+    search,
+    country,
+    category,
+    jobType,
+    remoteOnly,
+  ]);
+
+  const countryOptions = [
+    'All countries',
+    ...countries.map(
+      (item) => item.name
+    ),
+  ];
+
+  const activeFilterCount =
+    Number(country !== 'All countries') +
+    Number(category !== 'All categories') +
+    Number(jobType !== 'All types') +
+    Number(remoteOnly);
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc] text-ink-900">
+
+      {/* HEADER */}
+
+      <header className="border-b border-ink-200 bg-white">
+
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+
+          <button
+            type="button"
+            onClick={() => go('home')}
+            className="flex items-center gap-2.5"
+          >
+
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white">
+              <Globe2 className="h-4 w-4" />
+            </span>
+
+            <span className="text-lg font-bold tracking-tight">
+              madevisa
+              <span className="text-brand-600">
+                .
+              </span>
+            </span>
+
+          </button>
+
+          <button
+            type="button"
+            onClick={() => go('home')}
+            className="text-sm font-medium text-ink-500 hover:text-ink-900"
+          >
+            Back to MadeVisa
+          </button>
+
+        </div>
+
+      </header>
+
+      {/* HERO */}
+
+      <section className="bg-brand-700 text-white">
+
+        <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20">
+
+          <div className="max-w-3xl">
+
+            <div className="flex items-center gap-2 text-sm font-medium text-white/70">
+
+              <Briefcase className="h-4 w-4" />
+
+              Global jobs
+
+            </div>
+
+            <h1 className="mt-4 text-4xl font-bold tracking-[-0.04em] sm:text-6xl">
+
+              Find jobs abroad.
+
+            </h1>
+
+            <p className="mt-4 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">
+
+              Discover vacancies from multiple sources
+              and explore opportunities by country.
+
+            </p>
+
+          </div>
+
+          {/* SEARCH */}
+
+          <div className="mt-9 border border-white/15 bg-white p-2 shadow-xl">
+
+            <div className="flex flex-col gap-2 lg:flex-row">
+
+              <div className="flex h-12 flex-1 items-center gap-3 px-3">
+
+                <Search className="h-5 w-5 shrink-0 text-ink-400" />
+
+                <input
+                  value={search}
+                  onChange={(event) =>
+                    setSearch(event.target.value)
+                  }
+                  placeholder="Job title, skill, company or city"
+                  className="h-full w-full bg-transparent text-sm font-medium text-ink-900 outline-none placeholder:text-ink-400"
+                />
+
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    className="text-ink-400 hover:text-ink-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowFilters(
+                    (current) => !current
+                  )
+                }
+                className="flex h-12 items-center justify-center gap-2 rounded-lg border border-ink-200 px-5 text-sm font-semibold text-ink-700 hover:bg-ink-50"
+              >
+
+                <SlidersHorizontal className="h-4 w-4" />
+
+                Filters
+
+                {activeFilterCount > 0 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brand-600 px-1 text-[10px] text-white">
+                    {activeFilterCount}
+                  </span>
+                )}
+
+              </button>
+
+              <button
+                type="button"
+                className="flex h-12 items-center justify-center gap-2 rounded-lg bg-brand-600 px-7 text-sm font-semibold text-white hover:bg-brand-700"
+              >
+
+                <Search className="h-4 w-4" />
+
+                Search jobs
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* FILTERS */}
+
+      {showFilters && (
+        <section className="border-b border-ink-200 bg-white">
+
+          <div className="mx-auto max-w-7xl px-5 py-5 sm:px-8">
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+              <SelectField
+                label="Country"
+                value={country}
+                options={countryOptions}
+                onChange={setCountry}
+              />
+
+              <SelectField
+                label="Category"
+                value={category}
+                options={categories}
+                onChange={setCategory}
+              />
+
+              <SelectField
+                label="Job type"
+                value={jobType}
+                options={jobTypes}
+                onChange={setJobType}
+              />
+
+              <div>
+
+                <label className="mb-1.5 block text-xs font-semibold text-ink-500">
+                  Work arrangement
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRemoteOnly(
+                      (current) => !current
+                    )
+                  }
+                  className={`flex h-11 w-full items-center justify-between rounded-lg border px-3 text-left text-sm font-medium transition ${
+                    remoteOnly
+                      ? 'border-brand-600 bg-brand-50 text-brand-700'
+                      : 'border-ink-200 bg-white text-ink-700'
+                  }`}
+                >
+
+                  Remote only
+
+                  {remoteOnly && (
+                    <CheckCircle2 className="h-4 w-4 text-brand-600" />
+                  )}
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+      )}
+
+      {/* JOB CONTENT */}
+
+      <main className="mx-auto max-w-7xl px-5 py-10 sm:px-8">
+
+        {/* SUMMARY */}
+
+        <div className="flex flex-col gap-5 border-b border-ink-200 pb-7 sm:flex-row sm:items-end sm:justify-between">
+
+          <div>
+
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand-600">
+
+              <Sparkles className="h-4 w-4" />
+
+              MadeVisa Jobs
+
+            </div>
+
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink-950">
+
+              {filteredJobs.length.toLocaleString()}{' '}
+              opportunities
+
+            </h2>
+
+            <p className="mt-1 text-sm text-ink-500">
+
+              Jobs from multiple sources in one place.
+
+            </p>
+
+          </div>
+
+          <div className="text-xs text-ink-400">
+
+            Currently showing prototype data
+
+          </div>
+
+        </div>
+
+        {/* COUNTRY STRIP */}
+
+        <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
+
+          <button
+            type="button"
+            onClick={() =>
+              setCountry('All countries')
+            }
+            className={`flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
+              country === 'All countries'
+                ? 'border-brand-600 bg-brand-50 text-brand-700'
+                : 'border-ink-200 bg-white text-ink-600 hover:border-brand-300'
+            }`}
+          >
+
+            <Globe2 className="h-3.5 w-3.5" />
+
+            All countries
+
+          </button>
+
+          {countries.map((item) => (
+            <button
+              key={item.code}
+              type="button"
+              onClick={() =>
+                setCountry(item.name)
+              }
+              className={`flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
+                country === item.name
+                  ? 'border-brand-600 bg-brand-50 text-brand-700'
+                  : 'border-ink-200 bg-white text-ink-600 hover:border-brand-300'
+              }`}
+            >
+
+              <img
+                src={item.flag}
+                alt=""
+                className="h-4 w-6 rounded-sm object-cover"
+              />
+
+              {item.name}
+
+            </button>
+          ))}
+
+        </div>
+
+        {/* JOB LIST */}
+
+        <div className="mt-7 grid gap-4 lg:grid-cols-2">
+
+          {filteredJobs.map((job) => (
+            <JobCard
+              key={job.id}
+              job={job}
+            />
+          ))}
+
+        </div>
+
+        {filteredJobs.length === 0 && (
+          <div className="border border-ink-200 bg-white px-6 py-16 text-center">
+
+            <Search className="mx-auto h-8 w-8 text-ink-300" />
+
+            <h3 className="mt-4 text-lg font-bold text-ink-900">
+              No jobs found
+            </h3>
+
+            <p className="mt-2 text-sm text-ink-500">
+              Try changing your search or filters.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setCountry('All countries');
+                setCategory('All categories');
+                setJobType('All types');
+                setRemoteOnly(false);
+              }}
+              className="mt-5 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              Clear filters
+            </button>
+
+          </div>
+        )}
+
+        {/* SOURCE NOTE */}
+
+        <div className="mt-8 border border-ink-200 bg-white p-5">
+
+          <div className="flex items-start gap-3">
+
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+
+            <div>
+
+              <h3 className="text-sm font-bold text-ink-900">
+                Jobs from multiple sources
+              </h3>
+
+              <p className="mt-1 text-xs leading-5 text-ink-500">
+                MadeVisa is designed to bring vacancies from
+                approved job sources into one searchable
+                experience. Applications are completed on the
+                original job source.
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </main>
+
+    </div>
+  );
+}
