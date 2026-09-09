@@ -12,7 +12,7 @@ import { TripWorkspace } from '@/pages/customer/TripWorkspace';
 import { ExplorePage } from '@/pages/explore/ExplorePage';
 import { PlannerPage } from '@/pages/planner/PlannerPage';
 import { ResultsPage } from '@/pages/results/ResultsPage';
-import { JobsPage } from '@/pages/jobs/JobsPage';
+import { JobsPage } from '@/pages/landing/jobs/JobsPage';
 import type { View } from '@/types';
 
 type AuthPage = 'login' | 'register';
@@ -51,10 +51,6 @@ export default function App() {
     );
   }
 
-  /*
-   * Jobs is a public page.
-   * It does not require the user to be signed in.
-   */
   if (
     view === 'jobs' ||
     window.location.pathname === '/jobs'
@@ -62,12 +58,6 @@ export default function App() {
     return <JobsPage go={go} />;
   }
 
-  /*
-   * Not signed in
-   *
-   * Show the landing page unless the user requested
-   * the login or register page.
-   */
   if (!session) {
     if (
       window.location.pathname !== '/login' &&
@@ -92,9 +82,6 @@ export default function App() {
     );
   }
 
-  /*
-   * Signed in but profile is still loading
-   */
   if (!profile) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#f7f9fc]">
@@ -105,23 +92,16 @@ export default function App() {
 
   const role = profile.role;
 
-  /*
-   * Public views accessible to everyone
-   */
-  if (
-    view === 'home' ||
-    view === 'planner' ||
-    view === 'results' ||
-    view === 'agencies' ||
-    view === 'explore' ||
-    view === 'jobs' ||
-  ) {
-    return renderPublicView(view, go);
-  }
+if (
+  view === 'home' ||
+  view === 'planner' ||
+  view === 'results' ||
+  view === 'agencies' ||
+  view === 'explore'
+) {
+  return renderPublicView(view, go);
+}
 
-  /*
-   * Customer-only views
-   */
   if (
     view === 'customer-dashboard' ||
     view === 'trip-workspace'
@@ -136,9 +116,6 @@ export default function App() {
     return renderPublicView(view, go);
   }
 
-  /*
-   * Agency-only views
-   */
   if (
     view === 'agency-dashboard' ||
     view === 'agency-profile'
@@ -153,11 +130,6 @@ export default function App() {
     return renderPublicView(view, go);
   }
 
-  /*
-   * Admin home
-   *
-   * For now admins use the agency dashboard.
-   */
   if (role === 'admin') {
     return (
       <AgencyDashboard
