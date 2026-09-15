@@ -1,302 +1,35 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Briefcase,
+  CalendarRange,
   CheckCircle2,
   ChevronDown,
   Clock3,
   Globe2,
+  Loader2,
   MapPin,
   Search,
   SlidersHorizontal,
   Sparkles,
+  Wifi,
   X,
 } from 'lucide-react';
 import type { View } from '@/types';
-import type { EligibilityCriteria } from '@/lib/personalization';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { PersonalizationBar, EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
 import { AdBanner } from '@/components/ads/AdBanner';
+import { CircleFlag } from '@/components/common/CircleFlag';
+import { CompanyLogo } from '@/components/common/CompanyLogo';
+import { categories, countries, jobs as curatedJobs, jobTypes, type Job } from '@/data/jobs';
+import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 
 type JobsPageProps = {
   go: (view: View) => void;
   onAuth?: (page: 'login' | 'register') => void;
 };
-
-type Job = {
-  id: string;
-  title: string;
-  company: string;
-  country: string;
-  countryCode: string;
-  city: string;
-  salary?: string;
-  type: string;
-  remote: boolean;
-  category: string;
-  source: string;
-  published: string;
-  url: string;
-  verified: boolean;
-  eligibility: EligibilityCriteria;
-};
-
-const countries = [
-  {
-    name: 'Canada',
-    code: 'CA',
-    flag: 'https://flagcdn.com/w80/ca.png',
-  },
-  {
-    name: 'Germany',
-    code: 'DE',
-    flag: 'https://flagcdn.com/w80/de.png',
-  },
-  {
-    name: 'United Kingdom',
-    code: 'GB',
-    flag: 'https://flagcdn.com/w80/gb.png',
-  },
-  {
-    name: 'Australia',
-    code: 'AU',
-    flag: 'https://flagcdn.com/w80/au.png',
-  },
-  {
-    name: 'United States',
-    code: 'US',
-    flag: 'https://flagcdn.com/w80/us.png',
-  },
-  {
-    name: 'Netherlands',
-    code: 'NL',
-    flag: 'https://flagcdn.com/w80/nl.png',
-  },
-  {
-    name: 'Ireland',
-    code: 'IE',
-    flag: 'https://flagcdn.com/w80/ie.png',
-  },
-  {
-    name: 'Switzerland',
-    code: 'CH',
-    flag: 'https://flagcdn.com/w80/ch.png',
-  },
-];
-
-const jobs: Job[] = [
-  {
-    id: 'job-001',
-    title: 'Senior Product Designer',
-    company: 'Shopify',
-    country: 'Canada',
-    countryCode: 'CA',
-    city: 'Toronto',
-    salary: 'CAD 100k to 130k',
-    type: 'Full time',
-    remote: true,
-    category: 'Design',
-    source: 'Adzuna',
-    published: '2 hours ago',
-    url: 'https://www.shopify.com/careers',
-    verified: true,
-    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
-  },
-  {
-    id: 'job-002',
-    title: 'Software Engineer',
-    company: 'Tech Company',
-    country: 'Canada',
-    countryCode: 'CA',
-    city: 'Vancouver',
-    salary: 'CAD 90k to 120k',
-    type: 'Full time',
-    remote: false,
-    category: 'Technology',
-    source: 'Adzuna',
-    published: '4 hours ago',
-    url: 'https://www.adzuna.ca/',
-    verified: true,
-    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
-  },
-  {
-    id: 'job-003',
-    title: 'UX Designer',
-    company: 'Digital Studio',
-    country: 'Germany',
-    countryCode: 'DE',
-    city: 'Berlin',
-    salary: '€55k to €75k',
-    type: 'Full time',
-    remote: true,
-    category: 'Design',
-    source: 'Jooble',
-    published: '5 hours ago',
-    url: 'https://de.jooble.org/',
-    verified: true,
-    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
-  },
-  {
-    id: 'job-004',
-    title: 'Frontend Developer',
-    company: 'Technology Group',
-    country: 'Germany',
-    countryCode: 'DE',
-    city: 'Munich',
-    salary: '€60k to €85k',
-    type: 'Full time',
-    remote: false,
-    category: 'Technology',
-    source: 'Adzuna',
-    published: '7 hours ago',
-    url: 'https://de.indeed.com/',
-    verified: true,
-    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
-  },
-  {
-    id: 'job-005',
-    title: 'Product Manager',
-    company: 'Fintech Company',
-    country: 'United Kingdom',
-    countryCode: 'GB',
-    city: 'London',
-    salary: '£70k to £95k',
-    type: 'Full time',
-    remote: true,
-    category: 'Business',
-    source: 'Adzuna',
-    published: '1 day ago',
-    url: 'https://www.adzuna.co.uk/',
-    verified: true,
-    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
-  },
-  {
-    id: 'job-006',
-    title: 'Mechanical Engineer',
-    company: 'Engineering Group',
-    country: 'Australia',
-    countryCode: 'AU',
-    city: 'Sydney',
-    salary: 'AUD 95k to 125k',
-    type: 'Full time',
-    remote: false,
-    category: 'Engineering',
-    source: 'Jooble',
-    published: '1 day ago',
-    url: 'https://au.jooble.org/',
-    verified: true,
-    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
-  },
-  {
-    id: 'job-007',
-    title: 'Data Analyst',
-    company: 'Analytics Company',
-    country: 'Netherlands',
-    countryCode: 'NL',
-    city: 'Amsterdam',
-    salary: '€50k to €70k',
-    type: 'Full time',
-    remote: true,
-    category: 'Technology',
-    source: 'Adzuna',
-    published: '1 day ago',
-    url: 'https://www.adzuna.nl/',
-    verified: true,
-    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
-  },
-  {
-    id: 'job-008',
-    title: 'Healthcare Specialist',
-    company: 'Health Group',
-    country: 'Ireland',
-    countryCode: 'IE',
-    city: 'Dublin',
-    salary: '€48k to €68k',
-    type: 'Full time',
-    remote: false,
-    category: 'Healthcare',
-    source: 'Jooble',
-    published: '2 days ago',
-    url: 'https://ie.jooble.org/',
-    verified: true,
-    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
-  },
-  {
-    id: 'job-009',
-    title: 'Software Developer',
-    company: 'Technology Company',
-    country: 'Switzerland',
-    countryCode: 'CH',
-    city: 'Zurich',
-    salary: 'CHF 90k to 120k',
-    type: 'Full time',
-    remote: true,
-    category: 'Technology',
-    source: 'Adzuna',
-    published: '2 days ago',
-    url: 'https://www.adzuna.ch/',
-    verified: true,
-    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
-  },
-  {
-    id: 'job-010',
-    title: 'Marketing Manager',
-    company: 'Consumer Brand',
-    country: 'United States',
-    countryCode: 'US',
-    city: 'New York',
-    salary: 'USD 80k to 110k',
-    type: 'Full time',
-    remote: true,
-    category: 'Marketing',
-    source: 'Adzuna',
-    published: '2 days ago',
-    url: 'https://www.adzuna.com/',
-    verified: true,
-    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
-  },
-];
-
-const categories = [
-  'All categories',
-  'Technology',
-  'Design',
-  'Engineering',
-  'Business',
-  'Healthcare',
-  'Marketing',
-];
-
-const jobTypes = [
-  'All types',
-  'Full time',
-  'Part time',
-  'Contract',
-];
-
-function Flag({
-  countryCode,
-}: {
-  countryCode: string;
-}) {
-  const country = countries.find(
-    (item) => item.code === countryCode
-  );
-
-  if (!country) {
-    return null;
-  }
-
-  return (
-    <img
-      src={country.flag}
-      alt={`${country.name} flag`}
-      className="h-5 w-7 rounded-sm object-cover shadow-sm"
-    />
-  );
-}
 
 function SelectField({
   label,
@@ -374,33 +107,45 @@ function JobCard({
 }) {
   const { profile } = usePersonalization();
   const eligibility = computeEligibility(job.eligibility, profile, job.countryCode);
+  const isLive = job.source.toLowerCase().includes('live');
 
   return (
     <article className="border border-ink-200 bg-white p-5 transition hover:border-brand-300 hover:shadow-soft-lg">
 
       <div className="flex items-start justify-between gap-4">
 
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-start gap-3">
 
-          <div className="flex items-center gap-2">
+          <CompanyLogo name={job.company} size={40} />
 
-            <Flag
-              countryCode={job.countryCode}
-            />
+          <div className="min-w-0">
 
-            <span className="text-xs font-medium text-ink-400">
-              {job.country}
-            </span>
+            <div className="flex items-center gap-1.5">
+
+              <CircleFlag countryCode={job.countryCode} label={job.country} size={16} />
+
+              <span className="truncate text-xs font-medium text-ink-400">
+                {job.country}
+              </span>
+
+              {isLive && (
+                <span className="ml-1 flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                  <Wifi className="h-2.5 w-2.5" />
+                  Live
+                </span>
+              )}
+
+            </div>
+
+            <h2 className="mt-1.5 text-base font-bold text-ink-950">
+              {job.title}
+            </h2>
+
+            <p className="mt-0.5 text-sm font-medium text-ink-600">
+              {job.company}
+            </p>
 
           </div>
-
-          <h2 className="mt-3 text-base font-bold text-ink-950">
-            {job.title}
-          </h2>
-
-          <p className="mt-1 text-sm font-medium text-ink-600">
-            {job.company}
-          </p>
 
         </div>
 
@@ -482,29 +227,89 @@ export function JobsPage({
   go,
   onAuth,
 }: JobsPageProps) {
+  // Read initial filters from the URL (e.g. /jobs?country=Germany&age=27)
+  // so filtered views are shareable/bookmarkable links.
+  const initial = useMemo(
+    () => new URLSearchParams(window.location.search),
+    []
+  );
+
   const [search, setSearch] =
-    useState('');
+    useState(initial.get('q') ?? '');
 
   const [country, setCountry] =
-    useState('All countries');
+    useState(initial.get('country') ?? 'All countries');
 
   const [category, setCategory] =
-    useState('All categories');
+    useState(initial.get('category') ?? 'All categories');
 
   const [jobType, setJobType] =
-    useState('All types');
+    useState(initial.get('type') ?? 'All types');
 
   const [remoteOnly, setRemoteOnly] =
-    useState(false);
+    useState(initial.get('remote') === '1');
+
+  const [age, setAge] =
+    useState(initial.get('age') ?? '');
 
   const [showFilters, setShowFilters] =
     useState(false);
+
+  const [liveJobs, setLiveJobs] = useState<Job[]>([]);
+  const [loadingLive, setLoadingLive] = useState(true);
+
+  // Pull in real, live listings from the Arbeitnow public job board API
+  // and merge them with the curated set below.
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchArbeitnowJobs(20).then((results) => {
+      if (!cancelled) {
+        setLiveJobs(results);
+        setLoadingLive(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const allJobs = useMemo(
+    () => [...curatedJobs, ...liveJobs],
+    [liveJobs]
+  );
+
+  // Keep the URL in sync with the active filters so filtered views can
+  // be shared/bookmarked as links (e.g. /jobs?country=Germany&age=27).
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (search) params.set('q', search);
+    if (country !== 'All countries') params.set('country', country);
+    if (category !== 'All categories') params.set('category', category);
+    if (jobType !== 'All types') params.set('type', jobType);
+    if (remoteOnly) params.set('remote', '1');
+    if (age) params.set('age', age);
+
+    const query = params.toString();
+    const nextUrl = query ? `/jobs?${query}` : '/jobs';
+
+    window.history.replaceState({}, '', nextUrl);
+  }, [search, country, category, jobType, remoteOnly, age]);
+
+  const numericAge = age ? Number(age) : null;
 
   const filteredJobs = useMemo(() => {
     const normalizedSearch =
       search.trim().toLowerCase();
 
-    return jobs.filter((job) => {
+    return allJobs.filter((job) => {
 
       const matchesSearch =
         !normalizedSearch ||
@@ -537,20 +342,28 @@ export function JobsPage({
         !remoteOnly ||
         job.remote;
 
+      const matchesAge =
+        numericAge === null ||
+        ((job.eligibility.minAge === undefined || numericAge >= job.eligibility.minAge) &&
+          (job.eligibility.maxAge === undefined || numericAge <= job.eligibility.maxAge));
+
       return (
         matchesSearch &&
         matchesCountry &&
         matchesCategory &&
         matchesType &&
-        matchesRemote
+        matchesRemote &&
+        matchesAge
       );
     });
   }, [
+    allJobs,
     search,
     country,
     category,
     jobType,
     remoteOnly,
+    numericAge,
   ]);
 
   const countryOptions = [
@@ -564,7 +377,8 @@ export function JobsPage({
     Number(country !== 'All countries') +
     Number(category !== 'All categories') +
     Number(jobType !== 'All types') +
-    Number(remoteOnly);
+    Number(remoteOnly) +
+    Number(Boolean(age));
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
@@ -681,7 +495,7 @@ export function JobsPage({
 
           <div className="mx-auto max-w-7xl px-5 py-5 sm:px-8">
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
 
               <SelectField
                 label="Country"
@@ -703,6 +517,32 @@ export function JobsPage({
                 options={jobTypes}
                 onChange={setJobType}
               />
+
+              <div>
+
+                <label className="mb-1.5 block text-xs font-semibold text-ink-500">
+                  Your age
+                </label>
+
+                <div className="flex h-11 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3">
+                  <CalendarRange className="h-4 w-4 shrink-0 text-ink-400" />
+                  <input
+                    type="number"
+                    min={14}
+                    max={90}
+                    value={age}
+                    onChange={(event) => setAge(event.target.value)}
+                    placeholder="e.g. 27"
+                    className="h-full w-full min-w-0 bg-transparent text-sm font-medium text-ink-900 outline-none placeholder:text-ink-400"
+                  />
+                  {age && (
+                    <button type="button" onClick={() => setAge('')} className="text-ink-400 hover:text-ink-700">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
+              </div>
 
               <div>
 
@@ -735,6 +575,23 @@ export function JobsPage({
               </div>
 
             </div>
+
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setCountry('All countries');
+                  setCategory('All categories');
+                  setJobType('All types');
+                  setRemoteOnly(false);
+                  setAge('');
+                }}
+                className="mt-4 text-xs font-semibold text-brand-600 hover:text-brand-700"
+              >
+                Clear all filters
+              </button>
+            )}
 
           </div>
 
@@ -774,10 +631,18 @@ export function JobsPage({
 
           </div>
 
-          <div className="text-xs text-ink-400">
-
-            Currently showing prototype data
-
+          <div className="flex items-center gap-2 text-xs text-ink-400">
+            {loadingLive ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-500" />
+                Fetching live listings…
+              </>
+            ) : (
+              <>
+                <Wifi className="h-3.5 w-3.5 text-emerald-600" />
+                {liveJobs.length} live + {curatedJobs.length} curated
+              </>
+            )}
           </div>
 
         </div>
@@ -822,11 +687,7 @@ export function JobsPage({
               }`}
             >
 
-              <img
-                src={item.flag}
-                alt=""
-                className="h-4 w-6 rounded-sm object-cover"
-              />
+              <CircleFlag countryCode={item.code} label={item.name} size={16} />
 
               {item.name}
 
@@ -881,6 +742,7 @@ export function JobsPage({
                 setCategory('All categories');
                 setJobType('All types');
                 setRemoteOnly(false);
+                setAge('');
               }}
               className="mt-5 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
             >
@@ -905,10 +767,12 @@ export function JobsPage({
               </h3>
 
               <p className="mt-1 text-xs leading-5 text-ink-500">
-                MadeVisa is designed to bring vacancies from
-                approved job sources into one searchable
-                experience. Applications are completed on the
-                original job source.
+                MadeVisa brings together vacancies from approved job
+                sources into one searchable board — jobs tagged{' '}
+                <span className="font-semibold text-emerald-700">Live</span>{' '}
+                are fetched in real time from Arbeitnow's public job
+                board API; the rest are curated listings. Applications
+                are completed on the original job source.
               </p>
 
             </div>
