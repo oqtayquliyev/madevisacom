@@ -161,3 +161,61 @@ results. To make it live:
 - Keep the search form's shape (`origin`, `destination`, `dates`,
   `guests`) stable and just swap the mock `useState` results for a
   fetch call once a provider is chosen.
+
+## 5. Flights — real referral/affiliate revenue (implemented)
+
+The Travel page's Flights tab is wired to a real affiliate program, not
+a mock: **Travelpayouts** (the network behind Aviasales, WayAway, and
+several others). This needed no backend and no paid API access.
+
+### How it works
+
+- `src/lib/affiliate.ts` builds a real Aviasales search-results URL
+  from a route + dates + passenger count, following their documented
+  encoding (`ORIGIN` + `DDMM` + `DESTINATION` + `[DDMM return]` +
+  passenger digits), with your affiliate `marker` and currency attached
+  as query params.
+- The Flights search form (`src/pages/travel/TravelPage.tsx`) builds
+  this URL from what the visitor picks and opens it in a new tab via
+  `window.open(...)`. Each "popular route" card also links out with a
+  route-specific deep link.
+- If a visitor books through that link, Aviasales pays a commission —
+  no cost to the traveler, and MadeVisa doesn't need to touch payments,
+  inventory, or ticketing at all.
+
+### Getting paid for real
+
+1. Sign up free at [travelpayouts.com](https://www.travelpayouts.com/).
+2. Join the **Aviasales** program from their marketplace (approval is
+   usually instant/automatic).
+3. Copy your **marker** (partner ID) from the dashboard.
+4. Set it as an env var:
+   ```
+   VITE_TRAVELPAYOUTS_MARKER=your-marker-id
+   VITE_TRAVELPAYOUTS_CURRENCY=usd
+   ```
+   (see `.env.example`). Until this is set, links use a demo marker and
+   a small amber notice shows on the Flights tab reminding you to
+   configure it — bookings won't be credited to anyone until you do.
+5. That's it — no further code changes needed. Every flight search link
+   site-wide will start carrying your real marker.
+
+### Going further
+
+- **Live prices inline** (instead of just linking out): Travelpayouts
+  also offers a [Flight Search API](https://support.travelpayouts.com/hc/en-us/articles/30565016140434)
+  that returns real fares you can render directly on your own results
+  page before the visitor ever leaves MadeVisa. It needs your marker +
+  a request signature and has a minimum monthly-active-user threshold
+  for full access — the simpler [Data API](https://support.travelpayouts.com/hc/en-us/articles/203956163)
+  (cheapest-fares-by-month type data, not live pricing) has none.
+- **Stays**, similarly: Travelpayouts also runs **Hotellook** (hotel
+  price comparison) and has a program for **Booking.com**'s own
+  [Affiliate Partner Program](https://www.booking.com/affiliate-program/v2/index.html)
+  (apply separately, official Booking.com commissions). Either can be
+  wired into the Stays tab the same way — build a deep link with your
+  partner ID and open it out, exactly like `buildFlightSearchUrl`.
+- **Multiple partners / price comparison**: nothing stops you
+  registering with more than one program (e.g. Aviasales + WayAway) and
+  showing both as options — same pattern, different base URL and
+  marker per partner.

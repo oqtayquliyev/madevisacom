@@ -1,1 +1,10 @@
 /// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  readonly VITE_TRAVELPAYOUTS_MARKER?: string;
+  readonly VITE_TRAVELPAYOUTS_CURRENCY?: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
