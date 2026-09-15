@@ -1,59 +1,95 @@
-# Auto location detection + trip cost estimator
+# Sponsored programs: publishers, submission, browse page
 
-Only the files for this feature — drop them into your project at the
-matching paths (everything under `src/`).
+Login/signup/Supabase were already built in your project (`src/lib/auth.tsx`,
+`src/pages/auth/LoginPage.tsx`/`RegisterPage.tsx`, `supabase/migrations/`) —
+nothing new needed there. This adds: a way for a signed-in profile to
+become a **publisher** (government or company), submit programs for
+review, and a public board to search/filter them.
 
-## Files
+## New files (in this zip)
 
-- `src/lib/geolocation.ts` — cookie helpers + free, keyless IP-based
-  country detection (ipwho.is). No permission prompt; runs silently.
-- `src/lib/originCountry.tsx` — React context that resolves the
-  visitor's country once (cookie → IP lookup) and shares it + a manual
-  override setter with any component via `useOriginCountry()`.
-- `src/data/allCountries.ts` — full ISO 3166-1 country list (code +
-  name) for the "all countries" flag switcher.
-- `src/components/location/CountrySwitcher.tsx` — the banner: shows
-  "Showing options for 🏳 Country" (circular flag, not emoji) with a
-  searchable dropdown covering every country in `allCountries.ts`.
-- `src/lib/costEstimates.ts` — the estimation engine: region-pair flight
-  price bands, plus per-destination accommodation and visa fee data.
-  Clearly documented as heuristic estimates, not live pricing.
-- `src/components/estimator/TripCostEstimator.tsx` — the UI: pick a
-  destination, nights, travelers → see an instant flight + hotel + visa
-  cost breakdown, using whatever country `useOriginCountry()` resolved.
+- `supabase/migrations/20260915140000_add_sponsored_programs.sql` — two
+  new tables, `program_publishers` and `programs`, with RLS mirroring
+  your existing `agencies` pattern (public reads verified/published
+  rows; owners manage their own; admin has full access via the
+  existing `public.is_admin()`). Also seeds ~30 common countries since
+  your `countries` table ships empty. Run it with `supabase db push`
+  or paste into the SQL editor.
+- `src/lib/programs.ts` — all Supabase queries: `fetchCountries`,
+  `fetchSponsoredPrograms(filters)`, `fetchMyPublisherProfile`,
+  `createPublisherProfile`, `submitSponsoredProgram`, plus
+  `getApplicationWindowStatus()` (open / upcoming / closed / rolling,
+  from each program's `applications_open_at`/`applications_close_at`)
+  and `toEligibilityCriteria()` (bridges a program's stored eligibility
+  columns into the same `EligibilityCriteria` shape your Jobs/Programs
+  boards already use — reuses `computeEligibility` and
+  `EligibilityBadge` you already have, no duplication).
+- `src/pages/programs/SponsoredProgramsPage.tsx` — the public board:
+  search, **country filter** and **government/company filter**, each
+  card showing an eligibility badge (citizenship/age, via your existing
+  personalization) *and* an application-window badge (open/upcoming/
+  closed) computed from dates. Bottom section: "Publish your programme"
+  CTA + a **pricing/publishing** panel with a `hello@madevisa.com`
+  mailto link.
+- `src/pages/programs/SubmitProgramPage.tsx` — auth-gated. Not signed
+  in → prompts sign in/register (reuses your existing auth). Signed in,
+  no publisher profile yet → short form to create one (Government or
+  Company, name, website, country). Has a publisher profile → full
+  program submission form (title, description, category, destination,
+  citizenship rules, age range, application dates, funding, official
+  URL). Submits as `status = 'pending'`; confirms it'll be reviewed via
+  `hello@madevisa.com`.
 
-## Integration
+All new/changed code passes `npm run typecheck`, `npm run lint`, and
+`npm run build` — verified.
 
-Both new components read from `useOriginCountry()`, so wrap whatever
-page renders them in the provider:
+## Small edits to existing files (apply these by hand — not resending full files)
 
-```tsx
-import { OriginCountryProvider } from '@/lib/originCountry';
-import { CountrySwitcher } from '@/components/location/CountrySwitcher';
-import { TripCostEstimator } from '@/components/estimator/TripCostEstimator';
-
-<OriginCountryProvider>
-  <YourHeader />
-  <CountrySwitcher />
-  {/* ...rest of the page... */}
-  <TripCostEstimator go={go} />
-</OriginCountryProvider>
+**`src/types.ts`** — add two values to the `View` union:
+```diff
+   | 'programs'
++  | 'sponsored-programs'
++  | 'submit-program'
+   | 'travel'
 ```
 
-`LandingPage.CHANGED.tsx` is your existing landing page with exactly
-that wiring already applied (provider wrap, `<CountrySwitcher />` under
-the header, `<TripCostEstimator go={go} />` before the footer) — diff
-it against your current `src/pages/landing/LandingPage.tsx` and merge,
-or just replace the file if you haven't changed it elsewhere.
+**`src/App.tsx`** — three small additions:
+1. Imports, next to your existing `ProgramsPage`/`TravelPage` imports:
+   ```ts
+   import { SponsoredProgramsPage } from '@/pages/programs/SponsoredProgramsPage';
+   import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
+   ```
+2. In the initial `useState<View>(...)` pathname check, add two more
+   branches (same pattern as your existing `/programs`/`/travel` ones)
+   for `/sponsored-programs` → `'sponsored-programs'` and
+   `/submit-program` → `'submit-program'`.
+3. Add two more early-return blocks right next to your existing
+   `if (view === 'programs' || ...)` block:
+   ```tsx
+   if (view === 'sponsored-programs' || window.location.pathname === '/sponsored-programs') {
+     return <SponsoredProgramsPage go={go} onAuth={goToAuth} />;
+   }
+   if (view === 'submit-program' || window.location.pathname === '/submit-program') {
+     return <SubmitProgramPage go={go} onAuth={goToAuth} />;
+   }
+   ```
+   (And the same two `case` lines in the switch statement further down,
+   mirroring your existing `case 'programs':` / `case 'travel':`.)
 
-## Notes
+**`src/pages/landing/programs/ProgramsPage.tsx`** — one optional line
+under the hero paragraph, linking your existing mock Programs board to
+the new one:
+```tsx
+<button onClick={() => go('sponsored-programs')} className="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20">
+  Browse government & company sponsored programs →
+</button>
+```
 
-- Uses `CircleFlag` (from an earlier delivery, `src/components/common/CircleFlag.tsx`)
-  for all flag rendering — same circular, non-emoji style as the Jobs
-  and Travel pages.
-- Cost numbers in `costEstimates.ts` are static estimates you should
-  tune with real data over time — the flight portion could later be
-  swapped for the Aviasales Data API (see `OPPORTUNITIES.md` from the
-  earlier delivery) without changing the component's interface.
-- Verified: `npm run typecheck`, `npm run lint`, and `npm run build`
-  all pass with these files added.
+## On `hello@madevisa.com`
+
+Used as: the default `contact_email` on both new tables, the mailto
+link in the publishing/pricing panel on `SponsoredProgramsPage`, and
+the "we'll reach out from…" copy on `SubmitProgramPage`. Your footer
+currently links `partners@madevisa.com` elsewhere on the site — left
+as-is since you only asked for this feature; say the word if you'd
+rather unify to one address site-wide.
