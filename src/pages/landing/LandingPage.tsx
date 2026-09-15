@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { ArrowRight, BadgeCheck, Building2, Check, ChevronDown, Clock3, Globe2, MapPin, Menu, MessageCircle, Search, ShieldCheck, Star, Users, X } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Briefcase, Building2, Check, ChevronDown, Clock3, Globe2, GraduationCap, MapPin, MessageCircle, Plane, Search, ShieldCheck, Star, Users } from 'lucide-react';
 import { agencies, destinations, nationalities } from '@/data';
-import { useAuth } from '@/lib/auth';
 import type { View } from '@/types';
 import { LandingHero } from './components/LandingHero';
 import { AgencyDiscoverySection } from './components/AgencyDiscoverySection';
+import { LandingHeader } from './components/LandingHeader';
+import { LandingFooter } from './components/LandingFooter';
+import { SponsoredCarousel, type SponsoredListing } from '@/components/ads/SponsoredCarousel';
 
 type LandingProps = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 type Professional = { name: string; title: string; agency: string; initials: string; location: string; served: string; specialties: string[]; rating: number; reviews: number; price: number; response: string; avatar: string; accent: string };
@@ -21,14 +23,13 @@ const pros: Professional[] = [
 const destinationsList = [['Germany', '124 experts'], ['France', '98 experts'], ['Italy', '86 experts'], ['Canada', '74 experts'], ['United Kingdom', '69 experts'], ['United States', '61 experts'], ['Australia', '42 experts'], ['Switzerland', '37 experts']];
 
 export function LandingPage({ go, onAuth }: LandingProps) {
-  const { profile, signOut } = useAuth();
-  const [openMenu, setOpenMenu] = useState(false);
+
   const [destination, setDestination] = useState(destinations[0]);
   const [visaType, setVisaType] = useState('Tourist visa');
   const [location, setLocation] = useState(nationalities[0]);
   const search = () => go('agencies');
   return <div className="min-h-screen bg-[#f8fafc] text-ink-900">
-    <header className="sticky top-0 z-40 border-b border-ink-200 bg-white/95 backdrop-blur"><div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8"><button onClick={() => go('home')} className="flex items-center gap-2.5" aria-label="MadeVisa home"><span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white"><Globe2 className="h-4 w-4" /></span><span className="text-lg font-bold tracking-tight">madevisa<span className="text-brand-600">.</span></span></button><nav className={`${openMenu ? 'absolute left-4 right-4 top-16 flex flex-col border border-ink-200 bg-white p-3 shadow-xl' : 'hidden'} gap-1 md:static md:flex md:flex-row md:border-0 md:bg-transparent md:p-0 md:shadow-none`}><button onClick={() => go('agencies')} className="rounded-lg px-3 py-2 text-left text-sm font-medium text-ink-600 hover:bg-ink-50">Find Experts</button><button onClick={() => go('agencies')} className="rounded-lg px-3 py-2 text-left text-sm font-medium text-ink-600 hover:bg-ink-50">Agencies</button><a href="#destinations" className="rounded-lg px-3 py-2 text-left text-sm font-medium text-ink-600 hover:bg-ink-50">Destinations</a><a href="#how-it-works" className="rounded-lg px-3 py-2 text-left text-sm font-medium text-ink-600 hover:bg-ink-50">How It Works</a></nav><div className="flex items-center gap-2">{profile ? <button onClick={signOut} className="hidden px-3 py-2 text-sm text-ink-600 sm:block">Sign out</button> : <button onClick={() => onAuth?.('login')} className="hidden px-3 py-2 text-sm text-ink-600 sm:block">Sign in</button>}<button onClick={() => onAuth?.('register')} className="hidden rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white sm:block">Get started</button><button onClick={() => setOpenMenu(!openMenu)} className="grid h-9 w-9 place-items-center rounded-lg border border-ink-200 md:hidden" aria-label="Toggle navigation">{openMenu ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}</button></div></div></header>
+    <LandingHeader go={go} onAuth={onAuth} active="home" />
     <style>{'.landing-main > section:first-child { display: none; }'}</style>
     <LandingHero go={go} />
     <main className="landing-main">
@@ -38,8 +39,15 @@ export function LandingPage({ go, onAuth }: LandingProps) {
       <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20"><Heading eyebrow="Browse the network" title="All visa professionals" detail="Compare specialists, pricing and response times in one place." /><div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{pros.map((professional) => <ProfessionalCard key={professional.name} professional={professional} onClick={search} />)}</div></section>
       <section id="destinations" className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20"><Heading eyebrow="Popular destinations" title="Start with where you want to go." detail="Updated weekly" /><div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">{destinationsList.map(([name, count]) => <button key={name} onClick={() => go('agencies')} className="flex items-center justify-between border border-ink-200 bg-white px-4 py-3 text-left shadow-soft hover:border-brand-300"><span className="text-sm font-semibold text-ink-800">{name}</span><span className="text-xs text-ink-400">{count}</span></button>)}</div></section>
       <section className="bg-brand-700 px-5 py-14 text-white sm:px-8 sm:py-16"><div className="mx-auto flex max-w-7xl flex-col justify-between gap-6 sm:flex-row sm:items-center"><div><p className="text-sm font-semibold text-brand-200">Built for better applications</p><h2 className="mt-2 text-3xl font-bold tracking-tight">Know your options before you apply.</h2><p className="mt-2 max-w-xl text-sm leading-6 text-brand-100">Compare the people, expertise and pricing behind your next visa decision.</p></div><button onClick={() => onAuth?.('register')} className="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-brand-700">Get started free <ArrowRight className="h-4 w-4" /></button></div></section>
+      <OpportunitiesSection go={go} />
+      <TravelTeaserSection go={go} />
     </main>
-    <footer className="border-t border-ink-200 bg-white px-5 py-8 sm:px-8"><div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p className="font-bold text-ink-900">madevisa<span className="text-brand-600">.</span></p><p className="mt-1 text-xs text-ink-400">The visa professional marketplace.</p></div><div className="flex gap-5 text-sm text-ink-500"><button onClick={() => go('agencies')}>Agencies</button><a href="#destinations">Destinations</a><button onClick={() => onAuth?.('register')}>For professionals</button></div></div></footer>
+    <SponsoredCarousel
+      title="Travel packages & partner offers"
+      detail="Bundled visa, flight, hotel and insurance deals from our partner network."
+      listings={sponsoredPackages}
+    />
+    <LandingFooter go={go} onAuth={onAuth} />
   </div>;
 }
 
@@ -48,3 +56,148 @@ function SearchField({ label, value, options, onChange }: { label: string; value
 function ProfessionalCard({ professional, onClick }: { professional: Professional; onClick: () => void }) { return <article className="flex min-h-[282px] flex-col border border-ink-200 bg-white p-4 shadow-soft transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><img src={professional.avatar} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover" /><div className="min-w-0"><h3 className="truncate text-sm font-bold text-ink-900">{professional.name}</h3><p className="truncate text-xs text-ink-500">{professional.title}</p></div></div><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[10px] font-bold ${professional.accent}`}>{professional.initials}</span></div><div className="mt-4 flex items-center gap-1.5 text-xs text-ink-500"><Building2 className="h-3.5 w-3.5 text-ink-400" />{professional.agency}<span className="ml-auto flex items-center gap-1 font-semibold text-ink-800"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />{professional.rating}<span className="font-normal text-ink-400">({professional.reviews})</span></span></div><div className="mt-3 flex items-center gap-1.5 text-xs text-ink-500"><MapPin className="h-3.5 w-3.5 text-ink-400" />{professional.location}</div><div className="mt-4 flex flex-wrap gap-1.5">{professional.specialties.map((specialty) => <span key={specialty} className="rounded-md bg-ink-50 px-2 py-1 text-[11px] font-medium text-ink-600">{specialty}</span>)}<span className="rounded-md bg-ink-50 px-2 py-1 text-[11px] font-medium text-ink-500">{professional.served}</span></div><div className="mt-auto border-t border-ink-100 pt-4"><div className="flex items-end justify-between"><div><p className="text-[11px] text-ink-400">Starting at</p><p className="mt-0.5 text-xl font-bold tracking-tight text-ink-950">€{professional.price}</p></div><p className="flex items-center gap-1 text-[11px] font-medium text-emerald-700"><Clock3 className="h-3.5 w-3.5" />{professional.response}</p></div><button onClick={onClick} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-brand-200 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50">View profile<ArrowRight className="h-3.5 w-3.5" /></button></div></article>; }
 export function AgencyCard({ agency, onClick }: { agency: typeof agencies[number]; onClick: () => void }) { return <div className="border border-ink-200 bg-white p-5 shadow-soft"><div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-ink-900 text-xs font-bold text-white">{agency.initials}</span><div><h3 className="font-semibold text-ink-900">{agency.name}</h3><p className="mt-0.5 flex items-center gap-1 text-xs text-ink-500"><MapPin className="h-3 w-3" />{agency.destinations.slice(0, 2).join(' · ')}</p></div></div><span className="flex items-center gap-1 text-xs font-semibold text-ink-700"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />{agency.rating}</span></div><div className="mt-5 grid grid-cols-2 gap-3 border-t border-ink-100 pt-4 text-xs"><div><p className="text-ink-400">Specialties</p><p className="mt-1 font-medium text-ink-700">{agency.services.slice(0, 2).join(' · ')}</p></div><div><p className="text-ink-400">Starting at</p><p className="mt-1 text-lg font-bold text-ink-950">${agency.priceFrom}</p></div></div><div className="mt-4 flex items-center gap-1.5 text-xs font-medium text-emerald-700"><BadgeCheck className="h-4 w-4" />Verified agency · {agency.tripsHandled.toLocaleString()} helped</div><button onClick={onClick} className="mt-4 text-xs font-semibold text-brand-600">View agency<ArrowRight className="ml-1 inline h-3.5 w-3.5" /></button></div>; }
 function Step({ number, icon: Icon, title, detail }: { number: string; icon: typeof Search; title: string; detail: string }) { return <div className="border-l-2 border-brand-200 pl-4"><div className="flex items-center gap-2 text-xs font-bold text-brand-600"><Icon className="h-4 w-4" />{number}</div><h3 className="mt-3 text-sm font-bold text-ink-900">{title}</h3><p className="mt-1 text-sm leading-6 text-ink-500">{detail}</p></div>; }
+
+const sponsoredPackages: SponsoredListing[] = [
+  {
+    id: 'pkg-1',
+    advertiser: 'Atlas Journeys',
+    title: 'Schengen visa + flight + hotel bundle',
+    description: 'One package covering your application, flights and 5 nights in Rome.',
+    price: 'From €890',
+    image: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=500&q=80',
+    url: 'https://madevisa.com/agencies',
+    badge: 'Package deal',
+  },
+  {
+    id: 'pkg-2',
+    advertiser: 'Northstar Travel',
+    title: 'Dubai relocation starter package',
+    description: 'Flights, 2 weeks of housing and visa support for new arrivals.',
+    price: 'From €1,240',
+    image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=500&q=80',
+    url: 'https://madevisa.com/agencies',
+    badge: 'Relocation',
+  },
+  {
+    id: 'pkg-3',
+    advertiser: 'SafeTrip Insurance',
+    title: 'Travel & visa insurance, 30% off',
+    description: 'Medical cover accepted by all Schengen embassies.',
+    price: '€2.10 / day',
+    image: 'https://images.unsplash.com/photo-1503437313881-503a91226402?auto=format&fit=crop&w=500&q=80',
+    url: 'https://madevisa.com',
+    badge: 'Insurance',
+  },
+  {
+    id: 'pkg-4',
+    advertiser: 'Wayfinder Co.',
+    title: 'Student move-in package, UK',
+    description: 'Airport pickup, first month housing and SIM card bundled.',
+    price: 'From £310',
+    image: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=500&q=80',
+    url: 'https://madevisa.com/agencies',
+    badge: 'Student',
+  },
+];
+
+function OpportunitiesSection({ go }: { go: (view: View) => void }) {
+  return (
+    <section className="border-y border-ink-200 bg-white px-5 py-14 sm:px-8 sm:py-20">
+      <div className="mx-auto max-w-7xl">
+        <Heading
+          eyebrow="Beyond visas"
+          title="Jobs and programs you can actually apply for."
+          detail="Sponsored jobs, scholarships and exchange programs, filtered to your citizenship, age and location."
+        />
+
+        <div className="mt-7 grid gap-4 sm:grid-cols-2">
+          <button
+            onClick={() => go('jobs')}
+            className="group flex items-start gap-4 border border-ink-200 bg-white p-6 text-left shadow-soft transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg"
+          >
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+              <Briefcase className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block text-lg font-bold text-ink-950">Jobs abroad</span>
+              <span className="mt-1 block text-sm leading-6 text-ink-500">
+                Vacancies from multiple sources in one searchable board, with a fit
+                badge based on your profile.
+              </span>
+              <span className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-brand-600">
+                Browse jobs
+                <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" />
+              </span>
+            </span>
+          </button>
+
+          <button
+            onClick={() => go('programs')}
+            className="group flex items-start gap-4 border border-ink-200 bg-white p-6 text-left shadow-soft transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg"
+          >
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+              <GraduationCap className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block text-lg font-bold text-ink-950">Programs &amp; exchanges</span>
+              <span className="mt-1 block text-sm leading-6 text-ink-500">
+                Scholarships, work &amp; travel schemes and apprenticeships, matched
+                against your citizenship and age.
+              </span>
+              <span className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-brand-600">
+                Browse programs
+                <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" />
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TravelTeaserSection({ go }: { go: (view: View) => void }) {
+  return (
+    <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20">
+      <div className="grid gap-6 border border-ink-200 bg-white p-6 shadow-soft sm:p-8 lg:grid-cols-[1.1fr_1fr] lg:items-center">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-brand-600">
+            <Plane className="h-3.5 w-3.5" />
+            Once your route is set
+          </div>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight text-ink-950">Book stays &amp; flights for your trip.</h2>
+          <p className="mt-2 max-w-lg text-sm leading-6 text-ink-500">
+            Search hotels and flights in the same place you sorted your visa and
+            experts — no need to jump to another site.
+          </p>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button onClick={() => go('travel')} className="flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+              <Building2 className="h-4 w-4" />
+              Search stays
+            </button>
+            <button onClick={() => go('travel')} className="flex items-center gap-2 rounded-lg border border-ink-200 px-5 py-2.5 text-sm font-semibold text-ink-700 hover:bg-ink-50">
+              <Plane className="h-4 w-4" />
+              Search flights
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { icon: Building2, label: 'Stays', detail: 'Hotels & apartments' },
+            { icon: Plane, label: 'Flights', detail: 'Compare fares' },
+            { icon: ShieldCheck, label: 'Insurance', detail: 'Visa-ready cover' },
+            { icon: BadgeCheck, label: 'Packages', detail: 'Bundled deals' },
+          ].map((item) => (
+            <div key={item.label} onClick={() => go('travel')} className="flex cursor-pointer flex-col gap-2 border border-ink-100 bg-ink-50/60 p-4 transition hover:border-brand-300">
+              <item.icon className="h-5 w-5 text-brand-600" />
+              <p className="text-sm font-bold text-ink-900">{item.label}</p>
+              <p className="text-xs text-ink-500">{item.detail}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}

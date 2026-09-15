@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import {
   ArrowRight,
   Briefcase,
@@ -13,9 +13,16 @@ import {
   X,
 } from 'lucide-react';
 import type { View } from '@/types';
+import type { EligibilityCriteria } from '@/lib/personalization';
+import { computeEligibility, usePersonalization } from '@/lib/personalization';
+import { LandingHeader } from '@/pages/landing/components/LandingHeader';
+import { LandingFooter } from '@/pages/landing/components/LandingFooter';
+import { PersonalizationBar, EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
+import { AdBanner } from '@/components/ads/AdBanner';
 
 type JobsPageProps = {
   go: (view: View) => void;
+  onAuth?: (page: 'login' | 'register') => void;
 };
 
 type Job = {
@@ -33,6 +40,7 @@ type Job = {
   published: string;
   url: string;
   verified: boolean;
+  eligibility: EligibilityCriteria;
 };
 
 const countries = [
@@ -94,6 +102,7 @@ const jobs: Job[] = [
     published: '2 hours ago',
     url: 'https://www.shopify.com/careers',
     verified: true,
+    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
   },
   {
     id: 'job-002',
@@ -110,6 +119,7 @@ const jobs: Job[] = [
     published: '4 hours ago',
     url: 'https://www.adzuna.ca/',
     verified: true,
+    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
   },
   {
     id: 'job-003',
@@ -126,6 +136,7 @@ const jobs: Job[] = [
     published: '5 hours ago',
     url: 'https://de.jooble.org/',
     verified: true,
+    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
   },
   {
     id: 'job-004',
@@ -142,6 +153,7 @@ const jobs: Job[] = [
     published: '7 hours ago',
     url: 'https://de.indeed.com/',
     verified: true,
+    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
   },
   {
     id: 'job-005',
@@ -158,6 +170,7 @@ const jobs: Job[] = [
     published: '1 day ago',
     url: 'https://www.adzuna.co.uk/',
     verified: true,
+    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
   },
   {
     id: 'job-006',
@@ -174,6 +187,7 @@ const jobs: Job[] = [
     published: '1 day ago',
     url: 'https://au.jooble.org/',
     verified: true,
+    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
   },
   {
     id: 'job-007',
@@ -190,6 +204,7 @@ const jobs: Job[] = [
     published: '1 day ago',
     url: 'https://www.adzuna.nl/',
     verified: true,
+    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
   },
   {
     id: 'job-008',
@@ -206,6 +221,7 @@ const jobs: Job[] = [
     published: '2 days ago',
     url: 'https://ie.jooble.org/',
     verified: true,
+    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
   },
   {
     id: 'job-009',
@@ -222,6 +238,7 @@ const jobs: Job[] = [
     published: '2 days ago',
     url: 'https://www.adzuna.ch/',
     verified: true,
+    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
   },
   {
     id: 'job-010',
@@ -238,6 +255,7 @@ const jobs: Job[] = [
     published: '2 days ago',
     url: 'https://www.adzuna.com/',
     verified: true,
+    eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
   },
 ];
 
@@ -354,6 +372,9 @@ function JobCard({
 }: {
   job: Job;
 }) {
+  const { profile } = usePersonalization();
+  const eligibility = computeEligibility(job.eligibility, profile, job.countryCode);
+
   return (
     <article className="border border-ink-200 bg-white p-5 transition hover:border-brand-300 hover:shadow-soft-lg">
 
@@ -383,14 +404,14 @@ function JobCard({
 
         </div>
 
-        {job.verified && (
-          <span
-            title="Verified source"
-            className="shrink-0"
-          >
-            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-          </span>
-        )}
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <EligibilityBadge result={eligibility} />
+          {job.verified && (
+            <span title="Verified source">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+            </span>
+          )}
+        </div>
 
       </div>
 
@@ -459,6 +480,7 @@ function JobCard({
 
 export function JobsPage({
   go,
+  onAuth,
 }: JobsPageProps) {
   const [search, setSearch] =
     useState('');
@@ -547,42 +569,7 @@ export function JobsPage({
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
 
-      {/* HEADER */}
-
-      <header className="border-b border-ink-200 bg-white">
-
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
-
-          <button
-            type="button"
-            onClick={() => go('home')}
-            className="flex items-center gap-2.5"
-          >
-
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white">
-              <Globe2 className="h-4 w-4" />
-            </span>
-
-            <span className="text-lg font-bold tracking-tight">
-              madevisa
-              <span className="text-brand-600">
-                .
-              </span>
-            </span>
-
-          </button>
-
-          <button
-            type="button"
-            onClick={() => go('home')}
-            className="text-sm font-medium text-ink-500 hover:text-ink-900"
-          >
-            Back to MadeVisa
-          </button>
-
-        </div>
-
-      </header>
+      <LandingHeader go={go} onAuth={onAuth} active="jobs" />
 
       {/* HERO */}
 
@@ -795,6 +782,10 @@ export function JobsPage({
 
         </div>
 
+        <div className="mt-6">
+          <PersonalizationBar />
+        </div>
+
         {/* COUNTRY STRIP */}
 
         <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
@@ -848,11 +839,23 @@ export function JobsPage({
 
         <div className="mt-7 grid gap-4 lg:grid-cols-2">
 
-          {filteredJobs.map((job) => (
-            <JobCard
-              key={job.id}
-              job={job}
-            />
+          {filteredJobs.map((job, index) => (
+            <Fragment key={job.id}>
+              <JobCard job={job} />
+              {index === 3 && (
+                <AdBanner
+                  content={{
+                    advertiser: 'Global Travel Agency',
+                    title: 'Relocating for a new job? Get your work visa sorted first.',
+                    description: 'Verified agencies can prep your documents while you interview.',
+                    cta: 'Find an expert',
+                    url: 'https://madevisa.com/agencies',
+                    image:
+                      'https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=400&q=80',
+                  }}
+                />
+              )}
+            </Fragment>
           ))}
 
         </div>
@@ -915,6 +918,8 @@ export function JobsPage({
         </div>
 
       </main>
+
+      <LandingFooter go={go} onAuth={onAuth} />
 
     </div>
   );

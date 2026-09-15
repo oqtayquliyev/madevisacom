@@ -68,12 +68,12 @@ export function Input({ label, type = 'text', value, onChange, placeholder, requ
   );
 }
 
-export function PrimaryButton({ children, onClick, loading, disabled }: { children: ReactNode; onClick?: () => void; loading?: boolean; disabled?: boolean }) {
+export function PrimaryButton({ children, onClick, loading, disabled, className = '' }: { children: ReactNode; onClick?: () => void; loading?: boolean; disabled?: boolean; className?: string }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled || loading}
-      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-brand-700 disabled:opacity-50"
+      className={`inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-brand-700 disabled:opacity-50 ${className}`}
     >
       {loading && <Loader2 className="h-4 w-4 animate-spin" />}
       {children}

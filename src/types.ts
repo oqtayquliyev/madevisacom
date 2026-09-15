@@ -70,6 +70,8 @@ export type View =
   | 'home'
   | 'planner'
   | 'jobs'
+  | 'programs'
+  | 'travel'
   | 'results'
   | 'agencies'
   | 'customer-dashboard'

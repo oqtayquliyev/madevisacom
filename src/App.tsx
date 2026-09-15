@@ -13,6 +13,8 @@ import { ExplorePage } from '@/pages/explore/ExplorePage';
 import { PlannerPage } from '@/pages/planner/PlannerPage';
 import { ResultsPage } from '@/pages/results/ResultsPage';
 import { JobsPage } from '@/pages/landing/jobs/JobsPage';
+import { ProgramsPage } from '@/pages/landing/programs/ProgramsPage';
+import { TravelPage } from '@/pages/travel/TravelPage';
 import type { View } from '@/types';
 
 type AuthPage = 'login' | 'register';
@@ -21,7 +23,13 @@ export default function App() {
   const { session, profile, loading } = useAuth();
 
   const [view, setView] = useState<View>(
-    window.location.pathname === '/jobs' ? 'jobs' : 'home'
+    window.location.pathname === '/jobs'
+      ? 'jobs'
+      : window.location.pathname === '/programs'
+      ? 'programs'
+      : window.location.pathname === '/travel'
+      ? 'travel'
+      : 'home'
   );
 
   const [authPage, setAuthPage] = useState<AuthPage>(
@@ -55,7 +63,21 @@ export default function App() {
     view === 'jobs' ||
     window.location.pathname === '/jobs'
   ) {
-    return <JobsPage go={go} />;
+    return <JobsPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (
+    view === 'programs' ||
+    window.location.pathname === '/programs'
+  ) {
+    return <ProgramsPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (
+    view === 'travel' ||
+    window.location.pathname === '/travel'
+  ) {
+    return <TravelPage go={go} onAuth={goToAuth} />;
   }
 
   if (!session) {
@@ -184,6 +206,12 @@ function renderPublicView(
 
     case 'jobs':
       return <JobsPage go={go} />;
+
+    case 'programs':
+      return <ProgramsPage go={go} />;
+
+    case 'travel':
+      return <TravelPage go={go} />;
 
     case 'customer-dashboard':
       return (
