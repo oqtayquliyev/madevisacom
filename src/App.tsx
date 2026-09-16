@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
@@ -18,11 +19,13 @@ import { ProgramsPage } from '@/pages/landing/programs/ProgramsPage';
 import { SponsoredProgramsPage } from '@/pages/programs/SponsoredProgramsPage';
 import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
+import { PendingConfirmationPage } from '@/pages/auth/PendingConfirmationPage';
+import type { PendingSignup } from '@/pages/auth/RegisterPage';
 import { WelcomeModal } from '@/components/common/WelcomeModal';
 import { TravelPage } from '@/pages/travel/TravelPage';
 import type { View } from '@/types';
 
-type AuthPage = 'login' | 'register' | 'reset-password';
+type AuthPage = 'login' | 'register' | 'reset-password' | 'pending-confirmation';
 
 // Single source of truth for View <-> URL path, used by both `go()`
 // (pushes history so the URL bar/back button reflect the app state)
@@ -60,6 +63,13 @@ export default function App() {
     authPathToPage[window.location.pathname] ?? 'login'
   );
 
+  const [pendingSignup, setPendingSignup] = useState<PendingSignup | null>(null);
+
+  const showPendingConfirmation = (info: PendingSignup) => {
+    setPendingSignup(info);
+    setAuthPage('pending-confirmation');
+  };
+
   const go = (next: View) => {
     setView(next);
     const path = pathForView[next];
@@ -72,8 +82,9 @@ export default function App() {
   const goToAuth = (page: AuthPage) => {
     setAuthPage(page);
 
-    const path = page === 'login' ? '/login' : page === 'register' ? '/register' : '/reset-password';
-    window.history.pushState({}, '', path);
+    const path =
+      page === 'login' ? '/login' : page === 'register' ? '/register' : page === 'reset-password' ? '/reset-password' : null;
+    if (path) window.history.pushState({}, '', path);
   };
 
   // Keep `view`/`authPage` in sync when the visitor uses the browser's
@@ -98,8 +109,15 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="grid min-h-screen place-items-center bg-[#f7f9fc]">
+      <div className="grid min-h-screen place-items-center gap-4 bg-[#f7f9fc]">
         <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+        <button
+          type="button"
+          onClick={() => supabase.auth.signOut()}
+          className="text-xs font-medium text-ink-400 underline hover:text-ink-700"
+        >
+          Taking too long? Sign out and try again
+        </button>
       </div>
     );
   }
@@ -165,6 +183,10 @@ export default function App() {
       return <ResetPasswordPage onHome={() => go('home')} onSwitchToLogin={() => goToAuth('login')} />;
     }
 
+    if (authPage === 'pending-confirmation' && pendingSignup) {
+      return <PendingConfirmationPage info={pendingSignup} go={go} onAuth={goToAuth} />;
+    }
+
     return authPage === 'login' ? (
       <LoginPage
         onSwitchToRegister={() => goToAuth('register')}
@@ -174,6 +196,7 @@ export default function App() {
       <RegisterPage
         onSwitchToLogin={() => goToAuth('login')}
         onHome={() => go('home')}
+        onPendingConfirmation={showPendingConfirmation}
       />
     );
   }

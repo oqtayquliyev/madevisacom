@@ -9,6 +9,7 @@ export type Profile = {
   phone: string | null;
   role: 'customer' | 'agency' | 'admin' | null;
   avatar_url: string | null;
+  country_id: string | null;
   nationality_country_id: string | null;
 };
 
@@ -39,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, phone, role, avatar_url, nationality_country_id')
+        .select('id, full_name, email, phone, role, avatar_url, country_id, nationality_country_id')
         .eq('id', userId)
         .maybeSingle();
       if (error) {

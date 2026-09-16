@@ -2,19 +2,39 @@ import { useEffect, useState } from 'react';
 import { Building2, Check, ChevronDown, Search, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { handleNavClick } from '@/lib/navLink';
+import { PhoneInput } from '@/components/common/PhoneInput';
 import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
 
-type Country = { id: string; name: string; flag_emoji: string | null };
+type Country = { id: string; name: string; flag_emoji: string | null; iso_code: string };
 type Role = 'customer' | 'agency' | null;
 
-export function RegisterPage({ onSwitchToLogin, onHome }: { onSwitchToLogin: () => void; onHome?: () => void }) {
+export type PendingSignup = {
+  email: string;
+  fullName: string;
+  phone: string;
+  countryName: string | null;
+  nationalityName: string | null;
+  role: 'customer' | 'agency';
+};
+
+type RegisterPageProps = {
+  onSwitchToLogin: () => void;
+  onHome?: () => void;
+  /** Called instead of showing a blocking "check your email" screen,
+   *  when signup succeeds but no session was returned (confirmation
+   *  required). The caller navigates to a pending-confirmation view
+   *  that shows this data. */
+  onPendingConfirmation: (info: PendingSignup) => void;
+};
+
+export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }: RegisterPageProps) {
   const [role, setRole] = useState<Role>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [countries, setCountries] = useState<Country[]>([]);
 
   useEffect(() => {
-    supabase.from('countries').select('id, name, flag_emoji').order('name').then(({ data }) => {
+    supabase.from('countries').select('id, name, flag_emoji, iso_code').order('name').then(({ data }) => {
       if (data) setCountries(data as Country[]);
     });
   }, []);
@@ -61,9 +81,9 @@ export function RegisterPage({ onSwitchToLogin, onHome }: { onSwitchToLogin: () 
           </button>
         </div>
       ) : role === 'customer' ? (
-        <CustomerForm countries={countries} onBack={() => setRole(null)} onError={setError} />
+        <CustomerForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
       ) : (
-        <AgencyForm countries={countries} onBack={() => setRole(null)} onError={setError} />
+        <AgencyForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
       )}
       <div className="mt-5 text-center text-sm text-ink-500">
         Already have an account?{' '}
@@ -79,24 +99,33 @@ export function RegisterPage({ onSwitchToLogin, onHome }: { onSwitchToLogin: () 
   );
 }
 
-function CustomerForm({ countries, onBack, onError }: { countries: Country[]; onBack: () => void; onError: (msg: string) => void }) {
+function CustomerForm({
+  countries,
+  onBack,
+  onError,
+  onPendingConfirmation,
+}: {
+  countries: Country[];
+  onBack: () => void;
+  onError: (msg: string) => void;
+  onPendingConfirmation: (info: PendingSignup) => void;
+}) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
+  const [countryId, setCountryId] = useState('');
+  const [nationalitySameAsCountry, setNationalitySameAsCountry] = useState(true);
   const [nationalityId, setNationalityId] = useState('');
   const [loading, setLoading] = useState(false);
-  const [checkEmail, setCheckEmail] = useState(false);
+
+  const country = countries.find((c) => c.id === countryId) ?? null;
+  const effectiveNationalityId = nationalitySameAsCountry ? countryId : nationalityId;
 
   const handleSubmit = async () => {
     setLoading(true);
     onError('');
 
-    // All profile fields are passed as auth metadata rather than
-    // inserted client-side: a DB trigger (handle_new_user, see
-    // supabase/migrations) creates the `profiles` row server-side from
-    // this metadata. Inserting it again here would race the trigger
-    // and fail on the duplicate primary key.
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -105,7 +134,8 @@ function CustomerForm({ countries, onBack, onError }: { countries: Country[]; on
           role: 'customer',
           full_name: fullName,
           phone: phone || null,
-          nationality_country_id: nationalityId || null,
+          country_id: countryId || null,
+          nationality_country_id: effectiveNationalityId || null,
         },
       },
     });
@@ -118,56 +148,75 @@ function CustomerForm({ countries, onBack, onError }: { countries: Country[]; on
     }
 
     if (!data.session) {
-      // Email confirmation is required before a session exists —
-      // nothing more to do here until they click the link.
-      setCheckEmail(true);
+      const nationalityCountry = countries.find((c) => c.id === effectiveNationalityId) ?? null;
+      onPendingConfirmation({
+        email,
+        fullName,
+        phone,
+        countryName: country?.name ?? null,
+        nationalityName: nationalityCountry?.name ?? null,
+        role: 'customer',
+      });
     }
     // If a session WAS returned (email confirmation disabled), the
-    // AuthProvider's onAuthStateChange listener picks it up automatically
-    // and the app navigates away from this page on its own.
+    // AuthProvider's onAuthStateChange listener picks it up automatically.
   };
-
-  if (checkEmail) {
-    return (
-      <div className="space-y-4 text-center">
-        <p className="text-sm font-medium text-ink-800">Check your email to confirm your account.</p>
-        <p className="text-sm text-ink-500">We sent a confirmation link to {email}. Click it to finish creating your account.</p>
-        <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
       <Input label="Full name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
       <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="you@example.com" required autoComplete="email" />
       <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" required autoComplete="new-password" />
-      <Input label="Phone (optional)" value={phone} onChange={setPhone} placeholder="+994 50 555 12 34" />
-      <CountrySelect label="Nationality" countries={countries} value={nationalityId} onChange={setNationalityId} />
+      <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} />
+      <CountrySelect label="Country" countries={countries} value={countryId} onChange={setCountryId} />
+
+      <label className="flex items-center gap-2 text-sm text-ink-600">
+        <input
+          type="checkbox"
+          checked={nationalitySameAsCountry}
+          onChange={(e) => setNationalitySameAsCountry(e.target.checked)}
+          className="h-4 w-4 rounded border-ink-300"
+        />
+        My nationality is the same as my country
+      </label>
+
+      {!nationalitySameAsCountry && (
+        <CountrySelect label="Nationality / citizenship" countries={countries} value={nationalityId} onChange={setNationalityId} />
+      )}
+
       <PrimaryButton onClick={handleSubmit} loading={loading}>Create traveler account</PrimaryButton>
       <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
     </div>
   );
 }
 
-function AgencyForm({ countries, onBack, onError }: { countries: Country[]; onBack: () => void; onError: (msg: string) => void }) {
+function AgencyForm({
+  countries,
+  onBack,
+  onError,
+  onPendingConfirmation,
+}: {
+  countries: Country[];
+  onBack: () => void;
+  onError: (msg: string) => void;
+  onPendingConfirmation: (info: PendingSignup) => void;
+}) {
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
-  const [country, setCountry] = useState('');
+  const [countryId, setCountryId] = useState('');
   const [city, setCity] = useState('');
   const [website, setWebsite] = useState('');
   const [loading, setLoading] = useState(false);
-  const [checkEmail, setCheckEmail] = useState(false);
+
+  const country = countries.find((c) => c.id === countryId) ?? null;
 
   const handleSubmit = async () => {
     setLoading(true);
     onError('');
 
-    // Same pattern as CustomerForm — metadata only, the DB trigger
-    // creates both the `profiles` row and the `agencies` row.
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -176,8 +225,9 @@ function AgencyForm({ countries, onBack, onError }: { countries: Country[]; onBa
           role: 'agency',
           full_name: fullName,
           phone: phone || null,
+          country_id: countryId || null,
           company_name: companyName,
-          country: country || null,
+          country: country?.name ?? null,
           city: city || null,
           website: website || null,
         },
@@ -192,19 +242,16 @@ function AgencyForm({ countries, onBack, onError }: { countries: Country[]; onBa
     }
 
     if (!data.session) {
-      setCheckEmail(true);
+      onPendingConfirmation({
+        email,
+        fullName,
+        phone,
+        countryName: country?.name ?? null,
+        nationalityName: null,
+        role: 'agency',
+      });
     }
   };
-
-  if (checkEmail) {
-    return (
-      <div className="space-y-4 text-center">
-        <p className="text-sm font-medium text-ink-800">Check your email to confirm your account.</p>
-        <p className="text-sm text-ink-500">We sent a confirmation link to {email}. Click it to finish creating your account.</p>
-        <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
@@ -212,8 +259,8 @@ function AgencyForm({ countries, onBack, onError }: { countries: Country[]; onBa
       <Input label="Company name" value={companyName} onChange={setCompanyName} placeholder="Your travel agency" required />
       <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="agency@example.com" required autoComplete="email" />
       <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" required autoComplete="new-password" />
-      <Input label="Phone" value={phone} onChange={setPhone} placeholder="+994 50 555 12 34" required />
-      <CountrySelect label="Country" countries={countries} value={country} onChange={setCountry} />
+      <CountrySelect label="Country" countries={countries} value={countryId} onChange={setCountryId} />
+      <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} required />
       <Input label="City" value={city} onChange={setCity} placeholder="Baku" required />
       <Input label="Website (optional)" value={website} onChange={setWebsite} placeholder="https://youragency.com" />
       <PrimaryButton onClick={handleSubmit} loading={loading}>Create agency account</PrimaryButton>
