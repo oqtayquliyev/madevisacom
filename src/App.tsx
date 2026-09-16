@@ -202,11 +202,7 @@ export default function App() {
   }
 
   if (!profile) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-[#f7f9fc]">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <ProfileMissingScreen />;
   }
 
   const role = profile.role;
@@ -385,5 +381,61 @@ function renderRoleHome(
       view="customer-dashboard"
       go={go}
     />
+  );
+}
+function ProfileMissingScreen() {
+  const { refreshProfile, signOut } = useAuth();
+  const [retrying, setRetrying] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+
+  useEffect(() => {
+    // Give the profile fetch a moment (it may just be catching up right
+    // after a fresh signup/sign-in) before offering retry/sign-out —
+    // but always show it eventually, unlike the old bare spinner here.
+    const timer = window.setTimeout(() => setShowHelp(true), 4000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    await refreshProfile();
+    setRetrying(false);
+  };
+
+  return (
+    <div className="grid min-h-screen place-items-center bg-[#f7f9fc] px-5">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+
+        {showHelp && (
+          <div className="max-w-sm">
+            <p className="text-sm font-medium text-ink-700">
+              This is taking longer than expected.
+            </p>
+            <p className="mt-1 text-xs text-ink-400">
+              You're signed in, but your profile hasn't loaded yet.
+            </p>
+
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={handleRetry}
+                disabled={retrying}
+                className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+              >
+                {retrying ? 'Retrying…' : 'Retry'}
+              </button>
+              <button
+                type="button"
+                onClick={signOut}
+                className="text-xs font-medium text-ink-400 underline hover:text-ink-700"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
