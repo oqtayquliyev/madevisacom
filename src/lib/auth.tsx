@@ -36,20 +36,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasRestoredInitialSession = useRef(false);
 
   const loadProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, phone, role, avatar_url, nationality_country_id')
-      .eq('id', userId)
-      .maybeSingle();
-    if (error) {
-      console.error('Profile load failed', error);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, phone, role, avatar_url, nationality_country_id')
+        .eq('id', userId)
+        .maybeSingle();
+      if (error) {
+        console.error('Profile load failed', error);
+        setProfile(null);
+        return;
+      }
+      setProfile(data as Profile | null);
+    } catch (err) {
+      console.error('Profile load threw unexpectedly', err);
       setProfile(null);
-      return;
     }
-    setProfile(data as Profile | null);
   };
 
   useEffect(() => {
+    // Absolute safety net: if something in the session/profile-loading
+    // chain above hangs (a network request that never resolves, an
+    // unexpected error path, etc.), never leave the visitor staring at
+    // a spinner forever.
+    const safetyTimeout = window.setTimeout(() => {
+      setLoading((current) => {
+        if (current) console.warn('Auth loading timed out after 8s — forcing it to resolve.');
+        return false;
+      });
+    }, 8000);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       hasRestoredInitialSession.current = true;
@@ -74,8 +90,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (session?.user) {
         (async () => {
-          await loadProfile(session.user.id);
-          setLoading(false);
+          try {
+            await loadProfile(session.user.id);
+          } catch (err) {
+            // A thrown (not just a Supabase {error}) failure here used to
+            // leave the app stuck on the loading spinner forever, since
+            // setLoading(false) below would never run. Catch + always
+            // fall through to it instead.
+            console.error('loadProfile threw unexpectedly', err);
+            setProfile(null);
+          } finally {
+            setLoading(false);
+          }
         })();
       } else {
         setProfile(null);
@@ -83,7 +109,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      listener.subscription.unsubscribe();
+      window.clearTimeout(safetyTimeout);
+    };
   }, []);
 
   const signOut = async () => {
