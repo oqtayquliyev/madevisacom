@@ -11,6 +11,7 @@ import {
   MapPin,
   Menu,
   Plane,
+  ShieldCheck,
   User,
   UserPlus,
   UserRound,
@@ -211,6 +212,15 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                         <LayoutDashboard className="h-4 w-4 text-ink-400" />
                         Dashboard
                       </button>
+                      {profile.role === 'admin' && (
+                        <button
+                          onClick={() => { go('admin'); setOpenProfile(false); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
+                        >
+                          <ShieldCheck className="h-4 w-4 text-ink-400" />
+                          Admin panel
+                        </button>
+                      )}
                       <button
                         onClick={() => { signOut(); setOpenProfile(false); }}
                         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-rose-600 hover:bg-rose-50"

@@ -3,7 +3,7 @@ import type { EligibilityCriteria } from '@/lib/personalization';
 
 export const PUBLISHING_CONTACT_EMAIL = 'hello@madevisa.com';
 
-export type OrgType = 'government' | 'company';
+export type OrgType = 'government' | 'company' | 'agency' | 'expert';
 
 export type CountryOption = {
   id: string;

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Building2, Check, ChevronDown, Search, UserRound } from 'lucide-react';
+import { Building2, Check, ChevronDown, Landmark, Search, Sparkles, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { handleNavClick } from '@/lib/navLink';
 import { PhoneInput } from '@/components/common/PhoneInput';
 import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
 
 type Country = { id: string; name: string; flag_emoji: string | null; iso_code: string };
-type Role = 'customer' | 'agency' | null;
+type Role = 'customer' | 'agency' | 'government' | null;
 
 export type PendingSignup = {
   email: string;
@@ -14,7 +14,7 @@ export type PendingSignup = {
   phone: string;
   countryName: string | null;
   nationalityName: string | null;
-  role: 'customer' | 'agency';
+  role: 'customer' | 'agency' | 'government';
 };
 
 type RegisterPageProps = {
@@ -61,9 +61,13 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
         <div className="space-y-3">
           <button
             onClick={() => setRole('customer')}
-            className="flex w-full items-center gap-4 rounded-2xl border border-ink-200 bg-white p-4 text-left shadow-soft transition hover:border-brand-300 hover:shadow-soft-lg"
+            className="relative flex w-full items-center gap-4 rounded-2xl border-2 border-brand-500 bg-brand-50/40 p-4 text-left shadow-soft transition hover:shadow-soft-lg"
           >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600"><UserRound className="h-6 w-6" /></span>
+            <span className="absolute -top-2.5 right-4 flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+              <Sparkles className="h-2.5 w-2.5" />
+              Most popular
+            </span>
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-600 text-white"><UserRound className="h-6 w-6" /></span>
             <div>
               <p className="font-semibold text-ink-900">I'm a traveler</p>
               <p className="mt-0.5 text-sm text-ink-500">Plan trips, track requirements, get agency help.</p>
@@ -75,15 +79,30 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
           >
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600"><Building2 className="h-6 w-6" /></span>
             <div>
-              <p className="font-semibold text-ink-900">I'm a travel agency</p>
-              <p className="mt-0.5 text-sm text-ink-500">Manage customers, trips, and requests.</p>
+              <p className="font-semibold text-ink-900">I'm an agency / company</p>
+              <p className="mt-0.5 text-sm text-ink-500">Manage customers, trips, and post sponsored jobs or programs.</p>
             </div>
           </button>
+          <button
+            onClick={() => setRole('government')}
+            className="flex w-full items-center gap-4 rounded-2xl border border-ink-200 bg-white p-4 text-left shadow-soft transition hover:border-brand-300 hover:shadow-soft-lg"
+          >
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><Landmark className="h-6 w-6" /></span>
+            <div>
+              <p className="font-semibold text-ink-900">I'm a government institution</p>
+              <p className="mt-0.5 text-sm text-ink-500">Promote official programs, visas and opportunities.</p>
+            </div>
+          </button>
+          <p className="text-center text-[11px] text-ink-400">
+            Agency, company and government accounts are reviewed before their listings go public.
+          </p>
         </div>
       ) : role === 'customer' ? (
         <CustomerForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
-      ) : (
+      ) : role === 'agency' ? (
         <AgencyForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
+      ) : (
+        <GovernmentForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
       )}
       <div className="mt-5 text-center text-sm text-ink-500">
         Already have an account?{' '}
@@ -265,6 +284,89 @@ function AgencyForm({
       <Input label="Website (optional)" value={website} onChange={setWebsite} placeholder="https://youragency.com" />
       <PrimaryButton onClick={handleSubmit} loading={loading}>Create agency account</PrimaryButton>
       <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
+    </div>
+  );
+}
+
+function GovernmentForm({
+  countries,
+  onBack,
+  onError,
+  onPendingConfirmation,
+}: {
+  countries: Country[];
+  onBack: () => void;
+  onError: (msg: string) => void;
+  onPendingConfirmation: (info: PendingSignup) => void;
+}) {
+  const [fullName, setFullName] = useState('');
+  const [orgName, setOrgName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [countryId, setCountryId] = useState('');
+  const [website, setWebsite] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const country = countries.find((c) => c.id === countryId) ?? null;
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    onError('');
+
+    // role stays 'customer' — a government account's ability to
+    // publish is entirely governed by the pending program_publishers
+    // row this creates (see the handle_new_user trigger), reviewed
+    // from the admin panel before anything goes public.
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          role: 'customer',
+          full_name: fullName,
+          phone: phone || null,
+          country_id: countryId || null,
+          publisher_org_type: 'government',
+          company_name: orgName,
+          website: website || null,
+        },
+      },
+    });
+
+    setLoading(false);
+
+    if (error) {
+      onError(error.message.includes('already') ? 'An account with this email already exists.' : error.message);
+      return;
+    }
+
+    if (!data.session) {
+      onPendingConfirmation({
+        email,
+        fullName,
+        phone,
+        countryName: country?.name ?? null,
+        nationalityName: null,
+        role: 'government',
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Input label="Contact person name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
+      <Input label="Ministry / institution name" value={orgName} onChange={setOrgName} placeholder="e.g. Ministry of Labor" required />
+      <Input label="Official email" type="email" value={email} onChange={setEmail} placeholder="you@ministry.gov" required autoComplete="email" />
+      <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" required autoComplete="new-password" />
+      <CountrySelect label="Country" countries={countries} value={countryId} onChange={setCountryId} />
+      <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} required />
+      <Input label="Official website (optional)" value={website} onChange={setWebsite} placeholder="https://www.ministry.gov" />
+      <PrimaryButton onClick={handleSubmit} loading={loading}>Create government account</PrimaryButton>
+      <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
+      <p className="text-center text-[11px] text-ink-400">
+        Verified by MadeVisa before you can publish — usually within 1-2 business days.
+      </p>
     </div>
   );
 }

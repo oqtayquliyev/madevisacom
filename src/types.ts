@@ -77,6 +77,7 @@ export type View =
   | 'experts'
   | 'destinations'
   | 'dashboard'
+  | 'admin'
   | 'travel'
   | 'results'
   | 'agencies'

@@ -15,7 +15,8 @@ type PendingConfirmationPageProps = {
 
 const roleLabel: Record<PendingSignup['role'], string> = {
   customer: 'Traveler',
-  agency: 'Travel agency',
+  agency: 'Agency / company',
+  government: 'Government institution',
 };
 
 /**

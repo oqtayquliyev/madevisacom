@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Loader2, Mail, Shield } from 'lucide-react';
+import { AlertTriangle, Building2, CheckCircle2, Landmark, Loader2, Mail, Shield, UserRound } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import {
+  createPublisherProfile,
+  fetchMyPublisherProfile,
+  PUBLISHING_CONTACT_EMAIL,
+  type OrgType,
+  type ProgramPublisher,
+} from '@/lib/programs';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { TravelerAvatar } from '@/components/common/TravelerAvatar';
@@ -37,6 +44,16 @@ export function ProfilePage({ go, onAuth }: ProfilePageProps) {
   const [error, setError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
+  const [publisher, setPublisher] = useState<ProgramPublisher | null>(null);
+  const [publisherLoading, setPublisherLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchMyPublisherProfile(user.id).then((p) => {
+      setPublisher(p);
+      setPublisherLoading(false);
+    });
+  }, [user]);
 
   useEffect(() => {
     supabase.from('countries').select('id, name, flag_emoji, iso_code').order('name').then(({ data }) => {
@@ -203,9 +220,164 @@ export function ProfilePage({ go, onAuth }: ProfilePageProps) {
             )}
           </div>
         </div>
+
+        <PartnerSection
+          publisher={publisher}
+          loading={publisherLoading}
+          countries={countries}
+          userId={user?.id}
+          onCreated={setPublisher}
+        />
       </main>
 
       <LandingFooter go={go} onAuth={onAuth} />
+    </div>
+  );
+}
+
+const orgTypeLabel: Record<OrgType, string> = {
+  agency: 'Agency',
+  company: 'Company',
+  government: 'Government',
+  expert: 'Independent expert',
+};
+
+const orgTypeIcon: Record<OrgType, typeof Building2> = {
+  agency: Building2,
+  company: Building2,
+  government: Landmark,
+  expert: UserRound,
+};
+
+const statusCopy: Record<ProgramPublisher['verification_status'], { label: string; className: string }> = {
+  pending: { label: 'Pending review', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  verified: { label: 'Verified', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  rejected: { label: 'Not approved', className: 'bg-rose-50 text-rose-700 border-rose-200' },
+  suspended: { label: 'Suspended', className: 'bg-ink-100 text-ink-500 border-ink-200' },
+};
+
+function PartnerSection({
+  publisher,
+  loading,
+  countries,
+  userId,
+  onCreated,
+}: {
+  publisher: ProgramPublisher | null;
+  loading: boolean;
+  countries: CountryOption[];
+  userId: string | undefined;
+  onCreated: (p: ProgramPublisher) => void;
+}) {
+  const [applying, setApplying] = useState<OrgType | null>(null);
+  const [orgName, setOrgName] = useState('');
+  const [website, setWebsite] = useState('');
+  const [countryId, setCountryId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (loading) return null;
+
+  if (publisher) {
+    const Icon = orgTypeIcon[publisher.org_type];
+    const status = statusCopy[publisher.verification_status];
+    return (
+      <div className="mt-6 border border-ink-200 bg-white p-6">
+        <h2 className="text-sm font-bold text-ink-900">Partner status</h2>
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-ink-50 p-4">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-lg bg-white text-ink-500">
+              <Icon className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-ink-900">{publisher.name}</p>
+              <p className="text-xs text-ink-500">{orgTypeLabel[publisher.org_type]}</p>
+            </div>
+          </div>
+          <span className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${status.className}`}>{status.label}</span>
+        </div>
+        {publisher.verification_status === 'pending' && (
+          <p className="mt-3 text-xs text-ink-500">
+            We'll email you once this is reviewed. Questions — {PUBLISHING_CONTACT_EMAIL}.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  const submit = async () => {
+    if (!userId || !applying) return;
+    if (!orgName.trim()) {
+      setError('Organization name is required.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    const created = await createPublisherProfile({ ownerId: userId, orgType: applying, name: orgName, website, countryId });
+    setSubmitting(false);
+    if (created) onCreated(created);
+    else setError('Something went wrong — please try again.');
+  };
+
+  return (
+    <div className="mt-6 border border-ink-200 bg-white p-6">
+      <h2 className="text-sm font-bold text-ink-900">Become a partner</h2>
+      <p className="mt-1 text-xs text-ink-500">
+        Apply to publish sponsored jobs or programs, or be listed as an independent visa expert. Reviewed before
+        anything goes public.
+      </p>
+
+      {!applying ? (
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {(Object.keys(orgTypeLabel) as OrgType[]).map((type) => {
+            const Icon = orgTypeIcon[type];
+            return (
+              <button
+                key={type}
+                onClick={() => setApplying(type)}
+                className="flex items-center gap-2.5 rounded-lg border border-ink-200 px-4 py-3 text-left text-sm font-semibold text-ink-700 hover:border-brand-300 hover:bg-brand-50/40"
+              >
+                <Icon className="h-4 w-4 text-ink-400" />
+                {orgTypeLabel[type]}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className={labelClass}>{applying === 'expert' ? 'Your professional name' : 'Organization name'}</label>
+            <input value={orgName} onChange={(e) => setOrgName(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Website (optional)</label>
+            <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://" className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Country</label>
+            <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className={inputClass}>
+              <option value="">Select</option>
+              {countries.map((c) => (
+                <option key={c.id} value={c.id}>{c.flag_emoji ?? ''} {c.name}</option>
+              ))}
+            </select>
+          </div>
+          {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={submit}
+              disabled={submitting}
+              className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Submit for review
+            </button>
+            <button onClick={() => setApplying(null)} className="text-xs font-semibold text-ink-500 hover:text-ink-800">
+              Back
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
