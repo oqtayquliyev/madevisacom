@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
+  Bookmark,
+  BookmarkCheck,
   Briefcase,
   CalendarRange,
   CheckCircle2,
@@ -17,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { View } from '@/types';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
+import { isApplied, markApplied, removeApplication } from '@/lib/applications';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { PersonalizationBar, EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
@@ -207,19 +210,71 @@ function JobCard({
 
         </div>
 
-        <a
-          href={job.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
-        >
-          View job
-          <ArrowRight className="h-3.5 w-3.5" />
-        </a>
+        <div className="flex items-center gap-2">
+          <SaveButton
+            kind="job"
+            refId={job.id}
+            title={job.title}
+            organization={job.company}
+            country={job.country}
+            countryCode={job.countryCode}
+            url={job.url}
+          />
+
+          <a
+            href={job.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+          >
+            View job
+            <ArrowRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
 
       </div>
 
     </article>
+  );
+}
+
+function SaveButton({
+  kind,
+  refId,
+  title,
+  organization,
+  country,
+  countryCode,
+  url,
+}: {
+  kind: 'job' | 'program';
+  refId: string;
+  title: string;
+  organization: string;
+  country: string;
+  countryCode: string;
+  url?: string;
+}) {
+  const [saved, setSaved] = useState(() => isApplied(kind, refId));
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (saved) {
+          removeApplication(kind, refId);
+        } else {
+          markApplied({ kind, refId, title, organization, country, countryCode, url });
+        }
+        setSaved(!saved);
+      }}
+      className={`flex items-center gap-1.5 rounded-lg border px-3 py-2.5 text-xs font-semibold transition ${
+        saved ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-ink-200 text-ink-500 hover:bg-ink-50'
+      }`}
+    >
+      {saved ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
+      {saved ? 'Saved' : 'Save'}
+    </button>
   );
 }
 

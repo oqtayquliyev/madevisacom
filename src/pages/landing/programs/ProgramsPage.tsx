@@ -1,6 +1,8 @@
 import { Fragment, useMemo, useState } from 'react';
 import {
   ArrowRight,
+  Bookmark,
+  BookmarkCheck,
   CheckCircle2,
   ChevronDown,
   Clock3,
@@ -13,6 +15,7 @@ import {
 import type { View } from '@/types';
 import { programOpportunities, type Opportunity } from '@/data/opportunities';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
+import { isApplied, markApplied, removeApplication } from '@/lib/applications';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { PersonalizationBar, EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
@@ -131,17 +134,68 @@ function ProgramCard({ program }: { program: Opportunity }) {
             {program.published}
           </p>
         </div>
-        <a
-          href={program.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
-        >
-          View program
-          <ArrowRight className="h-3.5 w-3.5" />
-        </a>
+        <div className="flex items-center gap-2">
+          <SaveButton
+            kind="program"
+            refId={program.id}
+            title={program.title}
+            organization={program.organization}
+            country={program.country}
+            countryCode={program.countryCode}
+            url={program.url}
+          />
+          <a
+            href={program.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+          >
+            View program
+            <ArrowRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
       </div>
     </article>
+  );
+}
+
+function SaveButton({
+  kind,
+  refId,
+  title,
+  organization,
+  country,
+  countryCode,
+  url,
+}: {
+  kind: 'job' | 'program';
+  refId: string;
+  title: string;
+  organization: string;
+  country: string;
+  countryCode: string;
+  url?: string;
+}) {
+  const [saved, setSaved] = useState(() => isApplied(kind, refId));
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (saved) {
+          removeApplication(kind, refId);
+        } else {
+          markApplied({ kind, refId, title, organization, country, countryCode, url });
+        }
+        setSaved(!saved);
+      }}
+      className={`flex items-center gap-1.5 rounded-lg border px-3 py-2.5 text-xs font-semibold transition ${
+        saved ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-ink-200 text-ink-500 hover:bg-ink-50'
+      }`}
+    >
+      {saved ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
+      {saved ? 'Saved' : 'Save'}
+    </button>
   );
 }
 

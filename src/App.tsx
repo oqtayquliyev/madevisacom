@@ -19,6 +19,7 @@ import { ProgramsPage } from '@/pages/landing/programs/ProgramsPage';
 import { SponsoredProgramsPage } from '@/pages/programs/SponsoredProgramsPage';
 import { ExpertsMarketplacePage } from '@/pages/experts/ExpertsMarketplacePage';
 import { DestinationsPage } from '@/pages/destinations/DestinationsPage';
+import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { PendingConfirmationPage } from '@/pages/auth/PendingConfirmationPage';
@@ -43,6 +44,7 @@ const pathForView: Partial<Record<View, string>> = {
   profile: '/profile',
   experts: '/experts',
   destinations: '/destinations',
+  dashboard: '/dashboard',
 };
 
 const authPathToPage: Record<string, AuthPage> = {
@@ -238,7 +240,8 @@ if (
   view === 'results' ||
   view === 'agencies' ||
   view === 'explore' ||
-  view === 'profile'
+  view === 'profile' ||
+  view === 'dashboard'
 ) {
   return withWelcome(renderPublicView(view, go));
 }
@@ -346,6 +349,9 @@ function renderPublicView(
 
     case 'profile':
       return <ProfilePage go={go} />;
+
+    case 'dashboard':
+      return <DashboardPage go={go} />;
 
     case 'customer-dashboard':
       return (
