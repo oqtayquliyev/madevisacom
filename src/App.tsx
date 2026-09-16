@@ -132,52 +132,31 @@ export default function App() {
     );
   }
 
-  if (
-    view === 'jobs' ||
-    window.location.pathname === '/jobs'
-  ) {
+  if (window.location.pathname === '/jobs') {
     return <JobsPage go={go} onAuth={goToAuth} />;
   }
 
-  if (
-    view === 'programs' ||
-    window.location.pathname === '/programs'
-  ) {
+  if (window.location.pathname === '/programs') {
     return <ProgramsPage go={go} onAuth={goToAuth} />;
   }
 
-  if (
-    view === 'sponsored-programs' ||
-    window.location.pathname === '/sponsored-programs'
-  ) {
+  if (window.location.pathname === '/sponsored-programs') {
     return <SponsoredProgramsPage go={go} onAuth={goToAuth} />;
   }
 
-  if (
-    view === 'submit-program' ||
-    window.location.pathname === '/submit-program'
-  ) {
+  if (window.location.pathname === '/submit-program') {
     return <SubmitProgramPage go={go} onAuth={goToAuth} />;
   }
 
-  if (
-    view === 'travel' ||
-    window.location.pathname === '/travel'
-  ) {
+  if (window.location.pathname === '/travel') {
     return <TravelPage go={go} onAuth={goToAuth} />;
   }
 
-  if (
-    view === 'experts' ||
-    window.location.pathname === '/experts'
-  ) {
+  if (window.location.pathname === '/experts') {
     return <ExpertsMarketplacePage go={go} onAuth={goToAuth} />;
   }
 
-  if (
-    view === 'destinations' ||
-    window.location.pathname === '/destinations'
-  ) {
+  if (window.location.pathname === '/destinations') {
     return <DestinationsPage go={go} onAuth={goToAuth} />;
   }
 
