@@ -14,6 +14,8 @@ import { PlannerPage } from '@/pages/planner/PlannerPage';
 import { ResultsPage } from '@/pages/results/ResultsPage';
 import { JobsPage } from '@/pages/landing/jobs/JobsPage';
 import { ProgramsPage } from '@/pages/landing/programs/ProgramsPage';
+import { SponsoredProgramsPage } from '@/pages/programs/SponsoredProgramsPage';
+import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
 import { TravelPage } from '@/pages/travel/TravelPage';
 import type { View } from '@/types';
 
@@ -27,6 +29,10 @@ export default function App() {
       ? 'jobs'
       : window.location.pathname === '/programs'
       ? 'programs'
+      : window.location.pathname === '/sponsored-programs'
+      ? 'sponsored-programs'
+      : window.location.pathname === '/submit-program'
+      ? 'submit-program'
       : window.location.pathname === '/travel'
       ? 'travel'
       : 'home'
@@ -71,6 +77,20 @@ export default function App() {
     window.location.pathname === '/programs'
   ) {
     return <ProgramsPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (
+    view === 'sponsored-programs' ||
+    window.location.pathname === '/sponsored-programs'
+  ) {
+    return <SponsoredProgramsPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (
+    view === 'submit-program' ||
+    window.location.pathname === '/submit-program'
+  ) {
+    return <SubmitProgramPage go={go} onAuth={goToAuth} />;
   }
 
   if (
@@ -209,6 +229,12 @@ function renderPublicView(
 
     case 'programs':
       return <ProgramsPage go={go} />;
+
+    case 'sponsored-programs':
+      return <SponsoredProgramsPage go={go} />;
+
+    case 'submit-program':
+      return <SubmitProgramPage go={go} />;
 
     case 'travel':
       return <TravelPage go={go} />;

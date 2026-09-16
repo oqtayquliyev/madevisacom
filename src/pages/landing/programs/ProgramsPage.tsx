@@ -182,6 +182,13 @@ export function ProgramsPage({ go, onAuth }: ProgramsPageProps) {
             <p className="mt-4 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">
               Sponsored programs, national schemes and exchange placements from multiple sources — filtered to what you can actually apply for.
             </p>
+            <button
+              type="button"
+              onClick={() => go('sponsored-programs')}
+              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20"
+            >
+              Browse government &amp; company sponsored programs →
+            </button>
           </div>
 
           <div className="mt-9 border border-white/15 bg-white p-2 shadow-xl">

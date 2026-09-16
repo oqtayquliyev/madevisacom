@@ -4,15 +4,17 @@ import { agencies, destinations, nationalities } from '@/data';
 import type { View } from '@/types';
 import { LandingHero } from './components/LandingHero';
 import { AgencyDiscoverySection } from './components/AgencyDiscoverySection';
-import { LandingHeader } from './components/LandingHeader';
-import { LandingFooter } from './components/LandingFooter';
+import { LandingHeader } from './components/LandingHeader';import { LandingFooter } from './components/LandingFooter';
 import { SponsoredCarousel, type SponsoredListing } from '@/components/ads/SponsoredCarousel';
+import { OriginCountryProvider } from '@/lib/originCountry';
+import { CountrySwitcher } from '@/components/location/CountrySwitcher';
+import { TripCostEstimator } from '@/components/estimator/TripCostEstimator';
 
 type LandingProps = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 type Professional = { name: string; title: string; agency: string; initials: string; location: string; served: string; specialties: string[]; rating: number; reviews: number; price: number; response: string; avatar: string; accent: string };
 const pros: Professional[] = [
   { name: 'Leyla Karimova', title: 'Senior  Consultant', agency: 'Global Travel', initials: 'GT', location: 'Baku, Azerbaijan', served: 'Europe · UK · USA', specialties: ['Schengen', 'Business'], rating: 4.9, reviews: 128, price: 85, response: 'Replies in 20 min', avatar: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=160&q=80', accent: 'bg-violet-100 text-violet-700' },
-  { name: 'Marco Bellin', title: 'Immigration Specialist', agency: 'Atlas Journeys', initials: 'AJ', location: 'Milan, Italy', served: 'Italy · France · Spain', specialties: ['Schengen', 'Family'], rating: 4.8, reviews: 94, price: 69, response: 'Replies in 1 hour', avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=160&q=80', accent: 'bg-amber-100 text-amber-700' },
+  { name: 'Marco Bellini', title: 'Immigration Specialist', agency: 'Atlas Journeys', initials: 'AJ', location: 'Milan, Italy', served: 'Italy · France · Spain', specialties: ['Schengen', 'Family'], rating: 4.8, reviews: 94, price: 69, response: 'Replies in 1 hour', avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=160&q=80', accent: 'bg-amber-100 text-amber-700' },
   { name: 'Sofia Rahman', title: 'Visa & Relocation Advisor', agency: 'Northstar Travel', initials: 'NT', location: 'Dubai, UAE', served: 'UAE · Canada · USA', specialties: ['Relocation', 'Tourist'], rating: 4.9, reviews: 76, price: 110, response: 'Replies in 45 min', avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=160&q=80', accent: 'bg-emerald-100 text-emerald-700' },
   { name: 'Owen Williams', title: 'Visa Documentation Expert', agency: 'Wayfinder Co.', initials: 'WC', location: 'London, United Kingdom', served: 'UK · Europe · Australia', specialties: ['Student', 'Work'], rating: 4.7, reviews: 61, price: 49, response: 'Replies in 2 hours', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=160&q=80', accent: 'bg-blue-100 text-blue-700' },
   { name: 'Ayla Demir', title: 'Travel Compliance Advisor', agency: 'Route & Co.', initials: 'RC', location: 'Istanbul, Turkey', served: 'Europe · Asia · USA', specialties: ['Schengen', 'Transit'], rating: 4.8, reviews: 48, price: 59, response: 'Replies in 30 min', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=160&q=80', accent: 'bg-rose-100 text-rose-700' },
@@ -28,8 +30,9 @@ export function LandingPage({ go, onAuth }: LandingProps) {
   const [visaType, setVisaType] = useState('Tourist visa');
   const [location, setLocation] = useState(nationalities[0]);
   const search = () => go('agencies');
-  return <div className="min-h-screen bg-[#f8fafc] text-ink-900">
+  return <OriginCountryProvider><div className="min-h-screen bg-[#f8fafc] text-ink-900">
     <LandingHeader go={go} onAuth={onAuth} active="home" />
+    <CountrySwitcher />
     <style>{'.landing-main > section:first-child { display: none; }'}</style>
     <LandingHero go={go} />
     <main className="landing-main">
@@ -42,13 +45,14 @@ export function LandingPage({ go, onAuth }: LandingProps) {
       <OpportunitiesSection go={go} />
       <TravelTeaserSection go={go} />
     </main>
+    <TripCostEstimator go={go} />
     <SponsoredCarousel
       title="Travel packages & partner offers"
       detail="Bundled visa, flight, hotel and insurance deals from our partner network."
       listings={sponsoredPackages}
     />
     <LandingFooter go={go} onAuth={onAuth} />
-  </div>;
+  </div></OriginCountryProvider>;
 }
 
 function Heading({ eyebrow, title, detail, action, onAction }: { eyebrow: string; title: string; detail?: string; action?: string; onAction?: () => void }) { return <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-brand-600">{eyebrow}</p><h2 className="mt-2 text-3xl font-bold tracking-tight text-ink-950">{title}</h2>{detail && <p className="mt-2 text-sm text-ink-500">{detail}</p>}</div>{action && <button onClick={onAction} className="flex items-center gap-2 text-sm font-semibold text-brand-600">{action}<ArrowRight className="h-4 w-4" /></button>}</div>; }
