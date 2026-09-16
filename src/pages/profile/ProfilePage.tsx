@@ -10,6 +10,7 @@ import type { View } from '@/types';
 
 type ProfilePageProps = {
   go: (view: View) => void;
+  onAuth?: (page: 'login' | 'register') => void;
 };
 
 type CountryOption = { id: string; name: string; flag_emoji: string | null; iso_code: string };
@@ -24,7 +25,7 @@ const roleLabel: Record<string, string> = {
   admin: 'Admin',
 };
 
-export function ProfilePage({ go }: ProfilePageProps) {
+export function ProfilePage({ go, onAuth }: ProfilePageProps) {
   const { user, profile, refreshProfile } = useAuth();
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [fullName, setFullName] = useState('');
@@ -102,7 +103,7 @@ export function ProfilePage({ go }: ProfilePageProps) {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
-      <LandingHeader go={go} active="home" />
+      <LandingHeader go={go} onAuth={onAuth} active="home" />
 
       <main className="mx-auto max-w-2xl px-5 py-12 sm:px-8">
         <div className="flex items-center gap-4">
@@ -204,7 +205,7 @@ export function ProfilePage({ go }: ProfilePageProps) {
         </div>
       </main>
 
-      <LandingFooter go={go} />
+      <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );
 }

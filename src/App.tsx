@@ -86,6 +86,12 @@ export default function App() {
   const goToAuth = (page: AuthPage) => {
     setAuthPage(page);
 
+    // Clear the "sticky" current-page state — otherwise a public page
+    // like /programs or /jobs keeps rendering itself even after the
+    // URL changes to /login or /register, since those pages are
+    // matched by `view` as well as by pathname.
+    setView('home');
+
     const path =
       page === 'login' ? '/login' : page === 'register' ? '/register' : page === 'reset-password' ? '/reset-password' : null;
     if (path) window.history.pushState({}, '', path);
