@@ -17,6 +17,8 @@ import { ResultsPage } from '@/pages/results/ResultsPage';
 import { JobsPage } from '@/pages/landing/jobs/JobsPage';
 import { ProgramsPage } from '@/pages/landing/programs/ProgramsPage';
 import { SponsoredProgramsPage } from '@/pages/programs/SponsoredProgramsPage';
+import { ExpertsMarketplacePage } from '@/pages/experts/ExpertsMarketplacePage';
+import { DestinationsPage } from '@/pages/destinations/DestinationsPage';
 import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { PendingConfirmationPage } from '@/pages/auth/PendingConfirmationPage';
@@ -39,6 +41,8 @@ const pathForView: Partial<Record<View, string>> = {
   'submit-program': '/submit-program',
   travel: '/travel',
   profile: '/profile',
+  experts: '/experts',
+  destinations: '/destinations',
 };
 
 const authPathToPage: Record<string, AuthPage> = {
@@ -155,6 +159,20 @@ export default function App() {
     window.location.pathname === '/travel'
   ) {
     return <TravelPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (
+    view === 'experts' ||
+    window.location.pathname === '/experts'
+  ) {
+    return <ExpertsMarketplacePage go={go} onAuth={goToAuth} />;
+  }
+
+  if (
+    view === 'destinations' ||
+    window.location.pathname === '/destinations'
+  ) {
+    return <DestinationsPage go={go} onAuth={goToAuth} />;
   }
 
   // Checked ahead of the !session branch below: Supabase's password
@@ -319,6 +337,12 @@ function renderPublicView(
 
     case 'travel':
       return <TravelPage go={go} />;
+
+    case 'experts':
+      return <ExpertsMarketplacePage go={go} />;
+
+    case 'destinations':
+      return <DestinationsPage go={go} />;
 
     case 'profile':
       return <ProfilePage go={go} />;

@@ -115,12 +115,20 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             </div>
           </div>
 
-          <button onClick={() => { go('agencies'); setOpenMenu(false); }} className={linkClass('agencies')}>
+          <a
+            href="/experts"
+            onClick={(event) => handleNavClick(event, () => { go('experts'); setOpenMenu(false); })}
+            className={linkClass('experts')}
+          >
             <Users className="h-3.5 w-3.5" />
-            Find Experts
-          </button>
+            Agencies &amp; Experts
+          </a>
 
-          <a href="#destinations" onClick={() => setOpenMenu(false)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-ink-600 hover:bg-ink-50">
+          <a
+            href="/destinations"
+            onClick={(event) => handleNavClick(event, () => { go('destinations'); setOpenMenu(false); })}
+            className={linkClass('destinations')}
+          >
             <MapPin className="h-3.5 w-3.5" />
             Destinations
           </a>

@@ -74,6 +74,8 @@ export type View =
   | 'sponsored-programs'
   | 'submit-program'
   | 'profile'
+  | 'experts'
+  | 'destinations'
   | 'travel'
   | 'results'
   | 'agencies'
