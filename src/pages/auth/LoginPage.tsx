@@ -1,14 +1,22 @@
 import { useState } from 'react';
-import { Link } from 'lucide-react';
+import { CheckCircle2, Link } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { handleNavClick } from '@/lib/navLink';
 import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
 
-export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
+type LoginPageProps = {
+  onSwitchToRegister: () => void;
+  onHome?: () => void;
+};
+
+export function LoginPage({ onSwitchToRegister, onHome }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   const handleSignIn = async () => {
     setLoading(true);
@@ -33,9 +41,33 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister: () => vo
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Enter your email above first, then click "Forgot password?".');
+      return;
+    }
+    setResetLoading(true);
+    setError(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setResetLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setResetSent(true);
+  };
+
   return (
-    <AuthCard title="Welcome back" subtitle="Sign in to continue managing your trips.">
+    <AuthCard title="Welcome back" subtitle="Sign in to continue managing your trips." onHome={onHome}>
       <ErrorBanner message={error} />
+      {resetSent && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 ring-1 ring-emerald-200">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          Password reset link sent to {email}. Check your inbox.
+        </div>
+      )}
       <GoogleButton onClick={handleGoogle} loading={googleLoading} label="Continue with Google" />
       <Divider label="or" />
       <div className="space-y-4">
@@ -44,10 +76,21 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister: () => vo
       </div>
       <PrimaryButton onClick={handleSignIn} loading={loading} className="mt-5">Sign in</PrimaryButton>
       <div className="mt-4 flex items-center justify-between text-sm">
-        <button className="font-medium text-brand-600 hover:text-brand-700">Forgot password?</button>
-        <button onClick={onSwitchToRegister} className="inline-flex items-center gap-1.5 font-medium text-ink-500 hover:text-ink-900">
-          <Link className="h-3.5 w-3.5" />Create account
+        <button
+          type="button"
+          onClick={handleForgotPassword}
+          disabled={resetLoading}
+          className="font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50"
+        >
+          Forgot password?
         </button>
+        <a
+          href="/register"
+          onClick={(event) => handleNavClick(event, onSwitchToRegister)}
+          className="inline-flex items-center gap-1.5 font-medium text-ink-500 hover:text-ink-900"
+        >
+          <Link className="h-3.5 w-3.5" />Create account
+        </a>
       </div>
     </AuthCard>
   );

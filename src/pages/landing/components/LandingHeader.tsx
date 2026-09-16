@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { handleNavClick } from '@/lib/navLink';
 import type { View } from '@/types';
 import { BrandMark } from '@/components/layout/Logo';
 
@@ -137,14 +138,22 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
               Sign out
             </button>
           ) : (
-            <button onClick={() => onAuth?.('login')} className="hidden px-3 py-2 text-sm text-ink-600 sm:block">
+            <a
+              href="/login"
+              onClick={(event) => handleNavClick(event, () => onAuth?.('login'))}
+              className="hidden px-3 py-2 text-sm text-ink-600 sm:block"
+            >
               Sign in
-            </button>
+            </a>
           )}
 
-          <button onClick={() => onAuth?.('register')} className="hidden rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 sm:block">
+          <a
+            href="/register"
+            onClick={(event) => handleNavClick(event, () => onAuth?.('register'))}
+            className="hidden rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 sm:block"
+          >
             Get started
-          </button>
+          </a>
 
           {/* Profile / guest menu */}
           <div className="relative">
@@ -190,20 +199,22 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                     </>
                   ) : (
                     <>
-                      <button
-                        onClick={() => { onAuth?.('login'); setOpenProfile(false); }}
+                      <a
+                        href="/login"
+                        onClick={(event) => handleNavClick(event, () => { onAuth?.('login'); setOpenProfile(false); })}
                         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
                       >
                         <LogIn className="h-4 w-4 text-ink-400" />
                         Sign in
-                      </button>
-                      <button
-                        onClick={() => { onAuth?.('register'); setOpenProfile(false); }}
+                      </a>
+                      <a
+                        href="/register"
+                        onClick={(event) => handleNavClick(event, () => { onAuth?.('register'); setOpenProfile(false); })}
                         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
                       >
                         <UserPlus className="h-4 w-4 text-ink-400" />
                         Create account
-                      </button>
+                      </a>
                     </>
                   )}
                 </div>

@@ -1,14 +1,30 @@
-import { useState, type ReactNode } from 'react';
-import { Globe2, Loader2 } from 'lucide-react';
+import { type ReactNode, useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { Logo } from '@/components/layout/Logo';
+import { handleNavClick } from '@/lib/navLink';
 
-export function AuthCard({ children, title, subtitle }: { children: ReactNode; title: string; subtitle?: string }) {
+export function AuthCard({
+  children,
+  title,
+  subtitle,
+  onHome,
+}: {
+  children: ReactNode;
+  title: string;
+  subtitle?: string;
+  onHome?: () => void;
+}) {
   return (
     <div className="min-h-screen bg-[#f7f9fc]">
       <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-12">
-        <div className="mb-8 flex items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink-900 text-white"><Globe2 className="h-5 w-5" /></span>
-          <span className="text-lg font-semibold tracking-tight text-ink-900">madevisa.com</span>
-        </div>
+        <a
+          href="/"
+          onClick={(event) => handleNavClick(event, () => onHome?.())}
+          className="mb-8 inline-flex w-fit items-center"
+          aria-label="MadeVisa home"
+        >
+          <Logo />
+        </a>
         <div className="rounded-3xl border border-ink-200 bg-white p-6 shadow-soft-lg sm:p-8">
           <h1 className="text-2xl font-semibold tracking-tight text-ink-900">{title}</h1>
           {subtitle && <p className="mt-2 text-sm leading-relaxed text-ink-500">{subtitle}</p>}

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Building2, Check, ChevronDown, Search, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { handleNavClick } from '@/lib/navLink';
 import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
 
 type Country = { id: string; name: string; flag_emoji: string | null };
 type Role = 'customer' | 'agency' | null;
 
-export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
+export function RegisterPage({ onSwitchToLogin, onHome }: { onSwitchToLogin: () => void; onHome?: () => void }) {
   const [role, setRole] = useState<Role>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +33,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
   };
 
   return (
-    <AuthCard title="Create your MadeVisa account" subtitle="Choose your path to get started.">
+    <AuthCard title="Create your MadeVisa account" subtitle="Choose your path to get started." onHome={onHome}>
       <ErrorBanner message={error} />
       <GoogleButton onClick={handleGoogle} loading={googleLoading} label="Continue with Google" />
       <Divider label="or" />
@@ -66,7 +67,13 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
       )}
       <div className="mt-5 text-center text-sm text-ink-500">
         Already have an account?{' '}
-        <button onClick={onSwitchToLogin} className="font-semibold text-brand-600 hover:text-brand-700">Sign in</button>
+        <a
+          href="/login"
+          onClick={(event) => handleNavClick(event, onSwitchToLogin)}
+          className="font-semibold text-brand-600 hover:text-brand-700"
+        >
+          Sign in
+        </a>
       </div>
     </AuthCard>
   );
