@@ -92,6 +92,15 @@ function ProgramCard({ program }: { program: SponsoredProgram }) {
         </div>
       )}
 
+      {(program.requirements || program.spots_available != null) && (
+        <div className="mt-3 rounded-md bg-ink-50 px-3 py-2 text-xs text-ink-600">
+          {program.requirements && <p>{program.requirements}</p>}
+          {program.spots_available != null && (
+            <p className="mt-0.5 font-semibold text-ink-700">{program.spots_available} spot{program.spots_available === 1 ? '' : 's'} available</p>
+          )}
+        </div>
+      )}
+
       {(program.applications_open_at || program.applications_close_at) && (
         <p className="mt-1.5 text-[11px] text-ink-400">
           {program.applications_open_at && `Opens ${program.applications_open_at}`}

@@ -39,6 +39,8 @@ export type SponsoredProgram = {
   applications_open_at: string | null; // ISO date
   applications_close_at: string | null; // ISO date
   funding_text: string | null;
+  requirements: string | null;
+  spots_available: number | null;
   official_url: string | null;
   contact_email: string;
   status: 'pending' | 'published' | 'rejected';
@@ -92,7 +94,7 @@ export async function fetchSponsoredPrograms(filters: ProgramFilters = {}): Prom
   let query = supabase
     .from('programs')
     .select(
-      'id, publisher_id, title, description, category, country_id, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, applications_open_at, applications_close_at, funding_text, official_url, contact_email, status, publisher:program_publishers(id, name, org_type, logo_url, verification_status), country:countries(id, name, iso_code)'
+      'id, publisher_id, title, description, category, country_id, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, applications_open_at, applications_close_at, funding_text, requirements, spots_available, official_url, contact_email, status, publisher:program_publishers(id, name, org_type, logo_url, verification_status), country:countries(id, name, iso_code)'
     )
     .eq('status', 'published')
     .order('created_at', { ascending: false });
@@ -165,6 +167,8 @@ export type SubmitProgramInput = {
   applicationsOpenAt?: string;
   applicationsCloseAt?: string;
   fundingText?: string;
+  requirements?: string;
+  spotsAvailable?: number;
   officialUrl?: string;
 };
 
@@ -183,6 +187,8 @@ export async function submitSponsoredProgram(input: SubmitProgramInput): Promise
     applications_open_at: input.applicationsOpenAt || null,
     applications_close_at: input.applicationsCloseAt || null,
     funding_text: input.fundingText || null,
+    requirements: input.requirements || null,
+    spots_available: input.spotsAvailable ?? null,
     official_url: input.officialUrl || null,
     contact_email: PUBLISHING_CONTACT_EMAIL,
     status: 'pending',

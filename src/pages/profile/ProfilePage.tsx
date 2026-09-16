@@ -222,6 +222,7 @@ export function ProfilePage({ go, onAuth }: ProfilePageProps) {
         </div>
 
         <PartnerSection
+          go={go}
           publisher={publisher}
           loading={publisherLoading}
           countries={countries}
@@ -257,12 +258,14 @@ const statusCopy: Record<ProgramPublisher['verification_status'], { label: strin
 };
 
 function PartnerSection({
+  go,
   publisher,
   loading,
   countries,
   userId,
   onCreated,
 }: {
+  go: (view: View) => void;
   publisher: ProgramPublisher | null;
   loading: boolean;
   countries: CountryOption[];
@@ -300,6 +303,22 @@ function PartnerSection({
           <p className="mt-3 text-xs text-ink-500">
             We'll email you once this is reviewed. Questions — {PUBLISHING_CONTACT_EMAIL}.
           </p>
+        )}
+        {publisher.verification_status === 'verified' && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              onClick={() => go('submit-program')}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700"
+            >
+              Submit a program
+            </button>
+            <button
+              onClick={() => go('submit-program')}
+              className="rounded-lg border border-ink-200 px-4 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50"
+            >
+              Submit a job
+            </button>
+          </div>
         )}
       </div>
     );

@@ -22,6 +22,11 @@ export type Job = {
   url: string;
   verified: boolean;
   eligibility: EligibilityCriteria;
+  /** Set for jobs posted by a verified sponsor (agency/company/government);
+   *  drives the distinct icon + "Sponsored" badge on the job card. */
+  publisherOrgType?: 'government' | 'company' | 'agency' | 'expert';
+  requirements?: string | null;
+  spotsAvailable?: number | null;
 };
 
 export const countries = [
