@@ -67,6 +67,17 @@ export default function App() {
     authPathToPage[window.location.pathname] ?? 'login'
   );
 
+  // Tracks the URL itself, separately from `view`/`authPage`. Those two
+  // can each coincidentally already equal the value being set (e.g.
+  // `authPage` defaults to 'login' on every non-auth page, so clicking
+  // "Sign in" from the homepage sets it to the same value it already
+  // has) — React skips re-rendering for a no-op state update, so if
+  // *both* updates happen to be no-ops at once, nothing re-renders at
+  // all even though pushState changed the address bar. `path` always
+  // genuinely changes on a real navigation, so setting it guarantees
+  // the re-render actually happens.
+  const [path, setPath] = useState(window.location.pathname);
+
   const [pendingSignup, setPendingSignup] = useState<PendingSignup | null>(null);
 
   const showPendingConfirmation = (info: PendingSignup) => {
@@ -76,10 +87,11 @@ export default function App() {
 
   const go = (next: View) => {
     setView(next);
-    const path = pathForView[next];
-    if (path && path !== window.location.pathname) {
-      window.history.pushState({}, '', path);
+    const nextPath = pathForView[next];
+    if (nextPath && nextPath !== window.location.pathname) {
+      window.history.pushState({}, '', nextPath);
     }
+    setPath(nextPath ?? window.location.pathname);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -92,18 +104,21 @@ export default function App() {
     // matched by `view` as well as by pathname.
     setView('home');
 
-    const path =
+    const nextPath =
       page === 'login' ? '/login' : page === 'register' ? '/register' : page === 'reset-password' ? '/reset-password' : null;
-    if (path) window.history.pushState({}, '', path);
+    if (nextPath) window.history.pushState({}, '', nextPath);
+    setPath(nextPath ?? window.location.pathname);
   };
 
-  // Keep `view`/`authPage` in sync when the visitor uses the browser's
-  // actual back/forward buttons, since pushState alone only updates the
-  // URL bar — without this, clicking "back" changes the address but
-  // leaves the previously-rendered page on screen.
+  // Keep `view`/`authPage`/`path` in sync when the visitor uses the
+  // browser's actual back/forward buttons, since pushState alone only
+  // updates the URL bar — without this, clicking "back" changes the
+  // address but leaves the previously-rendered page on screen.
   useEffect(() => {
     const onPopState = () => {
       const pathname = window.location.pathname;
+      setPath(pathname);
+
       const matchedAuthPage = authPathToPage[pathname];
       if (matchedAuthPage) {
         setAuthPage(matchedAuthPage);
@@ -132,31 +147,31 @@ export default function App() {
     );
   }
 
-  if (window.location.pathname === '/jobs') {
+  if (path === '/jobs') {
     return <JobsPage go={go} onAuth={goToAuth} />;
   }
 
-  if (window.location.pathname === '/programs') {
+  if (path === '/programs') {
     return <ProgramsPage go={go} onAuth={goToAuth} />;
   }
 
-  if (window.location.pathname === '/sponsored-programs') {
+  if (path === '/sponsored-programs') {
     return <SponsoredProgramsPage go={go} onAuth={goToAuth} />;
   }
 
-  if (window.location.pathname === '/submit-program') {
+  if (path === '/submit-program') {
     return <SubmitProgramPage go={go} onAuth={goToAuth} />;
   }
 
-  if (window.location.pathname === '/travel') {
+  if (path === '/travel') {
     return <TravelPage go={go} onAuth={goToAuth} />;
   }
 
-  if (window.location.pathname === '/experts') {
+  if (path === '/experts') {
     return <ExpertsMarketplacePage go={go} onAuth={goToAuth} />;
   }
 
-  if (window.location.pathname === '/destinations') {
+  if (path === '/destinations') {
     return <DestinationsPage go={go} onAuth={goToAuth} />;
   }
 
@@ -164,14 +179,14 @@ export default function App() {
   // recovery link establishes a session as soon as it redirects back
   // here, so gating this on "no session" would skip straight past the
   // "set a new password" form into the logged-in app.
-  if (window.location.pathname === '/reset-password') {
+  if (path === '/reset-password') {
     return <ResetPasswordPage onHome={() => go('home')} onSwitchToLogin={() => goToAuth('login')} />;
   }
 
   if (!session) {
     if (
-      window.location.pathname !== '/login' &&
-      window.location.pathname !== '/register'
+      path !== '/login' &&
+      path !== '/register'
     ) {
       return (
         <LandingPage
