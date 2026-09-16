@@ -1,20 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Building2, Check, ChevronDown, Landmark, Search, UserRound } from 'lucide-react';
+import { Building2, Check, ChevronDown, Search, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { handleNavClick } from '@/lib/navLink';
 import { PhoneInput } from '@/components/common/PhoneInput';
 import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
 
 type Country = { id: string; name: string; flag_emoji: string | null; iso_code: string };
-type Role = 'customer' | 'agency' | 'government' | null;
-
-const institutionTypes = [
-  'Ministry / government department',
-  'Embassy or consulate',
-  'Government agency',
-  'Public university or institution',
-  'Other official body',
-];
+type Role = 'customer' | 'agency' | null;
 
 export type PendingSignup = {
   email: string;
@@ -22,7 +14,7 @@ export type PendingSignup = {
   phone: string;
   countryName: string | null;
   nationalityName: string | null;
-  role: 'customer' | 'agency' | 'government';
+  role: 'customer' | 'agency';
 };
 
 type RegisterPageProps = {
@@ -67,64 +59,31 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
       <Divider label="or" />
       {!role ? (
         <div className="space-y-3">
-          {/* Individual / traveler is the primary, highlighted path. Agency
-              and government accounts are reviewed by an admin before they
-              become public (see ProfilePage + AdminApprovalsPage) — a
-              traveler account is instant and needs no review. */}
           <button
             onClick={() => setRole('customer')}
-            className="relative flex w-full items-center gap-4 rounded-2xl border-2 border-brand-400 bg-brand-50/50 p-4 text-left shadow-soft-lg transition hover:border-brand-500"
+            className="flex w-full items-center gap-4 rounded-2xl border border-ink-200 bg-white p-4 text-left shadow-soft transition hover:border-brand-300 hover:shadow-soft-lg"
           >
-            <span className="absolute -top-2.5 right-4 rounded-full bg-brand-600 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
-              Most people start here
-            </span>
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-600 text-white">
-              <UserRound className="h-6 w-6" />
-            </span>
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600"><UserRound className="h-6 w-6" /></span>
             <div>
-              <p className="font-semibold text-ink-900">I'm an individual / traveler</p>
-              <p className="mt-0.5 text-sm text-ink-500">
-                Discover programs, plan your move, and get agency or expert help. You can add an expert profile later.
-              </p>
+              <p className="font-semibold text-ink-900">I'm a traveler</p>
+              <p className="mt-0.5 text-sm text-ink-500">Plan trips, track requirements, get agency help.</p>
             </div>
           </button>
-
           <button
             onClick={() => setRole('agency')}
             className="flex w-full items-center gap-4 rounded-2xl border border-ink-200 bg-white p-4 text-left shadow-soft transition hover:border-brand-300 hover:shadow-soft-lg"
           >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
-              <Building2 className="h-6 w-6" />
-            </span>
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600"><Building2 className="h-6 w-6" /></span>
             <div>
-              <p className="font-semibold text-ink-900">Agency / Company</p>
-              <p className="mt-0.5 text-sm text-ink-500">
-                Manage customers, trips, jobs, or programs. Reviewed by our team before your profile goes public.
-              </p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setRole('government')}
-            className="flex w-full items-center gap-4 rounded-2xl border border-ink-200 bg-white p-4 text-left shadow-soft transition hover:border-brand-300 hover:shadow-soft-lg"
-          >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
-              <Landmark className="h-6 w-6" />
-            </span>
-            <div>
-              <p className="font-semibold text-ink-900">Government institution</p>
-              <p className="mt-0.5 text-sm text-ink-500">
-                Publish official visa, work, or study programs. Reviewed by our team before your profile goes public.
-              </p>
+              <p className="font-semibold text-ink-900">I'm a travel agency</p>
+              <p className="mt-0.5 text-sm text-ink-500">Manage customers, trips, and requests.</p>
             </div>
           </button>
         </div>
       ) : role === 'customer' ? (
         <CustomerForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
-      ) : role === 'agency' ? (
-        <AgencyForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
       ) : (
-        <GovernmentForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
+        <AgencyForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
       )}
       <div className="mt-5 text-center text-sm text-ink-500">
         Already have an account?{' '}
@@ -271,9 +230,6 @@ function AgencyForm({
           country: country?.name ?? null,
           city: city || null,
           website: website || null,
-          // Server-side (see the `handle_new_user` trigger / migration):
-          // agency signups should always land as approval_status='pending'
-          // and is_public=false until an admin approves them.
         },
       },
     });
@@ -299,114 +255,15 @@ function AgencyForm({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
-        Agency and company accounts are reviewed before they can post jobs, programs, or appear publicly.
-      </div>
       <Input label="Contact person name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
-      <Input label="Company name" value={companyName} onChange={setCompanyName} placeholder="Your agency or company" required />
+      <Input label="Company name" value={companyName} onChange={setCompanyName} placeholder="Your travel agency" required />
       <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="agency@example.com" required autoComplete="email" />
       <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" required autoComplete="new-password" />
       <CountrySelect label="Country" countries={countries} value={countryId} onChange={setCountryId} />
       <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} required />
       <Input label="City" value={city} onChange={setCity} placeholder="Baku" required />
       <Input label="Website (optional)" value={website} onChange={setWebsite} placeholder="https://youragency.com" />
-      <PrimaryButton onClick={handleSubmit} loading={loading}>Create agency / company account</PrimaryButton>
-      <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
-    </div>
-  );
-}
-
-function GovernmentForm({
-  countries,
-  onBack,
-  onError,
-  onPendingConfirmation,
-}: {
-  countries: Country[];
-  onBack: () => void;
-  onError: (msg: string) => void;
-  onPendingConfirmation: (info: PendingSignup) => void;
-}) {
-  const [fullName, setFullName] = useState('');
-  const [institutionName, setInstitutionName] = useState('');
-  const [institutionType, setInstitutionType] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [countryId, setCountryId] = useState('');
-  const [website, setWebsite] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const country = countries.find((c) => c.id === countryId) ?? null;
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    onError('');
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          role: 'government',
-          full_name: fullName,
-          phone: phone || null,
-          country_id: countryId || null,
-          institution_name: institutionName,
-          institution_type: institutionType || null,
-          country: country?.name ?? null,
-          website: website || null,
-          // Same as agency: lands as approval_status='pending',
-          // is_public=false via the DB trigger until an admin approves it.
-        },
-      },
-    });
-
-    setLoading(false);
-
-    if (error) {
-      onError(error.message.includes('already') ? 'An account with this email already exists.' : error.message);
-      return;
-    }
-
-    if (!data.session) {
-      onPendingConfirmation({
-        email,
-        fullName,
-        phone,
-        countryName: country?.name ?? null,
-        nationalityName: null,
-        role: 'government',
-      });
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
-        Government and institutional accounts are manually verified before they can publish official programs.
-      </div>
-      <Input label="Contact person name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
-      <Input label="Institution name" value={institutionName} onChange={setInstitutionName} placeholder="Ministry of Labour, Embassy of..., etc." required />
-      <div>
-        <label className="mb-1.5 block text-sm font-medium text-ink-600">Institution type</label>
-        <select
-          value={institutionType}
-          onChange={(e) => setInstitutionType(e.target.value)}
-          className="h-[46px] w-full rounded-xl border border-ink-200 bg-white px-3.5 text-sm font-medium text-ink-900 shadow-soft outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
-        >
-          <option value="">Select type</option>
-          {institutionTypes.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
-      </div>
-      <Input label="Official email" type="email" value={email} onChange={setEmail} placeholder="name@institution.gov" required autoComplete="email" />
-      <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" required autoComplete="new-password" />
-      <CountrySelect label="Country" countries={countries} value={countryId} onChange={setCountryId} />
-      <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} />
-      <Input label="Official website (optional)" value={website} onChange={setWebsite} placeholder="https://institution.gov" />
-      <PrimaryButton onClick={handleSubmit} loading={loading}>Create institution account</PrimaryButton>
+      <PrimaryButton onClick={handleSubmit} loading={loading}>Create agency account</PrimaryButton>
       <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
     </div>
   );

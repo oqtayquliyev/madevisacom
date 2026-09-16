@@ -22,7 +22,6 @@ import { DestinationsPage } from '@/pages/destinations/DestinationsPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
-import { AdminApprovalsPage } from '@/pages/admin/AdminApprovalsPage';
 import { PendingConfirmationPage } from '@/pages/auth/PendingConfirmationPage';
 import type { PendingSignup } from '@/pages/auth/RegisterPage';
 import { WelcomeModal } from '@/components/common/WelcomeModal';
@@ -224,14 +223,6 @@ export default function App() {
 
   if (!profile) {
     return <ProfileMissingScreen />;
-  }
-
-  // Admin approvals for agency / government / expert / role-switch
-  // requests. The page itself re-checks profile.role === 'admin' and
-  // shows an access-denied screen for everyone else, so this route can
-  // safely sit ahead of the role-based rendering below.
-  if (path === '/admin') {
-    return <AdminApprovalsPage profile={profile} go={go} />;
   }
 
   const role = profile.role;
