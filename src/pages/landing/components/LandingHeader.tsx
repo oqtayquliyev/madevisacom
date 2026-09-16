@@ -4,9 +4,16 @@ import {
   Building2,
   ChevronDown,
   GraduationCap,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
   Luggage,
+  MapPin,
   Menu,
   Plane,
+  User,
+  UserPlus,
+  Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -19,10 +26,9 @@ type LandingHeaderProps = {
   active?: View;
 };
 
-const primaryLinks: { view: View; label: string }[] = [
-  { view: 'agencies', label: 'Find Experts' },
-  { view: 'jobs', label: 'Jobs' },
-  { view: 'programs', label: 'Programs' },
+const primaryLinks: { view: View; label: string; icon: typeof Briefcase }[] = [
+  { view: 'programs', label: 'Programs', icon: GraduationCap },
+  { view: 'jobs', label: 'Jobs', icon: Briefcase },
 ];
 
 const travelLinks: { label: string; description: string; icon: typeof Plane; view: View }[] = [
@@ -34,9 +40,10 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
   const { profile, signOut } = useAuth();
   const [openMenu, setOpenMenu] = useState(false);
   const [openTravel, setOpenTravel] = useState(false);
+  const [openProfile, setOpenProfile] = useState(false);
 
   const linkClass = (view: View) =>
-    `rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
+    `flex items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
       active === view ? 'bg-brand-50 text-brand-700' : 'text-ink-600 hover:bg-ink-50'
     }`;
 
@@ -52,11 +59,15 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
               : 'hidden'
           } gap-1 md:static md:z-auto md:flex md:flex-row md:items-center md:border-0 md:bg-transparent md:p-0 md:shadow-none`}
         >
-          {primaryLinks.map((link) => (
-            <button key={link.view} onClick={() => { go(link.view); setOpenMenu(false); }} className={linkClass(link.view)}>
-              {link.label}
-            </button>
-          ))}
+          {primaryLinks.map((link) => {
+            const Icon = link.icon;
+            return (
+              <button key={link.view} onClick={() => { go(link.view); setOpenMenu(false); }} className={linkClass(link.view)}>
+                <Icon className="h-3.5 w-3.5" />
+                {link.label}
+              </button>
+            );
+          })}
 
           <div
             className="relative"
@@ -71,7 +82,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
               }`}
             >
               <Luggage className="h-3.5 w-3.5" />
-              Stays &amp; Flights
+              Flights &amp; Stays
               <ChevronDown className={`h-3.5 w-3.5 transition ${openTravel ? 'rotate-180' : ''}`} />
             </button>
 
@@ -101,7 +112,13 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             </div>
           </div>
 
-          <a href="#destinations" onClick={() => setOpenMenu(false)} className="rounded-lg px-3 py-2 text-left text-sm font-medium text-ink-600 hover:bg-ink-50">
+          <button onClick={() => { go('agencies'); setOpenMenu(false); }} className={linkClass('agencies')}>
+            <Users className="h-3.5 w-3.5" />
+            Find Experts
+          </button>
+
+          <a href="#destinations" onClick={() => setOpenMenu(false)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-ink-600 hover:bg-ink-50">
+            <MapPin className="h-3.5 w-3.5" />
             Destinations
           </a>
 
@@ -128,6 +145,71 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
           <button onClick={() => onAuth?.('register')} className="hidden rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 sm:block">
             Get started
           </button>
+
+          {/* Profile / guest menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setOpenProfile((v) => !v)}
+              aria-label="Account menu"
+              className="grid h-9 w-9 place-items-center rounded-full border border-ink-200 bg-ink-50 text-ink-500 transition hover:border-brand-300 hover:text-brand-600"
+            >
+              <User className="h-4 w-4" />
+            </button>
+
+            {openProfile && (
+              <>
+                <button type="button" aria-label="close" onClick={() => setOpenProfile(false)} className="fixed inset-0 z-30" />
+                <div className="absolute right-0 top-full z-40 mt-2 w-56 border border-ink-200 bg-white p-1.5 shadow-xl">
+                  <div className="px-3 py-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">
+                      {profile ? 'Account' : 'Guest'}
+                    </p>
+                    <p className="mt-0.5 truncate text-sm font-semibold text-ink-900">
+                      {profile ? profile.full_name ?? profile.email : 'Browsing as guest'}
+                    </p>
+                  </div>
+                  <div className="my-1 h-px bg-ink-100" />
+
+                  {profile ? (
+                    <>
+                      <button
+                        onClick={() => { go('customer-dashboard'); setOpenProfile(false); }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
+                      >
+                        <LayoutDashboard className="h-4 w-4 text-ink-400" />
+                        Dashboard
+                      </button>
+                      <button
+                        onClick={() => { signOut(); setOpenProfile(false); }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-rose-600 hover:bg-rose-50"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Sign out
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => { onAuth?.('login'); setOpenProfile(false); }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
+                      >
+                        <LogIn className="h-4 w-4 text-ink-400" />
+                        Sign in
+                      </button>
+                      <button
+                        onClick={() => { onAuth?.('register'); setOpenProfile(false); }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
+                      >
+                        <UserPlus className="h-4 w-4 text-ink-400" />
+                        Create account
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
           <button
             onClick={() => setOpenMenu(!openMenu)}

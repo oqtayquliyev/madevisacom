@@ -107,24 +107,31 @@ export type DestinationCost = {
   visaFeeUSD: number;
   /** Average accommodation cost per night, USD (mid-range) */
   accommodationPerNightUSD: number;
+  /** Typical program/course/relocation-service average cost, USD */
+  programAverageUSD: number;
+  /** Typical work permit / work visa fee, USD */
+  workPermitFeeUSD: number;
 };
 
 // Covers the destinations already featured elsewhere on the site.
-// Visa fees are rough published-fee estimates (tourist/short-stay);
-// always confirm current fees with the relevant embassy/consulate.
+// Visa/work-permit fees and program averages are rough published-fee
+// estimates; always confirm current figures with the relevant
+// embassy/consulate or institution.
 export const destinationCosts: DestinationCost[] = [
-  { countryCode: 'IT', countryName: 'Italy', region: 'western-europe', visaFeeUSD: 90, accommodationPerNightUSD: 110 },
-  { countryCode: 'FR', countryName: 'France', region: 'western-europe', visaFeeUSD: 90, accommodationPerNightUSD: 130 },
-  { countryCode: 'DE', countryName: 'Germany', region: 'western-europe', visaFeeUSD: 90, accommodationPerNightUSD: 105 },
-  { countryCode: 'ES', countryName: 'Spain', region: 'western-europe', visaFeeUSD: 90, accommodationPerNightUSD: 95 },
-  { countryCode: 'GB', countryName: 'United Kingdom', region: 'western-europe', visaFeeUSD: 145, accommodationPerNightUSD: 140 },
-  { countryCode: 'AE', countryName: 'United Arab Emirates', region: 'middle-east', visaFeeUSD: 90, accommodationPerNightUSD: 120 },
-  { countryCode: 'US', countryName: 'United States', region: 'north-america', visaFeeUSD: 185, accommodationPerNightUSD: 160 },
-  { countryCode: 'CA', countryName: 'Canada', region: 'north-america', visaFeeUSD: 100, accommodationPerNightUSD: 135 },
-  { countryCode: 'TR', countryName: 'Turkey', region: 'middle-east', visaFeeUSD: 60, accommodationPerNightUSD: 65 },
-  { countryCode: 'CH', countryName: 'Switzerland', region: 'western-europe', visaFeeUSD: 90, accommodationPerNightUSD: 175 },
-  { countryCode: 'AU', countryName: 'Australia', region: 'oceania', visaFeeUSD: 100, accommodationPerNightUSD: 130 },
-  { countryCode: 'NL', countryName: 'Netherlands', region: 'western-europe', visaFeeUSD: 90, accommodationPerNightUSD: 120 },
+  { countryCode: 'IT', countryName: 'Italy', region: 'western-europe', visaFeeUSD: 90, accommodationPerNightUSD: 110, programAverageUSD: 6500, workPermitFeeUSD: 130 },
+  { countryCode: 'FR', countryName: 'France', region: 'western-europe', visaFeeUSD: 90, accommodationPerNightUSD: 130, programAverageUSD: 7000, workPermitFeeUSD: 270 },
+  { countryCode: 'DE', countryName: 'Germany', region: 'western-europe', visaFeeUSD: 90, accommodationPerNightUSD: 105, programAverageUSD: 5500, workPermitFeeUSD: 110 },
+  { countryCode: 'ES', countryName: 'Spain', region: 'western-europe', visaFeeUSD: 90, accommodationPerNightUSD: 95, programAverageUSD: 6000, workPermitFeeUSD: 100 },
+  { countryCode: 'GB', countryName: 'United Kingdom', region: 'western-europe', visaFeeUSD: 145, accommodationPerNightUSD: 140, programAverageUSD: 14000, workPermitFeeUSD: 900 },
+  { countryCode: 'AE', countryName: 'United Arab Emirates', region: 'middle-east', visaFeeUSD: 90, accommodationPerNightUSD: 120, programAverageUSD: 8500, workPermitFeeUSD: 450 },
+  { countryCode: 'US', countryName: 'United States', region: 'north-america', visaFeeUSD: 185, accommodationPerNightUSD: 160, programAverageUSD: 22000, workPermitFeeUSD: 460 },
+  { countryCode: 'CA', countryName: 'Canada', region: 'north-america', visaFeeUSD: 100, accommodationPerNightUSD: 135, programAverageUSD: 15000, workPermitFeeUSD: 155 },
+  { countryCode: 'TR', countryName: 'Turkey', region: 'middle-east', visaFeeUSD: 60, accommodationPerNightUSD: 65, programAverageUSD: 3500, workPermitFeeUSD: 90 },
+  { countryCode: 'CH', countryName: 'Switzerland', region: 'western-europe', visaFeeUSD: 90, accommodationPerNightUSD: 175, programAverageUSD: 9000, workPermitFeeUSD: 210 },
+  { countryCode: 'AU', countryName: 'Australia', region: 'oceania', visaFeeUSD: 100, accommodationPerNightUSD: 130, programAverageUSD: 17000, workPermitFeeUSD: 1050 },
+  { countryCode: 'NL', countryName: 'Netherlands', region: 'western-europe', visaFeeUSD: 90, accommodationPerNightUSD: 120, programAverageUSD: 9500, workPermitFeeUSD: 380 },
+  { countryCode: 'IE', countryName: 'Ireland', region: 'western-europe', visaFeeUSD: 70, accommodationPerNightUSD: 125, programAverageUSD: 11000, workPermitFeeUSD: 1160 },
+  { countryCode: 'NZ', countryName: 'New Zealand', region: 'oceania', visaFeeUSD: 130, accommodationPerNightUSD: 110, programAverageUSD: 16000, workPermitFeeUSD: 340 },
 ];
 
 export type TripEstimate = {
@@ -135,6 +142,78 @@ export type TripEstimate = {
   totalLowUSD: number;
   totalHighUSD: number;
 };
+
+/**
+ * Looks up curated destination data by country code, falling back to a
+ * generic region-based estimate for destinations we haven't curated
+ * yet (so the UI always has something reasonable to show).
+ */
+export function destinationCostFor(countryCode: string, countryName: string): DestinationCost {
+  const found = destinationCosts.find((d) => d.countryCode === countryCode.toUpperCase());
+  if (found) return found;
+
+  return {
+    countryCode: countryCode.toUpperCase(),
+    countryName,
+    region: regionFor(countryCode),
+    visaFeeUSD: 100,
+    accommodationPerNightUSD: 110,
+    programAverageUSD: 8000,
+    workPermitFeeUSD: 300,
+  };
+}
+
+export type JourneyCostBreakdown = {
+  flightLowUSD: number;
+  flightHighUSD: number;
+  programAverageUSD: number;
+  visaFeeUSD: number;
+  workPermitFeeUSD: number;
+  includeWorkPermit: boolean;
+  includeProgram: boolean;
+  totalLowUSD: number;
+  totalHighUSD: number;
+};
+
+/**
+ * Quick "what will this journey cost" estimate for the homepage journey
+ * card: a flight range plus the line items relevant to the selected
+ * journey type (work adds a work-permit fee, study/programs/business
+ * add a program-average line; visa fee always applies).
+ */
+export function estimateJourneyCostBreakdown({
+  originCountryCode,
+  destinationCountryCode,
+  destinationCountryName,
+  journey,
+}: {
+  originCountryCode: string | null;
+  destinationCountryCode: string;
+  destinationCountryName: string;
+  journey: 'work' | 'study' | 'programs' | 'business' | 'family' | 'relocation';
+}): JourneyCostBreakdown {
+  const destination = destinationCostFor(destinationCountryCode, destinationCountryName);
+  const originRegion = regionFor(originCountryCode);
+  const [flightLow, flightHigh] = estimateFlightRangeUSD(originRegion, destination.region);
+
+  const includeWorkPermit = journey === 'work' || journey === 'business' || journey === 'relocation';
+  const includeProgram = journey === 'study' || journey === 'programs';
+
+  const workPermitFeeUSD = includeWorkPermit ? destination.workPermitFeeUSD : 0;
+  const programAverageUSD = includeProgram ? destination.programAverageUSD : 0;
+
+  return {
+    flightLowUSD: flightLow,
+    flightHighUSD: flightHigh,
+    programAverageUSD,
+    visaFeeUSD: destination.visaFeeUSD,
+    workPermitFeeUSD,
+    includeWorkPermit,
+    includeProgram,
+    totalLowUSD: flightLow + programAverageUSD + destination.visaFeeUSD + workPermitFeeUSD,
+    totalHighUSD: flightHigh + programAverageUSD + destination.visaFeeUSD + workPermitFeeUSD,
+  };
+}
 
 /**
  * Combines flight range + accommodation (per night × nights) + visa fee

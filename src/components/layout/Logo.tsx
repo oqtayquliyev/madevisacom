@@ -1,5 +1,5 @@
 const LOGO_MAIN =
-  'https://res.cloudinary.com/dkvg0oo8c/image/upload/v1788950524/Logo-Main_xdsuqn.svg';
+  'https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789479857/madevisa-logo-header_fqdylj.svg';
 const LOGO_FOOTER =
   'https://res.cloudinary.com/dkvg0oo8c/image/upload/v1788950524/Logo-Footer_uqo16m.svg';
 
@@ -15,12 +15,13 @@ type LogoProps = {
  */
 export function Logo({ variant = 'header', className = '' }: LogoProps) {
   const src = variant === 'footer' ? LOGO_FOOTER : LOGO_MAIN;
+  const sizeClass = variant === 'footer' ? 'h-8' : 'h-6';
 
   return (
     <img
       src={src}
       alt="MadeVisa"
-      className={`h-8 w-auto object-contain ${className}`}
+      className={`${sizeClass} w-auto object-contain ${className}`}
       onError={(event) => {
         const target = event.currentTarget;
         target.style.display = 'none';

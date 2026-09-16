@@ -5,16 +5,17 @@ import {
   Building2,
   CheckCircle2,
   ChevronDown,
+  DollarSign,
   GraduationCap,
   Heart,
-  Home,
   Loader2,
   Plane,
   Search,
   Sparkles,
-  Users,
 } from 'lucide-react';
 import type { View } from '@/types';
+import { useOriginCountry } from '@/lib/originCountry';
+import { estimateJourneyCostBreakdown } from '@/lib/costEstimates';
 
 type LandingHeroProps = {
   go: (view: View) => void;
@@ -654,6 +655,131 @@ function QuestionField({
   );
 }
 
+function formatUSD(value: number): string {
+  return `$${Math.round(value).toLocaleString()}`;
+}
+
+const journeyCostLabels: Record<Journey, string> = {
+  work: 'Work journey',
+  study: 'Study journey',
+  programs: 'Program journey',
+  business: 'Business journey',
+  family: 'Family journey',
+  relocation: 'Relocation journey',
+};
+
+/**
+ * Big-number cost estimate for the selected journey + country pair.
+ * Click to expand the breakdown: flights, program average (study/
+ * programs), visa fee, and work permit fee (work/business/relocation).
+ * Numbers come from lib/costEstimates.ts — clearly-labeled estimates,
+ * not live quotes.
+ */
+function JourneyCostEstimate({
+  journey,
+  originCountryCode,
+  destinationCountryCode,
+  destinationCountryName,
+}: {
+  journey: Journey;
+  originCountryCode: string | null;
+  destinationCountryCode: string;
+  destinationCountryName: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const estimate = useMemo(
+    () =>
+      estimateJourneyCostBreakdown({
+        originCountryCode,
+        destinationCountryCode,
+        destinationCountryName,
+        journey,
+      }),
+    [originCountryCode, destinationCountryCode, destinationCountryName, journey]
+  );
+
+  return (
+    <div className="border-b border-ink-100 bg-ink-50/60">
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left sm:px-6"
+      >
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-600 text-white">
+            <DollarSign className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-xs font-medium text-ink-400">
+              Estimated cost · {journeyCostLabels[journey]} to {destinationCountryName}
+            </p>
+            <p className="mt-0.5 text-2xl font-bold tracking-tight text-ink-950">
+              {formatUSD(estimate.totalLowUSD)} – {formatUSD(estimate.totalHighUSD)}
+            </p>
+          </div>
+        </div>
+
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-ink-400 transition ${expanded ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {expanded && (
+        <div className="space-y-2.5 px-5 pb-5 sm:px-6">
+          <CostLine
+            icon={Plane}
+            label="Travel (flights, round trip)"
+            value={`${formatUSD(estimate.flightLowUSD)} – ${formatUSD(estimate.flightHighUSD)}`}
+          />
+          {estimate.includeProgram && (
+            <CostLine
+              icon={GraduationCap}
+              label="Program / tuition average"
+              value={formatUSD(estimate.programAverageUSD)}
+            />
+          )}
+          <CostLine
+            icon={CheckCircle2}
+            label="Visa requirement (fee)"
+            value={formatUSD(estimate.visaFeeUSD)}
+          />
+          {estimate.includeWorkPermit && (
+            <CostLine
+              icon={Briefcase}
+              label="Work permit fee"
+              value={formatUSD(estimate.workPermitFeeUSD)}
+            />
+          )}
+          <p className="pt-1 text-[11px] text-ink-400">
+            Estimates only, not a live quote — actual costs vary by case.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CostLine({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Plane;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="flex items-center gap-2 text-ink-600">
+        <Icon className="h-4 w-4 shrink-0 text-ink-400" />
+        {label}
+      </span>
+      <span className="shrink-0 font-semibold text-ink-900">{value}</span>
+    </div>
+  );
+}
+
 export function LandingHero({
   go,
 }: LandingHeroProps) {
@@ -662,8 +788,41 @@ export function LandingHero({
       (country) => country.code === 'CA'
     ) ?? countries[0];
 
-  const [fromCountry] =
+  const { countryCode: detectedCode, countryName: detectedName } =
+    useOriginCountry();
+
+  const [fromCountry, setFromCountry] =
     useState<Country>(canada);
+
+  const [fromTouched, setFromTouched] =
+    useState(false);
+
+  // Auto-fill "I'm from" with the visitor's detected/selected location
+  // (see lib/originCountry.tsx), unless they've picked one manually.
+  useEffect(() => {
+    if (fromTouched || !detectedCode) return;
+
+    const known = countries.find(
+      (country) => country.code === detectedCode
+    );
+
+    setFromCountry(
+      known ??
+        {
+          name: detectedName ?? detectedCode,
+          code: detectedCode,
+          flag: `https://flagcdn.com/w80/${detectedCode.toLowerCase()}.png`,
+          image: canada.image,
+        }
+    );
+  }, [detectedCode, detectedName, fromTouched, canada.image]);
+
+  const originCountries = useMemo(() => {
+    if (!fromCountry || countries.some((c) => c.code === fromCountry.code)) {
+      return countries;
+    }
+    return [fromCountry, ...countries];
+  }, [fromCountry]);
 
   const [toCountry, setToCountry] =
     useState<Country>(
@@ -915,6 +1074,15 @@ export function LandingHero({
 
           </div>
 
+          {/* COST ESTIMATE */}
+
+          <JourneyCostEstimate
+            journey={activeJourney}
+            originCountryCode={fromCountry.code}
+            destinationCountryCode={toCountry.code}
+            destinationCountryName={toCountry.name}
+          />
+
           {/* COUNTRY PAIR */}
 
           <div className="grid lg:grid-cols-2">
@@ -924,19 +1092,23 @@ export function LandingHero({
               <CountrySelector
                 label="I'm from"
                 country={fromCountry}
-                availableCountries={[fromCountry]}
-                onChange={() => undefined}
-                disabled
+                availableCountries={originCountries}
+                onChange={(country) => {
+                  setFromCountry(country);
+                  setFromTouched(true);
+                }}
               />
 
-              <div className="px-5 pb-4">
+              {!fromTouched && detectedCode && (
+                <div className="px-5 pb-4">
 
-                <div className="flex items-center gap-2 text-[11px] text-ink-400">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-brand-600" />
-                  Canada is the first supported market
+                  <div className="flex items-center gap-2 text-[11px] text-ink-400">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-brand-600" />
+                    Detected from your location — click to change
+                  </div>
+
                 </div>
-
-              </div>
+              )}
 
             </div>
 
