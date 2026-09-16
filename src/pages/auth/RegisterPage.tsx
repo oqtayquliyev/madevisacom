@@ -79,32 +79,56 @@ function CustomerForm({ countries, onBack, onError }: { countries: Country[]; on
   const [phone, setPhone] = useState('');
   const [nationalityId, setNationalityId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [checkEmail, setCheckEmail] = useState(false);
 
   const handleSubmit = async () => {
     setLoading(true);
     onError('');
-    const { data, error } = await supabase.auth.signUp({ email, password });
+
+    // All profile fields are passed as auth metadata rather than
+    // inserted client-side: a DB trigger (handle_new_user, see
+    // supabase/migrations) creates the `profiles` row server-side from
+    // this metadata. Inserting it again here would race the trigger
+    // and fail on the duplicate primary key.
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          role: 'customer',
+          full_name: fullName,
+          phone: phone || null,
+          nationality_country_id: nationalityId || null,
+        },
+      },
+    });
+
+    setLoading(false);
+
     if (error) {
-      onError(error.message.includes('already') ? 'An account with this email already exists.' : 'Registration failed. Please check your details.');
-      setLoading(false);
+      onError(error.message.includes('already') ? 'An account with this email already exists.' : error.message);
       return;
     }
-    if (data.user) {
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        full_name: fullName,
-        email,
-        phone: phone || null,
-        role: 'customer',
-        nationality_country_id: nationalityId || null,
-      });
-      if (profileError) {
-        onError('Account created but profile setup failed. Please contact support.');
-        setLoading(false);
-        return;
-      }
+
+    if (!data.session) {
+      // Email confirmation is required before a session exists —
+      // nothing more to do here until they click the link.
+      setCheckEmail(true);
     }
+    // If a session WAS returned (email confirmation disabled), the
+    // AuthProvider's onAuthStateChange listener picks it up automatically
+    // and the app navigates away from this page on its own.
   };
+
+  if (checkEmail) {
+    return (
+      <div className="space-y-4 text-center">
+        <p className="text-sm font-medium text-ink-800">Check your email to confirm your account.</p>
+        <p className="text-sm text-ink-500">We sent a confirmation link to {email}. Click it to finish creating your account.</p>
+        <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -129,46 +153,51 @@ function AgencyForm({ countries, onBack, onError }: { countries: Country[]; onBa
   const [city, setCity] = useState('');
   const [website, setWebsite] = useState('');
   const [loading, setLoading] = useState(false);
+  const [checkEmail, setCheckEmail] = useState(false);
 
   const handleSubmit = async () => {
     setLoading(true);
     onError('');
-    const { data, error } = await supabase.auth.signUp({ email, password });
+
+    // Same pattern as CustomerForm — metadata only, the DB trigger
+    // creates both the `profiles` row and the `agencies` row.
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          role: 'agency',
+          full_name: fullName,
+          phone: phone || null,
+          company_name: companyName,
+          country: country || null,
+          city: city || null,
+          website: website || null,
+        },
+      },
+    });
+
+    setLoading(false);
+
     if (error) {
-      onError(error.message.includes('already') ? 'An account with this email already exists.' : 'Registration failed. Please check your details.');
-      setLoading(false);
+      onError(error.message.includes('already') ? 'An account with this email already exists.' : error.message);
       return;
     }
-    if (data.user) {
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        full_name: fullName,
-        email,
-        phone: phone || null,
-        role: 'agency',
-      });
-      if (profileError) {
-        onError('Account created but profile setup failed. Please contact support.');
-        setLoading(false);
-        return;
-      }
-      const { error: agencyError } = await supabase.from('agencies').insert({
-        owner_id: data.user.id,
-        name: companyName,
-        email,
-        phone: phone || null,
-        country: country || null,
-        city: city || null,
-        website: website || null,
-        verification_status: 'pending',
-      });
-      if (agencyError) {
-        onError('Profile created but agency setup failed. Please contact support.');
-        setLoading(false);
-        return;
-      }
+
+    if (!data.session) {
+      setCheckEmail(true);
     }
   };
+
+  if (checkEmail) {
+    return (
+      <div className="space-y-4 text-center">
+        <p className="text-sm font-medium text-ink-800">Check your email to confirm your account.</p>
+        <p className="text-sm text-ink-500">We sent a confirmation link to {email}. Click it to finish creating your account.</p>
+        <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
