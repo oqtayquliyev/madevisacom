@@ -73,6 +73,7 @@ export type View =
   | 'programs'
   | 'sponsored-programs'
   | 'submit-program'
+  | 'profile'
   | 'travel'
   | 'results'
   | 'agencies'

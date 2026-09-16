@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
@@ -17,6 +17,11 @@ type AuthContextValue = {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  /** True right after a fresh sign-in/sign-up in this browser tab (not on
+   *  a page refresh that just restores an existing session) — drives the
+   *  one-time "Welcome" popup. Call clearJustSignedIn() once shown. */
+  justSignedIn: boolean;
+  clearJustSignedIn: () => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
@@ -27,6 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [justSignedIn, setJustSignedIn] = useState(false);
+  const hasRestoredInitialSession = useRef(false);
 
   const loadProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -45,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      hasRestoredInitialSession.current = true;
       if (session?.user) {
         loadProfile(session.user.id).finally(() => setLoading(false));
       } else {
@@ -54,6 +62,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+
+      // 'SIGNED_IN' fires for a fresh sign-in/sign-up/OAuth completion
+      // AND for the initial session restore on some clients, so we only
+      // treat it as "fresh" once the initial getSession() above has
+      // already resolved (tracked via a ref, since state in this
+      // closure would otherwise always read its initial value).
+      if (event === 'SIGNED_IN' && hasRestoredInitialSession.current) {
+        setJustSignedIn(true);
+      }
+
       if (session?.user) {
         (async () => {
           await loadProfile(session.user.id);
@@ -78,8 +96,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (session?.user) await loadProfile(session.user.id);
   };
 
+  const clearJustSignedIn = () => setJustSignedIn(false);
+
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, signOut, refreshProfile }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user: session?.user ?? null,
+        profile,
+        loading,
+        justSignedIn,
+        clearJustSignedIn,
+        signOut,
+        refreshProfile,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

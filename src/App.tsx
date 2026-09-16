@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { LoginPage } from '@/pages/auth/LoginPage';
@@ -17,6 +17,8 @@ import { JobsPage } from '@/pages/landing/jobs/JobsPage';
 import { ProgramsPage } from '@/pages/landing/programs/ProgramsPage';
 import { SponsoredProgramsPage } from '@/pages/programs/SponsoredProgramsPage';
 import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
+import { ProfilePage } from '@/pages/profile/ProfilePage';
+import { WelcomeModal } from '@/components/common/WelcomeModal';
 import { TravelPage } from '@/pages/travel/TravelPage';
 import type { View } from '@/types';
 
@@ -33,6 +35,7 @@ const pathForView: Partial<Record<View, string>> = {
   'sponsored-programs': '/sponsored-programs',
   'submit-program': '/submit-program',
   travel: '/travel',
+  profile: '/profile',
 };
 
 const authPathToPage: Record<string, AuthPage> = {
@@ -185,14 +188,22 @@ export default function App() {
 
   const role = profile.role;
 
+  const withWelcome = (node: ReactNode) => (
+    <>
+      {node}
+      <WelcomeModal go={go} />
+    </>
+  );
+
 if (
   view === 'home' ||
   view === 'planner' ||
   view === 'results' ||
   view === 'agencies' ||
-  view === 'explore'
+  view === 'explore' ||
+  view === 'profile'
 ) {
-  return renderPublicView(view, go);
+  return withWelcome(renderPublicView(view, go));
 }
 
   if (
@@ -203,10 +214,10 @@ if (
       role === 'agency' ||
       role === 'admin'
     ) {
-      return renderRoleHome(role, go);
+      return withWelcome(renderRoleHome(role, go));
     }
 
-    return renderPublicView(view, go);
+    return withWelcome(renderPublicView(view, go));
   }
 
   if (
@@ -214,17 +225,17 @@ if (
     view === 'agency-profile'
   ) {
     if (role === 'customer') {
-      return renderPublicView(
+      return withWelcome(renderPublicView(
         'customer-dashboard',
         go
-      );
+      ));
     }
 
-    return renderPublicView(view, go);
+    return withWelcome(renderPublicView(view, go));
   }
 
   if (role === 'admin') {
-    return (
+    return withWelcome(
       <AgencyDashboard
         view="agency-dashboard"
         go={go}
@@ -232,7 +243,7 @@ if (
     );
   }
 
-  return renderPublicView('home', go);
+  return withWelcome(renderPublicView('home', go));
 }
 
 function renderPublicView(
@@ -289,6 +300,9 @@ function renderPublicView(
 
     case 'travel':
       return <TravelPage go={go} />;
+
+    case 'profile':
+      return <ProfilePage go={go} />;
 
     case 'customer-dashboard':
       return (

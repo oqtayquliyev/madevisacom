@@ -13,6 +13,7 @@ import {
   Plane,
   User,
   UserPlus,
+  UserRound,
   Users,
   X,
 } from 'lucide-react';
@@ -20,6 +21,7 @@ import { useAuth } from '@/lib/auth';
 import { handleNavClick } from '@/lib/navLink';
 import type { View } from '@/types';
 import { BrandMark } from '@/components/layout/Logo';
+import { TravelerAvatar } from '@/components/common/TravelerAvatar';
 
 type LandingHeaderProps = {
   go: (view: View) => void;
@@ -133,27 +135,25 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
         </nav>
 
         <div className="flex items-center gap-2">
-          {profile ? (
-            <button onClick={signOut} className="hidden px-3 py-2 text-sm text-ink-600 sm:block">
-              Sign out
-            </button>
-          ) : (
-            <a
-              href="/login"
-              onClick={(event) => handleNavClick(event, () => onAuth?.('login'))}
-              className="hidden px-3 py-2 text-sm text-ink-600 sm:block"
-            >
-              Sign in
-            </a>
-          )}
+          {!profile && (
+            <>
+              <a
+                href="/login"
+                onClick={(event) => handleNavClick(event, () => onAuth?.('login'))}
+                className="hidden px-3 py-2 text-sm text-ink-600 sm:block"
+              >
+                Sign in
+              </a>
 
-          <a
-            href="/register"
-            onClick={(event) => handleNavClick(event, () => onAuth?.('register'))}
-            className="hidden rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 sm:block"
-          >
-            Get started
-          </a>
+              <a
+                href="/register"
+                onClick={(event) => handleNavClick(event, () => onAuth?.('register'))}
+                className="hidden rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 sm:block"
+              >
+                Get started
+              </a>
+            </>
+          )}
 
           {/* Profile / guest menu */}
           <div className="relative">
@@ -161,27 +161,41 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
               type="button"
               onClick={() => setOpenProfile((v) => !v)}
               aria-label="Account menu"
-              className="grid h-9 w-9 place-items-center rounded-full border border-ink-200 bg-ink-50 text-ink-500 transition hover:border-brand-300 hover:text-brand-600"
+              className={`grid place-items-center rounded-full transition ${
+                profile
+                  ? 'h-9 w-9 ring-2 ring-transparent hover:ring-brand-200'
+                  : 'h-9 w-9 border border-ink-200 bg-ink-50 text-ink-500 hover:border-brand-300 hover:text-brand-600'
+              }`}
             >
-              <User className="h-4 w-4" />
+              {profile ? <TravelerAvatar seed={profile.id} size={36} /> : <User className="h-4 w-4" />}
             </button>
 
             {openProfile && (
               <>
                 <button type="button" aria-label="close" onClick={() => setOpenProfile(false)} className="fixed inset-0 z-30" />
                 <div className="absolute right-0 top-full z-40 mt-2 w-56 border border-ink-200 bg-white p-1.5 shadow-xl">
-                  <div className="px-3 py-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">
-                      {profile ? 'Account' : 'Guest'}
-                    </p>
-                    <p className="mt-0.5 truncate text-sm font-semibold text-ink-900">
-                      {profile ? profile.full_name ?? profile.email : 'Browsing as guest'}
-                    </p>
+                  <div className="flex items-center gap-3 px-3 py-2">
+                    {profile && <TravelerAvatar seed={profile.id} size={32} />}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">
+                        {profile ? 'Account' : 'Guest'}
+                      </p>
+                      <p className="mt-0.5 truncate text-sm font-semibold text-ink-900">
+                        {profile ? profile.full_name ?? profile.email : 'Browsing as guest'}
+                      </p>
+                    </div>
                   </div>
                   <div className="my-1 h-px bg-ink-100" />
 
                   {profile ? (
                     <>
+                      <button
+                        onClick={() => { go('profile'); setOpenProfile(false); }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
+                      >
+                        <UserRound className="h-4 w-4 text-ink-400" />
+                        My profile
+                      </button>
                       <button
                         onClick={() => { go('customer-dashboard'); setOpenProfile(false); }}
                         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
