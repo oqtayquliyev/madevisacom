@@ -1,19 +1,22 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
-  BadgeCheck,
   Briefcase,
   Building2,
-  Clock3,
+  Loader2,
   MapPin,
   Search,
-  Star,
   UserRound,
   Users,
 } from 'lucide-react';
 import type { View } from '@/types';
-import { agencies } from '@/data';
-import { jobs as curatedJobs } from '@/data/jobs';
+import {
+  fetchVerifiedAgenciesPublic,
+  fetchVerifiedExperts,
+  type PublicAgency,
+  type VerifiedExpert,
+} from '@/lib/programs';
+import { fetchPublishedSponsoredJobs, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -25,84 +28,57 @@ type ExpertsMarketplacePageProps = {
 
 type Tab = 'experts' | 'agencies' | 'employers';
 
-type Expert = {
-  name: string;
-  title: string;
-  agency: string;
-  initials: string;
-  location: string;
-  countryCode: string;
-  specialties: string[];
-  rating: number;
-  reviews: number;
-  price: number;
-  response: string;
-  avatar: string;
-  accent: string;
-};
-
-const experts: Expert[] = [
-  { name: 'Leyla Karimova', title: 'Senior Visa Consultant', agency: 'Global Travel', initials: 'LK', location: 'Baku, Azerbaijan', countryCode: 'AZ', specialties: ['Schengen', 'Business'], rating: 4.9, reviews: 128, price: 85, response: 'Replies in 20 min', avatar: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=160&q=80', accent: 'bg-violet-100 text-violet-700' },
-  { name: 'Marco Bellin', title: 'Immigration Specialist', agency: 'Atlas Journeys', initials: 'MB', location: 'Milan, Italy', countryCode: 'IT', specialties: ['Schengen', 'Family'], rating: 4.8, reviews: 94, price: 69, response: 'Replies in 1 hour', avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=160&q=80', accent: 'bg-amber-100 text-amber-700' },
-  { name: 'Sofia Rahman', title: 'Relocation Advisor', agency: 'Northstar Travel', initials: 'SR', location: 'Dubai, UAE', countryCode: 'AE', specialties: ['Relocation', 'Tourist'], rating: 4.9, reviews: 76, price: 110, response: 'Replies in 45 min', avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=160&q=80', accent: 'bg-emerald-100 text-emerald-700' },
-  { name: 'Owen Williams', title: 'Visa Documentation Expert', agency: 'Wayfinder Co.', initials: 'OW', location: 'London, UK', countryCode: 'GB', specialties: ['Student', 'Work'], rating: 4.7, reviews: 61, price: 49, response: 'Replies in 2 hours', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=160&q=80', accent: 'bg-blue-100 text-blue-700' },
-  { name: 'Ayla Demir', title: 'Travel Compliance Advisor', agency: 'Route & Co.', initials: 'AD', location: 'Istanbul, Turkey', countryCode: 'TR', specialties: ['Schengen', 'Transit'], rating: 4.8, reviews: 48, price: 59, response: 'Replies in 30 min', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=160&q=80', accent: 'bg-rose-100 text-rose-700' },
-  { name: 'David Chen', title: 'International Visa Advisor', agency: 'Open Atlas', initials: 'DC', location: 'Toronto, Canada', countryCode: 'CA', specialties: ['Student', 'Work'], rating: 4.9, reviews: 112, price: 95, response: 'Replies in 1 hour', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&q=80', accent: 'bg-cyan-100 text-cyan-700' },
-];
-
-// "Sponsored employer" profiles — aggregated from companies with open
-// listings on the Jobs board. See OPPORTUNITIES.md for how to swap
-// this for real paid employer placements.
-const employerProfiles = Array.from(
-  curatedJobs.reduce((map, job) => {
-    const existing = map.get(job.company);
-    if (existing) {
-      existing.roles += 1;
-      existing.countries.add(job.country);
-    } else {
-      map.set(job.company, { company: job.company, roles: 1, countries: new Set([job.country]), category: job.category });
-    }
-    return map;
-  }, new Map<string, { company: string; roles: number; countries: Set<string>; category: string }>())
-).map(([, value]) => value);
-
 export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePageProps) {
   const [tab, setTab] = useState<Tab>('experts');
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [experts, setExperts] = useState<VerifiedExpert[]>([]);
+  const [agencies, setAgencies] = useState<PublicAgency[]>([]);
+  const [jobs, setJobs] = useState<SponsoredJob[]>([]);
 
-  const filteredExperts = useMemo(
-    () =>
-      experts.filter((e) => {
-        const q = search.trim().toLowerCase();
-        if (!q) return true;
-        return (
-          e.name.toLowerCase().includes(q) ||
-          e.location.toLowerCase().includes(q) ||
-          e.specialties.some((s) => s.toLowerCase().includes(q))
-        );
-      }),
-    [search]
-  );
+  useEffect(() => {
+    Promise.all([fetchVerifiedExperts(), fetchVerifiedAgenciesPublic(), fetchPublishedSponsoredJobs()]).then(
+      ([e, a, j]) => {
+        setExperts(e);
+        setAgencies(a);
+        setJobs(j);
+        setLoading(false);
+      }
+    );
+  }, []);
 
-  const filteredAgencies = useMemo(
-    () =>
-      agencies.filter((a) => {
-        const q = search.trim().toLowerCase();
-        if (!q) return true;
-        return a.name.toLowerCase().includes(q) || a.destinations.some((d) => d.toLowerCase().includes(q));
-      }),
-    [search]
-  );
+  const employers = useMemo(() => {
+    const map = new Map<string, { name: string; roles: number; countries: Set<string> }>();
+    for (const job of jobs) {
+      const name = job.publisher?.name ?? 'Verified sponsor';
+      const existing = map.get(name);
+      if (existing) {
+        existing.roles += 1;
+        if (job.country) existing.countries.add(job.country.name);
+      } else {
+        map.set(name, { name, roles: 1, countries: new Set(job.country ? [job.country.name] : []) });
+      }
+    }
+    return Array.from(map.values());
+  }, [jobs]);
 
-  const filteredEmployers = useMemo(
-    () =>
-      employerProfiles.filter((e) => {
-        const q = search.trim().toLowerCase();
-        if (!q) return true;
-        return e.company.toLowerCase().includes(q) || e.category.toLowerCase().includes(q);
-      }),
-    [search]
-  );
+  const filteredExperts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return experts;
+    return experts.filter((e) => e.name.toLowerCase().includes(q) || (e.country?.name ?? '').toLowerCase().includes(q));
+  }, [experts, search]);
+
+  const filteredAgencies = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return agencies;
+    return agencies.filter((a) => a.name.toLowerCase().includes(q) || (a.city ?? '').toLowerCase().includes(q) || (a.country ?? '').toLowerCase().includes(q));
+  }, [agencies, search]);
+
+  const filteredEmployers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return employers;
+    return employers.filter((e) => e.name.toLowerCase().includes(q));
+  }, [employers, search]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
@@ -115,8 +91,8 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
             Agencies &amp; Experts.
           </h1>
           <p className="mt-4 max-w-xl text-base leading-7 text-ink-500">
-            Independent visa specialists, verified agencies, and sponsored employers looking to hire — all in one
-            searchable place.
+            Independent visa specialists, verified agencies, and sponsored employers looking to hire — all reviewed
+            before they're listed here.
           </p>
 
           <div className="mt-8 flex h-12 max-w-md items-center gap-2 rounded-lg border border-ink-200 bg-white px-3">
@@ -124,7 +100,7 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, destination or specialty"
+              placeholder="Search by name, destination or location"
               className="h-full w-full bg-transparent text-sm font-medium text-ink-900 outline-none placeholder:text-ink-400"
             />
           </div>
@@ -138,130 +114,135 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
       </section>
 
       <main className="mx-auto max-w-7xl px-5 py-12 sm:px-8">
-        {tab === 'experts' && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredExperts.map((expert) => (
-              <article key={expert.name} className="flex flex-col border border-ink-200 bg-white p-4 shadow-soft transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <img src={expert.avatar} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover" />
-                    <div className="min-w-0">
-                      <h3 className="truncate text-sm font-bold text-ink-900">{expert.name}</h3>
-                      <p className="truncate text-xs text-ink-500">{expert.title}</p>
-                    </div>
-                  </div>
-                  <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[10px] font-bold ${expert.accent}`}>{expert.initials}</span>
-                </div>
-
-                <div className="mt-4 flex items-center gap-1.5 text-xs text-ink-500">
-                  <CircleFlag countryCode={expert.countryCode} label={expert.location} size={14} />
-                  {expert.location}
-                  <span className="ml-auto flex items-center gap-1 font-semibold text-ink-800">
-                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                    {expert.rating}
-                    <span className="font-normal text-ink-400">({expert.reviews})</span>
-                  </span>
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {expert.specialties.map((s) => (
-                    <span key={s} className="rounded-md bg-ink-50 px-2 py-1 text-[11px] font-medium text-ink-600">{s}</span>
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-ink-400">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading…
+          </div>
+        ) : (
+          <>
+            {tab === 'experts' && (
+              filteredExperts.length === 0 ? (
+                <EmptyState
+                  label="No verified experts yet"
+                  detail="Independent visa experts show up here once they apply from their profile and are approved."
+                />
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredExperts.map((expert) => (
+                    <article key={expert.id} className="flex flex-col border border-ink-200 bg-white p-4 shadow-soft transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg">
+                      <div className="flex items-center gap-3">
+                        {expert.logo_url ? (
+                          <img src={expert.logo_url} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover" />
+                        ) : (
+                          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-600">
+                            <UserRound className="h-5 w-5" />
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <h3 className="truncate text-sm font-bold text-ink-900">{expert.name}</h3>
+                          {expert.country && (
+                            <p className="flex items-center gap-1 truncate text-xs text-ink-500">
+                              <CircleFlag countryCode={expert.country.iso_code} label={expert.country.name} size={12} />
+                              {expert.country.name}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {expert.description && <p className="mt-3 flex-1 text-xs leading-5 text-ink-500">{expert.description}</p>}
+                      {expert.website && (
+                        <a
+                          href={expert.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-brand-200 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+                        >
+                          Visit website
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                    </article>
                   ))}
                 </div>
+              )
+            )}
 
-                <div className="mt-auto border-t border-ink-100 pt-4">
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-[11px] text-ink-400">Starting at</p>
-                      <p className="mt-0.5 text-xl font-bold tracking-tight text-ink-950">€{expert.price}</p>
+            {tab === 'agencies' && (
+              filteredAgencies.length === 0 ? (
+                <EmptyState
+                  label="No verified agencies yet"
+                  detail="Travel agencies show up here once they register and are approved."
+                />
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredAgencies.map((agency) => (
+                    <div key={agency.id} className="border border-ink-200 bg-white p-5 shadow-soft">
+                      <div className="flex items-center gap-3">
+                        {agency.logo_url ? (
+                          <img src={agency.logo_url} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                        ) : (
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-ink-900 text-xs font-bold text-white">
+                            {agency.name.slice(0, 2).toUpperCase()}
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <h3 className="truncate font-semibold text-ink-900">{agency.name}</h3>
+                          {(agency.city || agency.country) && (
+                            <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-ink-500">
+                              <MapPin className="h-3 w-3" />
+                              {[agency.city, agency.country].filter(Boolean).join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {agency.description && <p className="mt-4 text-xs leading-5 text-ink-500">{agency.description}</p>}
+                      {agency.website && (
+                        <a
+                          href={agency.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-4 flex items-center gap-1 text-xs font-semibold text-brand-600"
+                        >
+                          Visit website
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </a>
+                      )}
                     </div>
-                    <p className="flex items-center gap-1 text-[11px] font-medium text-emerald-700">
-                      <Clock3 className="h-3.5 w-3.5" />
-                      {expert.response}
-                    </p>
-                  </div>
-                  <button onClick={() => go('agencies')} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-brand-200 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50">
-                    View profile
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
+                  ))}
                 </div>
-              </article>
-            ))}
-          </div>
-        )}
+              )
+            )}
 
-        {tab === 'agencies' && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredAgencies.map((agency) => (
-              <div key={agency.id} className="border border-ink-200 bg-white p-5 shadow-soft">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-10 w-10 place-items-center rounded-lg bg-ink-900 text-xs font-bold text-white">{agency.initials}</span>
-                    <div>
-                      <h3 className="font-semibold text-ink-900">{agency.name}</h3>
-                      <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-500">
-                        <MapPin className="h-3 w-3" />
-                        {agency.destinations.slice(0, 2).join(' · ')}
-                      </p>
+            {tab === 'employers' && (
+              filteredEmployers.length === 0 ? (
+                <EmptyState
+                  label="No sponsored employers yet"
+                  detail="Companies show up here once they post a verified sponsored job."
+                />
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredEmployers.map((employer) => (
+                    <div key={employer.name} className="border border-ink-200 bg-white p-5 shadow-soft">
+                      <div className="flex items-center gap-3">
+                        <span className="grid h-10 w-10 place-items-center rounded-lg bg-brand-50 text-brand-600">
+                          <Building2 className="h-4 w-4" />
+                        </span>
+                        <h3 className="font-semibold text-ink-900">{employer.name}</h3>
+                      </div>
+                      <div className="mt-4 flex items-center gap-1.5 text-xs text-ink-500">
+                        <Users className="h-3.5 w-3.5 text-ink-400" />
+                        {employer.roles} open role{employer.roles === 1 ? '' : 's'}
+                        {employer.countries.size > 0 && ` · ${Array.from(employer.countries).join(', ')}`}
+                      </div>
+                      <button onClick={() => go('jobs')} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-brand-200 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+                        View open roles
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                  </div>
-                  <span className="flex items-center gap-1 text-xs font-semibold text-ink-700">
-                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                    {agency.rating}
-                  </span>
+                  ))}
                 </div>
-                <div className="mt-5 grid grid-cols-2 gap-3 border-t border-ink-100 pt-4 text-xs">
-                  <div>
-                    <p className="text-ink-400">Specialties</p>
-                    <p className="mt-1 font-medium text-ink-700">{agency.services.slice(0, 2).join(' · ')}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-400">Starting at</p>
-                    <p className="mt-1 text-lg font-bold text-ink-950">${agency.priceFrom}</p>
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
-                  <BadgeCheck className="h-4 w-4" />
-                  Verified agency · {agency.tripsHandled.toLocaleString()} helped
-                </div>
-                <button onClick={() => go('agencies')} className="mt-4 text-xs font-semibold text-brand-600">
-                  View agency<ArrowRight className="ml-1 inline h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {tab === 'employers' && (
-          <>
-            <div className="mb-4 flex items-start gap-2 rounded-lg bg-ink-50 px-4 py-3 text-xs text-ink-500">
-              <Briefcase className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-400" />
-              Companies currently hiring abroad through MadeVisa's Jobs board. Sponsored placement available for
-              employers — see the footer for contact details.
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredEmployers.map((employer) => (
-                <div key={employer.company} className="border border-ink-200 bg-white p-5 shadow-soft">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-10 w-10 place-items-center rounded-lg bg-brand-50 text-brand-600">
-                      <Building2 className="h-4 w-4" />
-                    </span>
-                    <div>
-                      <h3 className="font-semibold text-ink-900">{employer.company}</h3>
-                      <p className="text-xs text-ink-500">{employer.category}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex items-center gap-1.5 text-xs text-ink-500">
-                    <Users className="h-3.5 w-3.5 text-ink-400" />
-                    {employer.roles} open role{employer.roles === 1 ? '' : 's'} · {Array.from(employer.countries).join(', ')}
-                  </div>
-                  <button onClick={() => go('jobs')} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-brand-200 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50">
-                    View open roles
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
+              )
+            )}
           </>
         )}
       </main>
@@ -283,5 +264,15 @@ function TabButton({ active, onClick, icon: Icon, label }: { active: boolean; on
       <Icon className="h-4 w-4" />
       {label}
     </button>
+  );
+}
+
+function EmptyState({ label, detail }: { label: string; detail: string }) {
+  return (
+    <div className="border border-ink-200 bg-white px-6 py-16 text-center">
+      <Search className="mx-auto h-8 w-8 text-ink-300" />
+      <h3 className="mt-4 text-lg font-bold text-ink-900">{label}</h3>
+      <p className="mx-auto mt-2 max-w-sm text-sm text-ink-500">{detail}</p>
+    </div>
   );
 }

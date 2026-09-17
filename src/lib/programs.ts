@@ -254,3 +254,46 @@ export async function fetchProgramById(id: string): Promise<SponsoredProgram | n
   }
   return data as unknown as SponsoredProgram | null;
 }
+
+export type VerifiedExpert = Pick<ProgramPublisher, 'id' | 'name' | 'description' | 'website' | 'logo_url'> & {
+  country?: Pick<CountryOption, 'id' | 'name' | 'iso_code'>;
+};
+
+/** Public-safe (no email/contact info) list of verified independent experts, for the Agencies & Experts marketplace. */
+export async function fetchVerifiedExperts(): Promise<VerifiedExpert[]> {
+  const { data, error } = await supabase
+    .from('program_publishers')
+    .select('id, name, description, website, logo_url, country:countries(id, name, iso_code)')
+    .eq('org_type', 'expert')
+    .eq('verification_status', 'verified')
+    .order('name');
+  if (error) {
+    console.error('fetchVerifiedExperts failed', error);
+    return [];
+  }
+  return (data ?? []) as unknown as VerifiedExpert[];
+}
+
+export type PublicAgency = {
+  id: string;
+  name: string;
+  description: string | null;
+  website: string | null;
+  country: string | null;
+  city: string | null;
+  logo_url: string | null;
+};
+
+/** Public-safe (no email) list of verified travel agencies, for the Agencies & Experts marketplace. */
+export async function fetchVerifiedAgenciesPublic(): Promise<PublicAgency[]> {
+  const { data, error } = await supabase
+    .from('agencies')
+    .select('id, name, description, website, country, city, logo_url')
+    .eq('verification_status', 'verified')
+    .order('name');
+  if (error) {
+    console.error('fetchVerifiedAgenciesPublic failed', error);
+    return [];
+  }
+  return data ?? [];
+}

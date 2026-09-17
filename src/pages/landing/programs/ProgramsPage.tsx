@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   Bookmark,
@@ -7,30 +7,37 @@ import {
   ChevronDown,
   Clock3,
   GraduationCap,
+  Loader2,
   Search,
   SlidersHorizontal,
   Sparkles,
   X,
 } from 'lucide-react';
 import type { View } from '@/types';
-import { programOpportunities, type Opportunity } from '@/data/opportunities';
+import {
+  fetchSponsoredPrograms,
+  getApplicationWindowStatus,
+  toEligibilityCriteria,
+  type SponsoredProgram,
+} from '@/lib/programs';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
 import { isApplied, markApplied, removeApplication } from '@/lib/applications';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { PersonalizationBar, EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
-import { AdBanner } from '@/components/ads/AdBanner';
 
 type ProgramsPageProps = {
   go: (view: View) => void;
   onAuth?: (page: 'login' | 'register') => void;
+  goToProgram?: (id: string) => void;
 };
 
-const programTypes = ['All types', ...Array.from(new Set(programOpportunities.map((p) => p.type)))];
-const countryOptions = [
-  'All countries',
-  ...Array.from(new Set(programOpportunities.map((p) => p.country))),
-];
+const windowLabel = {
+  open: 'Applications open',
+  upcoming: 'Opens soon',
+  closed: 'Applications closed',
+  rolling: 'Rolling applications',
+};
 
 function SelectField({
   label,
@@ -77,82 +84,78 @@ function SelectField({
   );
 }
 
-function ProgramCard({ program }: { program: Opportunity }) {
+function ProgramCard({ program, goToProgram }: { program: SponsoredProgram; goToProgram?: (id: string) => void }) {
   const { profile } = usePersonalization();
-  const eligibility = computeEligibility(program.eligibility, profile, program.countryCode);
+  const eligibility = computeEligibility(toEligibilityCriteria(program), profile, program.country?.iso_code);
+  const windowStatus = getApplicationWindowStatus(program);
 
   return (
     <article className="flex flex-col border border-ink-200 bg-white p-5 transition hover:border-brand-300 hover:shadow-soft-lg">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="rounded-md bg-ink-50 px-2 py-0.5 text-[11px] font-semibold text-ink-500">{program.type}</span>
-            <span className="text-xs font-medium text-ink-400">{program.country}</span>
+            <span className="rounded-md bg-ink-50 px-2 py-0.5 text-[11px] font-semibold text-ink-500">{program.category}</span>
+            {program.country && <span className="text-xs font-medium text-ink-400">{program.country.name}</span>}
           </div>
           <h2 className="mt-3 text-base font-bold text-ink-950">{program.title}</h2>
-          <p className="mt-1 text-sm font-medium text-ink-600">{program.organization}</p>
+          <p className="mt-1 text-sm font-medium text-ink-600">{program.publisher?.name}</p>
         </div>
         <EligibilityBadge result={eligibility} />
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-ink-500">
-        {program.duration && (
-          <span className="flex items-center gap-1.5">
-            <Clock3 className="h-3.5 w-3.5 text-ink-400" />
-            {program.duration}
-          </span>
+      <div className="mt-4 flex flex-wrap gap-2 text-xs text-ink-500">
+        <span className="rounded-md bg-ink-50 px-2 py-1 font-medium">{windowLabel[windowStatus]}</span>
+        {program.spots_available != null && (
+          <span className="rounded-md bg-ink-50 px-2 py-1">{program.spots_available} spot{program.spots_available === 1 ? '' : 's'}</span>
         )}
-        {program.city && <span className="truncate">{program.city}</span>}
       </div>
 
-      {program.compensation && (
+      {program.funding_text && (
         <div className="mt-4">
           <p className="text-xs text-ink-400">Funding</p>
-          <p className="mt-0.5 text-sm font-bold text-ink-900">{program.compensation}</p>
+          <p className="mt-0.5 text-sm font-bold text-ink-900">{program.funding_text}</p>
         </div>
       )}
 
       <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] text-ink-500">
         <span className="rounded-md bg-ink-50 px-2 py-1">
-          {program.eligibility.citizenship === 'any'
-            ? 'Open to all citizenships'
-            : `Open to: ${(program.eligibility.citizenship as string[]).join(', ')}`}
+          {program.citizenship_any ? 'Open to all citizenships' : `Open to: ${(program.citizenship_allowed ?? []).join(', ')}`}
         </span>
-        {(program.eligibility.minAge || program.eligibility.maxAge) && (
+        {(program.min_age || program.max_age) && (
           <span className="rounded-md bg-ink-50 px-2 py-1">
-            Age {program.eligibility.minAge ?? '—'}
-            {program.eligibility.maxAge ? `–${program.eligibility.maxAge}` : '+'}
+            Age {program.min_age ?? '—'}
+            {program.max_age ? `–${program.max_age}` : '+'}
           </span>
         )}
       </div>
 
       <div className="mt-5 flex items-center justify-between border-t border-ink-100 pt-4">
         <div>
-          <p className="text-[11px] text-ink-400">{program.source}</p>
-          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-400">
-            <Clock3 className="h-3 w-3" />
-            {program.published}
-          </p>
+          {(program.applications_open_at || program.applications_close_at) && (
+            <p className="flex items-center gap-1 text-[11px] text-ink-400">
+              <Clock3 className="h-3 w-3" />
+              {program.applications_close_at ? `Deadline ${program.applications_close_at}` : `Opens ${program.applications_open_at}`}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <SaveButton
             kind="program"
             refId={program.id}
             title={program.title}
-            organization={program.organization}
-            country={program.country}
-            countryCode={program.countryCode}
-            url={program.url}
+            organization={program.publisher?.name ?? 'Unknown'}
+            country={program.country?.name ?? 'Various'}
+            countryCode={program.country?.iso_code ?? ''}
+            url={program.official_url ?? undefined}
           />
-          <a
-            href={program.url}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => goToProgram?.(program.id)}
             className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
           >
             View program
             <ArrowRight className="h-3.5 w-3.5" />
-          </a>
+          </button>
         </div>
       </div>
     </article>
@@ -199,27 +202,45 @@ function SaveButton({
   );
 }
 
-export function ProgramsPage({ go, onAuth }: ProgramsPageProps) {
+export function ProgramsPage({ go, onAuth, goToProgram }: ProgramsPageProps) {
+  const [allPrograms, setAllPrograms] = useState<SponsoredProgram[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [country, setCountry] = useState('All countries');
-  const [type, setType] = useState('All types');
+  const [category, setCategory] = useState('All types');
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    fetchSponsoredPrograms().then((rows) => {
+      setAllPrograms(rows);
+      setLoading(false);
+    });
+  }, []);
+
+  const countryOptions = useMemo(
+    () => ['All countries', ...Array.from(new Set(allPrograms.map((p) => p.country?.name).filter(Boolean) as string[]))],
+    [allPrograms]
+  );
+  const categoryOptions = useMemo(
+    () => ['All types', ...Array.from(new Set(allPrograms.map((p) => p.category)))],
+    [allPrograms]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return programOpportunities.filter((program) => {
+    return allPrograms.filter((program) => {
       const matchesSearch =
         !q ||
         program.title.toLowerCase().includes(q) ||
-        program.organization.toLowerCase().includes(q) ||
+        (program.publisher?.name ?? '').toLowerCase().includes(q) ||
         program.category.toLowerCase().includes(q);
-      const matchesCountry = country === 'All countries' || program.country === country;
-      const matchesType = type === 'All types' || program.type === type;
-      return matchesSearch && matchesCountry && matchesType;
+      const matchesCountry = country === 'All countries' || program.country?.name === country;
+      const matchesCategory = category === 'All types' || program.category === category;
+      return matchesSearch && matchesCountry && matchesCategory;
     });
-  }, [search, country, type]);
+  }, [allPrograms, search, country, category]);
 
-  const activeFilterCount = Number(country !== 'All countries') + Number(type !== 'All types');
+  const activeFilterCount = Number(country !== 'All countries') + Number(category !== 'All types');
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
@@ -234,15 +255,8 @@ export function ProgramsPage({ go, onAuth }: ProgramsPageProps) {
             </div>
             <h1 className="mt-4 text-4xl font-bold tracking-[-0.04em] sm:text-6xl">Scholarships, exchanges &amp; work programs.</h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">
-              Sponsored programs, national schemes and exchange placements from multiple sources — filtered to what you can actually apply for.
+              Real, verified programs from governments, companies and agencies — filtered to what you can actually apply for.
             </p>
-            <button
-              type="button"
-              onClick={() => go('sponsored-programs')}
-              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20"
-            >
-              Browse government &amp; company sponsored programs →
-            </button>
           </div>
 
           <div className="mt-9 border border-white/15 bg-white p-2 shadow-xl">
@@ -284,7 +298,7 @@ export function ProgramsPage({ go, onAuth }: ProgramsPageProps) {
           <div className="mx-auto max-w-7xl px-5 py-5 sm:px-8">
             <div className="grid gap-4 sm:grid-cols-2">
               <SelectField label="Country" value={country} options={countryOptions} onChange={setCountry} />
-              <SelectField label="Type" value={type} options={programTypes} onChange={setType} />
+              <SelectField label="Category" value={category} options={categoryOptions} onChange={setCategory} />
             </div>
           </div>
         </section>
@@ -300,46 +314,41 @@ export function ProgramsPage({ go, onAuth }: ProgramsPageProps) {
             <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink-950">{filtered.length.toLocaleString()} programs</h2>
             <p className="mt-1 text-sm text-ink-500">National schemes, scholarships and exchanges in one place.</p>
           </div>
-          <div className="text-xs text-ink-400">Currently showing prototype data</div>
         </div>
 
         <div className="mt-6">
           <PersonalizationBar />
         </div>
 
-        <div className="mt-7 grid gap-4 lg:grid-cols-2">
-          {filtered.map((program, index) => (
-            <Fragment key={program.id}>
-              <ProgramCard program={program} />
-              {index === 2 && (
-                <AdBanner
-                  content={{
-                    advertiser: 'Global Relocation Partners',
-                    title: 'Get a free eligibility review from a licensed advisor',
-                    description: 'Book a 20-minute call before you apply to any program on this page.',
-                    cta: 'Book a call',
-                    url: 'https://madevisa.com/agencies',
-                    image:
-                      'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=400&q=80',
-                  }}
-                />
-              )}
-            </Fragment>
-          ))}
-        </div>
+        {loading ? (
+          <div className="mt-10 flex items-center justify-center gap-2 text-sm text-ink-400">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading programs…
+          </div>
+        ) : (
+          <div className="mt-7 grid gap-4 lg:grid-cols-2">
+            {filtered.map((program) => (
+              <ProgramCard key={program.id} program={program} goToProgram={goToProgram} />
+            ))}
+          </div>
+        )}
 
-        {filtered.length === 0 && (
+        {!loading && filtered.length === 0 && (
           <div className="border border-ink-200 bg-white px-6 py-16 text-center">
             <Search className="mx-auto h-8 w-8 text-ink-300" />
             <h3 className="mt-4 text-lg font-bold text-ink-900">No programs found</h3>
-            <p className="mt-2 text-sm text-ink-500">Try changing your search or filters.</p>
-            <button
-              type="button"
-              onClick={() => { setSearch(''); setCountry('All countries'); setType('All types'); }}
-              className="mt-5 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
-            >
-              Clear filters
-            </button>
+            <p className="mt-2 text-sm text-ink-500">
+              {allPrograms.length === 0 ? 'No programs have been published yet — check back soon.' : 'Try changing your search or filters.'}
+            </p>
+            {allPrograms.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { setSearch(''); setCountry('All countries'); setCategory('All types'); }}
+                className="mt-5 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
+              >
+                Clear filters
+              </button>
+            )}
           </div>
         )}
 
@@ -347,11 +356,11 @@ export function ProgramsPage({ go, onAuth }: ProgramsPageProps) {
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
             <div>
-              <h3 className="text-sm font-bold text-ink-900">Personalized, from multiple sources</h3>
+              <h3 className="text-sm font-bold text-ink-900">Personalized, from verified sources</h3>
               <p className="mt-1 text-xs leading-5 text-ink-500">
-                MadeVisa brings together national programs, scholarships and exchange placements, and flags whether
-                your citizenship, age and current location fit each one. Applications are completed on the original
-                program source.
+                MadeVisa brings together national programs, scholarships and exchange placements submitted by
+                verified governments, companies and agencies, and flags whether your citizenship, age and current
+                location fit each one.
               </p>
             </div>
           </div>

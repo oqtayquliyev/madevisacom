@@ -29,7 +29,7 @@ import { PersonalizationBar, EligibilityBadge } from '@/components/opportunities
 import { AdBanner } from '@/components/ads/AdBanner';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
-import { categories, countries, jobs as curatedJobs, jobTypes, type Job } from '@/data/jobs';
+import { categories, countries, jobTypes, type Job } from '@/data/jobs';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 
@@ -389,7 +389,7 @@ export function JobsPage({
   }, []);
 
   const allJobs = useMemo(
-    () => [...sponsoredJobs, ...curatedJobs, ...liveJobs],
+    () => [...sponsoredJobs, ...liveJobs],
     [liveJobs, sponsoredJobs]
   );
 
@@ -753,7 +753,7 @@ export function JobsPage({
             ) : (
               <>
                 <Wifi className="h-3.5 w-3.5 text-emerald-600" />
-                {liveJobs.length} live + {curatedJobs.length} curated
+                {liveJobs.length} live + {sponsoredJobs.length} sponsored
               </>
             )}
           </div>

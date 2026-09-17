@@ -169,7 +169,7 @@ export default function App() {
   }
 
   if (path === '/programs') {
-    return <ProgramsPage go={go} onAuth={goToAuth} />;
+    return <ProgramsPage go={go} onAuth={goToAuth} goToProgram={(id) => goToDetail('programs', id)} />;
   }
 
   if (path === '/sponsored-programs') {
