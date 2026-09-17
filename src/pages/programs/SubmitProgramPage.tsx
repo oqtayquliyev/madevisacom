@@ -93,6 +93,7 @@ export function SubmitProgramPage({ go, onAuth }: SubmitProgramPageProps) {
           ) : !publisher ? (
             <CreatePublisherForm
               userId={user.id}
+              userEmail={user.email ?? ''}
               countries={countries}
               onCreated={setPublisher}
             />
@@ -146,10 +147,12 @@ export function SubmitProgramPage({ go, onAuth }: SubmitProgramPageProps) {
 
 function CreatePublisherForm({
   userId,
+  userEmail,
   countries,
   onCreated,
 }: {
   userId: string;
+  userEmail: string;
   countries: CountryOption[];
   onCreated: (p: ProgramPublisher) => void;
 }) {
@@ -167,7 +170,7 @@ function CreatePublisherForm({
     }
     setSubmitting(true);
     setError(null);
-    const created = await createPublisherProfile({ ownerId: userId, orgType, name, website, countryId });
+    const created = await createPublisherProfile({ ownerId: userId, orgType, name, website, countryId, contactEmail: userEmail });
     setSubmitting(false);
     if (created) onCreated(created);
     else setError('Something went wrong — please try again.');
@@ -331,6 +334,7 @@ function SubmitProgramForm({ publisher, countries }: { publisher: ProgramPublish
       requirements,
       spotsAvailable: spots ? Number(spots) : undefined,
       officialUrl: url,
+      contactEmail: publisher.contact_email,
     });
 
     setSubmitting(false);
@@ -503,6 +507,7 @@ function SubmitJobForm({ publisher, countries }: { publisher: ProgramPublisher; 
       minAge: minAge ? Number(minAge) : undefined,
       maxAge: maxAge ? Number(maxAge) : undefined,
       officialUrl: url,
+      contactEmail: publisher.contact_email,
     });
 
     setSubmitting(false);

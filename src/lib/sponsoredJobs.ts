@@ -98,6 +98,8 @@ export type SubmitSponsoredJobInput = {
   minAge?: number;
   maxAge?: number;
   officialUrl?: string;
+  /** The publisher's own contact email — shown to admins on review. */
+  contactEmail?: string;
 };
 
 /** Submits a sponsored job for review. Lands as `status = 'pending'` until an admin publishes it. */
@@ -118,7 +120,7 @@ export async function submitSponsoredJob(input: SubmitSponsoredJobInput): Promis
     min_age: input.minAge ?? null,
     max_age: input.maxAge ?? null,
     official_url: input.officialUrl || null,
-    contact_email: PUBLISHING_CONTACT_EMAIL,
+    contact_email: input.contactEmail || PUBLISHING_CONTACT_EMAIL,
     status: 'pending',
   });
 

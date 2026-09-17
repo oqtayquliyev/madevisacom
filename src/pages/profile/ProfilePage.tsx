@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import {
   createPublisherProfile,
   fetchMyPublisherProfile,
+  resubmitPublisherProfile,
   PUBLISHING_CONTACT_EMAIL,
   type OrgType,
   type ProgramPublisher,
@@ -227,6 +228,7 @@ export function ProfilePage({ go, onAuth }: ProfilePageProps) {
           loading={publisherLoading}
           countries={countries}
           userId={user?.id}
+          userEmail={user?.email ?? ''}
           onCreated={setPublisher}
         />
       </main>
@@ -263,6 +265,7 @@ function PartnerSection({
   loading,
   countries,
   userId,
+  userEmail,
   onCreated,
 }: {
   go: (view: View) => void;
@@ -270,9 +273,11 @@ function PartnerSection({
   loading: boolean;
   countries: CountryOption[];
   userId: string | undefined;
+  userEmail: string;
   onCreated: (p: ProgramPublisher) => void;
 }) {
   const [applying, setApplying] = useState<OrgType | null>(null);
+  const [resubmitting, setResubmitting] = useState(false);
   const [orgName, setOrgName] = useState('');
   const [website, setWebsite] = useState('');
   const [countryId, setCountryId] = useState('');
@@ -281,7 +286,9 @@ function PartnerSection({
 
   if (loading) return null;
 
-  if (publisher) {
+  const canReapply = publisher && (publisher.verification_status === 'rejected' || publisher.verification_status === 'suspended');
+
+  if (publisher && !resubmitting) {
     const Icon = orgTypeIcon[publisher.org_type];
     const status = statusCopy[publisher.verification_status];
     return (
@@ -320,19 +327,51 @@ function PartnerSection({
             </button>
           </div>
         )}
+        {canReapply && (
+          <div className="mt-4">
+            <p className="text-xs text-ink-500">
+              {publisher.verification_status === 'suspended'
+                ? "This partner account was suspended, but you're welcome to send another request."
+                : "This request wasn't approved, but you're welcome to try again."}
+            </p>
+            <button
+              onClick={() => {
+                setOrgName(publisher.name);
+                setWebsite(publisher.website ?? '');
+                setCountryId(publisher.country_id ?? '');
+                setResubmitting(true);
+              }}
+              className="mt-2 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700"
+            >
+              Send another request
+            </button>
+          </div>
+        )}
       </div>
     );
   }
 
   const submit = async () => {
-    if (!userId || !applying) return;
     if (!orgName.trim()) {
       setError('Organization name is required.');
       return;
     }
     setSubmitting(true);
     setError(null);
-    const created = await createPublisherProfile({ ownerId: userId, orgType: applying, name: orgName, website, countryId });
+
+    if (resubmitting && publisher) {
+      const updated = await resubmitPublisherProfile(publisher.id, { orgType: applying ?? publisher.org_type, name: orgName, website, countryId });
+      setSubmitting(false);
+      if (updated) { onCreated(updated); setResubmitting(false); }
+      else setError('Something went wrong — please try again.');
+      return;
+    }
+
+    if (!userId || !applying) {
+      setSubmitting(false);
+      return;
+    }
+    const created = await createPublisherProfile({ ownerId: userId, orgType: applying, name: orgName, website, countryId, contactEmail: userEmail });
     setSubmitting(false);
     if (created) onCreated(created);
     else setError('Something went wrong — please try again.');
@@ -340,13 +379,15 @@ function PartnerSection({
 
   return (
     <div className="mt-6 border border-ink-200 bg-white p-6">
-      <h2 className="text-sm font-bold text-ink-900">Become a partner</h2>
-      <p className="mt-1 text-xs text-ink-500">
-        Apply to publish sponsored jobs or programs, or be listed as an independent visa expert. Reviewed before
-        anything goes public.
-      </p>
+      <h2 className="text-sm font-bold text-ink-900">{resubmitting ? 'Send another request' : 'Become a partner'}</h2>
+      {!resubmitting && (
+        <p className="mt-1 text-xs text-ink-500">
+          Apply to publish sponsored jobs or programs, or be listed as an independent visa expert. Reviewed before
+          anything goes public.
+        </p>
+      )}
 
-      {!applying ? (
+      {!applying && !resubmitting ? (
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {(Object.keys(orgTypeLabel) as OrgType[]).map((type) => {
             const Icon = orgTypeIcon[type];
@@ -391,7 +432,10 @@ function PartnerSection({
               {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Submit for review
             </button>
-            <button onClick={() => setApplying(null)} className="text-xs font-semibold text-ink-500 hover:text-ink-800">
+            <button
+              onClick={() => { setApplying(null); setResubmitting(false); }}
+              className="text-xs font-semibold text-ink-500 hover:text-ink-800"
+            >
               Back
             </button>
           </div>

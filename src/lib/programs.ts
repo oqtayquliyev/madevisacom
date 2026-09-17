@@ -154,6 +154,37 @@ export async function createPublisherProfile(input: {
   return data;
 }
 
+/**
+ * Re-sends a rejected/suspended publisher for review, reusing their
+ * existing row (owners can already update their own row per RLS — see
+ * program_publishers_update_owner) instead of inserting a second one,
+ * which would break the one-row-per-owner assumption `fetchMyPublisherProfile`
+ * relies on (`.maybeSingle()`).
+ */
+export async function resubmitPublisherProfile(
+  id: string,
+  updates: { orgType?: OrgType; name?: string; website?: string; countryId?: string }
+): Promise<ProgramPublisher | null> {
+  const { data, error } = await supabase
+    .from('program_publishers')
+    .update({
+      ...(updates.orgType ? { org_type: updates.orgType } : {}),
+      ...(updates.name ? { name: updates.name } : {}),
+      website: updates.website || null,
+      country_id: updates.countryId || null,
+      verification_status: 'pending',
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('resubmitPublisherProfile failed', error);
+    return null;
+  }
+  return data;
+}
+
 export type SubmitProgramInput = {
   publisherId: string;
   title: string;
@@ -170,6 +201,8 @@ export type SubmitProgramInput = {
   requirements?: string;
   spotsAvailable?: number;
   officialUrl?: string;
+  /** The publisher's own contact email — shown to admins on review. */
+  contactEmail?: string;
 };
 
 /** Submits a program for review. Lands as `status = 'pending'` until an admin publishes it. */
@@ -190,7 +223,7 @@ export async function submitSponsoredProgram(input: SubmitProgramInput): Promise
     requirements: input.requirements || null,
     spots_available: input.spotsAvailable ?? null,
     official_url: input.officialUrl || null,
-    contact_email: PUBLISHING_CONTACT_EMAIL,
+    contact_email: input.contactEmail || PUBLISHING_CONTACT_EMAIL,
     status: 'pending',
   });
 
