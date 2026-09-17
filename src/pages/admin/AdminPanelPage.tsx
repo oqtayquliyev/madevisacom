@@ -13,6 +13,7 @@ import {
   setPublisherStatus,
   setSponsoredJobStatus,
   updateAgencyName,
+  updatePublisherContactEmail,
   updatePublisherName,
   type PendingAgency,
   type PendingProgram,
@@ -204,13 +205,15 @@ function PublisherRow({ p, onChange, children }: { p: PendingPublisher; onChange
   const Icon = orgIcon[p.org_type];
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(p.name);
+  const [email, setEmail] = useState(p.contact_email);
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
     setSaving(true);
-    const ok = await updatePublisherName(p.id, name);
+    const nameOk = name === p.name || (await updatePublisherName(p.id, name));
+    const emailOk = email === p.contact_email || (await updatePublisherContactEmail(p.id, email));
     setSaving(false);
-    if (ok) { setEditing(false); onChange(); }
+    if (nameOk && emailOk) { setEditing(false); onChange(); }
   };
 
   return (
@@ -220,26 +223,37 @@ function PublisherRow({ p, onChange, children }: { p: PendingPublisher; onChange
       </span>
       <div className="min-w-0 flex-1">
         {editing ? (
-          <div className="flex items-center gap-2">
+          <div className="space-y-1.5">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
+              placeholder="Organization name"
               className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500"
             />
-            <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
-            <button onClick={() => { setEditing(false); setName(p.name); }} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Contact email"
+              className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500"
+            />
+            <div className="flex items-center gap-2">
+              <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
+              <button onClick={() => { setEditing(false); setName(p.name); setEmail(p.contact_email); }} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
+            </div>
           </div>
         ) : (
-          <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
-            {p.name}
-            <button onClick={() => setEditing(true)} aria-label="Edit name" className="text-ink-300 hover:text-ink-600">
-              <Pencil className="h-3 w-3" />
-            </button>
-          </p>
+          <>
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
+              {p.name}
+              <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600">
+                <Pencil className="h-3 w-3" />
+              </button>
+            </p>
+            <p className="text-xs text-ink-500">
+              {p.org_type} · {p.contact_email}{p.country ? ` · ${p.country.name}` : ''}{p.website ? ` · ${p.website}` : ''}
+            </p>
+          </>
         )}
-        <p className="text-xs text-ink-500">
-          {p.org_type} · {p.contact_email}{p.country ? ` · ${p.country.name}` : ''}{p.website ? ` · ${p.website}` : ''}
-        </p>
       </div>
       {children}
     </Row>

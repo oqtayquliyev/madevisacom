@@ -14,6 +14,7 @@ export type SponsoredJob = {
   compensation_text: string | null;
   requirements: string | null;
   spots_available: number | null;
+  image_url: string | null;
   citizenship_any: boolean;
   citizenship_allowed: string[] | null;
   citizenship_excluded: string[] | null;
@@ -25,6 +26,9 @@ export type SponsoredJob = {
   publisher?: { id: string; name: string; org_type: OrgType; logo_url: string | null };
   country?: { id: string; name: string; iso_code: string };
 };
+
+const columns =
+  'id, publisher_id, title, description, category, employment_type, remote, country_id, compensation_text, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, contact_email, status, publisher:program_publishers(id, name, org_type, logo_url), country:countries(id, name, iso_code)';
 
 export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
   return {
@@ -40,9 +44,7 @@ export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
 export async function fetchPublishedSponsoredJobs(): Promise<SponsoredJob[]> {
   const { data, error } = await supabase
     .from('sponsored_jobs')
-    .select(
-      'id, publisher_id, title, description, category, employment_type, remote, country_id, compensation_text, requirements, spots_available, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, contact_email, status, publisher:program_publishers(id, name, org_type, logo_url), country:countries(id, name, iso_code)'
-    )
+    .select(columns)
     .eq('status', 'published')
     .order('created_at', { ascending: false });
 
@@ -51,6 +53,22 @@ export async function fetchPublishedSponsoredJobs(): Promise<SponsoredJob[]> {
     return [];
   }
   return (data ?? []) as unknown as SponsoredJob[];
+}
+
+/** Fetches one published sponsored job by id — for the public job detail page. */
+export async function fetchSponsoredJobById(id: string): Promise<SponsoredJob | null> {
+  const { data, error } = await supabase
+    .from('sponsored_jobs')
+    .select(columns)
+    .eq('id', id)
+    .eq('status', 'published')
+    .maybeSingle();
+
+  if (error) {
+    console.error('fetchSponsoredJobById failed', error);
+    return null;
+  }
+  return data as unknown as SponsoredJob | null;
 }
 
 /**
@@ -77,8 +95,10 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     verified: true,
     eligibility: toEligibilityCriteria(job),
     publisherOrgType: job.publisher?.org_type,
+    description: job.description,
     requirements: job.requirements,
     spotsAvailable: job.spots_available,
+    imageUrl: job.image_url,
   };
 }
 
@@ -93,6 +113,7 @@ export type SubmitSponsoredJobInput = {
   compensationText?: string;
   requirements?: string;
   spotsAvailable?: number;
+  imageUrl?: string;
   citizenshipAny: boolean;
   citizenshipAllowed?: string[];
   minAge?: number;
@@ -115,6 +136,7 @@ export async function submitSponsoredJob(input: SubmitSponsoredJobInput): Promis
     compensation_text: input.compensationText || null,
     requirements: input.requirements || null,
     spots_available: input.spotsAvailable ?? null,
+    image_url: input.imageUrl || null,
     citizenship_any: input.citizenshipAny,
     citizenship_allowed: input.citizenshipAny ? null : input.citizenshipAllowed ?? [],
     min_age: input.minAge ?? null,

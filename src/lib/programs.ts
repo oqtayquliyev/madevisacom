@@ -41,6 +41,7 @@ export type SponsoredProgram = {
   funding_text: string | null;
   requirements: string | null;
   spots_available: number | null;
+  image_url: string | null;
   official_url: string | null;
   contact_email: string;
   status: 'pending' | 'published' | 'rejected';
@@ -94,7 +95,7 @@ export async function fetchSponsoredPrograms(filters: ProgramFilters = {}): Prom
   let query = supabase
     .from('programs')
     .select(
-      'id, publisher_id, title, description, category, country_id, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, applications_open_at, applications_close_at, funding_text, requirements, spots_available, official_url, contact_email, status, publisher:program_publishers(id, name, org_type, logo_url, verification_status), country:countries(id, name, iso_code)'
+      'id, publisher_id, title, description, category, country_id, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, applications_open_at, applications_close_at, funding_text, requirements, spots_available, image_url, official_url, contact_email, status, publisher:program_publishers(id, name, org_type, logo_url, verification_status), country:countries(id, name, iso_code)'
     )
     .eq('status', 'published')
     .order('created_at', { ascending: false });
@@ -201,6 +202,7 @@ export type SubmitProgramInput = {
   requirements?: string;
   spotsAvailable?: number;
   officialUrl?: string;
+  imageUrl?: string;
   /** The publisher's own contact email — shown to admins on review. */
   contactEmail?: string;
 };
@@ -222,6 +224,7 @@ export async function submitSponsoredProgram(input: SubmitProgramInput): Promise
     funding_text: input.fundingText || null,
     requirements: input.requirements || null,
     spots_available: input.spotsAvailable ?? null,
+    image_url: input.imageUrl || null,
     official_url: input.officialUrl || null,
     contact_email: input.contactEmail || PUBLISHING_CONTACT_EMAIL,
     status: 'pending',
@@ -232,4 +235,22 @@ export async function submitSponsoredProgram(input: SubmitProgramInput): Promise
     return { ok: false, error: error.message };
   }
   return { ok: true };
+}
+
+/** Fetches one published program by id — for the public program detail page. */
+export async function fetchProgramById(id: string): Promise<SponsoredProgram | null> {
+  const { data, error } = await supabase
+    .from('programs')
+    .select(
+      'id, publisher_id, title, description, category, country_id, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, applications_open_at, applications_close_at, funding_text, requirements, spots_available, image_url, official_url, contact_email, status, publisher:program_publishers(id, name, org_type, logo_url, verification_status), country:countries(id, name, iso_code)'
+    )
+    .eq('id', id)
+    .eq('status', 'published')
+    .maybeSingle();
+
+  if (error) {
+    console.error('fetchProgramById failed', error);
+    return null;
+  }
+  return data as unknown as SponsoredProgram | null;
 }

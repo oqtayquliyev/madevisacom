@@ -387,7 +387,7 @@ function PartnerSection({
         </p>
       )}
 
-      {!applying && !resubmitting ? (
+      {!applying ? (
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {(Object.keys(orgTypeLabel) as OrgType[]).map((type) => {
             const Icon = orgTypeIcon[type];
@@ -402,6 +402,14 @@ function PartnerSection({
               </button>
             );
           })}
+          {resubmitting && (
+            <button
+              onClick={() => setResubmitting(false)}
+              className="col-span-full text-center text-xs font-semibold text-ink-500 hover:text-ink-800"
+            >
+              Cancel
+            </button>
+          )}
         </div>
       ) : (
         <div className="mt-4 space-y-3">

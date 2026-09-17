@@ -32,6 +32,7 @@ import {
 type SponsoredProgramsPageProps = {
   go: (view: View) => void;
   onAuth?: (page: 'login' | 'register') => void;
+  goToProgram?: (id: string) => void;
 };
 
 const windowCopy: Record<string, { label: string; className: string; icon: typeof Clock3 }> = {
@@ -41,7 +42,7 @@ const windowCopy: Record<string, { label: string; className: string; icon: typeo
   rolling: { label: 'Rolling / no deadline', className: 'bg-brand-50 text-brand-700 border-brand-200', icon: CalendarClock },
 };
 
-function ProgramCard({ program }: { program: SponsoredProgram }) {
+function ProgramCard({ program, goToProgram }: { program: SponsoredProgram; goToProgram?: (id: string) => void }) {
   const { profile } = usePersonalization();
   const eligibility = computeEligibility(toEligibilityCriteria(program), profile, program.country?.iso_code);
   const windowStatus = getApplicationWindowStatus(program);
@@ -110,20 +111,19 @@ function ProgramCard({ program }: { program: SponsoredProgram }) {
       )}
 
       <div className="mt-5 border-t border-ink-100 pt-4">
-        <a
-          href={program.official_url ?? '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+        <button
+          type="button"
+          onClick={() => goToProgram?.(program.id)}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
         >
           View program
-        </a>
+        </button>
       </div>
     </article>
   );
 }
 
-export function SponsoredProgramsPage({ go, onAuth }: SponsoredProgramsPageProps) {
+export function SponsoredProgramsPage({ go, onAuth, goToProgram }: SponsoredProgramsPageProps) {
   const [programs, setPrograms] = useState<SponsoredProgram[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -263,7 +263,7 @@ export function SponsoredProgramsPage({ go, onAuth }: SponsoredProgramsPageProps
 
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           {programs.map((program) => (
-            <ProgramCard key={program.id} program={program} />
+            <ProgramCard key={program.id} program={program} goToProgram={goToProgram} />
           ))}
         </div>
 

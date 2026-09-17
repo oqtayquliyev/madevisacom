@@ -142,6 +142,12 @@ export async function updatePublisherName(id: string, name: string) {
   return !error;
 }
 
+export async function updatePublisherContactEmail(id: string, contactEmail: string) {
+  const { error } = await supabase.from('program_publishers').update({ contact_email: contactEmail }).eq('id', id);
+  if (error) console.error('updatePublisherContactEmail failed', error);
+  return !error;
+}
+
 export async function setProgramStatus(id: string, status: 'published' | 'rejected') {
   const { error } = await supabase.from('programs').update({ status }).eq('id', id);
   if (error) console.error('setProgramStatus failed', error);

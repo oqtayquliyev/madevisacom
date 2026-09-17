@@ -4,13 +4,16 @@ import {
   Bookmark,
   BookmarkCheck,
   Briefcase,
+  Building2,
   CalendarRange,
   CheckCircle2,
   ChevronDown,
   Clock3,
   Globe2,
+  Landmark,
   Loader2,
   MapPin,
+  Megaphone,
   Search,
   SlidersHorizontal,
   Sparkles,
@@ -28,10 +31,12 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { categories, countries, jobs as curatedJobs, jobTypes, type Job } from '@/data/jobs';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
+import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 
 type JobsPageProps = {
   go: (view: View) => void;
   onAuth?: (page: 'login' | 'register') => void;
+  goToJob?: (id: string) => void;
 };
 
 function SelectField({
@@ -105,12 +110,16 @@ function SelectField({
 
 function JobCard({
   job,
+  goToJob,
 }: {
   job: Job;
+  goToJob?: (id: string) => void;
 }) {
   const { profile } = usePersonalization();
   const eligibility = computeEligibility(job.eligibility, profile, job.countryCode);
   const isLive = job.source.toLowerCase().includes('live');
+  const isSponsored = Boolean(job.publisherOrgType);
+  const SponsorIcon = job.publisherOrgType === 'government' ? Landmark : Building2;
 
   return (
     <article className="border border-ink-200 bg-white p-5 transition hover:border-brand-300 hover:shadow-soft-lg">
@@ -119,7 +128,13 @@ function JobCard({
 
         <div className="flex min-w-0 items-start gap-3">
 
-          <CompanyLogo name={job.company} size={40} />
+          {isSponsored ? (
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-indigo-50 text-indigo-600">
+              <SponsorIcon className="h-5 w-5" />
+            </span>
+          ) : (
+            <CompanyLogo name={job.company} size={40} />
+          )}
 
           <div className="min-w-0">
 
@@ -130,6 +145,13 @@ function JobCard({
               <span className="truncate text-xs font-medium text-ink-400">
                 {job.country}
               </span>
+
+              {isSponsored && (
+                <span className="ml-1 flex items-center gap-1 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">
+                  <Megaphone className="h-2.5 w-2.5" />
+                  Sponsored
+                </span>
+              )}
 
               {isLive && (
                 <span className="ml-1 flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
@@ -195,6 +217,15 @@ function JobCard({
         </div>
       )}
 
+      {(job.requirements || job.spotsAvailable != null) && (
+        <div className="mt-3 rounded-md bg-ink-50 px-3 py-2 text-xs text-ink-600">
+          {job.requirements && <p>{job.requirements}</p>}
+          {job.spotsAvailable != null && (
+            <p className="mt-0.5 font-semibold text-ink-700">{job.spotsAvailable} position{job.spotsAvailable === 1 ? '' : 's'} available</p>
+          )}
+        </div>
+      )}
+
       <div className="mt-5 flex items-center justify-between border-t border-ink-100 pt-4">
 
         <div>
@@ -221,15 +252,26 @@ function JobCard({
             url={job.url}
           />
 
-          <a
-            href={job.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
-          >
-            View job
-            <ArrowRight className="h-3.5 w-3.5" />
-          </a>
+          {isLive ? (
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+            >
+              View job
+              <ArrowRight className="h-3.5 w-3.5" />
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={() => goToJob?.(job.id)}
+              className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+            >
+              View job
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
       </div>
@@ -281,6 +323,7 @@ function SaveButton({
 export function JobsPage({
   go,
   onAuth,
+  goToJob,
 }: JobsPageProps) {
   // Read initial filters from the URL (e.g. /jobs?country=Germany&age=27)
   // so filtered views are shareable/bookmarkable links.
@@ -312,6 +355,7 @@ export function JobsPage({
 
   const [liveJobs, setLiveJobs] = useState<Job[]>([]);
   const [loadingLive, setLoadingLive] = useState(true);
+  const [sponsoredJobs, setSponsoredJobs] = useState<Job[]>([]);
 
   // Pull in real, live listings from the Arbeitnow public job board API
   // and merge them with the curated set below.
@@ -330,9 +374,23 @@ export function JobsPage({
     };
   }, []);
 
+  // Verified sponsors' approved job postings (see Submit a listing /
+  // admin panel) — shown with their org icon + a "Sponsored" badge.
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchPublishedSponsoredJobs().then((results) => {
+      if (!cancelled) setSponsoredJobs(results.map(sponsoredJobToBoardJob));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const allJobs = useMemo(
-    () => [...curatedJobs, ...liveJobs],
-    [liveJobs]
+    () => [...sponsoredJobs, ...curatedJobs, ...liveJobs],
+    [liveJobs, sponsoredJobs]
   );
 
   // Keep the URL in sync with the active filters so filtered views can
@@ -757,7 +815,7 @@ export function JobsPage({
 
           {filteredJobs.map((job, index) => (
             <Fragment key={job.id}>
-              <JobCard job={job} />
+              <JobCard job={job} goToJob={goToJob} />
               {index === 3 && (
                 <AdBanner
                   content={{

@@ -19,6 +19,8 @@ import { ProgramsPage } from '@/pages/landing/programs/ProgramsPage';
 import { SponsoredProgramsPage } from '@/pages/programs/SponsoredProgramsPage';
 import { ExpertsMarketplacePage } from '@/pages/experts/ExpertsMarketplacePage';
 import { DestinationsPage } from '@/pages/destinations/DestinationsPage';
+import { ProgramDetailPage } from '@/pages/programs/ProgramDetailPage';
+import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { AdminPanelPage } from '@/pages/admin/AdminPanelPage';
 import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
@@ -99,6 +101,17 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Dynamic detail-page navigation (program/job by id) — separate
+  // from `go` because `View` is a fixed set of named pages, not
+  // arbitrary ids. Pushes /programs/<id> or /jobs/<id> directly.
+  const goToDetail = (kind: 'programs' | 'jobs', id: string) => {
+    const nextPath = `/${kind}/${id}`;
+    window.history.pushState({}, '', nextPath);
+    setPath(nextPath);
+    setView('home'); // clear any stale view match, same reasoning as goToAuth
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const goToAuth = (page: AuthPage) => {
     setAuthPage(page);
 
@@ -152,7 +165,7 @@ export default function App() {
   }
 
   if (path === '/jobs') {
-    return <JobsPage go={go} onAuth={goToAuth} />;
+    return <JobsPage go={go} onAuth={goToAuth} goToJob={(id) => goToDetail('jobs', id)} />;
   }
 
   if (path === '/programs') {
@@ -160,7 +173,7 @@ export default function App() {
   }
 
   if (path === '/sponsored-programs') {
-    return <SponsoredProgramsPage go={go} onAuth={goToAuth} />;
+    return <SponsoredProgramsPage go={go} onAuth={goToAuth} goToProgram={(id) => goToDetail('programs', id)} />;
   }
 
   if (path === '/submit-program') {
@@ -177,6 +190,14 @@ export default function App() {
 
   if (path === '/destinations') {
     return <DestinationsPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (path.startsWith('/programs/')) {
+    return <ProgramDetailPage id={path.slice('/programs/'.length)} go={go} onAuth={goToAuth} />;
+  }
+
+  if (path.startsWith('/jobs/')) {
+    return <JobDetailPage id={path.slice('/jobs/'.length)} go={go} onAuth={goToAuth} />;
   }
 
   if (path === '/admin') {

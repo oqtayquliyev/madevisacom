@@ -25,8 +25,10 @@ export type Job = {
   /** Set for jobs posted by a verified sponsor (agency/company/government);
    *  drives the distinct icon + "Sponsored" badge on the job card. */
   publisherOrgType?: 'government' | 'company' | 'agency' | 'expert';
+  description?: string | null;
   requirements?: string | null;
   spotsAvailable?: number | null;
+  imageUrl?: string | null;
 };
 
 export const countries = [

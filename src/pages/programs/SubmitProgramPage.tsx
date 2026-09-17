@@ -15,6 +15,7 @@ import {
   type ProgramPublisher,
 } from '@/lib/programs';
 import { submitSponsoredJob } from '@/lib/sponsoredJobs';
+import { ImageUploadField } from '@/components/common/ImageUploadField';
 
 type SubmitProgramPageProps = {
   go: (view: View) => void;
@@ -131,9 +132,9 @@ export function SubmitProgramPage({ go, onAuth }: SubmitProgramPageProps) {
                 </button>
               </div>
               {listingType === 'program' ? (
-                <SubmitProgramForm publisher={publisher} countries={countries} />
+                <SubmitProgramForm publisher={publisher} countries={countries} userId={user.id} />
               ) : (
-                <SubmitJobForm publisher={publisher} countries={countries} />
+                <SubmitJobForm publisher={publisher} countries={countries} userId={user.id} />
               )}
             </>
           )}
@@ -276,7 +277,7 @@ function EligibilityFields({
   );
 }
 
-function SubmitProgramForm({ publisher, countries }: { publisher: ProgramPublisher; countries: CountryOption[] }) {
+function SubmitProgramForm({ publisher, countries, userId }: { publisher: ProgramPublisher; countries: CountryOption[]; userId: string }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Scholarship');
@@ -290,6 +291,7 @@ function SubmitProgramForm({ publisher, countries }: { publisher: ProgramPublish
   const [funding, setFunding] = useState('');
   const [requirements, setRequirements] = useState('');
   const [spots, setSpots] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [url, setUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -333,6 +335,7 @@ function SubmitProgramForm({ publisher, countries }: { publisher: ProgramPublish
       fundingText: funding,
       requirements,
       spotsAvailable: spots ? Number(spots) : undefined,
+      imageUrl,
       officialUrl: url,
       contactEmail: publisher.contact_email,
     });
@@ -340,7 +343,7 @@ function SubmitProgramForm({ publisher, countries }: { publisher: ProgramPublish
     setSubmitting(false);
     if (result.ok) {
       setSubmitted(true);
-      setTitle(''); setDescription(''); setFunding(''); setRequirements(''); setSpots(''); setUrl('');
+      setTitle(''); setDescription(''); setFunding(''); setRequirements(''); setSpots(''); setImageUrl(''); setUrl('');
     } else {
       setError(result.error ?? 'Something went wrong — please try again.');
     }
@@ -428,6 +431,8 @@ function SubmitProgramForm({ publisher, countries }: { publisher: ProgramPublish
           <input type="number" value={spots} onChange={(e) => setSpots(e.target.value)} placeholder="Leave blank for unlimited" className={inputClass} />
         </div>
 
+        <ImageUploadField userId={userId} value={imageUrl} onChange={setImageUrl} />
+
         <div>
           <label className={labelClass}>Official program URL</label>
           <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" className={inputClass} />
@@ -449,7 +454,7 @@ function SubmitProgramForm({ publisher, countries }: { publisher: ProgramPublish
   );
 }
 
-function SubmitJobForm({ publisher, countries }: { publisher: ProgramPublisher; countries: CountryOption[] }) {
+function SubmitJobForm({ publisher, countries, userId }: { publisher: ProgramPublisher; countries: CountryOption[]; userId: string }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Technology');
@@ -463,6 +468,7 @@ function SubmitJobForm({ publisher, countries }: { publisher: ProgramPublisher; 
   const [compensation, setCompensation] = useState('');
   const [requirements, setRequirements] = useState('');
   const [spots, setSpots] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [url, setUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -502,6 +508,7 @@ function SubmitJobForm({ publisher, countries }: { publisher: ProgramPublisher; 
       compensationText: compensation,
       requirements,
       spotsAvailable: spots ? Number(spots) : undefined,
+      imageUrl,
       citizenshipAny,
       citizenshipAllowed: citizenshipAny ? undefined : citizenshipCodes.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean),
       minAge: minAge ? Number(minAge) : undefined,
@@ -513,7 +520,7 @@ function SubmitJobForm({ publisher, countries }: { publisher: ProgramPublisher; 
     setSubmitting(false);
     if (result.ok) {
       setSubmitted(true);
-      setTitle(''); setDescription(''); setCompensation(''); setRequirements(''); setSpots(''); setUrl('');
+      setTitle(''); setDescription(''); setCompensation(''); setRequirements(''); setSpots(''); setImageUrl(''); setUrl('');
     } else {
       setError(result.error ?? 'Something went wrong — please try again.');
     }
@@ -602,6 +609,8 @@ function SubmitJobForm({ publisher, countries }: { publisher: ProgramPublisher; 
           <label className={labelClass}>Positions available (optional)</label>
           <input type="number" value={spots} onChange={(e) => setSpots(e.target.value)} placeholder="Leave blank for unlimited" className={inputClass} />
         </div>
+
+        <ImageUploadField userId={userId} value={imageUrl} onChange={setImageUrl} label="Company logo (optional)" />
 
         <div>
           <label className={labelClass}>Application URL</label>
