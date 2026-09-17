@@ -134,6 +134,7 @@ export async function createPublisherProfile(input: {
   website?: string;
   countryId?: string;
   contactEmail?: string;
+  logoUrl?: string;
 }): Promise<ProgramPublisher | null> {
   const { data, error } = await supabase
     .from('program_publishers')
@@ -144,6 +145,7 @@ export async function createPublisherProfile(input: {
       website: input.website || null,
       country_id: input.countryId || null,
       contact_email: input.contactEmail || PUBLISHING_CONTACT_EMAIL,
+      logo_url: input.logoUrl || null,
     })
     .select('*')
     .single();
@@ -164,7 +166,7 @@ export async function createPublisherProfile(input: {
  */
 export async function resubmitPublisherProfile(
   id: string,
-  updates: { orgType?: OrgType; name?: string; website?: string; countryId?: string }
+  updates: { orgType?: OrgType; name?: string; website?: string; countryId?: string; logoUrl?: string }
 ): Promise<ProgramPublisher | null> {
   const { data, error } = await supabase
     .from('program_publishers')
@@ -173,6 +175,7 @@ export async function resubmitPublisherProfile(
       ...(updates.name ? { name: updates.name } : {}),
       website: updates.website || null,
       country_id: updates.countryId || null,
+      logo_url: updates.logoUrl || null,
       verification_status: 'pending',
     })
     .eq('id', id)
@@ -298,13 +301,13 @@ export async function fetchVerifiedAgenciesPublic(): Promise<PublicAgency[]> {
   return data ?? [];
 }
 
-export type VerifiedPublisherName = { id: string; name: string; org_type: OrgType };
+export type VerifiedPublisherName = { id: string; name: string; org_type: OrgType; logo_url: string | null };
 
-/** All verified publishers (any org type), name only — for trust strips. */
+/** All verified publishers (any org type) — for trust strips/logo grids. */
 export async function fetchAllVerifiedPublisherNames(): Promise<VerifiedPublisherName[]> {
   const { data, error } = await supabase
     .from('program_publishers')
-    .select('id, name, org_type')
+    .select('id, name, org_type, logo_url')
     .eq('verification_status', 'verified')
     .order('name');
   if (error) {

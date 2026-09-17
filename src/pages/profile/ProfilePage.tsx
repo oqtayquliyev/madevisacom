@@ -14,6 +14,7 @@ import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { TravelerAvatar } from '@/components/common/TravelerAvatar';
 import { PhoneInput } from '@/components/common/PhoneInput';
+import { ImageUploadField } from '@/components/common/ImageUploadField';
 import type { View } from '@/types';
 
 type ProfilePageProps = {
@@ -281,6 +282,7 @@ function PartnerSection({
   const [orgName, setOrgName] = useState('');
   const [website, setWebsite] = useState('');
   const [countryId, setCountryId] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -296,9 +298,13 @@ function PartnerSection({
         <h2 className="text-sm font-bold text-ink-900">Partner status</h2>
         <div className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-ink-50 p-4">
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-white text-ink-500">
-              <Icon className="h-4 w-4" />
-            </span>
+            {publisher.logo_url ? (
+              <img src={publisher.logo_url} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+            ) : (
+              <span className="grid h-10 w-10 place-items-center rounded-lg bg-white text-ink-500">
+                <Icon className="h-4 w-4" />
+              </span>
+            )}
             <div>
               <p className="text-sm font-semibold text-ink-900">{publisher.name}</p>
               <p className="text-xs text-ink-500">{orgTypeLabel[publisher.org_type]}</p>
@@ -339,6 +345,7 @@ function PartnerSection({
                 setOrgName(publisher.name);
                 setWebsite(publisher.website ?? '');
                 setCountryId(publisher.country_id ?? '');
+                setLogoUrl(publisher.logo_url ?? '');
                 setResubmitting(true);
               }}
               className="mt-2 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700"
@@ -360,7 +367,7 @@ function PartnerSection({
     setError(null);
 
     if (resubmitting && publisher) {
-      const updated = await resubmitPublisherProfile(publisher.id, { orgType: applying ?? publisher.org_type, name: orgName, website, countryId });
+      const updated = await resubmitPublisherProfile(publisher.id, { orgType: applying ?? publisher.org_type, name: orgName, website, countryId, logoUrl });
       setSubmitting(false);
       if (updated) { onCreated(updated); setResubmitting(false); }
       else setError('Something went wrong — please try again.');
@@ -371,7 +378,7 @@ function PartnerSection({
       setSubmitting(false);
       return;
     }
-    const created = await createPublisherProfile({ ownerId: userId, orgType: applying, name: orgName, website, countryId, contactEmail: userEmail });
+    const created = await createPublisherProfile({ ownerId: userId, orgType: applying, name: orgName, website, countryId, contactEmail: userEmail, logoUrl });
     setSubmitting(false);
     if (created) onCreated(created);
     else setError('Something went wrong — please try again.');
@@ -430,6 +437,14 @@ function PartnerSection({
               ))}
             </select>
           </div>
+          {userId && (
+            <ImageUploadField
+              userId={userId}
+              value={logoUrl}
+              onChange={setLogoUrl}
+              label={applying === 'expert' ? 'Your photo (optional)' : 'Official logo (optional)'}
+            />
+          )}
           {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
           <div className="flex items-center gap-2">
             <button

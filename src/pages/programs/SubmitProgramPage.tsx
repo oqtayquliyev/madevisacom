@@ -161,6 +161,7 @@ function CreatePublisherForm({
   const [name, setName] = useState('');
   const [website, setWebsite] = useState('');
   const [countryId, setCountryId] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -171,7 +172,7 @@ function CreatePublisherForm({
     }
     setSubmitting(true);
     setError(null);
-    const created = await createPublisherProfile({ ownerId: userId, orgType, name, website, countryId, contactEmail: userEmail });
+    const created = await createPublisherProfile({ ownerId: userId, orgType, name, website, countryId, contactEmail: userEmail, logoUrl });
     setSubmitting(false);
     if (created) onCreated(created);
     else setError('Something went wrong — please try again.');
@@ -215,6 +216,7 @@ function CreatePublisherForm({
             ))}
           </select>
         </div>
+        <ImageUploadField userId={userId} value={logoUrl} onChange={setLogoUrl} label="Official logo (optional)" />
       </div>
 
       {error && <p className="mt-3 text-xs font-medium text-rose-600">{error}</p>}
