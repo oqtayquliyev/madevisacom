@@ -53,7 +53,7 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
   };
 
   return (
-    <AuthCard title="Create your MadeVisa account" subtitle="Choose your path to get started." onHome={onHome}>
+    <AuthCard title="Create your MadeVisa account" subtitle="Choose your path to get started." onHome={onHome} showSidePanel>
       <ErrorBanner message={error} />
       <GoogleButton onClick={handleGoogle} loading={googleLoading} label="Continue with Google" />
       <Divider label="or" />

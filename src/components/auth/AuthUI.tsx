@@ -2,21 +2,24 @@ import { type ReactNode, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Logo } from '@/components/layout/Logo';
 import { handleNavClick } from '@/lib/navLink';
+import { AuthSidePanel } from './AuthSidePanel';
 
 export function AuthCard({
   children,
   title,
   subtitle,
   onHome,
+  showSidePanel = false,
 }: {
   children: ReactNode;
   title: string;
   subtitle?: string;
   onHome?: () => void;
+  showSidePanel?: boolean;
 }) {
   return (
-    <div className="min-h-screen bg-[#f7f9fc]">
-      <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-12">
+    <div className="min-h-screen bg-[#f7f9fc] lg:grid lg:grid-cols-2">
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-5 py-12">
         <a
           href="/"
           onClick={(event) => handleNavClick(event, () => onHome?.())}
@@ -31,6 +34,7 @@ export function AuthCard({
           <div className="mt-6">{children}</div>
         </div>
       </div>
+      {showSidePanel && <AuthSidePanel />}
     </div>
   );
 }

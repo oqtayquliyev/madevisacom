@@ -297,3 +297,19 @@ export async function fetchVerifiedAgenciesPublic(): Promise<PublicAgency[]> {
   }
   return data ?? [];
 }
+
+export type VerifiedPublisherName = { id: string; name: string; org_type: OrgType };
+
+/** All verified publishers (any org type), name only — for trust strips. */
+export async function fetchAllVerifiedPublisherNames(): Promise<VerifiedPublisherName[]> {
+  const { data, error } = await supabase
+    .from('program_publishers')
+    .select('id, name, org_type')
+    .eq('verification_status', 'verified')
+    .order('name');
+  if (error) {
+    console.error('fetchAllVerifiedPublisherNames failed', error);
+    return [];
+  }
+  return data ?? [];
+}
