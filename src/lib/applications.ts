@@ -11,7 +11,7 @@
  * change when you do.
  */
 
-export type ApplicationKind = 'job' | 'program';
+export type ApplicationKind = 'job' | 'program' | 'agency' | 'expert' | 'destination';
 
 export type SavedApplication = {
   id: string; // `${kind}:${refId}`

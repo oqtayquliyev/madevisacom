@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ExternalLink, Landmark, Megaphone, Search } from 'lucide-react';
+import { Bookmark, BookmarkCheck, ExternalLink, Landmark, Megaphone, Search } from 'lucide-react';
 import type { View } from '@/types';
 import { destinationInfo } from '@/data/destinationInfo';
+import { isApplied, markApplied, removeApplication, type ApplicationKind } from '@/lib/applications';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -79,13 +80,23 @@ export function DestinationsPage({ go, onAuth }: DestinationsPageProps) {
                 ))}
               </div>
 
-              <button
-                onClick={() => go('sponsored-programs')}
-                className="mt-4 flex items-center gap-1.5 rounded-lg bg-ink-50 px-3 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-100"
-              >
-                <Megaphone className="h-3.5 w-3.5" />
-                View sponsored programs
-              </button>
+              <div className="mt-4 flex items-center gap-2">
+                <SaveButton
+                  kind="destination"
+                  refId={dest.countryCode}
+                  title={dest.countryName}
+                  organization={dest.region}
+                  country={dest.countryName}
+                  countryCode={dest.countryCode}
+                />
+                <button
+                  onClick={() => go('sponsored-programs')}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-ink-50 px-3 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-100"
+                >
+                  <Megaphone className="h-3.5 w-3.5" />
+                  View sponsored programs
+                </button>
+              </div>
             </article>
           ))}
         </div>
@@ -111,5 +122,45 @@ export function DestinationsPage({ go, onAuth }: DestinationsPageProps) {
 
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
+  );
+}
+
+function SaveButton({
+  kind,
+  refId,
+  title,
+  organization,
+  country,
+  countryCode,
+  url,
+}: {
+  kind: ApplicationKind;
+  refId: string;
+  title: string;
+  organization: string;
+  country: string;
+  countryCode: string;
+  url?: string;
+}) {
+  const [saved, setSaved] = useState(() => isApplied(kind, refId));
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (saved) {
+          removeApplication(kind, refId);
+        } else {
+          markApplied({ kind, refId, title, organization, country, countryCode, url });
+        }
+        setSaved(!saved);
+      }}
+      className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+        saved ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-ink-200 text-ink-500 hover:bg-ink-50'
+      }`}
+    >
+      {saved ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
+      {saved ? 'Saved' : 'Save'}
+    </button>
   );
 }

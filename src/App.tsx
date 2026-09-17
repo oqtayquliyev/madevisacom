@@ -21,7 +21,6 @@ import { ExpertsMarketplacePage } from '@/pages/experts/ExpertsMarketplacePage';
 import { DestinationsPage } from '@/pages/destinations/DestinationsPage';
 import { ProgramDetailPage } from '@/pages/programs/ProgramDetailPage';
 import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
-import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { AdminPanelPage } from '@/pages/admin/AdminPanelPage';
 import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
@@ -377,8 +376,12 @@ function renderPublicView(
     case 'profile':
       return <ProfilePage go={go} />;
 
+    // /dashboard is kept as a safe alias — the dashboard's own
+    // functionality (journey, saved jobs/programs) now lives inside
+    // Profile as tabs, so this just renders the same unified page
+    // instead of a separate, now-redundant screen.
     case 'dashboard':
-      return <DashboardPage go={go} />;
+      return <ProfilePage go={go} />;
 
     case 'customer-dashboard':
       return (

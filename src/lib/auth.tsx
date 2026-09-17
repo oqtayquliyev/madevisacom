@@ -11,6 +11,12 @@ export type Profile = {
   avatar_url: string | null;
   country_id: string | null;
   nationality_country_id: string | null;
+  languages: string[] | null;
+  occupation: string | null;
+  education: string | null;
+  specialization: string | null;
+  experience: string | null;
+  preferred_destination_country_id: string | null;
 };
 
 type AuthContextValue = {
@@ -40,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, phone, role, avatar_url, country_id, nationality_country_id')
+        .select('id, full_name, email, phone, role, avatar_url, country_id, nationality_country_id, languages, occupation, education, specialization, experience, preferred_destination_country_id')
         .eq('id', userId)
         .maybeSingle();
       if (error) {
