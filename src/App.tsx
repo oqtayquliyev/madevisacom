@@ -29,7 +29,6 @@ import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { PendingConfirmationPage } from '@/pages/auth/PendingConfirmationPage';
 import type { PendingSignup } from '@/pages/auth/RegisterPage';
-import { WelcomeModal } from '@/components/common/WelcomeModal';
 import { TravelPage } from '@/pages/travel/TravelPage';
 import type { View } from '@/types';
 
@@ -265,12 +264,9 @@ export default function App() {
 
   const role = profile.role;
 
-  const withWelcome = (node: ReactNode) => (
-    <>
-      {node}
-      <WelcomeModal go={go} />
-    </>
-  );
+  // Popup removed per request — kept as a passthrough so every call
+  // site below (withWelcome(...)) doesn't need touching.
+  const withWelcome = (node: ReactNode) => node;
 
 if (
   view === 'home' ||
