@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Briefcase, Building2, Check, Landmark, Pencil, ShieldAlert, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { useSeo } from '@/lib/seo';
 import {
   fetchPendingAgencies,
   fetchPendingPrograms,
@@ -40,6 +41,7 @@ const orgIcon: Record<OrgType, typeof Building2> = {
 };
 
 export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
+  useSeo({ title: 'Admin panel', description: 'MadeVisa admin panel.', path: '/admin', noindex: true });
   const { profile, loading } = useAuth();
 
   const [pendingPublishers, setPendingPublishers] = useState<PendingPublisher[]>([]);

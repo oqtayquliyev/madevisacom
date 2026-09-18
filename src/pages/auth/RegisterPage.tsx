@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { handleNavClick } from '@/lib/navLink';
 import { PhoneInput } from '@/components/common/PhoneInput';
 import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
+import { useSeo } from '@/lib/seo';
 
 type Country = { id: string; name: string; flag_emoji: string | null; iso_code: string };
 type Role = 'customer' | 'agency' | 'government' | null;
@@ -28,6 +29,7 @@ type RegisterPageProps = {
 };
 
 export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }: RegisterPageProps) {
+  useSeo({ title: 'Create account', description: 'Create your MadeVisa account.', path: '/register', noindex: true });
   const [role, setRole] = useState<Role>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

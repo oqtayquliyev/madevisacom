@@ -16,6 +16,7 @@ import {
   Users,
 } from 'lucide-react';
 import type { View } from '@/types';
+import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { SponsoredCarousel, type SponsoredListing } from '@/components/ads/SponsoredCarousel';
@@ -136,6 +137,11 @@ function isoDaysFromNow(days: number): string {
 }
 
 export function TravelPage({ go, onAuth }: TravelPageProps) {
+  useSeo({
+    title: 'Flights & Stays — Book Travel for Your Visa Journey',
+    description: 'Search flights and accommodation for your visa, work, or study journey abroad, with real airport data and booking partners.',
+    path: '/travel',
+  });
   const [tab, setTab] = useState<Tab>('stays');
   const [destination, setDestination] = useState('Berlin, Germany');
 

@@ -1,6 +1,7 @@
 import { ArrowRight, BadgeCheck, Briefcase, Building2, GraduationCap, MessageCircle, Plane, Search, ShieldCheck } from 'lucide-react';
 import { LandingHero } from './components/LandingHero';
 import type { View } from '@/types';
+import { useSeo } from '@/lib/seo';
 import { LandingHeader } from './components/LandingHeader';import { LandingFooter } from './components/LandingFooter';
 import { OriginCountryProvider } from '@/lib/originCountry';
 import { CountrySwitcher } from '@/components/location/CountrySwitcher';
@@ -10,6 +11,11 @@ type LandingProps = { go: (view: View) => void; onAuth?: (page: 'login' | 'regis
 const destinationsList = [['Germany', 'Explore'], ['France', 'Explore'], ['Italy', 'Explore'], ['Canada', 'Explore'], ['United Kingdom', 'Explore'], ['United States', 'Explore'], ['Australia', 'Explore'], ['Netherlands', 'Explore']];
 
 export function LandingPage({ go, onAuth }: LandingProps) {
+  useSeo({
+    title: 'Find Visas, Jobs, Study & Work Abroad',
+    description: 'Find your path abroad with MadeVisa. Explore visa options, jobs, study programs, business and family pathways, flights, accommodation and trusted experts in one place.',
+    path: '/',
+  });
 
   return <OriginCountryProvider><div className="min-h-screen bg-[#f8fafc] text-ink-900">
     <LandingHeader go={go} onAuth={onAuth} active="home" />

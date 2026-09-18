@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /profile
+Disallow: /dashboard
+Disallow: /submit-program
+Disallow: /login
+Disallow: /register
+Disallow: /reset-password
+
+Sitemap: https://madevisa.com/sitemap.xml

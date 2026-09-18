@@ -18,6 +18,7 @@ import { EligibilityBadge } from '@/components/opportunities/PersonalizationBar'
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
+import { useSeo } from '@/lib/seo';
 
 type ProgramDetailPageProps = {
   id: string;
@@ -47,6 +48,16 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
   useEffect(() => {
     fetchProgramById(id).then(setProgram);
   }, [id]);
+
+  useSeo({
+    title: program ? program.title : 'Program',
+    description: program?.description
+      ? program.description.slice(0, 155)
+      : 'View this sponsored program on MadeVisa, including eligibility, requirements and how to apply.',
+    path: `/programs/${id}`,
+    // Not-yet-loaded or removed programs shouldn't get indexed under this URL.
+    noindex: program === null,
+  });
 
   const share = async () => {
     const url = window.location.href;

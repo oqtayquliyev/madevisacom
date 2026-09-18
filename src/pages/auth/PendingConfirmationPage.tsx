@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { TravelerAvatar } from '@/components/common/TravelerAvatar';
+import { useSeo } from '@/lib/seo';
 import type { PendingSignup } from '@/pages/auth/RegisterPage';
 import type { View } from '@/types';
 
@@ -26,6 +27,7 @@ const roleLabel: Record<PendingSignup['role'], string> = {
  * this can't read from the database; it just reflects what was typed.
  */
 export function PendingConfirmationPage({ info, go, onAuth }: PendingConfirmationPageProps) {
+  useSeo({ title: 'Confirm your email', description: 'Confirm your email to activate your MadeVisa account.', path: '/register', noindex: true });
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
   const [error, setError] = useState<string | null>(null);

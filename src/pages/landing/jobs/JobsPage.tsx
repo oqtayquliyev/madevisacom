@@ -32,6 +32,7 @@ import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { categories, countries, jobTypes, type Job } from '@/data/jobs';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { useSeo } from '@/lib/seo';
 
 type JobsPageProps = {
   go: (view: View) => void;
@@ -325,6 +326,12 @@ export function JobsPage({
   onAuth,
   goToJob,
 }: JobsPageProps) {
+  useSeo({
+    title: 'Jobs Abroad — Visa Sponsorship & International Careers',
+    description: 'Browse verified international job listings with visa sponsorship, work permits, and relocation support, filtered to what you can actually apply for.',
+    path: '/jobs',
+  });
+
   // Read initial filters from the URL (e.g. /jobs?country=Germany&age=27)
   // so filtered views are shareable/bookmarkable links.
   const initial = useMemo(

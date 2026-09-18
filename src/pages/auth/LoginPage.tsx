@@ -3,6 +3,7 @@ import { CheckCircle2, Link } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { handleNavClick } from '@/lib/navLink';
 import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
+import { useSeo } from '@/lib/seo';
 
 type LoginPageProps = {
   onSwitchToRegister: () => void;
@@ -10,6 +11,7 @@ type LoginPageProps = {
 };
 
 export function LoginPage({ onSwitchToRegister, onHome }: LoginPageProps) {
+  useSeo({ title: 'Sign in', description: 'Sign in to your MadeVisa account.', path: '/login', noindex: true });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);

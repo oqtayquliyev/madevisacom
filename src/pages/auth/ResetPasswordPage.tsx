@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { AuthCard, ErrorBanner, Input, PrimaryButton } from '@/components/auth/AuthUI';
+import { useSeo } from '@/lib/seo';
 
 export function ResetPasswordPage({
   onHome,
@@ -10,6 +11,7 @@ export function ResetPasswordPage({
   onHome: () => void;
   onSwitchToLogin: () => void;
 }) {
+  useSeo({ title: 'Reset password', description: 'Set a new password for your MadeVisa account.', path: '/reset-password', noindex: true });
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);

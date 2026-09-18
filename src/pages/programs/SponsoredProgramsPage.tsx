@@ -18,6 +18,7 @@ import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { PersonalizationBar, EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
+import { useSeo } from '@/lib/seo';
 import {
   fetchCountries,
   fetchSponsoredPrograms,
@@ -124,6 +125,11 @@ function ProgramCard({ program, goToProgram }: { program: SponsoredProgram; goTo
 }
 
 export function SponsoredProgramsPage({ go, onAuth, goToProgram }: SponsoredProgramsPageProps) {
+  useSeo({
+    title: 'Sponsored Programs — Government & Company Opportunities',
+    description: 'Browse government and company sponsored programs, scholarships and exchanges, verified before publishing.',
+    path: '/sponsored-programs',
+  });
   const [programs, setPrograms] = useState<SponsoredProgram[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [loading, setLoading] = useState(true);

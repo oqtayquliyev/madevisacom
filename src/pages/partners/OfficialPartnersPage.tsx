@@ -5,6 +5,7 @@ import { officialPartners, partnerCategories, type PartnerCategory } from '@/dat
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
+import { useSeo } from '@/lib/seo';
 
 type OfficialPartnersPageProps = {
   go: (view: View) => void;
@@ -12,6 +13,11 @@ type OfficialPartnersPageProps = {
 };
 
 export function OfficialPartnersPage({ go, onAuth }: OfficialPartnersPageProps) {
+  useSeo({
+    title: 'Official Government & Global Opportunity Institutions',
+    description: 'Official immigration, investment, education, research and tourism institutions from around the world — public information sources, not partnerships.',
+    path: '/official-partners',
+  });
   const [category, setCategory] = useState<PartnerCategory | 'All'>('All');
   const [search, setSearch] = useState('');
 

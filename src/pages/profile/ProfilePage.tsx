@@ -47,6 +47,7 @@ import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { TravelerAvatar } from '@/components/common/TravelerAvatar';
 import { PhoneInput } from '@/components/common/PhoneInput';
 import { ImageUploadField } from '@/components/common/ImageUploadField';
+import { useSeo } from '@/lib/seo';
 import type { View } from '@/types';
 
 type ProfilePageProps = {
@@ -99,6 +100,8 @@ export function ProfilePage({ go, onAuth }: ProfilePageProps) {
 }
 
 function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
+  useSeo({ title: 'Your profile', description: 'Manage your MadeVisa profile.', path: '/profile', noindex: true });
+
   const { user, profile, refreshProfile } = useAuth();
   const { countryCode: originCode, countryName: originName } = useOriginCountry();
 

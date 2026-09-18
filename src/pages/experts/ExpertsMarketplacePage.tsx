@@ -20,6 +20,7 @@ import {
 } from '@/lib/programs';
 import { fetchPublishedSponsoredJobs, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { isApplied, markApplied, removeApplication, type ApplicationKind } from '@/lib/applications';
+import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -32,6 +33,11 @@ type ExpertsMarketplacePageProps = {
 type Tab = 'experts' | 'agencies' | 'employers';
 
 export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePageProps) {
+  useSeo({
+    title: 'Agencies & Experts — Verified Visa Consultants',
+    description: 'Compare verified visa agencies, independent immigration experts, and companies sponsoring international roles — reviewed before listing.',
+    path: '/experts',
+  });
   const [tab, setTab] = useState<Tab>('experts');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);

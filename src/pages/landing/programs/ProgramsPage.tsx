@@ -22,6 +22,7 @@ import {
 } from '@/lib/programs';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
 import { isApplied, markApplied, removeApplication } from '@/lib/applications';
+import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { PersonalizationBar, EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
@@ -203,6 +204,11 @@ function SaveButton({
 }
 
 export function ProgramsPage({ go, onAuth, goToProgram }: ProgramsPageProps) {
+  useSeo({
+    title: 'Scholarships, Exchanges & Work Programs Abroad',
+    description: 'Real, verified programs from governments, companies and agencies — scholarships, exchanges and work programs, filtered to what you can actually apply for.',
+    path: '/programs',
+  });
   const [allPrograms, setAllPrograms] = useState<SponsoredProgram[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

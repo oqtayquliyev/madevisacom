@@ -10,6 +10,7 @@ import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
+import { useSeo } from '@/lib/seo';
 
 type JobDetailPageProps = {
   id: string;
@@ -30,6 +31,15 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       setJob(curatedJobs.find((j) => j.id === id) ?? null);
     }
   }, [id]);
+
+  useSeo({
+    title: job ? `${job.title} at ${job.company}` : 'Job',
+    description: job
+      ? `${job.title} at ${job.company} in ${job.country}${job.remote ? ' (remote-friendly)' : ''}. View requirements and apply.`
+      : 'View this job listing on MadeVisa, including requirements and how to apply.',
+    path: `/jobs/${id}`,
+    noindex: job === null,
+  });
 
   const share = async () => {
     const url = window.location.href;

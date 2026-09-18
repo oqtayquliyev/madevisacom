@@ -3,6 +3,7 @@ import { Bookmark, BookmarkCheck, ExternalLink, Landmark, Megaphone, Search } fr
 import type { View } from '@/types';
 import { destinationInfo } from '@/data/destinationInfo';
 import { isApplied, markApplied, removeApplication, type ApplicationKind } from '@/lib/applications';
+import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -13,6 +14,11 @@ type DestinationsPageProps = {
 };
 
 export function DestinationsPage({ go, onAuth }: DestinationsPageProps) {
+  useSeo({
+    title: 'Destinations — Official Immigration Portals by Country',
+    description: 'Official government and ministry immigration portals for popular destinations — verified sources, not third-party guesswork.',
+    path: '/destinations',
+  });
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {

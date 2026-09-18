@@ -16,6 +16,7 @@ import {
 } from '@/lib/programs';
 import { submitSponsoredJob } from '@/lib/sponsoredJobs';
 import { ImageUploadField } from '@/components/common/ImageUploadField';
+import { useSeo } from '@/lib/seo';
 
 type SubmitProgramPageProps = {
   go: (view: View) => void;
@@ -34,6 +35,7 @@ const orgTypeOptions: { type: OrgType; label: string; icon: typeof Building2 }[]
 ];
 
 export function SubmitProgramPage({ go, onAuth }: SubmitProgramPageProps) {
+  useSeo({ title: 'Submit a listing', description: 'Submit a sponsored job or program for review.', path: '/submit-program', noindex: true });
   const { user, loading: authLoading } = useAuth();
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [publisher, setPublisher] = useState<ProgramPublisher | null>(null);
