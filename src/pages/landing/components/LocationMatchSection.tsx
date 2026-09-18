@@ -1,20 +1,63 @@
 import { useEffect, useState } from 'react';
-import { Briefcase, GraduationCap, ArrowRight, Megaphone } from 'lucide-react';
+import { Briefcase, GraduationCap, ArrowRight, Info, Megaphone, X } from 'lucide-react';
 import { useOriginCountry } from '@/lib/originCountry';
-import { estimateJourneyCostBreakdown } from '@/lib/costEstimates';
+import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/costEstimates';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
-import { fetchSponsoredPrograms, type SponsoredProgram } from '@/lib/programs';
+import { fetchSponsoredPrograms } from '@/lib/programs';
 import type { Job } from '@/data/jobs';
 import { CircleFlag } from '@/components/common/CircleFlag';
 
+type Item =
+  | { kind: 'job'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; remote: boolean }
+  | { kind: 'program'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string };
+
+// Bright, varied color treatments so cards visually stand out like a
+// job board rather than blending into the page — cycles per item.
+const ICON_STYLES = [
+  'bg-gradient-to-br from-indigo-500 to-violet-600',
+  'bg-gradient-to-br from-emerald-500 to-teal-600',
+  'bg-gradient-to-br from-amber-500 to-orange-600',
+  'bg-gradient-to-br from-rose-500 to-pink-600',
+  'bg-gradient-to-br from-sky-500 to-blue-600',
+];
+
 export function LocationMatchSection() {
   const { countryCode: originCode, countryName: originName } = useOriginCountry();
-  const [job, setJob] = useState<Job | null | undefined>(undefined);
-  const [program, setProgram] = useState<SponsoredProgram | null | undefined>(undefined);
+  const [items, setItems] = useState<Item[] | null>(null);
 
   useEffect(() => {
-    fetchPublishedSponsoredJobs().then((jobs) => setJob(jobs[0] ? sponsoredJobToBoardJob(jobs[0]) : null));
-    fetchSponsoredPrograms().then((programs) => setProgram(programs[0] ?? null));
+    Promise.all([fetchPublishedSponsoredJobs(), fetchSponsoredPrograms()]).then(([jobs, programs]) => {
+      const jobItems: Item[] = jobs.map((j) => {
+        const board: Job = sponsoredJobToBoardJob(j);
+        return {
+          kind: 'job',
+          id: board.id,
+          title: board.title,
+          org: board.company,
+          countryCode: board.countryCode,
+          countryName: board.country,
+          category: board.category,
+          remote: board.remote,
+        };
+      });
+      const programItems: Item[] = programs.map((p) => ({
+        kind: 'program',
+        id: p.id,
+        title: p.title,
+        org: p.publisher?.name ?? 'Verified sponsor',
+        countryCode: p.country?.iso_code ?? '',
+        countryName: p.country?.name ?? 'Various',
+        category: p.category,
+      }));
+      // Interleave so it doesn't read as "all jobs, then all programs".
+      const combined: Item[] = [];
+      const max = Math.max(jobItems.length, programItems.length);
+      for (let i = 0; i < max; i++) {
+        if (jobItems[i]) combined.push(jobItems[i]);
+        if (programItems[i]) combined.push(programItems[i]);
+      }
+      setItems(combined);
+    });
   }, []);
 
   return (
@@ -24,137 +67,114 @@ export function LocationMatchSection() {
         {originName ? `From ${originName} to opportunities abroad` : 'Sponsored opportunities'}
       </h2>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <JobMatchCard job={job} originCode={originCode} originName={originName} />
-        <ProgramMatchCard program={program} originCode={originCode} originName={originName} />
-      </div>
+      {items === null ? (
+        <div className="mt-6 flex gap-4 overflow-hidden">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-32 w-[380px] shrink-0 animate-pulse rounded bg-ink-100" />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="mt-6 flex flex-col items-center justify-center gap-2 rounded border-2 border-dashed border-ink-200 bg-white px-5 py-10 text-center">
+          <Briefcase className="h-6 w-6 text-ink-300" />
+          <p className="text-sm font-semibold text-ink-500">Sponsored jobs and programs will appear here</p>
+          <p className="text-xs text-ink-400">Check back soon — new sponsored listings appear here automatically.</p>
+        </div>
+      ) : (
+        <div className="mt-6 flex gap-4 overflow-x-auto pb-3">
+          {items.map((item, i) => (
+            <MatchCard key={`${item.kind}-${item.id}`} item={item} originCode={originCode} originName={originName} colorClass={ICON_STYLES[i % ICON_STYLES.length]} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
 
-function RouteLine({
-  originCode,
-  originName,
-  destCode,
-  destName,
-}: {
-  originCode: string | null;
-  originName: string | null;
-  destCode: string;
-  destName: string;
-}) {
+function CostBreakdownPopover({ est, onClose }: { est: JourneyCostBreakdown; onClose: () => void }) {
   return (
-    <div className="mt-3 flex items-center gap-2 text-xs font-medium text-ink-500">
-      {originCode && (
-        <>
-          <CircleFlag countryCode={originCode} label={originName ?? undefined} size={16} />
-          {originName}
-          <ArrowRight className="h-3 w-3 text-ink-300" />
-        </>
-      )}
-      <CircleFlag countryCode={destCode} label={destName} size={16} />
-      {destName}
+    <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded border border-ink-200 bg-white p-4 text-left shadow-xl">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-wide text-ink-500">What's included</p>
+        <button onClick={onClose} aria-label="Close" className="text-ink-300 hover:text-ink-600">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="mt-3 space-y-1.5 text-xs text-ink-600">
+        <div className="flex justify-between"><span>Flight (est.)</span><span className="font-semibold">${est.flightLowUSD.toLocaleString()}–${est.flightHighUSD.toLocaleString()}</span></div>
+        <div className="flex justify-between"><span>Visa fee</span><span className="font-semibold">${est.visaFeeUSD.toLocaleString()}</span></div>
+        {est.includeWorkPermit && <div className="flex justify-between"><span>Work permit fee</span><span className="font-semibold">${est.workPermitFeeUSD.toLocaleString()}</span></div>}
+        {est.includeProgram && <div className="flex justify-between"><span>Program cost (avg.)</span><span className="font-semibold">${est.programAverageUSD.toLocaleString()}</span></div>}
+      </div>
+      <p className="mt-3 text-[10px] leading-4 text-ink-400">Rough estimate for planning purposes — actual costs vary by provider and circumstances.</p>
     </div>
   );
 }
 
-function CostPill({ label, low, high }: { label: string; low: number; high: number }) {
-  return (
-    <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-      {label}: ${low.toLocaleString()}–${high.toLocaleString()}
-    </span>
-  );
-}
+function MatchCard({ item, originCode, originName, colorClass }: { item: Item; originCode: string | null; originName: string | null; colorClass: string }) {
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const Icon = item.kind === 'job' ? Briefcase : GraduationCap;
+  const href = item.kind === 'job' ? `/jobs/${item.id}` : `/programs/${item.id}`;
 
-function CardShell({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-xl border border-ink-200 bg-white p-5 shadow-soft">{children}</div>;
-}
+  const est = estimateJourneyCostBreakdown({
+    originCountryCode: originCode,
+    destinationCountryCode: item.countryCode || 'XX',
+    destinationCountryName: item.countryName,
+    journey: item.kind === 'job' ? 'work' : 'programs',
+  });
 
-function SponsoredBadge() {
   return (
-    <span className="flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">
-      <Megaphone className="h-3 w-3" />
-      Sponsored
-    </span>
-  );
-}
+    <div className="relative w-[380px] shrink-0">
+      <a href={href} className="block rounded border border-ink-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg">
+        <div className="flex items-start gap-4">
+          <span className={`grid h-16 w-16 shrink-0 place-items-center rounded text-white ${colorClass}`}>
+            <Icon className="h-7 w-7" />
+          </span>
 
-function PlaceholderCard({ icon: Icon, label }: { icon: typeof Briefcase; label: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-200 bg-white px-5 py-10 text-center">
-      <Icon className="h-6 w-6 text-ink-300" />
-      <p className="text-sm font-semibold text-ink-500">{label}</p>
-      <p className="text-xs text-ink-400">Check back soon — new sponsored listings appear here automatically.</p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-base font-bold leading-snug text-ink-950">{item.title}</h3>
+              <span className="flex shrink-0 items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-700">
+                <Megaphone className="h-2.5 w-2.5" />
+                Sponsored
+              </span>
+            </div>
+            <p className="mt-0.5 truncate text-xs font-medium text-ink-500">{item.org}</p>
+
+            <div className="mt-2 flex items-center gap-1.5 text-xs">
+              {originCode && (
+                <>
+                  <CircleFlag countryCode={originCode} label={originName ?? undefined} size={16} />
+                  <ArrowRight className="h-3 w-3 text-ink-300" />
+                </>
+              )}
+              <CircleFlag countryCode={item.countryCode} label={item.countryName} size={16} />
+              <span className="font-bold text-ink-900">{item.countryName}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="rounded bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-600">{item.category}</span>
+          {item.kind === 'job' && item.remote && <span className="rounded bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-600">Remote</span>}
+        </div>
+
+        <div className="mt-3 flex items-center justify-between border-t border-ink-100 pt-3">
+          <div>
+            <p className="text-[10px] font-medium uppercase tracking-wide text-ink-400">Est. journey cost</p>
+            <p className="text-lg font-extrabold text-ink-950">${est.totalLowUSD.toLocaleString()}–${est.totalHighUSD.toLocaleString()}</p>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); setShowBreakdown((v) => !v); }}
+            className="rounded-full p-1.5 text-ink-400 hover:bg-ink-50 hover:text-brand-600"
+            aria-label="What's included"
+          >
+            <Info className="h-4 w-4" />
+          </button>
+        </div>
+      </a>
+
+      {showBreakdown && <CostBreakdownPopover est={est} onClose={() => setShowBreakdown(false)} />}
     </div>
-  );
-}
-
-function JobMatchCard({ job, originCode, originName }: { job: Job | null | undefined; originCode: string | null; originName: string | null }) {
-  if (job === undefined) return <CardShell><div className="h-40 animate-pulse rounded-lg bg-ink-50" /></CardShell>;
-  if (job === null) return <PlaceholderCard icon={Briefcase} label="Sponsored jobs will appear here" />;
-
-  return (
-    <a href={`/jobs/${job.id}`} className="block">
-      <CardShell>
-        <div className="flex items-start justify-between gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
-            <Briefcase className="h-4 w-4" />
-          </span>
-          <SponsoredBadge />
-        </div>
-        <h3 className="mt-3 text-sm font-bold text-ink-900">{job.title}</h3>
-        <p className="text-xs text-ink-500">{job.company}</p>
-        <RouteLine originCode={originCode} originName={originName} destCode={job.countryCode} destName={job.country} />
-        <div className="mt-4 flex flex-wrap gap-2">
-          <span className="rounded-md bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-600">{job.category}</span>
-          {job.remote && <span className="rounded-md bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-600">Remote</span>}
-          {(() => {
-            const est = estimateJourneyCostBreakdown({
-              originCountryCode: originCode,
-              destinationCountryCode: job.countryCode,
-              destinationCountryName: job.country,
-              journey: 'work',
-            });
-            return <CostPill label="Est. journey cost" low={est.totalLowUSD} high={est.totalHighUSD} />;
-          })()}
-        </div>
-      </CardShell>
-    </a>
-  );
-}
-
-function ProgramMatchCard({ program, originCode, originName }: { program: SponsoredProgram | null | undefined; originCode: string | null; originName: string | null }) {
-  if (program === undefined) return <CardShell><div className="h-40 animate-pulse rounded-lg bg-ink-50" /></CardShell>;
-  if (program === null) return <PlaceholderCard icon={GraduationCap} label="Sponsored programs will appear here" />;
-
-  const destCode = program.country?.iso_code ?? '';
-  const destName = program.country?.name ?? 'Various';
-
-  return (
-    <a href={`/programs/${program.id}`} className="block">
-      <CardShell>
-        <div className="flex items-start justify-between gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
-            <GraduationCap className="h-4 w-4" />
-          </span>
-          <SponsoredBadge />
-        </div>
-        <h3 className="mt-3 text-sm font-bold text-ink-900">{program.title}</h3>
-        <p className="text-xs text-ink-500">{program.publisher?.name}</p>
-        <RouteLine originCode={originCode} originName={originName} destCode={destCode} destName={destName} />
-        <div className="mt-4 flex flex-wrap gap-2">
-          <span className="rounded-md bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-600">{program.category}</span>
-          {(() => {
-            const est = estimateJourneyCostBreakdown({
-              originCountryCode: originCode,
-              destinationCountryCode: destCode || 'XX',
-              destinationCountryName: destName,
-              journey: 'programs',
-            });
-            return <CostPill label="Est. journey cost" low={est.totalLowUSD} high={est.totalHighUSD} />;
-          })()}
-        </div>
-      </CardShell>
-    </a>
   );
 }

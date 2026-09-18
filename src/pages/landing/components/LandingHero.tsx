@@ -16,6 +16,7 @@ import {
 import type { View } from '@/types';
 import { useOriginCountry } from '@/lib/originCountry';
 import { estimateJourneyCostBreakdown } from '@/lib/costEstimates';
+import { supabase } from '@/lib/supabase';
 
 type LandingHeroProps = {
   go: (view: View) => void;
@@ -63,6 +64,11 @@ const journeys: {
   icon: typeof Briefcase;
 }[] = [
   {
+    id: 'relocation',
+    label: 'Relocation',
+    icon: Plane,
+  },
+  {
     id: 'work',
     label: 'Work',
     icon: Briefcase,
@@ -86,11 +92,6 @@ const journeys: {
     id: 'family',
     label: 'Family',
     icon: Heart,
-  },
-  {
-    id: 'relocation',
-    label: 'Relocation',
-    icon: Plane,
   },
 ];
 
@@ -834,6 +835,21 @@ export function LandingHero({
   const [activeJourney, setActiveJourney] =
     useState<Journey>('work');
 
+  // Real count of published jobs + programs added in the last 48
+  // hours, shown as a "(X new)" tag on the Relocation tab.
+  const [newCount, setNewCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    Promise.all([
+      supabase.from('programs').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('created_at', since),
+      supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('created_at', since),
+    ]).then(([programsRes, jobsRes]) => {
+      const total = (programsRes.count ?? 0) + (jobsRes.count ?? 0);
+      setNewCount(total);
+    });
+  }, []);
+
   const [answers, setAnswers] = useState<
     Record<string, string>
   >({});
@@ -1025,6 +1041,15 @@ export function LandingHero({
                 >
                   <Icon className="h-4 w-4" />
                   {journey.label}
+                  {journey.id === 'relocation' && newCount !== null && newCount > 0 && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                        active ? 'bg-brand-100 text-brand-700' : 'bg-white/20 text-white'
+                      }`}
+                    >
+                      {newCount} new
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -1085,6 +1110,7 @@ export function LandingHero({
 
           {/* COUNTRY PAIR */}
 
+          <div className="m-4 overflow-hidden rounded-lg border-2 border-amber-400">
           <div className="grid lg:grid-cols-2">
 
             <div className="border-b border-ink-100 lg:border-b-0">
@@ -1209,6 +1235,7 @@ export function LandingHero({
 
             </div>
 
+          </div>
           </div>
 
           {/* QUESTIONS */}
