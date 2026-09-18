@@ -23,6 +23,8 @@ import { ProgramDetailPage } from '@/pages/programs/ProgramDetailPage';
 import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
 import { AdminPanelPage } from '@/pages/admin/AdminPanelPage';
 import { OfficialPartnersPage } from '@/pages/partners/OfficialPartnersPage';
+import { LegalPage } from '@/pages/legal/LegalPage';
+import { legalPageOrder } from '@/data/legalContent';
 import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { PendingConfirmationPage } from '@/pages/auth/PendingConfirmationPage';
@@ -207,6 +209,10 @@ export default function App() {
 
   if (path === '/official-partners') {
     return <OfficialPartnersPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (legalPageOrder.includes(path.slice(1))) {
+    return <LegalPage slug={path.slice(1)} go={go} onAuth={goToAuth} />;
   }
 
   // Checked ahead of the !session branch below: Supabase's password

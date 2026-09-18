@@ -29,9 +29,24 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
   {
     title: 'Company',
     links: [
+      { label: 'About', href: '/about' },
+      { label: 'Contact', href: '/contact' },
       { label: 'How it works', href: '#how-it-works' },
       { label: 'For agencies', view: 'agency-profile' },
-      { label: 'For advertisers', href: 'mailto:partners@madevisa.com' },
+      { label: 'For advertisers', href: '/advertising-policy' },
+    ],
+  },
+  {
+    title: 'Legal',
+    links: [
+      { label: 'Privacy Policy', href: '/privacy' },
+      { label: 'Terms of Service', href: '/terms' },
+      { label: 'Cookie Policy', href: '/cookies' },
+      { label: 'Disclaimer', href: '/disclaimer' },
+      { label: 'Affiliate Disclosure', href: '/affiliate-disclosure' },
+      { label: 'Editorial Policy', href: '/editorial-policy' },
+      { label: 'Corrections', href: '/corrections' },
+      { label: 'Verification Policy', href: '/verification-policy' },
     ],
   },
 ];
@@ -65,7 +80,7 @@ export function LandingFooter({ go, onAuth }: LandingFooterProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
             {columns.map((column) => (
               <div key={column.title}>
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink-400">{column.title}</p>
@@ -93,8 +108,8 @@ export function LandingFooter({ go, onAuth }: LandingFooterProps) {
           <p>© {new Date().getFullYear()} MadeVisa. All rights reserved.</p>
 
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <span>Privacy Policy</span>
-            <span>Terms of Service</span>
+            <a href="/privacy" className="hover:text-white">Privacy Policy</a>
+            <a href="/terms" className="hover:text-white">Terms of Service</a>
             <button onClick={() => onAuth?.('register')} className="font-medium text-ink-300 hover:text-white">
               List your agency
             </button>
