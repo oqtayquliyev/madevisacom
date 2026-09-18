@@ -78,6 +78,7 @@ export type View =
   | 'destinations'
   | 'dashboard'
   | 'admin'
+  | 'official-partners'
   | 'travel'
   | 'results'
   | 'agencies'

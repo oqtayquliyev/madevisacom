@@ -22,6 +22,7 @@ import { DestinationsPage } from '@/pages/destinations/DestinationsPage';
 import { ProgramDetailPage } from '@/pages/programs/ProgramDetailPage';
 import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
 import { AdminPanelPage } from '@/pages/admin/AdminPanelPage';
+import { OfficialPartnersPage } from '@/pages/partners/OfficialPartnersPage';
 import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { PendingConfirmationPage } from '@/pages/auth/PendingConfirmationPage';
@@ -48,6 +49,7 @@ const pathForView: Partial<Record<View, string>> = {
   destinations: '/destinations',
   dashboard: '/dashboard',
   admin: '/admin',
+  'official-partners': '/official-partners',
 };
 
 const authPathToPage: Record<string, AuthPage> = {
@@ -201,6 +203,10 @@ export default function App() {
 
   if (path === '/admin') {
     return <AdminPanelPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (path === '/official-partners') {
+    return <OfficialPartnersPage go={go} onAuth={goToAuth} />;
   }
 
   // Checked ahead of the !session branch below: Supabase's password

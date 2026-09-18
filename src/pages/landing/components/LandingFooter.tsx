@@ -15,6 +15,7 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
       { label: 'Programs & exchanges', view: 'programs' },
       { label: 'Find a visa expert', view: 'agencies' },
       { label: 'Explore destinations', view: 'explore' },
+      { label: 'Official institutions', view: 'official-partners' },
     ],
   },
   {
