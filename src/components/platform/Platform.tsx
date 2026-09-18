@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,15 +10,11 @@ import {
   AlertCircle,
   ClipboardCheck,
   Clock3,
-  CreditCard,
   FileCheck2,
   Globe2,
-  Hotel,
   LayoutDashboard,
-  Mail,
   MapPin,
   MessageCircle,
-  Plane,
   Plus,
   Search,
   Send,
