@@ -1,6 +1,5 @@
 import { ArrowRight, BadgeCheck, Briefcase, Building2, GraduationCap, MessageCircle, Plane, Search, ShieldCheck } from 'lucide-react';
 import { LandingHero } from './components/LandingHero';
-import { LocationMatchSection } from './components/LocationMatchSection';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { LandingHeader } from './components/LandingHeader';import { LandingFooter } from './components/LandingFooter';
@@ -23,7 +22,6 @@ export function LandingPage({ go, onAuth }: LandingProps) {
     <CountrySwitcher />
     <style>{'.landing-main > section:first-child { display: none; }'}</style>
     <LandingHero go={go} />
-    <LocationMatchSection />
     <main className="landing-main">
       <section id="how-it-works" className="border-y border-ink-200 bg-white px-5 py-14 sm:px-8 sm:py-16"><div className="mx-auto max-w-7xl"><div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-brand-600">A better way to apply</p><h2 className="mt-2 max-w-sm text-3xl font-bold tracking-tight text-ink-950">From discover to move, in one place.</h2></div><div className="grid gap-5 sm:grid-cols-3"><Step number="01" icon={Search} title="Discover & compare" detail="Official programs, sponsored jobs and visa pathways matched to you." /><Step number="02" icon={BadgeCheck} title="Get expert help" detail="Verified agencies and independent experts, when you want a hand." /><Step number="03" icon={MessageCircle} title="Apply & move" detail="Track requirements, book travel and follow your application through." /></div></div></div></section>
       <section id="destinations" className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20"><Heading eyebrow="Popular destinations" title="Start with where you want to go." detail="Official government sources" action="See all destinations" onAction={() => go('destinations')} /><div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">{destinationsList.map(([name, count]) => <button key={name} onClick={() => go('destinations')} className="flex items-center justify-between border border-ink-200 bg-white px-4 py-3 text-left shadow-soft hover:border-brand-300"><span className="text-sm font-semibold text-ink-800">{name}</span><span className="text-xs text-ink-400">{count}</span></button>)}</div></section>

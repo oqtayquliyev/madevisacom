@@ -9,7 +9,6 @@ import {
   DollarSign,
   GraduationCap,
   Heart,
-  Loader2,
   Plane,
   Search,
   Sparkles,
@@ -18,6 +17,7 @@ import type { View } from '@/types';
 import { useOriginCountry } from '@/lib/originCountry';
 import { estimateJourneyCostBreakdown } from '@/lib/costEstimates';
 import { supabase } from '@/lib/supabase';
+import { LocationMatchSection } from './LocationMatchSection';
 
 type LandingHeroProps = {
   go: (view: View) => void;
@@ -27,36 +27,14 @@ type Journey =
   | 'work'
   | 'study'
   | 'programs'
-  | 'business'
   | 'family'
   | 'relocation';
-
-type ResultTab =
-  | 'best'
-  | 'cheapest'
-  | 'suggested'
-  | 'sponsored';
 
 type Country = {
   name: string;
   code: string;
   flag: string;
   image: string;
-};
-
-type Question = {
-  id: string;
-  label: string;
-  placeholder: string;
-  options?: string[];
-  type?: 'select' | 'text' | 'number';
-};
-
-type ResultCounts = {
-  best: number;
-  cheapest: number;
-  suggested: number;
-  sponsored: number;
 };
 
 const journeys: {
@@ -83,11 +61,6 @@ const journeys: {
     id: 'programs',
     label: 'Programs',
     icon: Building2,
-  },
-  {
-    id: 'business',
-    label: 'Business',
-    icon: Briefcase,
   },
   {
     id: 'family',
@@ -169,317 +142,10 @@ const countries: Country[] = [
   },
 ];
 
-const journeyQuestions: Record<Journey, Question[]> = {
-  work: [
-    {
-      id: 'specialization',
-      label: 'Specialization',
-      placeholder: 'Select your field',
-      options: [
-        'Technology',
-        'Engineering',
-        'Healthcare',
-        'Finance',
-        'Design',
-        'Marketing',
-        'Education',
-        'Skilled trades',
-        'Other',
-      ],
-    },
-    {
-      id: 'experience',
-      label: 'Experience',
-      placeholder: 'Select experience',
-      options: [
-        'No experience',
-        '1 to 2 years',
-        '3 to 5 years',
-        '6 to 10 years',
-        '10+ years',
-      ],
-    },
-    {
-      id: 'education',
-      label: 'Education',
-      placeholder: 'Select education',
-      options: [
-        'High school',
-        'College',
-        'Bachelor',
-        'Master',
-        'Doctorate',
-      ],
-    },
-    {
-      id: 'salary',
-      label: 'Salary expectation',
-      placeholder: 'Optional',
-      type: 'number',
-    },
-  ],
-
-  study: [
-    {
-      id: 'field',
-      label: 'Field of study',
-      placeholder: 'Select a field',
-      options: [
-        'Business',
-        'Computer Science',
-        'Engineering',
-        'Healthcare',
-        'Design',
-        'Arts',
-        'Social Sciences',
-        'Other',
-      ],
-    },
-    {
-      id: 'level',
-      label: 'Study level',
-      placeholder: 'Select level',
-      options: [
-        'College',
-        'Bachelor',
-        'Master',
-        'Doctorate',
-      ],
-    },
-    {
-      id: 'budget',
-      label: 'Annual budget',
-      placeholder: 'Select budget',
-      options: [
-        'Under $10,000',
-        '$10,000 to $20,000',
-        '$20,000 to $40,000',
-        '$40,000+',
-      ],
-    },
-    {
-      id: 'intake',
-      label: 'Preferred intake',
-      placeholder: 'Select intake',
-      options: [
-        'January',
-        'May',
-        'September',
-        'Flexible',
-      ],
-    },
-  ],
-
-  programs: [
-    {
-      id: 'programType',
-      label: 'Program type',
-      placeholder: 'Select program',
-      options: [
-        'Professional training',
-        'Exchange program',
-        'Certificate',
-        'Apprenticeship',
-        'Short course',
-        'Language program',
-      ],
-    },
-    {
-      id: 'field',
-      label: 'Field or interest',
-      placeholder: 'Select a field',
-      options: [
-        'Technology',
-        'Business',
-        'Healthcare',
-        'Engineering',
-        'Design',
-        'Hospitality',
-        'Other',
-      ],
-    },
-    {
-      id: 'duration',
-      label: 'Duration',
-      placeholder: 'Select duration',
-      options: [
-        'Under 3 months',
-        '3 to 6 months',
-        '6 to 12 months',
-        '1+ year',
-      ],
-    },
-    {
-      id: 'budget',
-      label: 'Budget',
-      placeholder: 'Select budget',
-      options: [
-        'Under $5,000',
-        '$5,000 to $10,000',
-        '$10,000 to $20,000',
-        '$20,000+',
-      ],
-    },
-  ],
-
-  business: [
-    {
-      id: 'businessType',
-      label: 'Business type',
-      placeholder: 'Select business type',
-      options: [
-        'Startup',
-        'Existing business',
-        'Freelance',
-        'Investor',
-        'Entrepreneur',
-      ],
-    },
-    {
-      id: 'investment',
-      label: 'Investment budget',
-      placeholder: 'Select budget',
-      options: [
-        'Under $25,000',
-        '$25,000 to $100,000',
-        '$100,000 to $250,000',
-        '$250,000+',
-      ],
-    },
-    {
-      id: 'businessStatus',
-      label: 'Current situation',
-      placeholder: 'Select one',
-      options: [
-        'Starting a business',
-        'Already operating',
-        'Expanding abroad',
-        'Looking to invest',
-      ],
-    },
-  ],
-
-  family: [
-    {
-      id: 'familySize',
-      label: 'Family members',
-      placeholder: 'How many people?',
-      options: [
-        '1 person',
-        '2 people',
-        '3 people',
-        '4 people',
-        '5+ people',
-      ],
-    },
-    {
-      id: 'relationship',
-      label: 'Relationship',
-      placeholder: 'Select relationship',
-      options: [
-        'Spouse',
-        'Partner',
-        'Children',
-        'Parents',
-        'Other family',
-      ],
-    },
-    {
-      id: 'movingTogether',
-      label: 'Moving together?',
-      placeholder: 'Select one',
-      options: [
-        'Yes, everyone',
-        'Some family members',
-        'Not yet',
-      ],
-    },
-  ],
-
-  relocation: [
-    {
-      id: 'reason',
-      label: 'Main reason',
-      placeholder: 'Select your reason',
-      options: [
-        'Better career',
-        'Quality of life',
-        'Family',
-        'Long term move',
-        'Lifestyle',
-        'Other',
-      ],
-    },
-    {
-      id: 'budget',
-      label: 'Moving budget',
-      placeholder: 'Select budget',
-      options: [
-        'Under $5,000',
-        '$5,000 to $10,000',
-        '$10,000 to $20,000',
-        '$20,000+',
-      ],
-    },
-    {
-      id: 'employment',
-      label: 'Employment status',
-      placeholder: 'Select status',
-      options: [
-        'Employed',
-        'Self employed',
-        'Looking for work',
-        'Student',
-        'Not currently working',
-      ],
-    },
-  ],
-};
-
-const resultCounts: Record<Journey, ResultCounts> = {
-  work: {
-    best: 3,
-    cheapest: 1,
-    suggested: 4,
-    sponsored: 4,
-  },
-  study: {
-    best: 3,
-    cheapest: 2,
-    suggested: 5,
-    sponsored: 3,
-  },
-  programs: {
-    best: 4,
-    cheapest: 2,
-    suggested: 4,
-    sponsored: 2,
-  },
-  business: {
-    best: 2,
-    cheapest: 1,
-    suggested: 3,
-    sponsored: 3,
-  },
-  family: {
-    best: 3,
-    cheapest: 1,
-    suggested: 3,
-    sponsored: 2,
-  },
-  relocation: {
-    best: 3,
-    cheapest: 1,
-    suggested: 4,
-    sponsored: 3,
-  },
-};
-
 const journeyDescriptions: Record<Journey, string> = {
   work: 'Find jobs and immigration pathways that fit your profile.',
   study: 'Find study options that fit your goals and budget.',
   programs: 'Find programs and training opportunities abroad.',
-  business: 'Find business and investment pathways abroad.',
   family: 'Find pathways for moving with your family.',
   relocation: 'Find realistic options for your move abroad.',
 };
@@ -597,66 +263,6 @@ function CountrySelector({
   );
 }
 
-function QuestionField({
-  question,
-  value,
-  onChange,
-}: {
-  question: Question;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  if (question.type === 'number') {
-    return (
-      <div>
-        <label className="mb-2 block text-xs font-semibold text-ink-500">
-          {question.label}
-        </label>
-
-        <input
-          type="number"
-          value={value}
-          onChange={(event) =>
-            onChange(event.target.value)
-          }
-          placeholder={question.placeholder}
-          className="h-12 w-full rounded-lg border border-ink-200 bg-white px-4 text-sm font-medium text-ink-900 outline-none transition placeholder:text-ink-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <label className="mb-2 block text-xs font-semibold text-ink-500">
-        {question.label}
-      </label>
-
-      <div className="relative">
-        <select
-          value={value}
-          onChange={(event) =>
-            onChange(event.target.value)
-          }
-          className="h-12 w-full appearance-none rounded-lg border border-ink-200 bg-white px-4 pr-10 text-sm font-medium text-ink-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-        >
-          <option value="">
-            {question.placeholder}
-          </option>
-
-          {question.options?.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-
-        <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-      </div>
-    </div>
-  );
-}
-
 function formatUSD(value: number): string {
   return `$${Math.round(value).toLocaleString()}`;
 }
@@ -665,17 +271,16 @@ const journeyCostLabels: Record<Journey, string> = {
   work: 'Work journey',
   study: 'Study journey',
   programs: 'Program journey',
-  business: 'Business journey',
   family: 'Family journey',
   relocation: 'Relocation journey',
 };
 
 /**
- * Big-number cost estimate for the selected journey + country pair.
- * Click to expand the breakdown: flights, program average (study/
- * programs), visa fee, and work permit fee (work/business/relocation).
- * Numbers come from lib/costEstimates.ts — clearly-labeled estimates,
- * not live quotes.
+ * Cost estimate for the selected journey + country pair, shown as a
+ * running sum: each line item connected with "+", ending in "="
+ * before the total. Always visible — no click-to-expand. Numbers
+ * come from lib/costEstimates.ts — clearly-labeled estimates, not
+ * live quotes.
  */
 function JourneyCostEstimate({
   journey,
@@ -688,8 +293,6 @@ function JourneyCostEstimate({
   destinationCountryCode: string;
   destinationCountryName: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
-
   const estimate = useMemo(
     () =>
       estimateJourneyCostBreakdown({
@@ -701,83 +304,54 @@ function JourneyCostEstimate({
     [originCountryCode, destinationCountryCode, destinationCountryName, journey]
   );
 
+  const lineItems: { icon: typeof Plane; label: string; value: string }[] = [
+    {
+      icon: Plane,
+      label: 'Est. flight cost',
+      value: `${formatUSD(estimate.flightLowUSD)}–${formatUSD(estimate.flightHighUSD)}`,
+    },
+    ...(estimate.includeProgram
+      ? [{ icon: GraduationCap, label: 'Est. program cost', value: formatUSD(estimate.programAverageUSD) }]
+      : []),
+    { icon: CheckCircle2, label: 'Est. visa fee', value: formatUSD(estimate.visaFeeUSD) },
+    ...(estimate.includeWorkPermit
+      ? [{ icon: Briefcase, label: 'Est. work permit fee', value: formatUSD(estimate.workPermitFeeUSD) }]
+      : []),
+  ];
+
   return (
-    <div className="border-b border-ink-100 bg-ink-50/60">
-      <button
-        type="button"
-        onClick={() => setExpanded((value) => !value)}
-        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left sm:px-6"
-      >
-        <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-600 text-white">
-            <DollarSign className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-xs font-medium text-ink-400">
-              Estimated cost · {journeyCostLabels[journey]} to {destinationCountryName}
-            </p>
-            <p className="mt-0.5 text-2xl font-bold tracking-tight text-ink-950">
-              {formatUSD(estimate.totalLowUSD)} – {formatUSD(estimate.totalHighUSD)}
-            </p>
+    <div className="border-b border-ink-100 bg-ink-50/60 px-5 py-5 sm:px-6">
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-600 text-white">
+          <DollarSign className="h-5 w-5" />
+        </span>
+        <p className="text-xs font-medium text-ink-400">
+          Estimated cost · {journeyCostLabels[journey]} to {destinationCountryName}
+        </p>
+      </div>
+
+      <div className="mt-3 space-y-1.5">
+        {lineItems.map((item, i) => (
+          <div key={item.label} className="flex items-center gap-2 text-sm text-ink-600">
+            <span className="w-4 shrink-0 text-center font-bold text-ink-300">{i === 0 ? '' : '+'}</span>
+            <item.icon className="h-4 w-4 shrink-0 text-ink-400" />
+            <span className="flex-1">{item.label}</span>
+            <span className="font-semibold text-ink-800">{item.value}</span>
           </div>
+        ))}
+
+        <div className="mt-2 flex items-center gap-2 border-t border-ink-200 pt-2.5 text-base">
+          <span className="w-4 shrink-0 text-center font-bold text-ink-400">=</span>
+          <span className="flex-1 font-bold text-ink-900">Total estimated cost</span>
+          <span className="text-xl font-extrabold tracking-tight text-ink-950">
+            {formatUSD(estimate.totalLowUSD)}–{formatUSD(estimate.totalHighUSD)}
+          </span>
         </div>
+      </div>
 
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-ink-400 transition ${expanded ? 'rotate-180' : ''}`}
-        />
-      </button>
-
-      {expanded && (
-        <div className="space-y-2.5 px-5 pb-5 sm:px-6">
-          <CostLine
-            icon={Plane}
-            label="Travel (flights, round trip)"
-            value={`${formatUSD(estimate.flightLowUSD)} – ${formatUSD(estimate.flightHighUSD)}`}
-          />
-          {estimate.includeProgram && (
-            <CostLine
-              icon={GraduationCap}
-              label="Program / tuition average"
-              value={formatUSD(estimate.programAverageUSD)}
-            />
-          )}
-          <CostLine
-            icon={CheckCircle2}
-            label="Visa requirement (fee)"
-            value={formatUSD(estimate.visaFeeUSD)}
-          />
-          {estimate.includeWorkPermit && (
-            <CostLine
-              icon={Briefcase}
-              label="Work permit fee"
-              value={formatUSD(estimate.workPermitFeeUSD)}
-            />
-          )}
-          <p className="pt-1 text-[11px] text-ink-400">
-            Estimates only, not a live quote — actual costs vary by case.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CostLine({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Plane;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 text-sm">
-      <span className="flex items-center gap-2 text-ink-600">
-        <Icon className="h-4 w-4 shrink-0 text-ink-400" />
-        {label}
-      </span>
-      <span className="shrink-0 font-semibold text-ink-900">{value}</span>
+      <p className="mt-2.5 text-[11px] text-ink-400">
+        Estimates only, not a live quote — actual costs vary by case.
+      </p>
     </div>
   );
 }
@@ -834,7 +408,7 @@ export function LandingHero({
     );
 
   const [activeJourney, setActiveJourney] =
-    useState<Journey>('work');
+    useState<Journey>('relocation');
 
   // Real count of published jobs + programs added in the last 48
   // hours, shown as a "(X new)" tag on the Relocation tab.
@@ -850,19 +424,6 @@ export function LandingHero({
       setNewCount(total);
     });
   }, []);
-
-  const [answers, setAnswers] = useState<
-    Record<string, string>
-  >({});
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [hasSearched, setHasSearched] =
-    useState(false);
-
-  const [activeResultTab, setActiveResultTab] =
-    useState<ResultTab>('best');
 
   const [showDestinationMenu, setShowDestinationMenu] =
     useState(false);
@@ -893,57 +454,45 @@ export function LandingHero({
     };
   }, [showDestinationMenu]);
 
-  const questions =
-    journeyQuestions[activeJourney];
-
-  const counts =
-    resultCounts[activeJourney];
-
   const selectedJourney =
     journeys.find(
       (journey) => journey.id === activeJourney
     );
 
-  const answeredCount = questions.filter(
-    (question) =>
-      Boolean(answers[question.id])
-  ).length;
-
-  const canSearch =
-    answeredCount === questions.length &&
-    Boolean(toCountry);
-
-  const resultCategories = useMemo(
-    () => [
-      {
-        id: 'best' as ResultTab,
-        label: 'Best options',
-        count: counts.best,
-      },
-      {
-        id: 'cheapest' as ResultTab,
-        label: 'Cheapest',
-        count: counts.cheapest,
-      },
-      {
-        id: 'suggested' as ResultTab,
-        label: 'Suggested',
-        count: counts.suggested,
-      },
-      {
-        id: 'sponsored' as ResultTab,
-        label: 'Sponsored',
-        count: counts.sponsored,
-      },
-    ],
-    [counts]
-  );
+  // Real count of published jobs + programs for the chosen
+  // destination country — replaces the old hardcoded/fake result
+  // counts. Recomputed whenever the destination changes.
+  const [matchCount, setMatchCount] = useState<number | null>(null);
 
   useEffect(() => {
-    setAnswers({});
-    setHasSearched(false);
-    setActiveResultTab('best');
-  }, [activeJourney]);
+    if (activeJourney === 'relocation') return;
+    let cancelled = false;
+    setMatchCount(null);
+
+    (async () => {
+      const { data: countryRow } = await supabase
+        .from('countries')
+        .select('id')
+        .eq('iso_code', toCountry.code)
+        .maybeSingle();
+
+      if (!countryRow) {
+        if (!cancelled) setMatchCount(0);
+        return;
+      }
+
+      const [programsRes, jobsRes] = await Promise.all([
+        supabase.from('programs').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('country_id', countryRow.id),
+        supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('country_id', countryRow.id),
+      ]);
+
+      if (!cancelled) setMatchCount((programsRes.count ?? 0) + (jobsRes.count ?? 0));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [toCountry.code, activeJourney]);
 
   const handleJourneyChange = (
     journey: Journey
@@ -953,60 +502,16 @@ export function LandingHero({
     }
 
     setActiveJourney(journey);
-    setLoading(false);
   };
 
-  const handleAnswerChange = (
-    id: string,
-    value: string
-  ) => {
-    setAnswers((current) => ({
-      ...current,
-      [id]: value,
-    }));
-
-    setHasSearched(false);
-  };
-
-  const handleSearch = () => {
-    if (!canSearch || loading) {
-      return;
-    }
-
-    setLoading(true);
-    setHasSearched(false);
-
-    window.setTimeout(() => {
-      setLoading(false);
-      setHasSearched(true);
-      setActiveResultTab('best');
-    }, 900);
-  };
-
-  const handleResultCategory = (
-    tab: ResultTab
-  ) => {
-    setActiveResultTab(tab);
-
-    const params = new URLSearchParams({
-      journey: activeJourney,
-      result: tab,
-      from: fromCountry.code,
-      to: toCountry.code,
-    });
-
-    Object.entries(answers).forEach(
-      ([key, value]) => {
-        if (value) {
-          params.set(key, value);
-        }
-      }
-    );
+  const handleFindOptions = () => {
+    const targetView = activeJourney === 'study' || activeJourney === 'programs' ? 'programs' : 'jobs';
+    const params = new URLSearchParams({ country: toCountry.name });
 
     window.history.pushState(
       {},
       '',
-      `/results?${params.toString()}`
+      `/${targetView}?${params.toString()}`
     );
 
     window.dispatchEvent(
@@ -1091,6 +596,11 @@ export function LandingHero({
 
       <section className="relative z-10 mx-auto -mt-12 max-w-6xl px-5 sm:px-8">
 
+        {activeJourney === 'relocation' ? (
+          <div className="rounded-lg border border-ink-200 bg-white p-2 shadow-xl">
+            <LocationMatchSection />
+          </div>
+        ) : (
         <div className="border border-ink-200 bg-white shadow-xl">
 
           {/* SEARCH HEADER */}
@@ -1118,8 +628,11 @@ export function LandingHero({
               </div>
 
               <div className="text-xs font-medium text-ink-400">
-                {answeredCount} of {questions.length}{' '}
-                answered
+                {matchCount !== null && (
+                  <span className="rounded-full bg-brand-50 px-2.5 py-1 font-semibold text-brand-700">
+                    {matchCount} {matchCount === 1 ? 'opportunity' : 'opportunities'} to {toCountry.name}
+                  </span>
+                )}
               </div>
 
             </div>
@@ -1236,7 +749,6 @@ export function LandingHero({
                             setShowDestinationMenu(
                               false
                             );
-                            setHasSearched(false);
                           }}
                           className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition hover:bg-ink-50 ${
                             country.code ===
@@ -1274,208 +786,28 @@ export function LandingHero({
           </div>
           </div>
 
-          {/* QUESTIONS */}
+          {/* FIND OPTIONS */}
 
           <div className="border-t border-ink-100 px-5 py-6 sm:px-6">
 
-            <div className="mb-5">
-
-              <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-                About your journey
-              </p>
-
-              <h3 className="mt-1 text-base font-bold text-ink-950">
-                A few questions so we can find relevant options
-              </h3>
-
-            </div>
-
-            <div
-              className={`grid gap-4 ${
-                questions.length === 3
-                  ? 'md:grid-cols-3'
-                  : 'md:grid-cols-2'
-              }`}
+            <button
+              type="button"
+              onClick={handleFindOptions}
+              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-7 text-base font-bold text-white shadow-sm transition hover:bg-brand-700 sm:w-auto"
             >
-
-              {questions.map((question) => (
-                <QuestionField
-                  key={question.id}
-                  question={question}
-                  value={
-                    answers[question.id] ?? ''
-                  }
-                  onChange={(value) =>
-                    handleAnswerChange(
-                      question.id,
-                      value
-                    )
-                  }
-                />
-              ))}
-
-            </div>
-
-            <div className="mt-5 flex flex-col gap-3 border-t border-ink-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-
-              <p className="text-xs text-ink-400">
-                Your answers help us match the most relevant pathways.
-              </p>
-
-              <button
-                type="button"
-                disabled={!canSearch || loading}
-                onClick={handleSearch}
-                className={`flex min-h-[48px] items-center justify-center gap-2 rounded-lg px-7 text-sm font-semibold text-white transition ${
-                  canSearch && !loading
-                    ? 'bg-brand-600 hover:bg-brand-700'
-                    : 'cursor-not-allowed bg-ink-200 text-ink-400'
-                }`}
-              >
-
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Finding options
-                  </>
-                ) : (
-                  <>
-                    <Search className="h-4 w-4" />
-                    Find my options
-                  </>
-                )}
-
-              </button>
-
-            </div>
+              <Search className="h-4 w-4" />
+              Find my options
+              {matchCount !== null && (
+                <span className="rounded-full bg-white/20 px-2 py-0.5 text-sm">
+                  {matchCount}
+                </span>
+              )}
+            </button>
 
           </div>
 
-          {/* LOADING */}
-
-          {loading && (
-            <div className="border-t border-ink-100 bg-ink-50/40 px-5 py-8 sm:px-6">
-
-              <div className="flex items-center justify-center gap-3 text-sm text-ink-500">
-
-                <Loader2 className="h-5 w-5 animate-spin text-brand-600" />
-
-                <span>
-                  Finding the best options for your journey...
-                </span>
-
-              </div>
-
-            </div>
-          )}
-
-          {/* RESULT CATEGORIES */}
-
-          {hasSearched && !loading && (
-            <div className="border-t border-ink-100">
-
-              <div className="px-5 py-6 sm:px-6">
-
-                <div className="mb-5">
-
-                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-                    Your results
-                  </p>
-
-                  <h3 className="mt-1 text-lg font-bold text-ink-950">
-                    Choose how you want to explore
-                  </h3>
-
-                  <p className="mt-1 text-sm text-ink-500">
-                    We found options for {toCountry.name}.
-                    Choose a category to view them.
-                  </p>
-
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-
-                  {resultCategories.map(
-                    (category) => {
-                      const active =
-                        activeResultTab ===
-                        category.id;
-
-                      return (
-                        <button
-                          key={category.id}
-                          type="button"
-                          onClick={() =>
-                            handleResultCategory(
-                              category.id
-                            )
-                          }
-                          className={`group rounded-xl border p-5 text-left transition ${
-                            active
-                              ? 'border-brand-600 bg-brand-50'
-                              : 'border-ink-200 bg-white hover:border-brand-300 hover:shadow-md'
-                          }`}
-                        >
-
-                          <div className="flex items-center justify-between">
-
-                            <span
-                              className={`text-sm font-bold ${
-                                active
-                                  ? 'text-brand-700'
-                                  : 'text-ink-900'
-                              }`}
-                            >
-                              {category.label}
-                            </span>
-
-                            <ArrowRight
-                              className={`h-4 w-4 transition group-hover:translate-x-1 ${
-                                active
-                                  ? 'text-brand-600'
-                                  : 'text-ink-400'
-                              }`}
-                            />
-
-                          </div>
-
-                          <div className="mt-4 flex items-end gap-2">
-
-                            <span className="text-3xl font-bold tracking-tight text-ink-950">
-                              {category.count}
-                            </span>
-
-                            <span className="pb-1 text-xs text-ink-400">
-                              options found
-                            </span>
-
-                          </div>
-
-                          <p className="mt-3 text-xs leading-5 text-ink-400">
-                            View matching options based on your answers.
-                          </p>
-
-                        </button>
-                      );
-                    }
-                  )}
-
-                </div>
-
-                <div className="mt-5 flex items-center gap-2 rounded-lg bg-ink-50 px-4 py-3 text-xs text-ink-500">
-
-                  <Sparkles className="h-4 w-4 shrink-0 text-brand-600" />
-
-                  Select a category to open the full results page.
-
-                </div>
-
-              </div>
-
-            </div>
-          )}
-
         </div>
+        )}
 
       </section>
 
@@ -1529,7 +861,6 @@ export function LandingHero({
                   type="button"
                   onClick={() => {
                     setToCountry(country);
-                    setHasSearched(false);
 
                     window.scrollTo({
                       top: 0,

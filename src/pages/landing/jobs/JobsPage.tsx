@@ -163,7 +163,7 @@ function JobCard({
 
             </div>
 
-            <h2 className="mt-1.5 text-base font-bold text-ink-950">
+            <h2 className="mt-1.5 font-slab text-base font-bold text-ink-950">
               {job.title}
             </h2>
 

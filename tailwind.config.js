@@ -6,6 +6,7 @@ export default {
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         serif: ['"Instrument Serif"', 'ui-serif', 'Georgia', 'serif'],
+        slab: ['"Roboto Slab"', 'ui-serif', 'Georgia', 'serif'],
       },
       colors: {
         ink: {

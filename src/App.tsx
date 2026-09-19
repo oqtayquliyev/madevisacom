@@ -94,8 +94,15 @@ export default function App() {
   };
 
   const go = (next: View) => {
-    setView(next);
     const nextPath = pathForView[next];
+    // Clicking a nav item (e.g. the logo) while already on that exact
+    // page previously still force-scrolled to top and re-set state,
+    // which reads as "the page reloaded" even though nothing actually
+    // changed. Treat it as a true no-op instead.
+    if (view === next && (!nextPath || nextPath === window.location.pathname)) {
+      return;
+    }
+    setView(next);
     if (nextPath && nextPath !== window.location.pathname) {
       window.history.pushState({}, '', nextPath);
     }

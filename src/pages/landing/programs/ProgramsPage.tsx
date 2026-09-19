@@ -98,7 +98,7 @@ function ProgramCard({ program, goToProgram }: { program: SponsoredProgram; goTo
             <span className="rounded-md bg-ink-50 px-2 py-0.5 text-[11px] font-semibold text-ink-500">{program.category}</span>
             {program.country && <span className="text-xs font-medium text-ink-400">{program.country.name}</span>}
           </div>
-          <h2 className="mt-3 text-base font-bold text-ink-950">{program.title}</h2>
+          <h2 className="mt-3 font-slab text-base font-bold text-ink-950">{program.title}</h2>
           <p className="mt-1 text-sm font-medium text-ink-600">{program.publisher?.name}</p>
         </div>
         <EligibilityBadge result={eligibility} />

@@ -151,13 +151,13 @@ function MatchCard({ item, originCode, originName }: { item: Item; originCode: s
     <div className="relative w-[380px] shrink-0">
       <a href={href} className="block rounded border border-ink-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg">
         <div className="flex items-start gap-4">
-          <span className="grid h-16 w-16 shrink-0 place-items-center rounded" style={{ backgroundColor: '#2563EB' }}>
-            <Icon className="h-7 w-7 text-slate-300" />
+          <span className="grid h-20 w-20 shrink-0 place-items-center rounded" style={{ backgroundColor: '#2563EB' }}>
+            <Icon className="h-9 w-9 text-slate-300" />
           </span>
 
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
-              <h3 className="text-base font-bold leading-snug text-ink-950">{item.title}</h3>
+              <h3 className="font-slab text-lg font-bold leading-snug text-ink-950">{item.title}</h3>
               <span className="flex shrink-0 items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-700">
                 <Megaphone className="h-2.5 w-2.5" />
                 Sponsored

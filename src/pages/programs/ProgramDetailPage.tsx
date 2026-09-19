@@ -130,7 +130,7 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
               <EligibilityBadge result={eligibility} />
             </div>
 
-            <h1 className="mt-3 text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">{program.title}</h1>
+            <h1 className="mt-3 font-slab text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">{program.title}</h1>
 
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-ink-500">
               <span className="flex items-center gap-1.5">
