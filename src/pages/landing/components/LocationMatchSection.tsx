@@ -1,5 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Briefcase, GraduationCap, ArrowRight, Info, Megaphone, X } from 'lucide-react';
+import {
+  Briefcase,
+  GraduationCap,
+  Hammer,
+  Landmark,
+  ArrowLeftRight,
+  TrendingUp,
+  Building2,
+  ArrowRight,
+  Info,
+  Megaphone,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { useOriginCountry } from '@/lib/originCountry';
 import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/costEstimates';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
@@ -8,18 +21,26 @@ import type { Job } from '@/data/jobs';
 import { CircleFlag } from '@/components/common/CircleFlag';
 
 type Item =
-  | { kind: 'job'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; remote: boolean }
-  | { kind: 'program'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string };
+  | { kind: 'job'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; remote: boolean; salary?: string }
+  | { kind: 'program'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; funding: string | null };
 
-// Bright, varied color treatments so cards visually stand out like a
-// job board rather than blending into the page — cycles per item.
-const ICON_STYLES = [
-  'bg-gradient-to-br from-indigo-500 to-violet-600',
-  'bg-gradient-to-br from-emerald-500 to-teal-600',
-  'bg-gradient-to-br from-amber-500 to-orange-600',
-  'bg-gradient-to-br from-rose-500 to-pink-600',
-  'bg-gradient-to-br from-sky-500 to-blue-600',
+// Category → icon lookup (checked in order, first substring match wins).
+// Falls back to a sensible default per listing kind.
+const CATEGORY_ICONS: [string[], LucideIcon][] = [
+  [['apprentice', 'trade', 'vocational'], Hammer],
+  [['exchange', 'cultural'], ArrowLeftRight],
+  [['government', 'scholarship', 'public sector'], Landmark],
+  [['study', 'education', 'university', 'academic', 'research'], GraduationCap],
+  [['business', 'investor', 'startup', 'entrepreneur'], TrendingUp],
 ];
+
+function iconFor(category: string, kind: 'job' | 'program'): LucideIcon {
+  const lower = category.toLowerCase();
+  for (const [keywords, Icon] of CATEGORY_ICONS) {
+    if (keywords.some((k) => lower.includes(k))) return Icon;
+  }
+  return kind === 'job' ? Briefcase : Building2;
+}
 
 export function LocationMatchSection() {
   const { countryCode: originCode, countryName: originName } = useOriginCountry();
@@ -38,6 +59,7 @@ export function LocationMatchSection() {
           countryName: board.country,
           category: board.category,
           remote: board.remote,
+          salary: board.salary,
         };
       });
       const programItems: Item[] = programs.map((p) => ({
@@ -48,8 +70,8 @@ export function LocationMatchSection() {
         countryCode: p.country?.iso_code ?? '',
         countryName: p.country?.name ?? 'Various',
         category: p.category,
+        funding: p.funding_text,
       }));
-      // Interleave so it doesn't read as "all jobs, then all programs".
       const combined: Item[] = [];
       const max = Math.max(jobItems.length, programItems.length);
       for (let i = 0; i < max; i++) {
@@ -68,7 +90,7 @@ export function LocationMatchSection() {
       </h2>
 
       {items === null ? (
-        <div className="mt-6 flex gap-4 overflow-hidden">
+        <div className="mt-6 flex gap-4 overflow-hidden py-4">
           {[0, 1, 2].map((i) => (
             <div key={i} className="h-32 w-[380px] shrink-0 animate-pulse rounded bg-ink-100" />
           ))}
@@ -80,9 +102,9 @@ export function LocationMatchSection() {
           <p className="text-xs text-ink-400">Check back soon — new sponsored listings appear here automatically.</p>
         </div>
       ) : (
-        <div className="mt-6 flex gap-4 overflow-x-auto pb-3">
-          {items.map((item, i) => (
-            <MatchCard key={`${item.kind}-${item.id}`} item={item} originCode={originCode} originName={originName} colorClass={ICON_STYLES[i % ICON_STYLES.length]} />
+        <div className="mt-6 flex gap-4 overflow-x-auto overflow-y-visible px-1 py-4">
+          {items.map((item) => (
+            <MatchCard key={`${item.kind}-${item.id}`} item={item} originCode={originCode} originName={originName} />
           ))}
         </div>
       )}
@@ -110,9 +132,9 @@ function CostBreakdownPopover({ est, onClose }: { est: JourneyCostBreakdown; onC
   );
 }
 
-function MatchCard({ item, originCode, originName, colorClass }: { item: Item; originCode: string | null; originName: string | null; colorClass: string }) {
+function MatchCard({ item, originCode, originName }: { item: Item; originCode: string | null; originName: string | null }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
-  const Icon = item.kind === 'job' ? Briefcase : GraduationCap;
+  const Icon = iconFor(item.category, item.kind);
   const href = item.kind === 'job' ? `/jobs/${item.id}` : `/programs/${item.id}`;
 
   const est = estimateJourneyCostBreakdown({
@@ -122,12 +144,15 @@ function MatchCard({ item, originCode, originName, colorClass }: { item: Item; o
     journey: item.kind === 'job' ? 'work' : 'programs',
   });
 
+  const showCostPill = item.kind === 'program';
+  const salaryOrFunding = item.kind === 'job' ? item.salary : item.funding;
+
   return (
     <div className="relative w-[380px] shrink-0">
       <a href={href} className="block rounded border border-ink-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg">
         <div className="flex items-start gap-4">
-          <span className={`grid h-16 w-16 shrink-0 place-items-center rounded text-white ${colorClass}`}>
-            <Icon className="h-7 w-7" />
+          <span className="grid h-16 w-16 shrink-0 place-items-center rounded" style={{ backgroundColor: '#2563EB' }}>
+            <Icon className="h-7 w-7 text-slate-300" />
           </span>
 
           <div className="min-w-0 flex-1">
@@ -158,20 +183,30 @@ function MatchCard({ item, originCode, originName, colorClass }: { item: Item; o
           {item.kind === 'job' && item.remote && <span className="rounded bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-600">Remote</span>}
         </div>
 
-        <div className="mt-3 flex items-center justify-between border-t border-ink-100 pt-3">
-          <div>
-            <p className="text-[10px] font-medium uppercase tracking-wide text-ink-400">Est. journey cost</p>
-            <p className="text-lg font-extrabold text-ink-950">${est.totalLowUSD.toLocaleString()}–${est.totalHighUSD.toLocaleString()}</p>
+        {(salaryOrFunding || showCostPill) && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3">
+            {salaryOrFunding && (
+              <span className="rounded bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
+                {item.kind === 'job' ? 'Salary' : 'Stipend'}: {salaryOrFunding}
+              </span>
+            )}
+            {showCostPill && (
+              <div className="flex items-center gap-1">
+                <span className="rounded bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700">
+                  Est. journey cost: ${est.totalLowUSD.toLocaleString()}–${est.totalHighUSD.toLocaleString()}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); setShowBreakdown((v) => !v); }}
+                  className="rounded-full p-1 text-ink-400 hover:bg-ink-50 hover:text-brand-600"
+                  aria-label="What's included"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </div>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); setShowBreakdown((v) => !v); }}
-            className="rounded-full p-1.5 text-ink-400 hover:bg-ink-50 hover:text-brand-600"
-            aria-label="What's included"
-          >
-            <Info className="h-4 w-4" />
-          </button>
-        </div>
+        )}
       </a>
 
       {showBreakdown && <CostBreakdownPopover est={est} onClose={() => setShowBreakdown(false)} />}

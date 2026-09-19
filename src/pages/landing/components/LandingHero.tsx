@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowRight,
   Briefcase,
@@ -866,6 +867,32 @@ export function LandingHero({
   const [showDestinationMenu, setShowDestinationMenu] =
     useState(false);
 
+  // The dropdown is rendered via a portal (see below) so it isn't
+  // clipped by the amber-border wrapper's overflow-hidden, or by any
+  // other ancestor. We track the trigger button's on-screen position
+  // so the portaled menu can line up under it with `position: fixed`.
+  const destinationButtonRef = useRef<HTMLButtonElement>(null);
+  const [destinationMenuPos, setDestinationMenuPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    if (!showDestinationMenu) return;
+
+    const updatePosition = () => {
+      const rect = destinationButtonRef.current?.getBoundingClientRect();
+      if (rect) {
+        setDestinationMenuPos({ top: rect.bottom + 8, left: rect.left, width: rect.width });
+      }
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [showDestinationMenu]);
+
   const questions =
     journeyQuestions[activeJourney];
 
@@ -1142,6 +1169,7 @@ export function LandingHero({
 
               <button
                 type="button"
+                ref={destinationButtonRef}
                 onClick={() =>
                   setShowDestinationMenu(
                     (value) => !value
@@ -1177,7 +1205,7 @@ export function LandingHero({
 
               </button>
 
-              {showDestinationMenu && (
+              {showDestinationMenu && destinationMenuPos && createPortal(
                 <>
 
                   <button
@@ -1186,10 +1214,17 @@ export function LandingHero({
                     onClick={() =>
                       setShowDestinationMenu(false)
                     }
-                    className="fixed inset-0 z-30 cursor-default"
+                    className="fixed inset-0 z-40 cursor-default"
                   />
 
-                  <div className="absolute left-2 right-2 top-[82px] z-50 max-h-80 overflow-auto border border-ink-200 bg-white p-2 shadow-xl">
+                  <div
+                    className="fixed z-50 max-h-80 overflow-auto rounded-md border border-ink-200 bg-white p-2 shadow-xl"
+                    style={{
+                      top: destinationMenuPos.top,
+                      left: destinationMenuPos.left,
+                      width: Math.max(destinationMenuPos.width, 260),
+                    }}
+                  >
 
                     {destinationCountries.map(
                       (country) => (
@@ -1230,7 +1265,8 @@ export function LandingHero({
 
                   </div>
 
-                </>
+                </>,
+                document.body
               )}
 
             </div>

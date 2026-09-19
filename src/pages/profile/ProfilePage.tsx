@@ -15,6 +15,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  Plus,
   Save,
   Settings as SettingsIcon,
   Shield,
@@ -63,12 +64,6 @@ const inputClass =
 const textareaClass =
   'w-full rounded-lg border border-ink-200 bg-white p-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
 const labelClass = 'mb-1.5 block text-xs font-semibold text-ink-500';
-
-const roleLabel: Record<string, string> = {
-  customer: 'Traveler',
-  agency: 'Agency account',
-  admin: 'Admin',
-};
 
 const orgTypeLabel: Record<OrgType, string> = {
   agency: 'Agency',
@@ -318,6 +313,11 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   };
 
   const partnerBadge = publisher ? statusCopy[publisher.verification_status] : null;
+  const profileCountry = countries.find((c) => c.id === profile.country_id);
+  const canPost = publisher?.verification_status === 'verified';
+  const availabilityLine = publisher
+    ? `${orgTypeLabel[publisher.org_type]} · ${partnerBadge?.label ?? ''}`
+    : 'Looking for opportunities abroad';
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
@@ -325,47 +325,96 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
 
       <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
         {/* HEADER */}
-        <div className="flex flex-wrap items-start justify-between gap-6 border border-ink-200 bg-white p-6">
-          <div className="flex items-center gap-4">
-            {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt="" className="h-16 w-16 rounded-full object-cover" />
-            ) : (
-              <TravelerAvatar seed={profile.id} size={64} />
-            )}
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-ink-950">{profile.full_name || 'Your profile'}</h1>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-500">
-                <span className="flex items-center gap-1">
-                  <Shield className="h-3.5 w-3.5 text-brand-600" />
-                  {roleLabel[profile.role ?? 'customer']}
-                </span>
-                {isEmailConfirmed && (
-                  <span className="flex items-center gap-1 text-emerald-700">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Email verified
+        <div className="overflow-hidden rounded-lg border border-ink-200 bg-white">
+          {/* Cover banner */}
+          <div className="h-28 bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-700 sm:h-36" />
+
+          <div className="px-6 pb-6">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="-mt-12 flex items-end gap-4 sm:-mt-14">
+                <div className="rounded-full bg-white p-1 shadow-md">
+                  {profile.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="h-24 w-24 rounded-full object-cover sm:h-28 sm:w-28" />
+                  ) : (
+                    <TravelerAvatar seed={profile.id} size={96} />
+                  )}
+                </div>
+              </div>
+
+              {canPost && (
+                <div className="flex flex-wrap gap-2 pb-1">
+                  <button
+                    onClick={() => go('submit-program')}
+                    className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Post a job
+                  </button>
+                  <button
+                    onClick={() => go('submit-program')}
+                    className="flex items-center gap-1.5 rounded-lg bg-ink-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-ink-800"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Post a program
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-bold tracking-tight text-ink-950">{profile.full_name || 'Your profile'}</h1>
+                  {isEmailConfirmed && (
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Verified
+                    </span>
+                  )}
+                  {partnerBadge && (
+                    <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${partnerBadge.className}`}>
+                      {orgTypeLabel[publisher!.org_type]} · {partnerBadge.label}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-brand-700">
+                  <Shield className="h-4 w-4" />
+                  {availabilityLine}
+                </p>
+
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-ink-600">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4 text-ink-400" />
+                    {profileCountry?.name ?? 'Add your location'}
                   </span>
-                )}
-                {partnerBadge && (
-                  <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${partnerBadge.className}`}>
-                    {orgTypeLabel[publisher!.org_type]} · {partnerBadge.label}
+                  <span className="flex items-center gap-1.5">
+                    <Briefcase className="h-4 w-4 text-ink-400" />
+                    {profile.occupation || 'Add your occupation'}
                   </span>
-                )}
+                </div>
+              </div>
+
+              <div className="flex flex-col items-end gap-2">
+                <button
+                  onClick={() => setTab('settings')}
+                  className="rounded-lg border border-ink-200 px-4 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50"
+                >
+                  Edit profile
+                </button>
+                <div className="flex items-center gap-2 text-[11px] text-ink-400">
+                  <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ink-100">
+                    <div className="h-full rounded-full bg-brand-500" style={{ width: `${completionPct}%` }} />
+                  </div>
+                  {completionPct}% complete
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex flex-col items-end gap-2">
-            <button
-              onClick={() => setTab('settings')}
-              className="rounded-lg border border-ink-200 px-4 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50"
-            >
-              Edit profile
-            </button>
-            <div className="flex items-center gap-2 text-[11px] text-ink-400">
-              <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ink-100">
-                <div className="h-full rounded-full bg-brand-500" style={{ width: `${completionPct}%` }} />
-              </div>
-              {completionPct}% complete
+            {/* Soft info card */}
+            <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 rounded-lg bg-ink-50 px-4 py-3 text-xs text-ink-600">
+              <span><span className="font-semibold text-ink-800">Education:</span> {profile.education || '—'}</span>
+              <span><span className="font-semibold text-ink-800">Specialization:</span> {profile.specialization || '—'}</span>
+              <span><span className="font-semibold text-ink-800">Languages:</span> {profile.languages?.length ? profile.languages.join(', ') : '—'}</span>
             </div>
           </div>
         </div>
@@ -578,7 +627,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {/* PARTNER */}
         {tab === 'partner' && (
           <PartnerSection
-            go={go}
             publisher={publisher}
             loading={publisherLoading}
             countries={countries}
@@ -916,7 +964,6 @@ function SavedSection({
 }
 
 function PartnerSection({
-  go,
   publisher,
   loading,
   countries,
@@ -924,7 +971,6 @@ function PartnerSection({
   userEmail,
   onCreated,
 }: {
-  go: (view: View) => void;
   publisher: ProgramPublisher | null;
   loading: boolean;
   countries: CountryOption[];
@@ -979,20 +1025,9 @@ function PartnerSection({
           </p>
         )}
         {publisher.verification_status === 'verified' && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              onClick={() => go('submit-program')}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700"
-            >
-              Submit a program
-            </button>
-            <button
-              onClick={() => go('submit-program')}
-              className="rounded-lg border border-ink-200 px-4 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50"
-            >
-              Submit a job
-            </button>
-          </div>
+          <p className="mt-3 text-xs text-ink-500">
+            Use the "Post a job" and "Post a program" buttons at the top of your profile to submit a new listing.
+          </p>
         )}
         {canReapply && (
           <div className="mt-4">
