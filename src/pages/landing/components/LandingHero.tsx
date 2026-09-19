@@ -17,10 +17,12 @@ import type { View } from '@/types';
 import { useOriginCountry } from '@/lib/originCountry';
 import { estimateJourneyCostBreakdown } from '@/lib/costEstimates';
 import { supabase } from '@/lib/supabase';
-import { LocationMatchSection } from './LocationMatchSection';
+import { useAuth } from '@/lib/auth';
+import { LocationMatchSection, fetchMatchItems, countNewWithin24h, type MatchItem } from './LocationMatchSection';
 
 type LandingHeroProps = {
   go: (view: View) => void;
+  onAuth?: (page: 'login' | 'register') => void;
 };
 
 type Journey =
@@ -358,13 +360,14 @@ function JourneyCostEstimate({
 
 export function LandingHero({
   go,
+  onAuth,
 }: LandingHeroProps) {
   const canada =
     countries.find(
       (country) => country.code === 'CA'
     ) ?? countries[0];
 
-  const { countryCode: detectedCode, countryName: detectedName } =
+  const { countryCode: detectedCode, countryName: detectedName, setCountry } =
     useOriginCountry();
 
   const [fromCountry, setFromCountry] =
@@ -410,20 +413,27 @@ export function LandingHero({
   const [activeJourney, setActiveJourney] =
     useState<Journey>('relocation');
 
-  // Real count of published jobs + programs added in the last 48
-  // hours, shown as a "(X new)" tag on the Relocation tab.
-  const [newCount, setNewCount] = useState<number | null>(null);
+  // Fetched ONCE and shared with LocationMatchSection below (same
+  // data, same object) so the "X new" badge on the Relocation tab can
+  // never disagree with what the section actually displays.
+  const [matchItems, setMatchItems] = useState<MatchItem[] | null>(null);
 
   useEffect(() => {
-    const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-    Promise.all([
-      supabase.from('programs').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('created_at', since),
-      supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('created_at', since),
-    ]).then(([programsRes, jobsRes]) => {
-      const total = (programsRes.count ?? 0) + (jobsRes.count ?? 0);
-      setNewCount(total);
-    });
+    fetchMatchItems().then(setMatchItems);
   }, []);
+
+  const new24hCount = matchItems ? countNewWithin24h(matchItems) : 0;
+
+  const { user } = useAuth();
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+
+  const handlePostClick = (target: View) => {
+    if (user) {
+      go(target);
+    } else {
+      setShowAuthPrompt(true);
+    }
+  };
 
   const [showDestinationMenu, setShowDestinationMenu] =
     useState(false);
@@ -546,48 +556,6 @@ export function LandingHero({
 
           </div>
 
-          {/* JOURNEY OPTIONS */}
-
-          <div className="mt-9 flex flex-wrap gap-2">
-
-            {journeys.map((journey) => {
-              const Icon = journey.icon;
-
-              const active =
-                activeJourney === journey.id;
-
-              return (
-                <button
-                  key={journey.id}
-                  type="button"
-                  onClick={() =>
-                    handleJourneyChange(
-                      journey.id
-                    )
-                  }
-                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
-                    active
-                      ? 'border-white bg-white text-brand-700'
-                      : 'border-white/25 text-white/75 hover:border-white/60 hover:text-white'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {journey.label}
-                  {journey.id === 'relocation' && newCount !== null && newCount > 0 && (
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                        active ? 'bg-brand-100 text-brand-700' : 'bg-white/20 text-white'
-                      }`}
-                    >
-                      {newCount} new
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-
-          </div>
-
         </div>
 
       </section>
@@ -596,14 +564,54 @@ export function LandingHero({
 
       <section className="relative z-10 mx-auto -mt-12 max-w-6xl px-5 sm:px-8">
 
-        {activeJourney === 'relocation' ? (
-          <div className="rounded-lg border border-ink-200 bg-white p-2 shadow-xl">
-            <LocationMatchSection />
-          </div>
-        ) : (
         <div className="border border-ink-200 bg-white shadow-xl">
 
-          {/* SEARCH HEADER */}
+          {/* JOURNEY OPTIONS — now live inside the box so they stay
+              visible no matter which tab's content is showing below. */}
+
+          <div className="flex flex-wrap gap-2 border-b border-ink-100 bg-ink-950 px-5 py-4 sm:px-6">
+
+            {journeys.map((journey) => {
+              const Icon = journey.icon;
+              const active = activeJourney === journey.id;
+
+              return (
+                <button
+                  key={journey.id}
+                  type="button"
+                  onClick={() => handleJourneyChange(journey.id)}
+                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+                    active
+                      ? 'border-white bg-white text-brand-700'
+                      : 'border-white/25 text-white/75 hover:border-white/60 hover:text-white'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {journey.label}
+                  {journey.id === 'relocation' && new24hCount > 0 && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                        active ? 'bg-brand-100 text-brand-700' : 'bg-white/20 text-white'
+                      }`}
+                    >
+                      {new24hCount > 10 ? '10+' : new24hCount} new
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+
+          </div>
+
+        {activeJourney === 'relocation' ? (
+          <LocationMatchSection
+            items={matchItems}
+            originCode={detectedCode}
+            originName={detectedName}
+            setOriginCountry={setCountry}
+          />
+        ) : (
+          <>
 
           <div className="border-b border-ink-100 px-5 py-5 sm:px-6">
 
@@ -806,10 +814,70 @@ export function LandingHero({
 
           </div>
 
-        </div>
+          </>
         )}
 
+        </div>
+
       </section>
+
+      {/* POST A JOB / PROGRAM CTA */}
+
+      <section className="mx-auto max-w-6xl px-5 pt-6 sm:px-8">
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-ink-200 bg-white/60 px-5 py-6 text-center sm:flex-row sm:justify-between sm:text-left">
+          <div>
+            <p className="text-sm font-bold text-ink-900">Have a job or program to share?</p>
+            <p className="mt-0.5 text-xs text-ink-500">Reviewed within 24 hours before it goes live.</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handlePostClick('submit-program')}
+              className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              Post a Job
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePostClick('submit-program')}
+              className="rounded-lg bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-ink-800"
+            >
+              Post a Program
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {showAuthPrompt && (
+        <>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={() => setShowAuthPrompt(false)}
+            className="fixed inset-0 z-50 cursor-default bg-ink-950/50"
+          />
+          <div className="fixed left-1/2 top-1/2 z-50 w-[90vw] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 text-center shadow-2xl">
+            <p className="text-base font-bold text-ink-950">Sign up to post a listing</p>
+            <p className="mt-2 text-sm text-ink-500">
+              Create a free MadeVisa account to submit a job or program — it's reviewed within 24 hours before going live.
+            </p>
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                onClick={() => { setShowAuthPrompt(false); onAuth?.('register'); }}
+                className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
+              >
+                Create account
+              </button>
+              <button
+                onClick={() => { setShowAuthPrompt(false); onAuth?.('login'); }}
+                className="rounded-lg border border-ink-200 px-4 py-2.5 text-sm font-semibold text-ink-700 hover:bg-ink-50"
+              >
+                I already have an account
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* DESTINATIONS */}
 

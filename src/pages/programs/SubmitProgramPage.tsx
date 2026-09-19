@@ -297,7 +297,7 @@ function SubmitProgramForm({ publisher, countries }: { publisher: ProgramPublish
         <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600" />
         <h3 className="mt-3 text-sm font-bold text-emerald-900">Submitted for review</h3>
         <p className="mt-1 text-xs text-emerald-700">
-          Our team will follow up at {publisher.contact_email} if we need anything else before it goes live.
+          We review every submission within 24 hours. Our team will follow up at {publisher.contact_email} if we need anything else before it goes live.
         </p>
         <button type="button" onClick={() => setSubmitted(false)} className="mt-4 text-xs font-semibold text-emerald-700 underline">
           Submit another program
@@ -425,7 +425,7 @@ function SubmitJobForm({ publisher, countries }: { publisher: ProgramPublisher; 
         <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600" />
         <h3 className="mt-3 text-sm font-bold text-emerald-900">Submitted for review</h3>
         <p className="mt-1 text-xs text-emerald-700">
-          Our team will follow up at {publisher.contact_email} if we need anything else before it goes live.
+          We review every submission within 24 hours. Our team will follow up at {publisher.contact_email} if we need anything else before it goes live.
         </p>
         <button type="button" onClick={() => setSubmitted(false)} className="mt-4 text-xs font-semibold text-emerald-700 underline">
           Submit another job

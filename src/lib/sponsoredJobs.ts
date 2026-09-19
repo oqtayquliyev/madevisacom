@@ -41,12 +41,13 @@ export type SponsoredJob = {
   admin_notes: string | null;
   source_verified: boolean;
   needs_info_message: string | null;
+  created_at: string;
   publisher?: { id: string; name: string; org_type: OrgType; logo_url: string | null };
   country?: { id: string; name: string; iso_code: string };
 };
 
 const columns =
-  'id, publisher_id, title, description, category, employment_type, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, publisher:program_publishers(id, name, org_type, logo_url), country:countries(id, name, iso_code)';
+  'id, publisher_id, title, description, category, employment_type, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, created_at, publisher:program_publishers(id, name, org_type, logo_url), country:countries(id, name, iso_code)';
 
 export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
   return {
