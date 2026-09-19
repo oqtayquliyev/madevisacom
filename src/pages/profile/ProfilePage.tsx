@@ -15,6 +15,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  Pencil,
   Plus,
   Save,
   Settings as SettingsIcon,
@@ -29,12 +30,16 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import {
   createPublisherProfile,
+  fetchMyPrograms,
   fetchMyPublisherProfile,
   resubmitPublisherProfile,
+  updateMyProgram,
   PUBLISHING_CONTACT_EMAIL,
   type OrgType,
   type ProgramPublisher,
+  type SponsoredProgram,
 } from '@/lib/programs';
+import { fetchMySponsoredJobs, updateMySponsoredJob, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { uploadListingImage } from '@/lib/uploadImage';
 import { deleteMyAccount } from '@/lib/accountDeletion';
 import { OriginCountryProvider, useOriginCountry } from '@/lib/originCountry';
@@ -1025,9 +1030,12 @@ function PartnerSection({
           </p>
         )}
         {publisher.verification_status === 'verified' && (
-          <p className="mt-3 text-xs text-ink-500">
-            Use the "Post a job" and "Post a program" buttons at the top of your profile to submit a new listing.
-          </p>
+          <>
+            <p className="mt-3 text-xs text-ink-500">
+              Use the "Post a job" and "Post a program" buttons at the top of your profile to submit a new listing.
+            </p>
+            <MyListingsSection publisherId={publisher.id} />
+          </>
         )}
         {canReapply && (
           <div className="mt-4">
@@ -1167,6 +1175,141 @@ function PartnerSection({
         More partner types (universities, education providers, recruitment and relocation companies) are planned —
         the architecture here is built to support them without another rebuild.
       </p>
+    </div>
+  );
+}
+
+function MyListingsSection({ publisherId }: { publisherId: string }) {
+  const [programs, setPrograms] = useState<SponsoredProgram[] | null>(null);
+  const [jobs, setJobs] = useState<SponsoredJob[] | null>(null);
+
+  const load = () => {
+    Promise.all([fetchMyPrograms(publisherId), fetchMySponsoredJobs(publisherId)]).then(([p, j]) => {
+      setPrograms(p);
+      setJobs(j);
+    });
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publisherId]);
+
+  const total = (programs?.length ?? 0) + (jobs?.length ?? 0);
+  if (programs === null || jobs === null) return null;
+  if (total === 0) return null;
+
+  return (
+    <div className="mt-4 border-t border-ink-100 pt-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-ink-500">My listings ({total})</p>
+      <div className="mt-2 divide-y divide-ink-100 rounded-lg border border-ink-200 bg-white">
+        {jobs.map((j) => (
+          <MyJobListingRow key={j.id} job={j} onChange={load} />
+        ))}
+        {programs.map((p) => (
+          <MyProgramListingRow key={p.id} program={p} onChange={load} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MyProgramListingRow({ program, onChange }: { program: SponsoredProgram; onChange: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(program.title);
+  const [description, setDescription] = useState(program.description ?? '');
+  const [fundingText, setFundingText] = useState(program.funding_text ?? '');
+  const [officialUrl, setOfficialUrl] = useState(program.official_url ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    const result = await updateMyProgram(program.id, {
+      title,
+      description: description || null,
+      funding_text: fundingText || null,
+      official_url: officialUrl || null,
+    });
+    setSaving(false);
+    if (result.ok) { setEditing(false); onChange(); }
+  };
+
+  return (
+    <div className="p-3">
+      {editing ? (
+        <div className="space-y-1.5">
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-8 w-full rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500" />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" rows={2} className="w-full rounded-md border border-ink-200 px-2 py-1.5 text-xs text-ink-700 outline-none focus:border-brand-500" />
+          <input value={fundingText} onChange={(e) => setFundingText(e.target.value)} placeholder="Funding / stipend" className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
+          <input value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} placeholder="Official URL" className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
+          <p className="text-[11px] text-ink-400">Saving sends this back for admin review before it's live again.</p>
+          <div className="flex items-center gap-2">
+            <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
+            <button onClick={() => setEditing(false)} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-ink-900">{program.title}</p>
+            <p className="text-xs text-ink-500">Program · {program.status}</p>
+          </div>
+          <button onClick={() => setEditing(true)} className="flex shrink-0 items-center gap-1 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50">
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MyJobListingRow({ job, onChange }: { job: SponsoredJob; onChange: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(job.title);
+  const [description, setDescription] = useState(job.description ?? '');
+  const [compensationText, setCompensationText] = useState(job.compensation_text ?? '');
+  const [officialUrl, setOfficialUrl] = useState(job.official_url ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    const result = await updateMySponsoredJob(job.id, {
+      title,
+      description: description || null,
+      compensation_text: compensationText || null,
+      official_url: officialUrl || null,
+    });
+    setSaving(false);
+    if (result.ok) { setEditing(false); onChange(); }
+  };
+
+  return (
+    <div className="p-3">
+      {editing ? (
+        <div className="space-y-1.5">
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-8 w-full rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500" />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" rows={2} className="w-full rounded-md border border-ink-200 px-2 py-1.5 text-xs text-ink-700 outline-none focus:border-brand-500" />
+          <input value={compensationText} onChange={(e) => setCompensationText(e.target.value)} placeholder="Salary" className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
+          <input value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} placeholder="Official URL" className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
+          <p className="text-[11px] text-ink-400">Saving sends this back for admin review before it's live again.</p>
+          <div className="flex items-center gap-2">
+            <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
+            <button onClick={() => setEditing(false)} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-ink-900">{job.title}</p>
+            <p className="text-xs text-ink-500">Job · {job.status}</p>
+          </div>
+          <button onClick={() => setEditing(true)} className="flex shrink-0 items-center gap-1 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50">
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
+          </button>
+        </div>
+      )}
     </div>
   );
 }

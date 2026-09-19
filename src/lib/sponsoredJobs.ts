@@ -55,6 +55,32 @@ export async function fetchPublishedSponsoredJobs(): Promise<SponsoredJob[]> {
   return (data ?? []) as unknown as SponsoredJob[];
 }
 
+export async function fetchMySponsoredJobs(publisherId: string): Promise<SponsoredJob[]> {
+  const { data, error } = await supabase
+    .from('sponsored_jobs')
+    .select(columns)
+    .eq('publisher_id', publisherId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('fetchMySponsoredJobs failed', error);
+    return [];
+  }
+  return (data ?? []) as unknown as SponsoredJob[];
+}
+
+export async function updateMySponsoredJob(
+  id: string,
+  patch: Partial<Pick<SponsoredJob, 'title' | 'description' | 'compensation_text' | 'requirements' | 'official_url'>>
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from('sponsored_jobs').update(patch).eq('id', id);
+  if (error) {
+    console.error('updateMySponsoredJob failed', error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
 /** Fetches one published sponsored job by id — for the public job detail page. */
 export async function fetchSponsoredJobById(id: string): Promise<SponsoredJob | null> {
   const { data, error } = await supabase

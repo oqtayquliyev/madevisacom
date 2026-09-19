@@ -114,6 +114,33 @@ export async function fetchSponsoredPrograms(filters: ProgramFilters = {}): Prom
   return filters.orgType ? rows.filter((p) => p.publisher?.org_type === filters.orgType) : rows;
 }
 
+export async function fetchMyPrograms(publisherId: string): Promise<SponsoredProgram[]> {
+  const { data, error } = await supabase
+    .from('programs')
+    .select(
+      'id, publisher_id, title, description, category, country_id, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, applications_open_at, applications_close_at, funding_text, requirements, spots_available, image_url, official_url, contact_email, status, publisher:program_publishers(id, name, org_type, logo_url, verification_status), country:countries(id, name, iso_code)'
+    )
+    .eq('publisher_id', publisherId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('fetchMyPrograms failed', error);
+    return [];
+  }
+  return (data ?? []) as unknown as SponsoredProgram[];
+}
+
+export async function updateMyProgram(
+  id: string,
+  patch: Partial<Pick<SponsoredProgram, 'title' | 'description' | 'funding_text' | 'requirements' | 'official_url' | 'spots_available'>>
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from('programs').update(patch).eq('id', id);
+  if (error) {
+    console.error('updateMyProgram failed', error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
 export async function fetchMyPublisherProfile(userId: string): Promise<ProgramPublisher | null> {
   const { data, error } = await supabase
     .from('program_publishers')

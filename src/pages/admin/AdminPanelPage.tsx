@@ -1,21 +1,33 @@
 import { useEffect, useState } from 'react';
-import { Briefcase, Building2, Check, Landmark, Pencil, ShieldAlert, UserRound, X } from 'lucide-react';
+import { Briefcase, Building2, Check, Landmark, Pencil, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSeo } from '@/lib/seo';
 import {
+  fetchAdmins,
+  fetchAllPrograms,
+  fetchAllSponsoredJobs,
   fetchPendingAgencies,
   fetchPendingPrograms,
   fetchPendingPublishers,
   fetchPendingSponsoredJobs,
   fetchVerifiedAgencies,
   fetchVerifiedPublishers,
+  deleteProgram,
+  deleteSponsoredJob,
+  grantAdminByEmail,
+  revokeAdminByEmail,
   setAgencyStatus,
   setProgramStatus,
   setPublisherStatus,
   setSponsoredJobStatus,
   updateAgencyName,
+  updateProgramAsAdmin,
   updatePublisherContactEmail,
   updatePublisherName,
+  updateSponsoredJobAsAdmin,
+  type AdminProfile,
+  type AdminProgram,
+  type AdminSponsoredJob,
   type PendingAgency,
   type PendingProgram,
   type PendingPublisher,
@@ -50,6 +62,9 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
   const [pendingJobs, setPendingJobs] = useState<PendingSponsoredJob[]>([]);
   const [pendingAgencies, setPendingAgencies] = useState<PendingAgency[]>([]);
   const [verifiedAgencies, setVerifiedAgencies] = useState<PendingAgency[]>([]);
+  const [admins, setAdmins] = useState<AdminProfile[]>([]);
+  const [allPrograms, setAllPrograms] = useState<AdminProgram[]>([]);
+  const [allJobs, setAllJobs] = useState<AdminSponsoredJob[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
   const isAdmin = profile?.role === 'admin';
@@ -63,13 +78,19 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
       fetchPendingSponsoredJobs(),
       fetchPendingAgencies(),
       fetchVerifiedAgencies(),
-    ]).then(([pp, vp, prog, jobs, pa, va]) => {
+      fetchAdmins(),
+      fetchAllPrograms(),
+      fetchAllSponsoredJobs(),
+    ]).then(([pp, vp, prog, jobs, pa, va, adm, allProg, allJ]) => {
       setPendingPublishers(pp);
       setVerifiedPublishers(vp);
       setPendingPrograms(prog);
       setPendingJobs(jobs);
       setPendingAgencies(pa);
       setVerifiedAgencies(va);
+      setAdmins(adm);
+      setAllPrograms(allProg);
+      setAllJobs(allJ);
       setDataLoading(false);
     });
   };
@@ -110,6 +131,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
           <p className="mt-8 text-sm text-ink-400">Loading…</p>
         ) : (
           <>
+            <AdminAccessSection admins={admins} currentEmail={profile?.email ?? ''} onChange={loadAll} />
+
             <Section title="Pending publisher accounts" count={pendingPublishers.length}>
               {pendingPublishers.map((p) => (
                 <PublisherRow key={p.id} p={p} onChange={loadAll}>
@@ -168,6 +191,18 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                     onReject={async () => { if (await setSponsoredJobStatus(j.id, 'rejected')) loadAll(); }}
                   />
                 </Row>
+              ))}
+            </Section>
+
+            <Section title="All sponsored programs" count={allPrograms.length}>
+              {allPrograms.map((p) => (
+                <EditableProgramRow key={p.id} p={p} onChange={loadAll} />
+              ))}
+            </Section>
+
+            <Section title="All sponsored jobs" count={allJobs.length}>
+              {allJobs.map((j) => (
+                <EditableJobRow key={j.id} j={j} onChange={loadAll} />
               ))}
             </Section>
 
@@ -304,6 +339,224 @@ function AgencyRow({ a, onChange, children }: { a: PendingAgency; onChange: () =
       </div>
       {children}
     </Row>
+  );
+}
+
+function AdminAccessSection({ admins, currentEmail, onChange }: { admins: AdminProfile[]; currentEmail: string; onChange: () => void }) {
+  const [email, setEmail] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const grant = async () => {
+    if (!email.trim()) return;
+    setSaving(true);
+    setError(null);
+    const result = await grantAdminByEmail(email);
+    setSaving(false);
+    if (result.ok) {
+      setEmail('');
+      onChange();
+    } else {
+      setError(result.error ?? 'Could not grant admin access.');
+    }
+  };
+
+  const revoke = async (targetEmail: string) => {
+    if (!window.confirm(`Remove admin access for ${targetEmail}?`)) return;
+    const result = await revokeAdminByEmail(targetEmail);
+    if (result.ok) onChange();
+    else window.alert(result.error ?? 'Could not revoke admin access.');
+  };
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">
+        Admin access <span className="text-ink-400">({admins.length})</span>
+      </h2>
+
+      <div className="mt-3 border border-ink-200 bg-white p-4">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="person@example.com"
+            className="h-10 flex-1 rounded-md border border-ink-200 px-3 text-sm text-ink-900 outline-none focus:border-brand-500"
+          />
+          <button
+            onClick={grant}
+            disabled={saving || !email.trim()}
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            <ShieldPlus className="h-4 w-4" />
+            Grant admin access
+          </button>
+        </div>
+        {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
+        <p className="mt-2 text-xs text-ink-400">
+          The email must already have a MadeVisa account. They'll get full admin access immediately.
+        </p>
+
+        {admins.length > 0 && (
+          <div className="mt-4 divide-y divide-ink-100 border-t border-ink-100 pt-3">
+            {admins.map((a) => (
+              <div key={a.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink-900">{a.full_name || 'Unnamed'}</p>
+                  <p className="truncate text-xs text-ink-500">{a.email}</p>
+                </div>
+                {a.email !== currentEmail && (
+                  <button
+                    onClick={() => revoke(a.email)}
+                    className="shrink-0 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
+                  >
+                    Revoke
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function EditableProgramRow({ p, onChange }: { p: AdminProgram; onChange: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(p.title);
+  const [description, setDescription] = useState(p.description ?? '');
+  const [fundingText, setFundingText] = useState(p.funding_text ?? '');
+  const [officialUrl, setOfficialUrl] = useState(p.official_url ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    const ok = await updateProgramAsAdmin(p.id, {
+      title,
+      description: description || null,
+      funding_text: fundingText || null,
+      official_url: officialUrl || null,
+    });
+    setSaving(false);
+    if (ok) { setEditing(false); onChange(); }
+  };
+
+  const remove = async () => {
+    if (!window.confirm(`Delete "${p.title}"? This can't be undone.`)) return;
+    if (await deleteProgram(p.id)) onChange();
+  };
+
+  return (
+    <Row>
+      <div className="min-w-0 flex-1">
+        {editing ? (
+          <div className="space-y-1.5">
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-8 w-full rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500" />
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" rows={2} className="w-full rounded-md border border-ink-200 px-2 py-1.5 text-xs text-ink-700 outline-none focus:border-brand-500" />
+            <input value={fundingText} onChange={(e) => setFundingText(e.target.value)} placeholder="Funding / stipend" className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
+            <input value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} placeholder="Official URL" className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
+            <div className="flex items-center gap-2">
+              <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
+              <button onClick={() => setEditing(false)} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
+              {p.title}
+              <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600">
+                <Pencil className="h-3 w-3" />
+              </button>
+              <StatusPill status={p.status} />
+            </p>
+            <p className="text-xs text-ink-500">
+              {p.category} · {p.publisher?.name ?? 'Unknown publisher'}{p.country ? ` · ${p.country.name}` : ''}
+            </p>
+          </>
+        )}
+      </div>
+      <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600">
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </Row>
+  );
+}
+
+function EditableJobRow({ j, onChange }: { j: AdminSponsoredJob; onChange: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(j.title);
+  const [description, setDescription] = useState(j.description ?? '');
+  const [compensationText, setCompensationText] = useState(j.compensation_text ?? '');
+  const [officialUrl, setOfficialUrl] = useState(j.official_url ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    const ok = await updateSponsoredJobAsAdmin(j.id, {
+      title,
+      description: description || null,
+      compensation_text: compensationText || null,
+      official_url: officialUrl || null,
+    });
+    setSaving(false);
+    if (ok) { setEditing(false); onChange(); }
+  };
+
+  const remove = async () => {
+    if (!window.confirm(`Delete "${j.title}"? This can't be undone.`)) return;
+    if (await deleteSponsoredJob(j.id)) onChange();
+  };
+
+  return (
+    <Row>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500">
+        <Briefcase className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        {editing ? (
+          <div className="space-y-1.5">
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-8 w-full rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500" />
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" rows={2} className="w-full rounded-md border border-ink-200 px-2 py-1.5 text-xs text-ink-700 outline-none focus:border-brand-500" />
+            <input value={compensationText} onChange={(e) => setCompensationText(e.target.value)} placeholder="Salary" className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
+            <input value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} placeholder="Official URL" className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
+            <div className="flex items-center gap-2">
+              <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
+              <button onClick={() => setEditing(false)} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
+              {j.title}
+              <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600">
+                <Pencil className="h-3 w-3" />
+              </button>
+              <StatusPill status={j.status} />
+            </p>
+            <p className="text-xs text-ink-500">
+              {j.employment_type} · {j.publisher?.name ?? 'Unknown publisher'}{j.country ? ` · ${j.country.name}` : ''}
+            </p>
+          </>
+        )}
+      </div>
+      <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600">
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </Row>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    published: 'bg-emerald-50 text-emerald-700',
+    pending: 'bg-amber-50 text-amber-700',
+    rejected: 'bg-rose-50 text-rose-700',
+  };
+  return (
+    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${styles[status] ?? 'bg-ink-50 text-ink-500'}`}>
+      {status}
+    </span>
   );
 }
 

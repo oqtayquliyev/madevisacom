@@ -130,6 +130,127 @@ export async function fetchVerifiedAgencies(): Promise<PendingAgency[]> {
   return data ?? [];
 }
 
+export type AdminProfile = {
+  id: string;
+  full_name: string | null;
+  email: string;
+};
+
+export type AdminProgram = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  status: string;
+  created_at: string;
+  funding_text: string | null;
+  requirements: string | null;
+  official_url: string | null;
+  spots_available: number | null;
+  publisher?: { name: string; org_type: OrgType } | null;
+  country?: { name: string; iso_code: string } | null;
+};
+
+export type AdminSponsoredJob = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  employment_type: string;
+  remote: boolean;
+  status: string;
+  created_at: string;
+  compensation_text: string | null;
+  requirements: string | null;
+  official_url: string | null;
+  publisher?: { name: string; org_type: OrgType } | null;
+  country?: { name: string; iso_code: string } | null;
+};
+
+const adminProgramColumns =
+  'id, title, description, category, status, created_at, funding_text, requirements, official_url, spots_available, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+const adminSponsoredJobColumns =
+  'id, title, description, category, employment_type, remote, status, created_at, compensation_text, requirements, official_url, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+
+export async function fetchAllPrograms(): Promise<AdminProgram[]> {
+  const { data, error } = await supabase
+    .from('programs')
+    .select(adminProgramColumns)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('fetchAllPrograms failed', error);
+    return [];
+  }
+  return (data ?? []) as unknown as AdminProgram[];
+}
+
+export async function fetchAllSponsoredJobs(): Promise<AdminSponsoredJob[]> {
+  const { data, error } = await supabase
+    .from('sponsored_jobs')
+    .select(adminSponsoredJobColumns)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('fetchAllSponsoredJobs failed', error);
+    return [];
+  }
+  return (data ?? []) as unknown as AdminSponsoredJob[];
+}
+
+export async function updateProgramAsAdmin(
+  id: string,
+  patch: Partial<Pick<AdminProgram, 'title' | 'description' | 'category' | 'funding_text' | 'requirements' | 'official_url' | 'spots_available' | 'status'>>
+) {
+  const { error } = await supabase.from('programs').update(patch).eq('id', id);
+  if (error) console.error('updateProgramAsAdmin failed', error);
+  return !error;
+}
+
+export async function updateSponsoredJobAsAdmin(
+  id: string,
+  patch: Partial<Pick<AdminSponsoredJob, 'title' | 'description' | 'category' | 'employment_type' | 'remote' | 'compensation_text' | 'requirements' | 'official_url' | 'status'>>
+) {
+  const { error } = await supabase.from('sponsored_jobs').update(patch).eq('id', id);
+  if (error) console.error('updateSponsoredJobAsAdmin failed', error);
+  return !error;
+}
+
+export async function deleteProgram(id: string) {
+  const { error } = await supabase.from('programs').delete().eq('id', id);
+  if (error) console.error('deleteProgram failed', error);
+  return !error;
+}
+
+export async function deleteSponsoredJob(id: string) {
+  const { error } = await supabase.from('sponsored_jobs').delete().eq('id', id);
+  if (error) console.error('deleteSponsoredJob failed', error);
+  return !error;
+}
+
+export async function fetchAdmins(): Promise<AdminProfile[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .eq('role', 'admin')
+    .order('full_name', { ascending: true });
+  if (error) {
+    console.error('fetchAdmins failed', error);
+    return [];
+  }
+  return data ?? [];
+}
+
+export async function grantAdminByEmail(email: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.rpc('grant_admin_by_email', { target_email: email.trim().toLowerCase() });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function revokeAdminByEmail(email: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.rpc('revoke_admin_by_email', { target_email: email.trim().toLowerCase() });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 export async function setPublisherStatus(id: string, status: 'verified' | 'rejected' | 'suspended' | 'pending') {
   const { error } = await supabase.from('program_publishers').update({ verification_status: status }).eq('id', id);
   if (error) console.error('setPublisherStatus failed', error);
