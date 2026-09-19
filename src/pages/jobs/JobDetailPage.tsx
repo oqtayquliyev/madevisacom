@@ -39,6 +39,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       : 'View this job listing on MadeVisa, including requirements and how to apply.',
     path: `/jobs/${id}`,
     noindex: job === null,
+    ogImage: job?.imageUrl ?? undefined,
   });
 
   const share = async () => {
@@ -109,6 +110,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">{job.category}</span>
               <span className="rounded-full bg-ink-100 px-2.5 py-1 text-[11px] font-semibold text-ink-600">{job.type}</span>
               {job.remote && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Remote</span>}
+              {job.visaSponsorship && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700">Visa sponsorship</span>}
               <EligibilityBadge result={eligibility} />
             </div>
 
@@ -137,6 +139,13 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               <div className="mt-6 rounded-lg bg-ink-50 p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Requirements &amp; limits</p>
                 <p className="mt-1.5 text-sm leading-6 text-ink-700">{job.requirements}</p>
+              </div>
+            )}
+
+            {job.benefits && (
+              <div className="mt-4 rounded-lg bg-emerald-50/60 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Benefits</p>
+                <p className="mt-1.5 text-sm leading-6 text-ink-700">{job.benefits}</p>
               </div>
             )}
 

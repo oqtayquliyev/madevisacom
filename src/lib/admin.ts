@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { OrgType } from '@/lib/programs';
+import type { ListingStatus, SalaryStatus, SalaryPeriod, CostStatus } from '@/lib/listingCategories';
 
 export type PendingPublisher = {
   id: string;
@@ -141,12 +142,33 @@ export type AdminProgram = {
   title: string;
   description: string | null;
   category: string;
-  status: string;
+  status: ListingStatus;
   created_at: string;
+  country_id: string | null;
+  city: string | null;
+  duration_text: string | null;
+  eligibility_notes: string | null;
+  benefits: string | null;
   funding_text: string | null;
+  cost_status: CostStatus;
+  cost_amount_min: number | null;
+  cost_amount_max: number | null;
+  cost_currency: string;
   requirements: string | null;
   official_url: string | null;
+  application_url: string | null;
+  image_url: string | null;
   spots_available: number | null;
+  citizenship_any: boolean;
+  citizenship_allowed: string[] | null;
+  min_age: number | null;
+  max_age: number | null;
+  applications_open_at: string | null;
+  applications_close_at: string | null;
+  admin_notes: string | null;
+  source_verified: boolean;
+  needs_info_message: string | null;
+  contact_email: string;
   publisher?: { name: string; org_type: OrgType } | null;
   country?: { name: string; iso_code: string } | null;
 };
@@ -158,19 +180,42 @@ export type AdminSponsoredJob = {
   category: string;
   employment_type: string;
   remote: boolean;
-  status: string;
+  status: ListingStatus;
   created_at: string;
+  country_id: string | null;
+  city: string | null;
   compensation_text: string | null;
+  salary_status: SalaryStatus;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string;
+  salary_period: SalaryPeriod;
+  visa_sponsorship: boolean;
+  experience_level: string | null;
+  education_level: string | null;
+  languages: string[] | null;
+  application_deadline: string | null;
+  benefits: string | null;
   requirements: string | null;
   official_url: string | null;
+  application_url: string | null;
+  image_url: string | null;
+  citizenship_any: boolean;
+  citizenship_allowed: string[] | null;
+  min_age: number | null;
+  max_age: number | null;
+  admin_notes: string | null;
+  source_verified: boolean;
+  needs_info_message: string | null;
+  contact_email: string;
   publisher?: { name: string; org_type: OrgType } | null;
   country?: { name: string; iso_code: string } | null;
 };
 
 const adminProgramColumns =
-  'id, title, description, category, status, created_at, funding_text, requirements, official_url, spots_available, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, description, category, status, created_at, country_id, city, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, official_url, application_url, image_url, spots_available, citizenship_any, citizenship_allowed, min_age, max_age, applications_open_at, applications_close_at, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const adminSponsoredJobColumns =
-  'id, title, description, category, employment_type, remote, status, created_at, compensation_text, requirements, official_url, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, description, category, employment_type, remote, status, created_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 
 export async function fetchAllPrograms(): Promise<AdminProgram[]> {
   const { data, error } = await supabase
@@ -196,19 +241,13 @@ export async function fetchAllSponsoredJobs(): Promise<AdminSponsoredJob[]> {
   return (data ?? []) as unknown as AdminSponsoredJob[];
 }
 
-export async function updateProgramAsAdmin(
-  id: string,
-  patch: Partial<Pick<AdminProgram, 'title' | 'description' | 'category' | 'funding_text' | 'requirements' | 'official_url' | 'spots_available' | 'status'>>
-) {
+export async function updateProgramAsAdmin(id: string, patch: Partial<AdminProgram>) {
   const { error } = await supabase.from('programs').update(patch).eq('id', id);
   if (error) console.error('updateProgramAsAdmin failed', error);
   return !error;
 }
 
-export async function updateSponsoredJobAsAdmin(
-  id: string,
-  patch: Partial<Pick<AdminSponsoredJob, 'title' | 'description' | 'category' | 'employment_type' | 'remote' | 'compensation_text' | 'requirements' | 'official_url' | 'status'>>
-) {
+export async function updateSponsoredJobAsAdmin(id: string, patch: Partial<AdminSponsoredJob>) {
   const { error } = await supabase.from('sponsored_jobs').update(patch).eq('id', id);
   if (error) console.error('updateSponsoredJobAsAdmin failed', error);
   return !error;
@@ -269,13 +308,13 @@ export async function updatePublisherContactEmail(id: string, contactEmail: stri
   return !error;
 }
 
-export async function setProgramStatus(id: string, status: 'published' | 'rejected') {
+export async function setProgramStatus(id: string, status: ListingStatus) {
   const { error } = await supabase.from('programs').update({ status }).eq('id', id);
   if (error) console.error('setProgramStatus failed', error);
   return !error;
 }
 
-export async function setSponsoredJobStatus(id: string, status: 'published' | 'rejected') {
+export async function setSponsoredJobStatus(id: string, status: ListingStatus) {
   const { error } = await supabase.from('sponsored_jobs').update({ status }).eq('id', id);
   if (error) console.error('setSponsoredJobStatus failed', error);
   return !error;

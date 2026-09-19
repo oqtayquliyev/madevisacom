@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { PUBLISHING_CONTACT_EMAIL, type OrgType } from '@/lib/programs';
 import type { EligibilityCriteria } from '@/lib/personalization';
+import { formatSalary, type ListingStatus, type SalaryStatus, type SalaryPeriod } from '@/lib/listingCategories';
 
 export type SponsoredJob = {
   id: string;
@@ -11,7 +12,19 @@ export type SponsoredJob = {
   employment_type: string;
   remote: boolean;
   country_id: string | null;
+  city: string | null;
   compensation_text: string | null;
+  salary_status: SalaryStatus;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string;
+  salary_period: SalaryPeriod;
+  visa_sponsorship: boolean;
+  experience_level: string | null;
+  education_level: string | null;
+  languages: string[] | null;
+  application_deadline: string | null;
+  benefits: string | null;
   requirements: string | null;
   spots_available: number | null;
   image_url: string | null;
@@ -21,14 +34,19 @@ export type SponsoredJob = {
   min_age: number | null;
   max_age: number | null;
   official_url: string | null;
+  application_url: string | null;
   contact_email: string;
-  status: 'pending' | 'published' | 'rejected';
+  status: ListingStatus;
+  // Admin-only — never surfaced in public UI.
+  admin_notes: string | null;
+  source_verified: boolean;
+  needs_info_message: string | null;
   publisher?: { id: string; name: string; org_type: OrgType; logo_url: string | null };
   country?: { id: string; name: string; iso_code: string };
 };
 
 const columns =
-  'id, publisher_id, title, description, category, employment_type, remote, country_id, compensation_text, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, contact_email, status, publisher:program_publishers(id, name, org_type, logo_url), country:countries(id, name, iso_code)';
+  'id, publisher_id, title, description, category, employment_type, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, publisher:program_publishers(id, name, org_type, logo_url), country:countries(id, name, iso_code)';
 
 export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
   return {
@@ -111,7 +129,7 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     country: job.country?.name ?? 'Various',
     countryCode: job.country?.iso_code ?? '',
     city: job.remote ? 'Remote' : (job.country?.name ?? ''),
-    salary: job.compensation_text ?? undefined,
+    salary: formatSalary(job) ?? undefined,
     type: job.employment_type,
     remote: job.remote,
     category: job.category,
@@ -123,6 +141,8 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     publisherOrgType: job.publisher?.org_type,
     description: job.description,
     requirements: job.requirements,
+    benefits: job.benefits,
+    visaSponsorship: job.visa_sponsorship,
     spotsAvailable: job.spots_available,
     imageUrl: job.image_url,
   };
@@ -136,6 +156,7 @@ export type SubmitSponsoredJobInput = {
   employmentType: string;
   remote: boolean;
   countryId?: string;
+  city?: string;
   compensationText?: string;
   requirements?: string;
   spotsAvailable?: number;
@@ -159,6 +180,7 @@ export async function submitSponsoredJob(input: SubmitSponsoredJobInput): Promis
     employment_type: input.employmentType,
     remote: input.remote,
     country_id: input.countryId || null,
+    city: input.city || null,
     compensation_text: input.compensationText || null,
     requirements: input.requirements || null,
     spots_available: input.spotsAvailable ?? null,

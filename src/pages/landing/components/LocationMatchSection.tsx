@@ -18,6 +18,7 @@ import {
 import { useOriginCountry } from '@/lib/originCountry';
 import { allCountries } from '@/data/allCountries';
 import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/costEstimates';
+import { formatCost } from '@/lib/listingCategories';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { fetchSponsoredPrograms } from '@/lib/programs';
 import type { Job } from '@/data/jobs';
@@ -150,7 +151,7 @@ export function LocationMatchSection() {
         countryCode: p.country?.iso_code ?? '',
         countryName: p.country?.name ?? 'Various',
         category: p.category,
-        funding: p.funding_text,
+        funding: formatCost(p),
       }));
       const combined: Item[] = [];
       const max = Math.max(jobItems.length, programItems.length);

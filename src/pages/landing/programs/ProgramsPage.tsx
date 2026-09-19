@@ -26,6 +26,7 @@ import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { PersonalizationBar, EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
+import { formatCost } from '@/lib/listingCategories';
 
 type ProgramsPageProps = {
   go: (view: View) => void;
@@ -111,10 +112,10 @@ function ProgramCard({ program, goToProgram }: { program: SponsoredProgram; goTo
         )}
       </div>
 
-      {program.funding_text && (
+      {formatCost(program) && (
         <div className="mt-4">
-          <p className="text-xs text-ink-400">Funding</p>
-          <p className="mt-0.5 text-sm font-bold text-ink-900">{program.funding_text}</p>
+          <p className="text-xs text-ink-400">Cost / funding</p>
+          <p className="mt-0.5 text-sm font-bold text-ink-900">{formatCost(program)}</p>
         </div>
       )}
 

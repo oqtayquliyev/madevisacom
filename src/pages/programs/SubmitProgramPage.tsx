@@ -17,6 +17,7 @@ import {
 import { submitSponsoredJob } from '@/lib/sponsoredJobs';
 import { ImageUploadField } from '@/components/common/ImageUploadField';
 import { useSeo } from '@/lib/seo';
+import { JOB_CATEGORIES, PROGRAM_CATEGORIES, type JobCategory, type ProgramCategory } from '@/lib/listingCategories';
 
 type SubmitProgramPageProps = {
   go: (view: View) => void;
@@ -134,9 +135,9 @@ export function SubmitProgramPage({ go, onAuth }: SubmitProgramPageProps) {
                 </button>
               </div>
               {listingType === 'program' ? (
-                <SubmitProgramForm publisher={publisher} countries={countries} userId={user.id} />
+                <SubmitProgramForm publisher={publisher} countries={countries} />
               ) : (
-                <SubmitJobForm publisher={publisher} countries={countries} userId={user.id} />
+                <SubmitJobForm publisher={publisher} countries={countries} />
               )}
             </>
           )}
@@ -239,64 +240,53 @@ function CreatePublisherForm({
     </div>
   );
 }
-
-function EligibilityFields({
-  citizenshipAny, setCitizenshipAny,
-  citizenshipCodes, setCitizenshipCodes,
-  minAge, setMinAge,
-  maxAge, setMaxAge,
+/**
+ * Large textarea with a live character counter instead of a hard,
+ * silent cutoff — pasting long text is never truncated without the
+ * person seeing exactly what's happening.
+ */
+function CharLimitedTextarea({
+  label,
+  value,
+  onChange,
+  placeholder,
+  maxLength,
+  rows = 4,
 }: {
-  citizenshipAny: boolean; setCitizenshipAny: (v: boolean) => void;
-  citizenshipCodes: string; setCitizenshipCodes: (v: string) => void;
-  minAge: string; setMinAge: (v: string) => void;
-  maxAge: string; setMaxAge: (v: string) => void;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  maxLength: number;
+  rows?: number;
 }) {
+  const remaining = maxLength - value.length;
   return (
-    <>
-      <div>
-        <label className="flex items-center gap-2 text-xs font-semibold text-ink-500">
-          <input type="checkbox" checked={citizenshipAny} onChange={(e) => setCitizenshipAny(e.target.checked)} />
-          Open to all citizenships
-        </label>
-        {!citizenshipAny && (
-          <input
-            value={citizenshipCodes}
-            onChange={(e) => setCitizenshipCodes(e.target.value)}
-            placeholder="Country codes, comma-separated (e.g. AZ, TR, GE)"
-            className={`${inputClass} mt-2`}
-          />
-        )}
+    <div>
+      <div className="mb-1.5 flex items-center justify-between">
+        <label className={labelClass.replace('mb-1.5 ', '')}>{label}</label>
+        <span className={`text-[11px] font-medium ${remaining < 0 ? 'text-rose-600' : 'text-ink-400'}`}>
+          {remaining < 0 ? `${Math.abs(remaining)} over limit` : `${remaining} characters left`}
+        </span>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className={labelClass}>Min age</label>
-          <input type="number" value={minAge} onChange={(e) => setMinAge(e.target.value)} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>Max age</label>
-          <input type="number" value={maxAge} onChange={(e) => setMaxAge(e.target.value)} className={inputClass} />
-        </div>
-      </div>
-    </>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        className="w-full rounded-lg border border-ink-200 bg-white p-3 text-sm font-medium leading-6 text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+      />
+    </div>
   );
 }
 
-function SubmitProgramForm({ publisher, countries, userId }: { publisher: ProgramPublisher; countries: CountryOption[]; userId: string }) {
+function SubmitProgramForm({ publisher, countries }: { publisher: ProgramPublisher; countries: CountryOption[] }) {
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Scholarship');
+  const [category, setCategory] = useState<ProgramCategory>('Scholarship');
   const [countryId, setCountryId] = useState('');
-  const [citizenshipAny, setCitizenshipAny] = useState(true);
-  const [citizenshipCodes, setCitizenshipCodes] = useState('');
-  const [minAge, setMinAge] = useState('');
-  const [maxAge, setMaxAge] = useState('');
-  const [opensAt, setOpensAt] = useState('');
-  const [closesAt, setClosesAt] = useState('');
-  const [funding, setFunding] = useState('');
-  const [requirements, setRequirements] = useState('');
-  const [spots, setSpots] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [url, setUrl] = useState('');
+  const [city, setCity] = useState('');
+  const [description, setDescription] = useState('');
+  const [officialUrl, setOfficialUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -307,7 +297,7 @@ function SubmitProgramForm({ publisher, countries, userId }: { publisher: Progra
         <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600" />
         <h3 className="mt-3 text-sm font-bold text-emerald-900">Submitted for review</h3>
         <p className="mt-1 text-xs text-emerald-700">
-          We'll reach out from {PUBLISHING_CONTACT_EMAIL} once it's approved and published.
+          Our team will follow up at {publisher.contact_email} if we need anything else before it goes live.
         </p>
         <button type="button" onClick={() => setSubmitted(false)} className="mt-4 text-xs font-semibold text-emerald-700 underline">
           Submit another program
@@ -317,10 +307,10 @@ function SubmitProgramForm({ publisher, countries, userId }: { publisher: Progra
   }
 
   const submit = async () => {
-    if (!title.trim()) {
-      setError('Title is required.');
-      return;
-    }
+    if (!title.trim()) return setError('Program title is required.');
+    if (!countryId) return setError('Destination country is required.');
+    if (description.length > 800) return setError('Description is over the character limit — please shorten it.');
+
     setSubmitting(true);
     setError(null);
 
@@ -330,24 +320,16 @@ function SubmitProgramForm({ publisher, countries, userId }: { publisher: Progra
       description,
       category,
       countryId,
-      citizenshipAny,
-      citizenshipAllowed: citizenshipAny ? undefined : citizenshipCodes.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean),
-      minAge: minAge ? Number(minAge) : undefined,
-      maxAge: maxAge ? Number(maxAge) : undefined,
-      applicationsOpenAt: opensAt || undefined,
-      applicationsCloseAt: closesAt || undefined,
-      fundingText: funding,
-      requirements,
-      spotsAvailable: spots ? Number(spots) : undefined,
-      imageUrl,
-      officialUrl: url,
+      city: city || undefined,
+      citizenshipAny: true,
+      officialUrl,
       contactEmail: publisher.contact_email,
     });
 
     setSubmitting(false);
     if (result.ok) {
       setSubmitted(true);
-      setTitle(''); setDescription(''); setFunding(''); setRequirements(''); setSpots(''); setImageUrl(''); setUrl('');
+      setTitle(''); setDescription(''); setCity(''); setOfficialUrl('');
     } else {
       setError(result.error ?? 'Something went wrong — please try again.');
     }
@@ -359,28 +341,21 @@ function SubmitProgramForm({ publisher, countries, userId }: { publisher: Progra
         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
         Publishing as {publisher.name} ({publisher.org_type})
       </div>
+      <p className="mt-2 text-xs text-ink-400">
+        Just the essentials for now — our team will reach out to fill in the rest and verify everything before it goes live.
+      </p>
 
       <div className="mt-4 space-y-4">
         <div>
           <label className={labelClass}>Program title</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. National STEM Scholarship" className={inputClass} />
-        </div>
-
-        <div>
-          <label className={labelClass}>Description</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="w-full rounded-lg border border-ink-200 bg-white p-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. DAAD Scholarship for Master's Students" className={inputClass} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Category</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass}>
-              {['Scholarship', 'Work & Travel', 'Exchange', 'Apprenticeship', 'Investor Program', 'Cultural Exchange', 'General'].map((c) => (
+            <select value={category} onChange={(e) => setCategory(e.target.value as ProgramCategory)} className={inputClass}>
+              {PROGRAM_CATEGORIES.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -396,50 +371,24 @@ function SubmitProgramForm({ publisher, countries, userId }: { publisher: Progra
           </div>
         </div>
 
-        <EligibilityFields
-          citizenshipAny={citizenshipAny} setCitizenshipAny={setCitizenshipAny}
-          citizenshipCodes={citizenshipCodes} setCitizenshipCodes={setCitizenshipCodes}
-          minAge={minAge} setMinAge={setMinAge}
-          maxAge={maxAge} setMaxAge={setMaxAge}
+        <div>
+          <label className={labelClass}>City (optional)</label>
+          <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Leave blank if nationwide" className={inputClass} />
+        </div>
+
+        <CharLimitedTextarea
+          label="Short description"
+          value={description}
+          onChange={setDescription}
+          placeholder="A couple of sentences on what this program offers and who it's for."
+          maxLength={800}
+          rows={4}
         />
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>Applications open</label>
-            <input type="date" value={opensAt} onChange={(e) => setOpensAt(e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className={labelClass}>Applications close</label>
-            <input type="date" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} className={inputClass} />
-          </div>
-        </div>
-
         <div>
-          <label className={labelClass}>Funding / stipend (optional)</label>
-          <input value={funding} onChange={(e) => setFunding(e.target.value)} placeholder="e.g. Full tuition + $900/mo stipend" className={inputClass} />
-        </div>
-
-        <div>
-          <label className={labelClass}>Specific requirements or limits</label>
-          <textarea
-            value={requirements}
-            onChange={(e) => setRequirements(e.target.value)}
-            rows={2}
-            placeholder="e.g. IELTS 6.5+ required, first-come-first-served, must apply within 30 days of arrival"
-            className="w-full rounded-lg border border-ink-200 bg-white p-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          />
-        </div>
-
-        <div>
-          <label className={labelClass}>Spots available (optional)</label>
-          <input type="number" value={spots} onChange={(e) => setSpots(e.target.value)} placeholder="Leave blank for unlimited" className={inputClass} />
-        </div>
-
-        <ImageUploadField userId={userId} value={imageUrl} onChange={setImageUrl} />
-
-        <div>
-          <label className={labelClass}>Official program URL</label>
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" className={inputClass} />
+          <label className={labelClass}>Official source URL (optional)</label>
+          <input type="url" value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} placeholder="https://" className={inputClass} />
+          <p className="mt-1 text-[11px] text-ink-400">Helps us verify faster — a government page, university page, or your own program page.</p>
         </div>
       </div>
 
@@ -458,22 +407,14 @@ function SubmitProgramForm({ publisher, countries, userId }: { publisher: Progra
   );
 }
 
-function SubmitJobForm({ publisher, countries, userId }: { publisher: ProgramPublisher; countries: CountryOption[]; userId: string }) {
+function SubmitJobForm({ publisher, countries }: { publisher: ProgramPublisher; countries: CountryOption[] }) {
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Technology');
-  const [employmentType, setEmploymentType] = useState('Full time');
-  const [remote, setRemote] = useState(false);
+  const [category, setCategory] = useState<JobCategory>('Full time');
   const [countryId, setCountryId] = useState('');
-  const [citizenshipAny, setCitizenshipAny] = useState(true);
-  const [citizenshipCodes, setCitizenshipCodes] = useState('');
-  const [minAge, setMinAge] = useState('');
-  const [maxAge, setMaxAge] = useState('');
-  const [compensation, setCompensation] = useState('');
-  const [requirements, setRequirements] = useState('');
-  const [spots, setSpots] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [url, setUrl] = useState('');
+  const [city, setCity] = useState('');
+  const [remote, setRemote] = useState(false);
+  const [description, setDescription] = useState('');
+  const [officialUrl, setOfficialUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -484,7 +425,7 @@ function SubmitJobForm({ publisher, countries, userId }: { publisher: ProgramPub
         <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600" />
         <h3 className="mt-3 text-sm font-bold text-emerald-900">Submitted for review</h3>
         <p className="mt-1 text-xs text-emerald-700">
-          We'll reach out from {PUBLISHING_CONTACT_EMAIL} once it's approved and listed on the Jobs board.
+          Our team will follow up at {publisher.contact_email} if we need anything else before it goes live.
         </p>
         <button type="button" onClick={() => setSubmitted(false)} className="mt-4 text-xs font-semibold text-emerald-700 underline">
           Submit another job
@@ -494,10 +435,10 @@ function SubmitJobForm({ publisher, countries, userId }: { publisher: ProgramPub
   }
 
   const submit = async () => {
-    if (!title.trim()) {
-      setError('Title is required.');
-      return;
-    }
+    if (!title.trim()) return setError('Job title is required.');
+    if (!countryId && !remote) return setError('Destination country is required (or mark it remote).');
+    if (description.length > 800) return setError('Description is over the character limit — please shorten it.');
+
     setSubmitting(true);
     setError(null);
 
@@ -506,25 +447,19 @@ function SubmitJobForm({ publisher, countries, userId }: { publisher: ProgramPub
       title,
       description,
       category,
-      employmentType,
+      employmentType: category,
       remote,
       countryId,
-      compensationText: compensation,
-      requirements,
-      spotsAvailable: spots ? Number(spots) : undefined,
-      imageUrl,
-      citizenshipAny,
-      citizenshipAllowed: citizenshipAny ? undefined : citizenshipCodes.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean),
-      minAge: minAge ? Number(minAge) : undefined,
-      maxAge: maxAge ? Number(maxAge) : undefined,
-      officialUrl: url,
+      city: city || undefined,
+      citizenshipAny: true,
+      officialUrl,
       contactEmail: publisher.contact_email,
     });
 
     setSubmitting(false);
     if (result.ok) {
       setSubmitted(true);
-      setTitle(''); setDescription(''); setCompensation(''); setRequirements(''); setSpots(''); setImageUrl(''); setUrl('');
+      setTitle(''); setDescription(''); setCity(''); setOfficialUrl('');
     } else {
       setError(result.error ?? 'Something went wrong — please try again.');
     }
@@ -536,6 +471,9 @@ function SubmitJobForm({ publisher, countries, userId }: { publisher: ProgramPub
         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
         Publishing as {publisher.name} ({publisher.org_type})
       </div>
+      <p className="mt-2 text-xs text-ink-400">
+        Just the essentials for now — our team will reach out to fill in the rest (salary, requirements, etc.) and verify everything before it goes live.
+      </p>
 
       <div className="mt-4 space-y-4">
         <div>
@@ -543,34 +481,17 @@ function SubmitJobForm({ publisher, countries, userId }: { publisher: ProgramPub
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Junior Software Engineer" className={inputClass} />
         </div>
 
-        <div>
-          <label className={labelClass}>Description</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="w-full rounded-lg border border-ink-200 bg-white p-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          />
-        </div>
-
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Category</label>
-            <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Technology" className={inputClass} />
-          </div>
-          <div>
-            <label className={labelClass}>Employment type</label>
-            <select value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} className={inputClass}>
-              {['Full time', 'Part time', 'Contract', 'Internship'].map((t) => (
-                <option key={t} value={t}>{t}</option>
+            <select value={category} onChange={(e) => setCategory(e.target.value as JobCategory)} className={inputClass}>
+              {JOB_CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Country</label>
+            <label className={labelClass}>Destination country</label>
             <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className={inputClass}>
               <option value="">Select</option>
               {countries.map((c) => (
@@ -578,47 +499,32 @@ function SubmitJobForm({ publisher, countries, userId }: { publisher: ProgramPub
               ))}
             </select>
           </div>
-          <div className="flex items-end pb-2.5">
-            <label className="flex items-center gap-2 text-sm font-medium text-ink-700">
-              <input type="checkbox" checked={remote} onChange={(e) => setRemote(e.target.checked)} />
-              Remote-friendly
-            </label>
-          </div>
         </div>
 
-        <EligibilityFields
-          citizenshipAny={citizenshipAny} setCitizenshipAny={setCitizenshipAny}
-          citizenshipCodes={citizenshipCodes} setCitizenshipCodes={setCitizenshipCodes}
-          minAge={minAge} setMinAge={setMinAge}
-          maxAge={maxAge} setMaxAge={setMaxAge}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <label className={labelClass}>City (optional)</label>
+            <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Leave blank if not applicable" className={inputClass} />
+          </div>
+          <label className="flex shrink-0 items-center gap-2 pt-5 text-sm font-medium text-ink-700">
+            <input type="checkbox" checked={remote} onChange={(e) => setRemote(e.target.checked)} />
+            Remote-friendly
+          </label>
+        </div>
+
+        <CharLimitedTextarea
+          label="Short description"
+          value={description}
+          onChange={setDescription}
+          placeholder="A couple of sentences on the role and who it's a good fit for."
+          maxLength={800}
+          rows={4}
         />
 
         <div>
-          <label className={labelClass}>Compensation (optional)</label>
-          <input value={compensation} onChange={(e) => setCompensation(e.target.value)} placeholder="e.g. $50k–70k/year" className={inputClass} />
-        </div>
-
-        <div>
-          <label className={labelClass}>Specific requirements or limits</label>
-          <textarea
-            value={requirements}
-            onChange={(e) => setRequirements(e.target.value)}
-            rows={2}
-            placeholder="e.g. 3+ years experience, must relocate within 60 days, valid work permit required"
-            className="w-full rounded-lg border border-ink-200 bg-white p-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          />
-        </div>
-
-        <div>
-          <label className={labelClass}>Positions available (optional)</label>
-          <input type="number" value={spots} onChange={(e) => setSpots(e.target.value)} placeholder="Leave blank for unlimited" className={inputClass} />
-        </div>
-
-        <ImageUploadField userId={userId} value={imageUrl} onChange={setImageUrl} label="Company logo (optional)" />
-
-        <div>
-          <label className={labelClass}>Application URL</label>
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" className={inputClass} />
+          <label className={labelClass}>Official source / application URL (optional)</label>
+          <input type="url" value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} placeholder="https://" className={inputClass} />
+          <p className="mt-1 text-[11px] text-ink-400">Helps us verify faster — your job posting or careers page.</p>
         </div>
       </div>
 

@@ -27,6 +27,8 @@ export type Job = {
   publisherOrgType?: 'government' | 'company' | 'agency' | 'expert';
   description?: string | null;
   requirements?: string | null;
+  benefits?: string | null;
+  visaSponsorship?: boolean;
   spotsAvailable?: number | null;
   imageUrl?: string | null;
 };

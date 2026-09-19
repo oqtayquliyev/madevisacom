@@ -19,6 +19,7 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { PersonalizationBar, EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
 import { useSeo } from '@/lib/seo';
+import { formatCost } from '@/lib/listingCategories';
 import {
   fetchCountries,
   fetchSponsoredPrograms,
@@ -87,10 +88,10 @@ function ProgramCard({ program, goToProgram }: { program: SponsoredProgram; goTo
         </span>
       </div>
 
-      {program.funding_text && (
+      {formatCost(program) && (
         <div className="mt-3 flex items-center gap-1.5 text-xs text-ink-600">
           <Banknote className="h-3.5 w-3.5 text-ink-400" />
-          {program.funding_text}
+          {formatCost(program)}
         </div>
       )}
 

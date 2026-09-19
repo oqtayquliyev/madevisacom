@@ -33,6 +33,23 @@ import {
   type PendingPublisher,
   type PendingSponsoredJob,
 } from '@/lib/admin';
+import { ImageUploadField } from '@/components/common/ImageUploadField';
+import {
+  COST_STATUSES,
+  JOB_CATEGORIES,
+  JOB_CATEGORY_FIELDS,
+  LISTING_STATUSES,
+  PROGRAM_CATEGORIES,
+  PROGRAM_CATEGORY_FIELDS,
+  SALARY_PERIODS,
+  SALARY_STATUSES,
+  type CostStatus,
+  type JobCategory,
+  type ListingStatus,
+  type ProgramCategory,
+  type SalaryPeriod,
+  type SalaryStatus,
+} from '@/lib/listingCategories';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import type { View } from '@/types';
@@ -422,21 +439,129 @@ function AdminAccessSection({ admins, currentEmail, onChange }: { admins: AdminP
   );
 }
 
+function DateInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className="mb-1 block text-[11px] font-semibold text-ink-500">{label}</label>
+      <input type="date" value={value} onChange={(e) => onChange(e.target.value)} className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
+    </div>
+  );
+}
+
+function NumberInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <div>
+      <label className="mb-1 block text-[11px] font-semibold text-ink-500">{label}</label>
+      <input
+        type="number"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500"
+      />
+    </div>
+  );
+}
+
+function TextField({ label, value, onChange, placeholder, className }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; className?: string }) {
+  return (
+    <div className={className}>
+      <label className="mb-1 block text-[11px] font-semibold text-ink-500">{label}</label>
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
+    </div>
+  );
+}
+
+function TextAreaField({ label, value, onChange, rows = 2, placeholder }: { label: string; value: string; onChange: (v: string) => void; rows?: number; placeholder?: string }) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <label className="text-[11px] font-semibold text-ink-500">{label}</label>
+        <span className="text-[10px] text-ink-400">{value.length}/5000</span>
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows}
+        placeholder={placeholder}
+        className="w-full rounded-md border border-ink-200 px-2 py-1.5 text-xs leading-5 text-ink-700 outline-none focus:border-brand-500"
+      />
+    </div>
+  );
+}
+
+function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: readonly string[] }) {
+  return (
+    <div>
+      <label className="mb-1 block text-[11px] font-semibold text-ink-500">{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500">
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  );
+}
+
 function EditableProgramRow({ p, onChange }: { p: AdminProgram; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(p.title);
+  const [category, setCategory] = useState<ProgramCategory>(p.category as ProgramCategory);
   const [description, setDescription] = useState(p.description ?? '');
+  const [city, setCity] = useState(p.city ?? '');
+  const [status, setStatus] = useState<ListingStatus>(p.status);
+  const [costStatus, setCostStatus] = useState<CostStatus>(p.cost_status);
+  const [costMin, setCostMin] = useState(p.cost_amount_min?.toString() ?? '');
+  const [costMax, setCostMax] = useState(p.cost_amount_max?.toString() ?? '');
+  const [costCurrency, setCostCurrency] = useState(p.cost_currency ?? 'USD');
   const [fundingText, setFundingText] = useState(p.funding_text ?? '');
+  const [durationText, setDurationText] = useState(p.duration_text ?? '');
+  const [eligibilityNotes, setEligibilityNotes] = useState(p.eligibility_notes ?? '');
+  const [minAge, setMinAge] = useState(p.min_age?.toString() ?? '');
+  const [maxAge, setMaxAge] = useState(p.max_age?.toString() ?? '');
+  const [opensAt, setOpensAt] = useState(p.applications_open_at ?? '');
+  const [closesAt, setClosesAt] = useState(p.applications_close_at ?? '');
+  const [benefits, setBenefits] = useState(p.benefits ?? '');
+  const [requirements, setRequirements] = useState(p.requirements ?? '');
+  const [spots, setSpots] = useState(p.spots_available?.toString() ?? '');
   const [officialUrl, setOfficialUrl] = useState(p.official_url ?? '');
+  const [applicationUrl, setApplicationUrl] = useState(p.application_url ?? '');
+  const [imageUrl, setImageUrl] = useState(p.image_url ?? '');
+  const [sourceVerified, setSourceVerified] = useState(p.source_verified);
+  const [needsInfoMessage, setNeedsInfoMessage] = useState(p.needs_info_message ?? '');
+  const [adminNotes, setAdminNotes] = useState(p.admin_notes ?? '');
   const [saving, setSaving] = useState(false);
+
+  const fields = PROGRAM_CATEGORY_FIELDS[category] ?? [];
+  const { profile } = useAuth();
 
   const save = async () => {
     setSaving(true);
     const ok = await updateProgramAsAdmin(p.id, {
       title,
+      category,
       description: description || null,
+      city: city || null,
+      status,
+      cost_status: costStatus,
+      cost_amount_min: costMin ? Number(costMin) : null,
+      cost_amount_max: costMax ? Number(costMax) : null,
+      cost_currency: costCurrency,
       funding_text: fundingText || null,
+      duration_text: durationText || null,
+      eligibility_notes: eligibilityNotes || null,
+      min_age: minAge ? Number(minAge) : null,
+      max_age: maxAge ? Number(maxAge) : null,
+      applications_open_at: opensAt || null,
+      applications_close_at: closesAt || null,
+      benefits: benefits || null,
+      requirements: requirements || null,
+      spots_available: spots ? Number(spots) : null,
       official_url: officialUrl || null,
+      application_url: applicationUrl || null,
+      image_url: imageUrl || null,
+      source_verified: sourceVerified,
+      needs_info_message: status === 'needs_information' ? needsInfoMessage || null : null,
+      admin_notes: adminNotes || null,
     });
     setSaving(false);
     if (ok) { setEditing(false); onChange(); }
@@ -447,57 +572,179 @@ function EditableProgramRow({ p, onChange }: { p: AdminProgram; onChange: () => 
     if (await deleteProgram(p.id)) onChange();
   };
 
+  if (!editing) {
+    return (
+      <Row>
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
+            {p.title}
+            <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600">
+              <Pencil className="h-3 w-3" />
+            </button>
+            <StatusPill status={p.status} />
+          </p>
+          <p className="text-xs text-ink-500">
+            {p.category} · {p.publisher?.name ?? 'Unknown publisher'}{p.country ? ` · ${p.country.name}` : ''}{p.city ? `, ${p.city}` : ''}
+          </p>
+        </div>
+        <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </Row>
+    );
+  }
+
   return (
-    <Row>
-      <div className="min-w-0 flex-1">
-        {editing ? (
-          <div className="space-y-1.5">
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-8 w-full rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500" />
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" rows={2} className="w-full rounded-md border border-ink-200 px-2 py-1.5 text-xs text-ink-700 outline-none focus:border-brand-500" />
-            <input value={fundingText} onChange={(e) => setFundingText(e.target.value)} placeholder="Funding / stipend" className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
-            <input value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} placeholder="Official URL" className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
-            <div className="flex items-center gap-2">
-              <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
-              <button onClick={() => setEditing(false)} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
-            </div>
+    <div className="space-y-3 bg-ink-50/60 p-4">
+      <div className="grid grid-cols-2 gap-3">
+        <TextField label="Title" value={title} onChange={setTitle} />
+        <SelectField label="Category" value={category} onChange={(v) => setCategory(v as ProgramCategory)} options={PROGRAM_CATEGORIES} />
+      </div>
+
+      <TextAreaField label="Description" value={description} onChange={setDescription} rows={3} />
+
+      <div className="grid grid-cols-3 gap-3">
+        <TextField label="City" value={city} onChange={setCity} placeholder="Optional" />
+        <SelectField label="Status" value={status} onChange={(v) => setStatus(v as ListingStatus)} options={LISTING_STATUSES.map((s) => s.value)} />
+        <div className="flex items-end pb-1.5">
+          <label className="flex items-center gap-2 text-xs font-medium text-ink-700">
+            <input type="checkbox" checked={sourceVerified} onChange={(e) => setSourceVerified(e.target.checked)} />
+            Source verified
+          </label>
+        </div>
+      </div>
+
+      {status === 'needs_information' && (
+        <TextAreaField label="Message to submitter — what's missing?" value={needsInfoMessage} onChange={setNeedsInfoMessage} rows={2} placeholder="e.g. Please confirm the application deadline and funding amount." />
+      )}
+
+      {fields.includes('cost') && (
+        <div className="rounded-md border border-ink-200 bg-white p-3">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-ink-400">Cost / funding</p>
+          <div className="grid grid-cols-4 gap-3">
+            <SelectField label="Cost status" value={costStatus} onChange={(v) => setCostStatus(v as CostStatus)} options={COST_STATUSES.map((s) => s.value)} />
+            {costStatus === 'cost_available' && (
+              <>
+                <NumberInput label="Min amount" value={costMin} onChange={setCostMin} />
+                <NumberInput label="Max amount" value={costMax} onChange={setCostMax} />
+                <TextField label="Currency" value={costCurrency} onChange={setCostCurrency} placeholder="USD" />
+              </>
+            )}
           </div>
-        ) : (
-          <>
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
-              {p.title}
-              <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600">
-                <Pencil className="h-3 w-3" />
-              </button>
-              <StatusPill status={p.status} />
-            </p>
-            <p className="text-xs text-ink-500">
-              {p.category} · {p.publisher?.name ?? 'Unknown publisher'}{p.country ? ` · ${p.country.name}` : ''}
-            </p>
-          </>
+          <div className="mt-3">
+            <TextField label="Funding / stipend details" value={fundingText} onChange={setFundingText} placeholder="e.g. Full tuition + $900/mo stipend" />
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        {fields.includes('duration') && <TextField label="Duration" value={durationText} onChange={setDurationText} placeholder="e.g. 6 months" />}
+        {fields.includes('eligibility') && (
+          <div className="col-span-2">
+            <TextAreaField label="Eligibility notes" value={eligibilityNotes} onChange={setEligibilityNotes} rows={2} />
+          </div>
         )}
       </div>
-      <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600">
-        <Trash2 className="h-4 w-4" />
-      </button>
-    </Row>
+
+      {fields.includes('eligibility') && (
+        <div className="grid grid-cols-2 gap-3">
+          <NumberInput label="Min age" value={minAge} onChange={setMinAge} />
+          <NumberInput label="Max age" value={maxAge} onChange={setMaxAge} />
+        </div>
+      )}
+
+      {fields.includes('deadline') && (
+        <div className="grid grid-cols-2 gap-3">
+          <DateInput label="Applications open" value={opensAt} onChange={setOpensAt} />
+          <DateInput label="Applications close" value={closesAt} onChange={setClosesAt} />
+        </div>
+      )}
+
+      {fields.includes('benefits') && <TextAreaField label="Benefits" value={benefits} onChange={setBenefits} rows={2} />}
+      {fields.includes('requirements') && <TextAreaField label="Requirements" value={requirements} onChange={setRequirements} rows={2} />}
+
+      <NumberInput label="Places available (optional)" value={spots} onChange={setSpots} placeholder="Leave blank for unlimited" />
+
+      <div className="grid grid-cols-2 gap-3">
+        <TextField label="Official source URL" value={officialUrl} onChange={setOfficialUrl} placeholder="https://" />
+        <TextField label="Application URL" value={applicationUrl} onChange={setApplicationUrl} placeholder="https://" />
+      </div>
+
+      {profile?.id && <ImageUploadField userId={profile.id} value={imageUrl} onChange={setImageUrl} label="Cover image / logo" />}
+
+      <div>
+        <TextAreaField label="Admin notes (internal only, never shown publicly)" value={adminNotes} onChange={setAdminNotes} rows={2} />
+      </div>
+
+      <div className="flex items-center gap-2 pt-1">
+        <button onClick={save} disabled={saving} className="rounded-lg bg-brand-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button onClick={() => setEditing(false)} className="text-xs text-ink-500 hover:text-ink-700">Cancel</button>
+      </div>
+    </div>
   );
 }
 
 function EditableJobRow({ j, onChange }: { j: AdminSponsoredJob; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(j.title);
+  const [category, setCategory] = useState<JobCategory>(j.category as JobCategory);
   const [description, setDescription] = useState(j.description ?? '');
-  const [compensationText, setCompensationText] = useState(j.compensation_text ?? '');
+  const [city, setCity] = useState(j.city ?? '');
+  const [remote, setRemote] = useState(j.remote);
+  const [status, setStatus] = useState<ListingStatus>(j.status);
+  const [salaryStatus, setSalaryStatus] = useState<SalaryStatus>(j.salary_status);
+  const [salaryMin, setSalaryMin] = useState(j.salary_min?.toString() ?? '');
+  const [salaryMax, setSalaryMax] = useState(j.salary_max?.toString() ?? '');
+  const [salaryCurrency, setSalaryCurrency] = useState(j.salary_currency ?? 'USD');
+  const [salaryPeriod, setSalaryPeriod] = useState<SalaryPeriod>(j.salary_period);
+  const [visaSponsorship, setVisaSponsorship] = useState(j.visa_sponsorship);
+  const [experienceLevel, setExperienceLevel] = useState(j.experience_level ?? '');
+  const [educationLevel, setEducationLevel] = useState(j.education_level ?? '');
+  const [languages, setLanguages] = useState((j.languages ?? []).join(', '));
+  const [applicationDeadline, setApplicationDeadline] = useState(j.application_deadline ?? '');
+  const [benefits, setBenefits] = useState(j.benefits ?? '');
+  const [requirements, setRequirements] = useState(j.requirements ?? '');
   const [officialUrl, setOfficialUrl] = useState(j.official_url ?? '');
+  const [applicationUrl, setApplicationUrl] = useState(j.application_url ?? '');
+  const [imageUrl, setImageUrl] = useState(j.image_url ?? '');
+  const [sourceVerified, setSourceVerified] = useState(j.source_verified);
+  const [needsInfoMessage, setNeedsInfoMessage] = useState(j.needs_info_message ?? '');
+  const [adminNotes, setAdminNotes] = useState(j.admin_notes ?? '');
   const [saving, setSaving] = useState(false);
+
+  const fields = JOB_CATEGORY_FIELDS[category] ?? [];
+  const { profile } = useAuth();
 
   const save = async () => {
     setSaving(true);
     const ok = await updateSponsoredJobAsAdmin(j.id, {
       title,
+      category,
+      employment_type: category,
       description: description || null,
-      compensation_text: compensationText || null,
+      city: city || null,
+      remote,
+      status,
+      salary_status: salaryStatus,
+      salary_min: salaryMin ? Number(salaryMin) : null,
+      salary_max: salaryMax ? Number(salaryMax) : null,
+      salary_currency: salaryCurrency,
+      salary_period: salaryPeriod,
+      visa_sponsorship: visaSponsorship,
+      experience_level: experienceLevel || null,
+      education_level: educationLevel || null,
+      languages: languages ? languages.split(',').map((l) => l.trim()).filter(Boolean) : null,
+      application_deadline: applicationDeadline || null,
+      benefits: benefits || null,
+      requirements: requirements || null,
       official_url: officialUrl || null,
+      application_url: applicationUrl || null,
+      image_url: imageUrl || null,
+      source_verified: sourceVerified,
+      needs_info_message: status === 'needs_information' ? needsInfoMessage || null : null,
+      admin_notes: adminNotes || null,
     });
     setSaving(false);
     if (ok) { setEditing(false); onChange(); }
@@ -508,54 +755,131 @@ function EditableJobRow({ j, onChange }: { j: AdminSponsoredJob; onChange: () =>
     if (await deleteSponsoredJob(j.id)) onChange();
   };
 
+  if (!editing) {
+    return (
+      <Row>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500">
+          <Briefcase className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
+            {j.title}
+            <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600">
+              <Pencil className="h-3 w-3" />
+            </button>
+            <StatusPill status={j.status} />
+          </p>
+          <p className="text-xs text-ink-500">
+            {j.category} · {j.publisher?.name ?? 'Unknown publisher'}{j.country ? ` · ${j.country.name}` : ''}{j.city ? `, ${j.city}` : ''}
+          </p>
+        </div>
+        <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </Row>
+    );
+  }
+
   return (
-    <Row>
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500">
-        <Briefcase className="h-4 w-4" />
-      </span>
-      <div className="min-w-0 flex-1">
-        {editing ? (
-          <div className="space-y-1.5">
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-8 w-full rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500" />
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" rows={2} className="w-full rounded-md border border-ink-200 px-2 py-1.5 text-xs text-ink-700 outline-none focus:border-brand-500" />
-            <input value={compensationText} onChange={(e) => setCompensationText(e.target.value)} placeholder="Salary" className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
-            <input value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} placeholder="Official URL" className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
-            <div className="flex items-center gap-2">
-              <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
-              <button onClick={() => setEditing(false)} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
-              {j.title}
-              <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600">
-                <Pencil className="h-3 w-3" />
-              </button>
-              <StatusPill status={j.status} />
-            </p>
-            <p className="text-xs text-ink-500">
-              {j.employment_type} · {j.publisher?.name ?? 'Unknown publisher'}{j.country ? ` · ${j.country.name}` : ''}
-            </p>
-          </>
-        )}
+    <div className="space-y-3 bg-ink-50/60 p-4">
+      <div className="grid grid-cols-2 gap-3">
+        <TextField label="Title" value={title} onChange={setTitle} />
+        <SelectField label="Category" value={category} onChange={(v) => setCategory(v as JobCategory)} options={JOB_CATEGORIES} />
       </div>
-      <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600">
-        <Trash2 className="h-4 w-4" />
-      </button>
-    </Row>
+
+      <TextAreaField label="Description" value={description} onChange={setDescription} rows={3} />
+
+      <div className="grid grid-cols-3 gap-3">
+        <TextField label="City" value={city} onChange={setCity} placeholder="Optional" />
+        <SelectField label="Status" value={status} onChange={(v) => setStatus(v as ListingStatus)} options={LISTING_STATUSES.map((s) => s.value)} />
+        <div className="flex items-end gap-3 pb-1.5">
+          <label className="flex items-center gap-1.5 text-xs font-medium text-ink-700">
+            <input type="checkbox" checked={remote} onChange={(e) => setRemote(e.target.checked)} />
+            Remote
+          </label>
+          <label className="flex items-center gap-1.5 text-xs font-medium text-ink-700">
+            <input type="checkbox" checked={sourceVerified} onChange={(e) => setSourceVerified(e.target.checked)} />
+            Verified
+          </label>
+        </div>
+      </div>
+
+      {status === 'needs_information' && (
+        <TextAreaField label="Message to submitter — what's missing?" value={needsInfoMessage} onChange={setNeedsInfoMessage} rows={2} placeholder="e.g. Please confirm salary range and whether visa sponsorship is offered." />
+      )}
+
+      {fields.includes('salary') && (
+        <div className="rounded-md border border-ink-200 bg-white p-3">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-ink-400">Salary</p>
+          <div className="grid grid-cols-5 gap-3">
+            <SelectField label="Salary status" value={salaryStatus} onChange={(v) => setSalaryStatus(v as SalaryStatus)} options={SALARY_STATUSES.map((s) => s.value)} />
+            {salaryStatus === 'disclosed' && (
+              <>
+                <NumberInput label="Min" value={salaryMin} onChange={setSalaryMin} />
+                <NumberInput label="Max" value={salaryMax} onChange={setSalaryMax} />
+                <TextField label="Currency" value={salaryCurrency} onChange={setSalaryCurrency} placeholder="USD" />
+                <SelectField label="Per" value={salaryPeriod} onChange={(v) => setSalaryPeriod(v as SalaryPeriod)} options={SALARY_PERIODS} />
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {fields.includes('visaSponsorship') && (
+        <label className="flex items-center gap-2 text-xs font-medium text-ink-700">
+          <input type="checkbox" checked={visaSponsorship} onChange={(e) => setVisaSponsorship(e.target.checked)} />
+          Visa sponsorship offered
+        </label>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        {fields.includes('experience') && <TextField label="Experience level" value={experienceLevel} onChange={setExperienceLevel} placeholder="e.g. 3+ years" />}
+        {fields.includes('education') && <TextField label="Education level" value={educationLevel} onChange={setEducationLevel} placeholder="e.g. Bachelor's degree" />}
+      </div>
+
+      <TextField label="Languages (comma-separated)" value={languages} onChange={setLanguages} placeholder="e.g. English, German" />
+
+      {fields.includes('duration') && <DateInput label="Application deadline" value={applicationDeadline} onChange={setApplicationDeadline} />}
+      {fields.includes('benefits') && <TextAreaField label="Benefits" value={benefits} onChange={setBenefits} rows={2} />}
+      <TextAreaField label="Requirements" value={requirements} onChange={setRequirements} rows={2} />
+
+      <div className="grid grid-cols-2 gap-3">
+        <TextField label="Official source URL" value={officialUrl} onChange={setOfficialUrl} placeholder="https://" />
+        <TextField label="Application URL" value={applicationUrl} onChange={setApplicationUrl} placeholder="https://" />
+      </div>
+
+      {profile?.id && <ImageUploadField userId={profile.id} value={imageUrl} onChange={setImageUrl} label="Company logo" />}
+
+      <TextAreaField label="Admin notes (internal only, never shown publicly)" value={adminNotes} onChange={setAdminNotes} rows={2} />
+
+      <div className="flex items-center gap-2 pt-1">
+        <button onClick={save} disabled={saving} className="rounded-lg bg-brand-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button onClick={() => setEditing(false)} className="text-xs text-ink-500 hover:text-ink-700">Cancel</button>
+      </div>
+    </div>
   );
 }
 
 function StatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
     published: 'bg-emerald-50 text-emerald-700',
+    verified: 'bg-sky-50 text-sky-700',
+    under_review: 'bg-indigo-50 text-indigo-700',
+    needs_information: 'bg-amber-50 text-amber-700',
     pending: 'bg-amber-50 text-amber-700',
+    draft: 'bg-ink-100 text-ink-500',
     rejected: 'bg-rose-50 text-rose-700',
+    expired: 'bg-ink-100 text-ink-500',
+  };
+  const labels: Record<string, string> = {
+    needs_information: 'needs info',
+    under_review: 'under review',
   };
   return (
     <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${styles[status] ?? 'bg-ink-50 text-ink-500'}`}>
-      {status}
+      {labels[status] ?? status}
     </span>
   );
 }

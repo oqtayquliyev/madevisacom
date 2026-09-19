@@ -1,7 +1,11 @@
 import { supabase } from '@/lib/supabase';
 import type { EligibilityCriteria } from '@/lib/personalization';
+import type { CostStatus, ListingStatus } from '@/lib/listingCategories';
 
 export const PUBLISHING_CONTACT_EMAIL = 'hello@madevisa.com';
+
+const programColumns =
+  'id, publisher_id, title, description, category, country_id, city, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, applications_open_at, applications_close_at, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, spots_available, image_url, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, publisher:program_publishers(id, name, org_type, logo_url, verification_status), country:countries(id, name, iso_code)';
 
 export type OrgType = 'government' | 'company' | 'agency' | 'expert';
 
@@ -31,6 +35,7 @@ export type SponsoredProgram = {
   description: string | null;
   category: string;
   country_id: string | null;
+  city: string | null;
   citizenship_any: boolean;
   citizenship_allowed: string[] | null;
   citizenship_excluded: string[] | null;
@@ -38,13 +43,25 @@ export type SponsoredProgram = {
   max_age: number | null;
   applications_open_at: string | null; // ISO date
   applications_close_at: string | null; // ISO date
+  duration_text: string | null;
+  eligibility_notes: string | null;
+  benefits: string | null;
   funding_text: string | null;
+  cost_status: CostStatus;
+  cost_amount_min: number | null;
+  cost_amount_max: number | null;
+  cost_currency: string;
   requirements: string | null;
   spots_available: number | null;
   image_url: string | null;
   official_url: string | null;
+  application_url: string | null;
   contact_email: string;
-  status: 'pending' | 'published' | 'rejected';
+  status: ListingStatus;
+  // Admin-only — never surfaced in public UI.
+  admin_notes: string | null;
+  source_verified: boolean;
+  needs_info_message: string | null;
   // joined
   publisher?: Pick<ProgramPublisher, 'id' | 'name' | 'org_type' | 'logo_url' | 'verification_status'>;
   country?: Pick<CountryOption, 'id' | 'name' | 'iso_code'>;
@@ -95,7 +112,7 @@ export async function fetchSponsoredPrograms(filters: ProgramFilters = {}): Prom
   let query = supabase
     .from('programs')
     .select(
-      'id, publisher_id, title, description, category, country_id, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, applications_open_at, applications_close_at, funding_text, requirements, spots_available, image_url, official_url, contact_email, status, publisher:program_publishers(id, name, org_type, logo_url, verification_status), country:countries(id, name, iso_code)'
+      programColumns
     )
     .eq('status', 'published')
     .order('created_at', { ascending: false });
@@ -118,7 +135,7 @@ export async function fetchMyPrograms(publisherId: string): Promise<SponsoredPro
   const { data, error } = await supabase
     .from('programs')
     .select(
-      'id, publisher_id, title, description, category, country_id, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, applications_open_at, applications_close_at, funding_text, requirements, spots_available, image_url, official_url, contact_email, status, publisher:program_publishers(id, name, org_type, logo_url, verification_status), country:countries(id, name, iso_code)'
+      programColumns
     )
     .eq('publisher_id', publisherId)
     .order('created_at', { ascending: false });
@@ -222,6 +239,7 @@ export type SubmitProgramInput = {
   description?: string;
   category: string;
   countryId?: string;
+  city?: string;
   citizenshipAny: boolean;
   citizenshipAllowed?: string[];
   minAge?: number;
@@ -245,6 +263,7 @@ export async function submitSponsoredProgram(input: SubmitProgramInput): Promise
     description: input.description || null,
     category: input.category,
     country_id: input.countryId || null,
+    city: input.city || null,
     citizenship_any: input.citizenshipAny,
     citizenship_allowed: input.citizenshipAny ? null : input.citizenshipAllowed ?? [],
     min_age: input.minAge ?? null,
@@ -272,7 +291,7 @@ export async function fetchProgramById(id: string): Promise<SponsoredProgram | n
   const { data, error } = await supabase
     .from('programs')
     .select(
-      'id, publisher_id, title, description, category, country_id, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, applications_open_at, applications_close_at, funding_text, requirements, spots_available, image_url, official_url, contact_email, status, publisher:program_publishers(id, name, org_type, logo_url, verification_status), country:countries(id, name, iso_code)'
+      programColumns
     )
     .eq('id', id)
     .eq('status', 'published')

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { View } from '@/types';
 import { fetchProgramById, getApplicationWindowStatus, toEligibilityCriteria, type OrgType, type SponsoredProgram } from '@/lib/programs';
+import { formatCost } from '@/lib/listingCategories';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
 import { EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -57,6 +58,7 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
     path: `/programs/${id}`,
     // Not-yet-loaded or removed programs shouldn't get indexed under this URL.
     noindex: program === null,
+    ogImage: program?.image_url ?? undefined,
   });
 
   const share = async () => {
@@ -140,7 +142,7 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
               {program.country && (
                 <span className="flex items-center gap-1.5">
                   <CircleFlag countryCode={program.country.iso_code} label={program.country.name} size={16} />
-                  {program.country.name}
+                  {program.city ? `${program.city}, ${program.country.name}` : program.country.name}
                 </span>
               )}
             </div>
@@ -148,8 +150,11 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
             {program.description && <p className="mt-5 text-sm leading-6 text-ink-600">{program.description}</p>}
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {program.funding_text && (
-                <InfoRow icon={Banknote} label="Funding" value={program.funding_text} />
+              {formatCost(program) && (
+                <InfoRow icon={Banknote} label="Cost / funding" value={formatCost(program)!} />
+              )}
+              {program.duration_text && (
+                <InfoRow icon={CalendarClock} label="Duration" value={program.duration_text} />
               )}
               {program.spots_available != null && (
                 <InfoRow icon={Users} label="Spots available" value={String(program.spots_available)} />
@@ -166,16 +171,30 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
               )}
             </div>
 
-            {program.requirements && (
+            {program.eligibility_notes && (
               <div className="mt-6 rounded-lg bg-ink-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Eligibility</p>
+                <p className="mt-1.5 text-sm leading-6 text-ink-700">{program.eligibility_notes}</p>
+              </div>
+            )}
+
+            {program.requirements && (
+              <div className="mt-4 rounded-lg bg-ink-50 p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Requirements &amp; limits</p>
                 <p className="mt-1.5 text-sm leading-6 text-ink-700">{program.requirements}</p>
               </div>
             )}
 
+            {program.benefits && (
+              <div className="mt-4 rounded-lg bg-emerald-50/60 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Benefits</p>
+                <p className="mt-1.5 text-sm leading-6 text-ink-700">{program.benefits}</p>
+              </div>
+            )}
+
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <a
-                href={program.official_url || `mailto:${program.contact_email}`}
+                href={program.application_url || program.official_url || `mailto:${program.contact_email}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-lg bg-brand-600 px-8 py-3.5 text-sm font-bold text-white shadow-soft-lg transition hover:-translate-y-0.5 hover:bg-brand-700"
