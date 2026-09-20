@@ -708,14 +708,12 @@ function EditableJobRow({ j, onChange }: { j: AdminSponsoredJob; onChange: () =>
   const [requirements, setRequirements] = useState(j.requirements ?? '');
   const [officialUrl, setOfficialUrl] = useState(j.official_url ?? '');
   const [applicationUrl, setApplicationUrl] = useState(j.application_url ?? '');
-  const [imageUrl, setImageUrl] = useState(j.image_url ?? '');
   const [sourceVerified, setSourceVerified] = useState(j.source_verified);
   const [needsInfoMessage, setNeedsInfoMessage] = useState(j.needs_info_message ?? '');
   const [adminNotes, setAdminNotes] = useState(j.admin_notes ?? '');
   const [saving, setSaving] = useState(false);
 
   const fields = JOB_CATEGORY_FIELDS[category] ?? [];
-  const { profile } = useAuth();
 
   const save = async () => {
     setSaving(true);
@@ -741,7 +739,6 @@ function EditableJobRow({ j, onChange }: { j: AdminSponsoredJob; onChange: () =>
       requirements: requirements || null,
       official_url: officialUrl || null,
       application_url: applicationUrl || null,
-      image_url: imageUrl || null,
       source_verified: sourceVerified,
       needs_info_message: status === 'needs_information' ? needsInfoMessage || null : null,
       admin_notes: adminNotes || null,
@@ -847,8 +844,6 @@ function EditableJobRow({ j, onChange }: { j: AdminSponsoredJob; onChange: () =>
         <TextField label="Official source URL" value={officialUrl} onChange={setOfficialUrl} placeholder="https://" />
         <TextField label="Application URL" value={applicationUrl} onChange={setApplicationUrl} placeholder="https://" />
       </div>
-
-      {profile?.id && <ImageUploadField userId={profile.id} value={imageUrl} onChange={setImageUrl} label="Company logo" />}
 
       <TextAreaField label="Admin notes (internal only, never shown publicly)" value={adminNotes} onChange={setAdminNotes} rows={2} />
 

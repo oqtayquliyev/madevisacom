@@ -23,6 +23,7 @@ import { ProgramDetailPage } from '@/pages/programs/ProgramDetailPage';
 import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
 import { AdminPanelPage } from '@/pages/admin/AdminPanelPage';
 import { OfficialPartnersPage } from '@/pages/partners/OfficialPartnersPage';
+import { PublicProfilePage } from '@/pages/u/PublicProfilePage';
 import { LegalPage } from '@/pages/legal/LegalPage';
 import { legalPageOrder } from '@/data/legalContent';
 import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
@@ -215,6 +216,10 @@ export default function App() {
 
   if (path === '/official-partners') {
     return <OfficialPartnersPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (path.startsWith('/u/')) {
+    return <PublicProfilePage username={path.slice(3)} go={go} onAuth={goToAuth} />;
   }
 
   if (legalPageOrder.includes(path.slice(1))) {

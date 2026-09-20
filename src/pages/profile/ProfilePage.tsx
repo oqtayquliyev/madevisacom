@@ -7,11 +7,13 @@ import {
   Building2,
   Camera,
   CheckCircle2,
+  Copy,
   Compass,
   Download,
   ExternalLink,
   GraduationCap,
   Landmark,
+  Link2,
   Loader2,
   Mail,
   MapPin,
@@ -26,7 +28,7 @@ import {
   Users2,
   X,
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
+import { useAuth, type Profile } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import {
   createPublisherProfile,
@@ -54,6 +56,7 @@ import { TravelerAvatar } from '@/components/common/TravelerAvatar';
 import { PhoneInput } from '@/components/common/PhoneInput';
 import { ImageUploadField } from '@/components/common/ImageUploadField';
 import { useSeo } from '@/lib/seo';
+import { isUsernameAvailable, suggestUsername, updateMyUsername } from '@/lib/username';
 import type { View } from '@/types';
 
 type ProfilePageProps = {
@@ -690,9 +693,13 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
               <p className="mt-2 text-[11px] text-ink-400">JPEG, PNG or WebP. Max 5MB.</p>
             </div>
 
+            <UsernameCard profile={profile} onSaved={refreshProfile} />
+
             <div className="border border-ink-200 bg-white p-6">
               <h2 className="text-sm font-bold text-ink-900">Personal information</h2>
-              <p className="mt-1 text-xs text-ink-500">Some of this stays private; none of it is shown publicly today.</p>
+              <p className="mt-1 text-xs text-ink-500">
+                {profile.username ? 'Your name and photo are visible on your public profile link above. The rest stays private.' : 'None of this is shown publicly unless you set up a profile link above.'}
+              </p>
 
               <div className="mt-5 space-y-4">
                 <div>
@@ -1308,6 +1315,117 @@ function MyJobListingRow({ job, onChange }: { job: SponsoredJob; onChange: () =>
             <Pencil className="h-3.5 w-3.5" />
             Edit
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UsernameCard({ profile, onSaved }: { profile: Profile; onSaved: () => void }) {
+  const [editing, setEditing] = useState(!profile.username);
+  const [value, setValue] = useState(profile.username ?? suggestUsername(profile.full_name));
+  const [checking, setChecking] = useState(false);
+  const [available, setAvailable] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const shareUrl = profile.username ? `${window.location.origin}/u/${profile.username}` : '';
+
+  useEffect(() => {
+    if (!editing || !value.trim()) { setAvailable(null); return; }
+    setChecking(true);
+    const timeout = window.setTimeout(() => {
+      isUsernameAvailable(value.trim().toLowerCase(), profile.id).then((ok) => {
+        setAvailable(ok);
+        setChecking(false);
+      });
+    }, 400);
+    return () => window.clearTimeout(timeout);
+  }, [value, editing, profile.id]);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    const result = await updateMyUsername(value);
+    setSaving(false);
+    if (result.ok) {
+      setEditing(false);
+      onSaved();
+    } else {
+      setError(result.error ?? 'Could not save username.');
+    }
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="border border-ink-200 bg-white p-6">
+      <h2 className="flex items-center gap-1.5 text-sm font-bold text-ink-900">
+        <Link2 className="h-4 w-4 text-ink-400" />
+        Shareable profile link
+      </h2>
+      <p className="mt-1 text-xs text-ink-500">
+        A public link showing your name, photo, and — if you're a verified partner — your organization.
+      </p>
+
+      {!editing ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <code className="flex-1 truncate rounded-lg bg-ink-50 px-3 py-2 text-sm font-medium text-ink-800">{shareUrl}</code>
+          <button
+            type="button"
+            onClick={copyLink}
+            className="flex items-center gap-1.5 rounded-lg border border-ink-200 px-3 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50"
+          >
+            {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setEditing(true); setValue(profile.username ?? ''); }}
+            className="rounded-lg border border-ink-200 px-3 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50"
+          >
+            Change
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-ink-400">madevisa.com/u/</span>
+            <input
+              value={value}
+              onChange={(e) => setValue(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+              placeholder="your-name"
+              className="h-10 flex-1 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500"
+            />
+          </div>
+          <div className="mt-1.5 text-xs">
+            {checking && <span className="text-ink-400">Checking availability…</span>}
+            {!checking && available === true && value.length >= 3 && <span className="font-medium text-emerald-600">Available</span>}
+            {!checking && available === false && <span className="font-medium text-rose-600">Already taken</span>}
+            {!checking && value.length > 0 && value.length < 3 && <span className="text-ink-400">At least 3 characters</span>}
+          </div>
+          {error && <p className="mt-1 text-xs font-medium text-rose-600">{error}</p>}
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving || available === false || value.length < 3}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            {profile.username && (
+              <button type="button" onClick={() => setEditing(false)} className="text-xs text-ink-500 hover:text-ink-700">
+                Cancel
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

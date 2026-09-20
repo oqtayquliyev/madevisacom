@@ -212,9 +212,10 @@ export function ProgramsPage({ go, onAuth, goToProgram }: ProgramsPageProps) {
   });
   const [allPrograms, setAllPrograms] = useState<SponsoredProgram[]>([]);
   const [loading, setLoading] = useState(true);
+  const initial = useMemo(() => new URLSearchParams(window.location.search), []);
   const [search, setSearch] = useState('');
-  const [country, setCountry] = useState('All countries');
-  const [category, setCategory] = useState('All types');
+  const [country, setCountry] = useState(initial.get('country') ?? 'All countries');
+  const [category, setCategory] = useState(initial.get('category') ?? 'All types');
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {

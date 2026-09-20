@@ -118,7 +118,7 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
 
         <div className="mt-5 overflow-hidden border border-ink-200 bg-white">
           {program.image_url ? (
-            <img src={program.image_url} alt="" className="h-56 w-full object-cover" />
+            <img src={program.image_url} alt="" className="aspect-square w-full max-w-md mx-auto object-contain bg-ink-50" />
           ) : (
             <div className="grid h-40 w-full place-items-center bg-gradient-to-br from-brand-50 to-indigo-50">
               <Icon className="h-10 w-10 text-brand-300" />

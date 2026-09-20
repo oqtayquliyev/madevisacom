@@ -9,8 +9,6 @@ import {
   Building2,
   ArrowRight,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Globe2,
   Info,
   Megaphone,
@@ -29,7 +27,6 @@ export type MatchItem =
   | { kind: 'job'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; remote: boolean; salary?: string; createdAt: string }
   | { kind: 'program'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; funding: string | null; createdAt: string };
 
-const PAGE_SIZE = 10;
 
 /** Fetches every published job + program once. Shared by the landing
  * hero (for the "X new" tab badge) and this section (for the grid) so
@@ -184,32 +181,31 @@ export function LocationMatchSection({
   setOriginCountry: (code: string) => void;
 }) {
   const [destinationCode, setDestinationCode] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
 
   const destinationCountry = allCountries.find((c) => c.code === destinationCode);
   const visibleItems = items?.filter((item) => !destinationCode || item.countryCode === destinationCode) ?? null;
-  const totalPages = visibleItems ? Math.max(1, Math.ceil(visibleItems.length / PAGE_SIZE)) : 1;
-  const pageItems = visibleItems?.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE) ?? null;
+  const shownItems = visibleItems?.slice(0, 4) ?? null;
+  const countryParam = destinationCountry ? `?country=${encodeURIComponent(destinationCountry.name)}` : '';
 
   return (
-    <div className="px-1 py-6 sm:px-2">
+    <div className="px-6 py-8 sm:px-8">
       <div className="flex flex-wrap items-center gap-2">
         <FlagSwitcher code={originCode} placeholder="Your country" onSelect={(code) => code && setOriginCountry(code)} />
         <ArrowRight className="h-4 w-4 text-ink-300" />
-        <FlagSwitcher code={destinationCode} placeholder="Any destination" onSelect={(c) => { setDestinationCode(c); setPage(0); }} allowAny />
+        <FlagSwitcher code={destinationCode} placeholder="Any destination" onSelect={setDestinationCode} allowAny />
       </div>
 
       <h2 className="mt-3 text-xl font-bold tracking-tight text-ink-950 sm:text-2xl">
         From {originName ?? 'your country'} to {destinationCountry?.name ?? 'opportunities abroad'}
       </h2>
 
-      {pageItems === null ? (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-32 animate-pulse rounded bg-ink-100" />
+      {shownItems === null ? (
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-40 animate-pulse rounded bg-ink-100" />
           ))}
         </div>
-      ) : pageItems.length === 0 ? (
+      ) : shownItems.length === 0 ? (
         <div className="mt-6 flex flex-col items-center justify-center gap-2 rounded border-2 border-dashed border-ink-200 bg-white px-5 py-10 text-center">
           <Briefcase className="h-6 w-6 text-ink-300" />
           <p className="text-sm font-semibold text-ink-500">
@@ -218,40 +214,43 @@ export function LocationMatchSection({
           <p className="text-xs text-ink-400">Check back soon — new sponsored listings appear here automatically.</p>
         </div>
       ) : (
-        <>
-          <div className="mt-6 grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
-            {pageItems.map((item) => (
-              <MatchCard key={`${item.kind}-${item.id}`} item={item} originCode={originCode} originName={originName} />
-            ))}
-          </div>
-
-          {totalPages > 1 && (
-            <div className="mt-2 flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                aria-label="Previous page"
-                className="rounded-full border border-ink-200 p-2 text-ink-500 hover:bg-ink-50 disabled:opacity-30"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="text-xs font-medium text-ink-400">
-                Page {page + 1} of {totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1}
-                aria-label="Next page"
-                className="rounded-full border border-ink-200 p-2 text-ink-500 hover:bg-ink-50 disabled:opacity-30"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </>
+        <div className="mt-6 grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 lg:grid-cols-5">
+          {shownItems.map((item) => (
+            <MatchCard key={`${item.kind}-${item.id}`} item={item} originCode={originCode} />
+          ))}
+          <ExploreMoreTile countryParam={countryParam} destinationName={destinationCountry?.name} />
+        </div>
       )}
+    </div>
+  );
+}
+
+function ExploreMoreTile({ countryParam, destinationName }: { countryParam: string; destinationName?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded border-2 border-dashed border-brand-200 bg-brand-50/40 p-4 text-center">
+      <span className="grid h-14 w-14 place-items-center rounded-full bg-brand-100 text-brand-600">
+        <ArrowRight className="h-6 w-6" />
+      </span>
+      <div>
+        <p className="text-sm font-bold text-ink-900">Explore more</p>
+        <p className="mt-0.5 text-xs text-ink-500">
+          {destinationName ? `All opportunities in ${destinationName}` : 'All sponsored opportunities'}
+        </p>
+      </div>
+      <div className="flex flex-col gap-2 w-full">
+        <a
+          href={`/jobs${countryParam}`}
+          className="rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700"
+        >
+          Explore Jobs
+        </a>
+        <a
+          href={`/programs${countryParam}`}
+          className="rounded-lg border border-brand-300 bg-white px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+        >
+          Explore Programs
+        </a>
+      </div>
     </div>
   );
 }
@@ -285,7 +284,7 @@ function SponsoredBadge({ kind }: { kind: 'job' | 'program' }) {
   );
 }
 
-function MatchCard({ item, originCode, originName }: { item: MatchItem; originCode: string | null; originName: string | null }) {
+function MatchCard({ item, originCode }: { item: MatchItem; originCode: string | null }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const Icon = iconFor(item.category, item.kind);
   const href = item.kind === 'job' ? `/jobs/${item.id}` : `/programs/${item.id}`;
@@ -303,46 +302,36 @@ function MatchCard({ item, originCode, originName }: { item: MatchItem; originCo
   return (
     <div className="relative">
       <a href={href} className="block h-full rounded border border-ink-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg">
-        <div className="flex items-start gap-4">
-          <span className="grid h-20 w-20 shrink-0 place-items-center rounded" style={{ backgroundColor: '#2563EB' }}>
-            <Icon className="h-9 w-9 text-slate-300" />
+        <div className="flex items-start justify-between gap-2">
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded" style={{ backgroundColor: '#2563EB' }}>
+            <Icon className="h-6 w-6 text-slate-300" />
           </span>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="font-slab text-lg font-bold leading-snug text-ink-950">{item.title}</h3>
-              <SponsoredBadge kind={item.kind} />
-            </div>
-            <p className="mt-0.5 truncate text-xs font-medium text-ink-500">{item.org}</p>
-
-            {salaryOrFunding && (
-              <span className="mt-2 inline-block rounded bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                {item.kind === 'job' ? 'Salary' : 'Stipend'}: {salaryOrFunding}
-              </span>
-            )}
-
-            <div className="mt-2 flex items-center gap-2 text-xs">
-              {originCode && (
-                <>
-                  <CircleFlag countryCode={originCode} label={originName ?? undefined} size={24} />
-                  <ArrowRight className="h-3 w-3 text-ink-300" />
-                </>
-              )}
-              <CircleFlag countryCode={item.countryCode} label={item.countryName} size={24} />
-              <span className="font-bold text-ink-900">{item.countryName}</span>
-            </div>
-          </div>
+          <SponsoredBadge kind={item.kind} />
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="rounded bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-600">{item.category}</span>
-          {item.kind === 'job' && item.remote && <span className="rounded bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-600">Remote</span>}
+        <h3 className="mt-3 font-slab text-base font-bold leading-snug text-ink-950">{item.title}</h3>
+        <p className="mt-0.5 truncate text-xs font-medium text-ink-500">{item.org}</p>
+
+        {salaryOrFunding && (
+          <span className="mt-2 inline-block rounded bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
+            {item.kind === 'job' ? 'Salary' : 'Stipend'}: {salaryOrFunding}
+          </span>
+        )}
+
+        <div className="mt-2 flex items-center gap-1.5 text-xs">
+          <CircleFlag countryCode={item.countryCode} label={item.countryName} size={18} />
+          <span className="truncate font-bold text-ink-900">{item.countryName}</span>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="rounded bg-ink-50 px-2 py-0.5 text-[11px] font-medium text-ink-600">{item.category}</span>
+          {item.kind === 'job' && item.remote && <span className="rounded bg-ink-50 px-2 py-0.5 text-[11px] font-medium text-ink-600">Remote</span>}
         </div>
 
         {showCostPill && (
-          <div className="mt-3 flex items-center gap-1 border-t border-ink-100 pt-3">
-            <span className="rounded bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700">
-              Est. journey cost: ${est.totalLowUSD.toLocaleString()}–${est.totalHighUSD.toLocaleString()}
+          <div className="mt-2 flex items-center gap-1 border-t border-ink-100 pt-2">
+            <span className="rounded bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">
+              Est: ${est.totalLowUSD.toLocaleString()}–${est.totalHighUSD.toLocaleString()}
             </span>
             <button
               type="button"
@@ -350,7 +339,7 @@ function MatchCard({ item, originCode, originName }: { item: MatchItem; originCo
               className="rounded-full p-1 text-ink-400 hover:bg-ink-50 hover:text-brand-600"
               aria-label="What's included"
             >
-              <Info className="h-4 w-4" />
+              <Info className="h-3.5 w-3.5" />
             </button>
           </div>
         )}

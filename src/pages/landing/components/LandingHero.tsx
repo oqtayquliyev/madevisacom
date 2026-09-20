@@ -545,14 +545,14 @@ export function LandingHero({
 
       {/* SEARCH */}
 
-      <section className="relative z-10 mx-auto -mt-12 max-w-6xl px-5 sm:px-8">
+      <section className="relative z-10 mx-auto -mt-12 max-w-6xl px-6 sm:px-12 lg:px-16">
 
-        <div className="border border-ink-200 bg-white shadow-xl">
+        <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-xl">
 
           {/* JOURNEY OPTIONS — now live inside the box so they stay
               visible no matter which tab's content is showing below. */}
 
-          <div className="flex flex-wrap gap-2 border-b border-ink-100 bg-ink-50 px-5 py-4 sm:px-6">
+          <div className="flex flex-wrap gap-2 border-b border-ink-100 bg-ink-50 px-6 py-5 sm:px-8">
 
             {journeys.map((journey) => {
               const Icon = journey.icon;
