@@ -6,9 +6,11 @@ import {
   Building2,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   DollarSign,
   GraduationCap,
   Heart,
+  Megaphone,
   Plane,
   Search,
   Sparkles,
@@ -19,6 +21,8 @@ import { estimateJourneyCostBreakdown } from '@/lib/costEstimates';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { LocationMatchSection, fetchMatchItems, countNewWithin24h, type MatchItem } from './LocationMatchSection';
+import { allCountries, type CountryEntry } from '@/data/allCountries';
+import { CircleFlag } from '@/components/common/CircleFlag';
 
 type LandingHeroProps = {
   go: (view: View) => void;
@@ -156,110 +160,94 @@ const destinationCountries = countries.filter(
   (country) => country.code !== 'CA'
 );
 
-function CountryFlag({
-  country,
-  size = 'h-5 w-7',
-}: {
-  country: Country;
-  size?: string;
-}) {
-  return (
-    <img
-      src={country.flag}
-      alt={`${country.name} flag`}
-      className={`${size} rounded-sm object-cover shadow-sm`}
-    />
-  );
-}
-
-function CountrySelector({
+function PortalCountryPicker({
   label,
-  country,
+  value,
   onChange,
-  availableCountries,
   disabled,
+  helper,
 }: {
   label: string;
-  country: Country;
-  onChange: (country: Country) => void;
-  availableCountries: Country[];
+  value: CountryEntry;
+  onChange: (country: CountryEntry) => void;
   disabled?: boolean;
+  helper?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (rect) setPos({ top: rect.bottom + 8, left: rect.left, width: Math.max(rect.width, 280) });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
+
+  const filtered = allCountries.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="relative min-w-0">
       <button
         type="button"
+        ref={buttonRef}
         disabled={disabled}
-        onClick={() => setOpen((value) => !value)}
-        className={`flex min-h-[78px] w-full items-center gap-3 px-5 text-left transition ${
-          disabled
-            ? 'cursor-default'
-            : 'hover:bg-ink-50'
-        }`}
+        onClick={() => setOpen((v) => !v)}
+        className={`flex min-h-[78px] w-full items-center gap-3 px-5 text-left transition ${disabled ? 'cursor-default' : 'hover:bg-ink-50'}`}
       >
-        <CountryFlag
-          country={country}
-          size="h-6 w-9"
-        />
-
+        <CircleFlag countryCode={value.code} label={value.name} size={32} />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-ink-400">
-            {label}
-          </p>
-
-          <p className="mt-1 truncate text-sm font-semibold text-ink-900">
-            {country.name}
-          </p>
+          <p className="text-xs font-medium text-ink-400">{label}</p>
+          <p className="mt-1 truncate text-sm font-semibold text-ink-900">{value.name}</p>
         </div>
-
-        {!disabled && (
-          <ChevronDown
-            className={`h-4 w-4 shrink-0 text-ink-400 transition ${
-              open ? 'rotate-180' : ''
-            }`}
-          />
-        )}
+        {!disabled && <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${open ? 'rotate-180' : ''}`} />}
       </button>
 
-      {open && !disabled && (
+      {helper}
+
+      {open && !disabled && pos && createPortal(
         <>
-          <button
-            type="button"
-            aria-label="Close country selector"
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-30 cursor-default"
-          />
-
-          <div className="absolute left-2 right-2 top-[82px] z-50 max-h-72 overflow-auto border border-ink-200 bg-white p-2 shadow-xl">
-            {availableCountries.map((option) => (
-              <button
-                key={option.code}
-                type="button"
-                onClick={() => {
-                  onChange(option);
-                  setOpen(false);
-                }}
-                className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition hover:bg-ink-50 ${
-                  option.code === country.code
-                    ? 'bg-brand-50'
-                    : ''
-                }`}
-              >
-                <CountryFlag country={option} />
-
-                <span className="text-sm font-medium text-ink-800">
-                  {option.name}
-                </span>
-
-                {option.code === country.code && (
-                  <CheckCircle2 className="ml-auto h-4 w-4 text-brand-600" />
-                )}
-              </button>
-            ))}
+          <button type="button" aria-label="Close" onClick={() => { setOpen(false); setSearch(''); }} className="fixed inset-0 z-40 cursor-default" />
+          <div
+            className="fixed z-50 max-h-80 overflow-hidden rounded-md border border-ink-200 bg-white shadow-xl"
+            style={{ top: pos.top, left: pos.left, width: pos.width }}
+          >
+            <div className="border-b border-ink-100 p-2">
+              <input
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search countries…"
+                className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm outline-none focus:border-brand-500"
+              />
+            </div>
+            <div className="max-h-64 overflow-auto p-2">
+              {filtered.length === 0 && <p className="px-2 py-3 text-xs text-ink-400">No countries match "{search}"</p>}
+              {filtered.map((c) => (
+                <button
+                  key={c.code}
+                  type="button"
+                  onClick={() => { onChange(c); setOpen(false); setSearch(''); }}
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition hover:bg-ink-50 ${c.code === value.code ? 'bg-brand-50' : ''}`}
+                >
+                  <CircleFlag countryCode={c.code} label={c.name} size={22} />
+                  <span className="text-sm font-medium text-ink-800">{c.name}</span>
+                  {c.code === value.code && <CheckCircle2 className="ml-auto h-4 w-4 text-brand-600" />}
+                </button>
+              ))}
+            </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
@@ -295,6 +283,8 @@ function JourneyCostEstimate({
   destinationCountryCode: string;
   destinationCountryName: string;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   const estimate = useMemo(
     () =>
       estimateJourneyCostBreakdown({
@@ -306,18 +296,42 @@ function JourneyCostEstimate({
     [originCountryCode, destinationCountryCode, destinationCountryName, journey]
   );
 
-  const lineItems: { icon: typeof Plane; label: string; value: string }[] = [
+  const lineItems: { id: string; icon: typeof Plane; label: string; value: string; detail: string; source: string }[] = [
     {
+      id: 'flight',
       icon: Plane,
       label: 'Est. flight cost',
       value: `${formatUSD(estimate.flightLowUSD)}–${formatUSD(estimate.flightHighUSD)}`,
+      detail: `Round-trip economy estimate based on typical fares between this origin and ${destinationCountryName}. Actual prices vary by season, airline and how far ahead you book.`,
+      source: 'Historical airfare data',
     },
     ...(estimate.includeProgram
-      ? [{ icon: GraduationCap, label: 'Est. program cost', value: formatUSD(estimate.programAverageUSD) }]
+      ? [{
+          id: 'program',
+          icon: GraduationCap,
+          label: 'Est. program cost',
+          value: formatUSD(estimate.programAverageUSD),
+          detail: `Typical cost for this kind of program in ${destinationCountryName}. Some programs are free or fully funded — check the listing itself for the real figure.`,
+          source: 'Typical program costs',
+        }]
       : []),
-    { icon: CheckCircle2, label: 'Est. visa fee', value: formatUSD(estimate.visaFeeUSD) },
+    {
+      id: 'visa',
+      icon: CheckCircle2,
+      label: 'Est. visa fee',
+      value: formatUSD(estimate.visaFeeUSD),
+      detail: `Government visa application fee for entering ${destinationCountryName}. Doesn't include service fees charged by agencies or visa centers.`,
+      source: `${destinationCountryName} government fee schedule`,
+    },
     ...(estimate.includeWorkPermit
-      ? [{ icon: Briefcase, label: 'Est. work permit fee', value: formatUSD(estimate.workPermitFeeUSD) }]
+      ? [{
+          id: 'permit',
+          icon: Briefcase,
+          label: 'Est. work permit fee',
+          value: formatUSD(estimate.workPermitFeeUSD),
+          detail: `Government processing fee for a work permit or visa in ${destinationCountryName}, separate from the entry visa fee above.`,
+          source: `${destinationCountryName} government fee schedule`,
+        }]
       : []),
   ];
 
@@ -332,27 +346,45 @@ function JourneyCostEstimate({
         </p>
       </div>
 
-      <div className="mt-3 space-y-1.5">
-        {lineItems.map((item, i) => (
-          <div key={item.label} className="flex items-center gap-2 text-sm text-ink-600">
-            <span className="w-4 shrink-0 text-center font-bold text-ink-300">{i === 0 ? '' : '+'}</span>
-            <item.icon className="h-4 w-4 shrink-0 text-ink-400" />
-            <span className="flex-1">{item.label}</span>
-            <span className="font-semibold text-ink-800">{item.value}</span>
-          </div>
-        ))}
+      <div className="mt-3 divide-y divide-ink-100 rounded-lg border border-ink-200 bg-white">
+        {lineItems.map((item) => {
+          const isOpen = expandedId === item.id;
+          return (
+            <div key={item.id}>
+              <button
+                type="button"
+                onClick={() => setExpandedId(isOpen ? null : item.id)}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-ink-600 hover:bg-ink-50"
+              >
+                <item.icon className="h-4 w-4 shrink-0 text-ink-400" />
+                <span className="flex-1">{item.label}</span>
+                <span className="font-semibold text-ink-800">{item.value}</span>
+                <ChevronRight className={`h-4 w-4 shrink-0 text-ink-400 transition ${isOpen ? 'rotate-90' : ''}`} />
+              </button>
+              {isOpen && (
+                <div className="px-3 pb-3 pl-9 text-xs leading-5 text-ink-500">
+                  {item.detail}
+                  <p className="mt-1">
+                    <span className="cursor-default underline decoration-dotted underline-offset-2" title={item.source}>
+                      Source: {item.source}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
 
-        <div className="mt-2 flex items-center gap-2 border-t border-ink-200 pt-2.5 text-base">
-          <span className="w-4 shrink-0 text-center font-bold text-ink-400">=</span>
-          <span className="flex-1 font-bold text-ink-900">Total estimated cost</span>
-          <span className="text-xl font-extrabold tracking-tight text-ink-950">
+        <div className="flex items-center gap-2 bg-ink-50 px-3 py-3">
+          <span className="flex-1 text-sm font-bold text-ink-900">Total estimated cost</span>
+          <span className="text-lg font-extrabold tracking-tight text-ink-950">
             {formatUSD(estimate.totalLowUSD)}–{formatUSD(estimate.totalHighUSD)}
           </span>
         </div>
       </div>
 
       <p className="mt-2.5 text-[11px] text-ink-400">
-        Estimates only, not a live quote — actual costs vary by case.
+        Estimates only, not a live quote — actual costs vary by case. Tap a line for details.
       </p>
     </div>
   );
@@ -362,16 +394,11 @@ export function LandingHero({
   go,
   onAuth,
 }: LandingHeroProps) {
-  const canada =
-    countries.find(
-      (country) => country.code === 'CA'
-    ) ?? countries[0];
-
   const { countryCode: detectedCode, countryName: detectedName, setCountry } =
     useOriginCountry();
 
   const [fromCountry, setFromCountry] =
-    useState<Country>(canada);
+    useState<CountryEntry>(allCountries.find((c) => c.code === 'CA') ?? allCountries[0]);
 
   const [fromTouched, setFromTouched] =
     useState(false);
@@ -381,33 +408,18 @@ export function LandingHero({
   useEffect(() => {
     if (fromTouched || !detectedCode) return;
 
-    const known = countries.find(
+    const known = allCountries.find(
       (country) => country.code === detectedCode
     );
 
     setFromCountry(
-      known ??
-        {
-          name: detectedName ?? detectedCode,
-          code: detectedCode,
-          flag: `https://flagcdn.com/w80/${detectedCode.toLowerCase()}.png`,
-          image: canada.image,
-        }
+      known ?? { name: detectedName ?? detectedCode, code: detectedCode }
     );
-  }, [detectedCode, detectedName, fromTouched, canada.image]);
-
-  const originCountries = useMemo(() => {
-    if (!fromCountry || countries.some((c) => c.code === fromCountry.code)) {
-      return countries;
-    }
-    return [fromCountry, ...countries];
-  }, [fromCountry]);
+  }, [detectedCode, detectedName, fromTouched]);
 
   const [toCountry, setToCountry] =
-    useState<Country>(
-      countries.find(
-        (country) => country.code === 'DE'
-      ) ?? destinationCountries[0]
+    useState<CountryEntry>(
+      allCountries.find((country) => country.code === 'DE') ?? allCountries[0]
     );
 
   const [activeJourney, setActiveJourney] =
@@ -434,35 +446,6 @@ export function LandingHero({
       setShowAuthPrompt(true);
     }
   };
-
-  const [showDestinationMenu, setShowDestinationMenu] =
-    useState(false);
-
-  // The dropdown is rendered via a portal (see below) so it isn't
-  // clipped by the amber-border wrapper's overflow-hidden, or by any
-  // other ancestor. We track the trigger button's on-screen position
-  // so the portaled menu can line up under it with `position: fixed`.
-  const destinationButtonRef = useRef<HTMLButtonElement>(null);
-  const [destinationMenuPos, setDestinationMenuPos] = useState<{ top: number; left: number; width: number } | null>(null);
-
-  useEffect(() => {
-    if (!showDestinationMenu) return;
-
-    const updatePosition = () => {
-      const rect = destinationButtonRef.current?.getBoundingClientRect();
-      if (rect) {
-        setDestinationMenuPos({ top: rect.bottom + 8, left: rect.left, width: rect.width });
-      }
-    };
-
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    return () => {
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-    };
-  }, [showDestinationMenu]);
 
   const selectedJourney =
     journeys.find(
@@ -569,7 +552,7 @@ export function LandingHero({
           {/* JOURNEY OPTIONS — now live inside the box so they stay
               visible no matter which tab's content is showing below. */}
 
-          <div className="flex flex-wrap gap-2 border-b border-ink-100 bg-ink-950 px-5 py-4 sm:px-6">
+          <div className="flex flex-wrap gap-2 border-b border-ink-100 bg-ink-50 px-5 py-4 sm:px-6">
 
             {journeys.map((journey) => {
               const Icon = journey.icon;
@@ -580,10 +563,10 @@ export function LandingHero({
                   key={journey.id}
                   type="button"
                   onClick={() => handleJourneyChange(journey.id)}
-                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
                     active
-                      ? 'border-white bg-white text-brand-700'
-                      : 'border-white/25 text-white/75 hover:border-white/60 hover:text-white'
+                      ? 'border-brand-600 bg-brand-600 text-white shadow-sm'
+                      : 'border-ink-200 bg-white text-ink-600 hover:border-brand-300 hover:text-brand-700'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -591,7 +574,7 @@ export function LandingHero({
                   {journey.id === 'relocation' && new24hCount > 0 && (
                     <span
                       className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                        active ? 'bg-brand-100 text-brand-700' : 'bg-white/20 text-white'
+                        active ? 'bg-white/20 text-white' : 'bg-brand-50 text-brand-700'
                       }`}
                     >
                       {new24hCount > 10 ? '10+' : new24hCount} new
@@ -662,133 +645,32 @@ export function LandingHero({
           <div className="grid lg:grid-cols-2">
 
             <div className="border-b border-ink-100 lg:border-b-0">
-
-              <CountrySelector
+              <PortalCountryPicker
                 label="I'm from"
-                country={fromCountry}
-                availableCountries={originCountries}
+                value={fromCountry}
                 onChange={(country) => {
                   setFromCountry(country);
                   setFromTouched(true);
                 }}
+                helper={
+                  !fromTouched && detectedCode ? (
+                    <div className="px-5 pb-4">
+                      <div className="flex items-center gap-2 text-[11px] text-ink-400">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-brand-600" />
+                        Detected from your location — click to change
+                      </div>
+                    </div>
+                  ) : undefined
+                }
               />
-
-              {!fromTouched && detectedCode && (
-                <div className="px-5 pb-4">
-
-                  <div className="flex items-center gap-2 text-[11px] text-ink-400">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-brand-600" />
-                    Detected from your location — click to change
-                  </div>
-
-                </div>
-              )}
-
             </div>
 
-            <div className="relative border-ink-100 lg:border-l">
-
-              <button
-                type="button"
-                ref={destinationButtonRef}
-                onClick={() =>
-                  setShowDestinationMenu(
-                    (value) => !value
-                  )
-                }
-                className="flex min-h-[78px] w-full items-center gap-3 px-5 text-left transition hover:bg-ink-50"
-              >
-
-                <CountryFlag
-                  country={toCountry}
-                  size="h-6 w-9"
-                />
-
-                <div className="min-w-0 flex-1">
-
-                  <p className="text-xs font-medium text-ink-400">
-                    I want to go to
-                  </p>
-
-                  <p className="mt-1 truncate text-sm font-semibold text-ink-900">
-                    {toCountry.name}
-                  </p>
-
-                </div>
-
-                <ChevronDown
-                  className={`h-4 w-4 shrink-0 text-ink-400 transition ${
-                    showDestinationMenu
-                      ? 'rotate-180'
-                      : ''
-                  }`}
-                />
-
-              </button>
-
-              {showDestinationMenu && destinationMenuPos && createPortal(
-                <>
-
-                  <button
-                    type="button"
-                    aria-label="Close destination selector"
-                    onClick={() =>
-                      setShowDestinationMenu(false)
-                    }
-                    className="fixed inset-0 z-40 cursor-default"
-                  />
-
-                  <div
-                    className="fixed z-50 max-h-80 overflow-auto rounded-md border border-ink-200 bg-white p-2 shadow-xl"
-                    style={{
-                      top: destinationMenuPos.top,
-                      left: destinationMenuPos.left,
-                      width: Math.max(destinationMenuPos.width, 260),
-                    }}
-                  >
-
-                    {destinationCountries.map(
-                      (country) => (
-                        <button
-                          key={country.code}
-                          type="button"
-                          onClick={() => {
-                            setToCountry(country);
-                            setShowDestinationMenu(
-                              false
-                            );
-                          }}
-                          className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition hover:bg-ink-50 ${
-                            country.code ===
-                            toCountry.code
-                              ? 'bg-brand-50'
-                              : ''
-                          }`}
-                        >
-
-                          <CountryFlag
-                            country={country}
-                          />
-
-                          <span className="text-sm font-medium text-ink-800">
-                            {country.name}
-                          </span>
-
-                          {country.code ===
-                            toCountry.code && (
-                            <CheckCircle2 className="ml-auto h-4 w-4 text-brand-600" />
-                          )}
-
-                        </button>
-                      )
-                    )}
-
-                  </div>
-
-                </>,
-                document.body
-              )}
-
+            <div className="border-ink-100 lg:border-l">
+              <PortalCountryPicker
+                label="I want to go to"
+                value={toCountry}
+                onChange={setToCountry}
+              />
             </div>
 
           </div>
@@ -823,27 +705,74 @@ export function LandingHero({
 
       {/* POST A JOB / PROGRAM CTA */}
 
-      <section className="mx-auto max-w-6xl px-5 pt-6 sm:px-8">
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-ink-200 bg-white/60 px-5 py-6 text-center sm:flex-row sm:justify-between sm:text-left">
-          <div>
-            <p className="text-sm font-bold text-ink-900">Have a job or program to share?</p>
-            <p className="mt-0.5 text-xs text-ink-500">Reviewed within 24 hours before it goes live.</p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => handlePostClick('submit-program')}
-              className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
-            >
-              Post a Job
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePostClick('submit-program')}
-              className="rounded-lg bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-ink-800"
-            >
-              Post a Program
-            </button>
+      <section className="mx-auto max-w-6xl px-5 pt-10 sm:px-8">
+        <div className="overflow-hidden rounded-xl border border-brand-200 bg-gradient-to-br from-brand-50 via-white to-white shadow-soft-lg">
+          <div className="grid gap-8 p-6 sm:p-10 lg:grid-cols-[1.2fr_1fr] lg:items-center">
+
+            <div>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold text-white">
+                <Megaphone className="h-3.5 w-3.5" />
+                For organizations
+              </span>
+
+              <h2 className="mt-4 text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">
+                Reach people ready to move abroad
+              </h2>
+
+              <p className="mt-3 max-w-lg text-sm leading-6 text-ink-600">
+                Companies, governments, universities, institutions, agencies and program providers use MadeVisa to
+                put real opportunities in front of people actively planning their move — reviewed and verified
+                before anything goes live.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => handlePostClick('submit-program')}
+                  className="flex items-center gap-2 rounded-lg bg-brand-600 px-6 py-3.5 text-base font-bold text-white shadow-sm transition hover:bg-brand-700"
+                >
+                  <Briefcase className="h-5 w-5" />
+                  Post a Job
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePostClick('submit-program')}
+                  className="flex items-center gap-2 rounded-lg bg-ink-900 px-6 py-3.5 text-base font-bold text-white shadow-sm transition hover:bg-ink-800"
+                >
+                  <GraduationCap className="h-5 w-5" />
+                  Post a Program
+                </button>
+              </div>
+
+              <p className="mt-3 text-xs font-medium text-ink-400">
+                Free to submit · Reviewed within 24 hours before publishing
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-ink-100 bg-white/80 p-5">
+              <p className="text-xs font-bold uppercase tracking-wide text-ink-400">How posting works</p>
+              <div className="mt-4 space-y-4">
+                {[
+                  { step: '1', label: 'Submit', detail: 'Share the essentials — title, category, destination.' },
+                  { step: '2', label: 'Review', detail: 'Our team verifies it and fills in the rest with you.' },
+                  { step: '3', label: 'Publish', detail: 'It goes live and reaches people planning that exact move.' },
+                ].map((s, i, arr) => (
+                  <div key={s.step} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-600 text-xs font-bold text-white">
+                        {s.step}
+                      </span>
+                      {i < arr.length - 1 && <span className="mt-1 h-full w-px flex-1 bg-ink-200" />}
+                    </div>
+                    <div className="pb-1">
+                      <p className="text-sm font-bold text-ink-900">{s.label}</p>
+                      <p className="text-xs text-ink-500">{s.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
@@ -954,9 +883,7 @@ export function LandingHero({
 
                     <div className="flex items-center gap-2">
 
-                      <CountryFlag
-                        country={country}
-                      />
+                      <CircleFlag countryCode={country.code} label={country.name} size={24} />
 
                       <span className="text-sm font-bold text-white">
                         {country.name}
