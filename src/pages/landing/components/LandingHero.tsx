@@ -545,7 +545,7 @@ export function LandingHero({
 
       {/* SEARCH */}
 
-      <section className="relative z-10 mx-auto -mt-12 max-w-6xl px-6 sm:px-12 lg:px-16">
+      <section className="relative z-10 mx-auto -mt-12 max-w-7xl px-4 sm:px-8 lg:px-10">
 
         <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-xl">
 

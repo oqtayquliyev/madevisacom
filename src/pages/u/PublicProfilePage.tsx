@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Shield, UserRound } from 'lucide-react';
+import { Pencil, Shield, UserRound } from 'lucide-react';
 import type { View } from '@/types';
+import { useAuth } from '@/lib/auth';
 import { fetchPublicProfileByUsername, type PublicProfile } from '@/lib/username';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -15,6 +16,7 @@ const orgTypeLabel: Record<string, string> = {
 
 export function PublicProfilePage({ username, go, onAuth }: { username: string; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void }) {
   const [profile, setProfile] = useState<PublicProfile | null | undefined>(undefined);
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchPublicProfileByUsername(username).then(setProfile);
@@ -75,6 +77,16 @@ export function PublicProfilePage({ username, go, onAuth }: { username: string; 
 
             <h1 className="mt-3 text-xl font-bold text-ink-950">{profile.full_name ?? profile.username}</h1>
             <p className="text-sm text-ink-400">@{profile.username}</p>
+
+            {user?.id === profile.id && (
+              <button
+                onClick={() => go('profile')}
+                className="mt-3 flex items-center gap-1.5 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-50"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit profile
+              </button>
+            )}
 
             {isVerifiedPublisher && (
               <div className="mt-3 flex items-center gap-1.5 rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">

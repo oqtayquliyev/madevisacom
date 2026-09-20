@@ -199,7 +199,15 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                   {profile ? (
                     <>
                       <button
-                        onClick={() => { go('profile'); setOpenProfile(false); }}
+                        onClick={() => {
+                          setOpenProfile(false);
+                          if (profile?.username) {
+                            window.history.pushState({}, '', `/u/${profile.username}`);
+                            window.dispatchEvent(new PopStateEvent('popstate'));
+                          } else {
+                            go('profile');
+                          }
+                        }}
                         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
                       >
                         <UserRound className="h-4 w-4 text-ink-400" />
