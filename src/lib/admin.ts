@@ -331,3 +331,56 @@ export async function updateAgencyName(id: string, name: string) {
   if (error) console.error('updateAgencyName failed', error);
   return !error;
 }
+
+export async function findOrCreateImportedPublisher(companyName: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const name = companyName.trim();
+  if (!name) return { ok: false, error: 'Company name is required.' };
+
+  const existing = await supabase
+    .from('program_publishers')
+    .select('id')
+    .ilike('name', name)
+    .maybeSingle();
+
+  if (existing.data) return { ok: true, id: existing.data.id };
+
+  const created = await supabase
+    .from('program_publishers')
+    .insert({
+      owner_id: null,
+      org_type: 'company',
+      name,
+      verification_status: 'verified',
+      contact_email: 'hello@madevisa.com',
+    })
+    .select('id')
+    .single();
+
+  if (created.error || !created.data) {
+    return { ok: false, error: created.error?.message ?? 'Could not create publisher.' };
+  }
+  return { ok: true, id: created.data.id };
+}
+
+export async function importJobsAsPending(
+  publisherId: string,
+  countryId: string,
+  jobs: { title: string; description: string; officialUrl: string }[]
+): Promise<{ ok: boolean; imported: number; error?: string }> {
+  const rows = jobs.map((j) => ({
+    publisher_id: publisherId,
+    title: j.title,
+    description: j.description,
+    category: 'Other',
+    employment_type: 'Other',
+    remote: false,
+    country_id: countryId,
+    official_url: j.officialUrl,
+    contact_email: 'hello@madevisa.com',
+    status: 'pending',
+  }));
+
+  const { error } = await supabase.from('sponsored_jobs').insert(rows);
+  if (error) return { ok: false, imported: 0, error: error.message };
+  return { ok: true, imported: rows.length };
+}
