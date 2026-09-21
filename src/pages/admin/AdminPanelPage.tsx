@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Briefcase, Building2, Check, Landmark, Pencil, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
+import { Briefcase, Building2, Check, ChevronLeft, ChevronRight, Landmark, Pencil, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSeo } from '@/lib/seo';
 import {
@@ -14,6 +14,8 @@ import {
   fetchVerifiedPublishers,
   deleteProgram,
   deleteSponsoredJob,
+  bulkSetJobStatus,
+  bulkSetJobImage,
   findOrCreateImportedPublisher,
   grantAdminByEmail,
   importJobsAsPending,
@@ -37,7 +39,7 @@ import {
 } from '@/lib/admin';
 import { ImageUploadField } from '@/components/common/ImageUploadField';
 import { fetchCountries, type CountryOption } from '@/lib/programs';
-import { fetchGreenhouseJobs, stripHtml } from '@/lib/atsImport';
+import { fetchGreenhouseJobs, sanitizeJobHtml } from '@/lib/atsImport';
 import {
   COST_STATUSES,
   JOB_CATEGORIES,
@@ -226,11 +228,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
               ))}
             </Section>
 
-            <Section title="All sponsored jobs" count={allJobs.length}>
-              {allJobs.map((j) => (
-                <EditableJobRow key={j.id} j={j} onChange={loadAll} />
-              ))}
-            </Section>
+            <ManagedJobsSection jobs={allJobs} onChange={loadAll} />
 
             <Section title="Pending travel agencies" count={pendingAgencies.length}>
               {pendingAgencies.map((a) => (
@@ -448,7 +446,7 @@ function AdminAccessSection({ admins, currentEmail, onChange }: { admins: AdminP
   );
 }
 
-type PreviewJob = { externalId: string; title: string; locationText: string; description: string; url: string; selected: boolean };
+type PreviewJob = { externalId: string; title: string; locationText: string; offices: string[]; description: string; url: string; selected: boolean };
 
 function ImportFromAtsSection({ countries, onImported }: { countries: CountryOption[]; onImported: () => void }) {
   const [boardToken, setBoardToken] = useState('');
@@ -476,7 +474,8 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
         externalId: j.externalId,
         title: j.title,
         locationText: j.locationText,
-        description: stripHtml(j.descriptionHtml).slice(0, 1500),
+        offices: j.offices,
+        description: sanitizeJobHtml(j.descriptionHtml),
         url: j.url,
         selected: true,
       }))
@@ -504,7 +503,7 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
     const importResult = await importJobsAsPending(
       publisherResult.id,
       countryId,
-      selected.map((j) => ({ title: j.title, description: j.description, officialUrl: j.url }))
+      selected.map((j) => ({ title: j.title, description: j.description, officialUrl: j.url, additionalLocations: j.offices }))
     );
 
     setImporting(false);
@@ -849,7 +848,7 @@ function EditableProgramRow({ p, onChange }: { p: AdminProgram; onChange: () => 
   );
 }
 
-function EditableJobRow({ j, onChange }: { j: AdminSponsoredJob; onChange: () => void }) {
+function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSponsoredJob; onChange: () => void; selected?: boolean; onToggleSelect?: () => void }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(j.title);
   const [category, setCategory] = useState<JobCategory>(j.category as JobCategory);
@@ -918,6 +917,9 @@ function EditableJobRow({ j, onChange }: { j: AdminSponsoredJob; onChange: () =>
   if (!editing) {
     return (
       <Row>
+        {onToggleSelect && (
+          <input type="checkbox" checked={selected} onChange={onToggleSelect} className="mt-1.5 shrink-0" />
+        )}
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500">
           <Briefcase className="h-4 w-4" />
         </span>
@@ -1039,6 +1041,175 @@ function StatusPill({ status }: { status: string }) {
     <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${styles[status] ?? 'bg-ink-50 text-ink-500'}`}>
       {labels[status] ?? status}
     </span>
+  );
+}
+
+const JOBS_PAGE_SIZE = 25;
+
+function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onChange: () => void }) {
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | ListingStatus>('all');
+  const [page, setPage] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState('');
+  const [showLogoTool, setShowLogoTool] = useState(false);
+  const { profile } = useAuth();
+
+  const filtered = jobs.filter((j) => {
+    const matchesSearch =
+      !search.trim() ||
+      j.title.toLowerCase().includes(search.toLowerCase()) ||
+      (j.publisher?.name ?? '').toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || j.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / JOBS_PAGE_SIZE));
+  const pageJobs = filtered.slice(page * JOBS_PAGE_SIZE, page * JOBS_PAGE_SIZE + JOBS_PAGE_SIZE);
+  const allOnPageSelected = pageJobs.length > 0 && pageJobs.every((j) => selectedIds.has(j.id));
+
+  const toggle = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllOnPage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allOnPageSelected) pageJobs.forEach((j) => next.delete(j.id));
+      else pageJobs.forEach((j) => next.add(j.id));
+      return next;
+    });
+  };
+
+  const bulkApprove = async () => {
+    setBulkBusy(true);
+    setBulkMessage(null);
+    const result = await bulkSetJobStatus(Array.from(selectedIds), 'published');
+    setBulkBusy(false);
+    if (result.ok) {
+      setBulkMessage(`Published ${selectedIds.size} job${selectedIds.size === 1 ? '' : 's'}.`);
+      setSelectedIds(new Set());
+      onChange();
+    } else {
+      setBulkMessage(result.error ?? 'Bulk approve failed.');
+    }
+  };
+
+  const applyLogo = async () => {
+    if (!logoUrl) return;
+    setBulkBusy(true);
+    setBulkMessage(null);
+    const result = await bulkSetJobImage(Array.from(selectedIds), logoUrl);
+    setBulkBusy(false);
+    if (result.ok) {
+      setBulkMessage(`Applied logo to ${selectedIds.size} job${selectedIds.size === 1 ? '' : 's'}.`);
+      setSelectedIds(new Set());
+      setShowLogoTool(false);
+      setLogoUrl('');
+      onChange();
+    } else {
+      setBulkMessage(result.error ?? 'Could not apply logo.');
+    }
+  };
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">
+        All sponsored jobs <span className="text-ink-400">({filtered.length}{filtered.length !== jobs.length ? ` of ${jobs.length}` : ''})</span>
+      </h2>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <input
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+          placeholder="Search title or company…"
+          className="h-9 min-w-[220px] flex-1 rounded-md border border-ink-200 px-3 text-sm text-ink-900 outline-none focus:border-brand-500"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value as 'all' | ListingStatus); setPage(0); }}
+          className="h-9 rounded-md border border-ink-200 px-2 text-sm text-ink-700 outline-none focus:border-brand-500"
+        >
+          <option value="all">All statuses</option>
+          {LISTING_STATUSES.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {selectedIds.size > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2">
+          <span className="text-xs font-semibold text-brand-800">{selectedIds.size} selected</span>
+          <button onClick={bulkApprove} disabled={bulkBusy} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+            Publish selected
+          </button>
+          <button onClick={() => setShowLogoTool((v) => !v)} className="rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
+            Apply logo to selected
+          </button>
+          <button onClick={() => setSelectedIds(new Set())} className="text-xs text-ink-500 hover:text-ink-700">
+            Clear selection
+          </button>
+        </div>
+      )}
+
+      {showLogoTool && (
+        <div className="mt-2 rounded-lg border border-ink-200 bg-white p-3">
+          {profile?.id && <ImageUploadField userId={profile.id} value={logoUrl} onChange={setLogoUrl} label="Logo to apply to all selected jobs" />}
+          <button onClick={applyLogo} disabled={bulkBusy || !logoUrl} className="mt-2 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+            Apply to {selectedIds.size} job{selectedIds.size === 1 ? '' : 's'}
+          </button>
+        </div>
+      )}
+
+      {bulkMessage && <p className="mt-2 text-xs font-medium text-emerald-700">{bulkMessage}</p>}
+
+      <div className="mt-3 border border-ink-200 bg-white">
+        {pageJobs.length > 0 && (
+          <label className="flex items-center gap-2 border-b border-ink-100 bg-ink-50 px-3 py-2 text-xs font-semibold text-ink-600">
+            <input type="checkbox" checked={allOnPageSelected} onChange={toggleAllOnPage} />
+            Select all on this page ({pageJobs.length})
+          </label>
+        )}
+        <div className="divide-y divide-ink-100">
+          {pageJobs.length === 0 ? (
+            <p className="px-3 py-6 text-center text-xs text-ink-400">No jobs match this search/filter.</p>
+          ) : (
+            pageJobs.map((j) => (
+              <EditableJobRow key={j.id} j={j} onChange={onChange} selected={selectedIds.has(j.id)} onToggleSelect={() => toggle(j.id)} />
+            ))
+          )}
+        </div>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="mt-3 flex items-center justify-center gap-3">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="rounded-full border border-ink-200 p-2 text-ink-500 hover:bg-ink-50 disabled:opacity-30"
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-xs font-medium text-ink-400">Page {page + 1} of {totalPages}</span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+            className="rounded-full border border-ink-200 p-2 text-ink-500 hover:bg-ink-50 disabled:opacity-30"
+            aria-label="Next page"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+    </section>
   );
 }
 

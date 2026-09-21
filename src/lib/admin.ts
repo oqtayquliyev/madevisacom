@@ -365,7 +365,7 @@ export async function findOrCreateImportedPublisher(companyName: string): Promis
 export async function importJobsAsPending(
   publisherId: string,
   countryId: string,
-  jobs: { title: string; description: string; officialUrl: string }[]
+  jobs: { title: string; description: string; officialUrl: string; additionalLocations?: string[] }[]
 ): Promise<{ ok: boolean; imported: number; error?: string }> {
   const rows = jobs.map((j) => ({
     publisher_id: publisherId,
@@ -376,6 +376,7 @@ export async function importJobsAsPending(
     remote: false,
     country_id: countryId,
     official_url: j.officialUrl,
+    additional_locations: j.additionalLocations && j.additionalLocations.length > 1 ? j.additionalLocations : null,
     contact_email: 'hello@madevisa.com',
     status: 'pending',
   }));
@@ -383,4 +384,16 @@ export async function importJobsAsPending(
   const { error } = await supabase.from('sponsored_jobs').insert(rows);
   if (error) return { ok: false, imported: 0, error: error.message };
   return { ok: true, imported: rows.length };
+}
+
+export async function bulkSetJobStatus(ids: string[], status: ListingStatus): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from('sponsored_jobs').update({ status }).in('id', ids);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function bulkSetJobImage(ids: string[], imageUrl: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from('sponsored_jobs').update({ image_url: imageUrl }).in('id', ids);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }

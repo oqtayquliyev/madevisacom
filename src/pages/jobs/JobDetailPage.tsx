@@ -11,6 +11,8 @@ import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { useSeo } from '@/lib/seo';
+import { sanitizeJobHtml } from '@/lib/atsImport';
+import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
 
 type JobDetailPageProps = {
   id: string;
@@ -111,6 +113,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               <span className="rounded-full bg-ink-100 px-2.5 py-1 text-[11px] font-semibold text-ink-600">{job.type}</span>
               {job.remote && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Remote</span>}
               {job.visaSponsorship && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700">Visa sponsorship</span>}
+              <MultiCountryBadge officeNames={job.additionalLocations} />
               <EligibilityBadge result={eligibility} />
             </div>
 
@@ -127,7 +130,12 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               </span>
             </div>
 
-            {job.description && <p className="mt-5 text-sm leading-6 text-ink-600">{job.description}</p>}
+            {job.description && (
+              <div
+                className="prose-job mt-5 text-sm leading-6 text-ink-600 [&_h2]:mt-5 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-ink-950 [&_h2]:first:mt-0 [&_h3]:mt-4 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-ink-900 [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-1 [&_strong]:font-bold [&_strong]:text-ink-800 [&_a]:text-brand-600 [&_a]:underline"
+                dangerouslySetInnerHTML={{ __html: sanitizeJobHtml(job.description) }}
+              />
+            )}
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               {job.salary && <InfoRow icon={Briefcase} label="Compensation" value={job.salary} />}

@@ -29,6 +29,7 @@ export type Job = {
   requirements?: string | null;
   benefits?: string | null;
   visaSponsorship?: boolean;
+  additionalLocations?: string[] | null;
   spotsAvailable?: number | null;
   imageUrl?: string | null;
 };

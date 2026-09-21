@@ -1,7 +1,10 @@
+import DOMPurify from 'dompurify';
+
 export type FetchedJob = {
   externalId: string;
   title: string;
   locationText: string;
+  offices: string[];
   descriptionHtml: string;
   url: string;
   updatedAt: string;
@@ -30,6 +33,7 @@ export async function fetchGreenhouseJobs(boardToken: string): Promise<{ ok: boo
       externalId: String(j.id),
       title: String(j.title ?? 'Untitled role'),
       locationText: String((j.location as { name?: string } | undefined)?.name ?? ''),
+      offices: ((j.offices as { name?: string }[] | undefined) ?? []).map((o) => o.name ?? '').filter(Boolean),
       descriptionHtml: String(j.content ?? ''),
       url: String(j.absolute_url ?? ''),
       updatedAt: String(j.updated_at ?? ''),
@@ -40,15 +44,46 @@ export async function fetchGreenhouseJobs(boardToken: string): Promise<{ ok: boo
   }
 }
 
-/** Strips HTML tags down to plain text for the short description field — the
- * detail page can still show the richer version later if we decide to store HTML. */
-export function stripHtml(html: string): string {
+/**
+ * Greenhouse's `content` field comes back with its angle brackets
+ * HTML-entity-encoded (e.g. the literal text "&lt;h2&gt;", not a real
+ * tag) — decoding entities is what turns that into real markup.
+ * Decoding must happen BEFORE sanitizing, not after, or the entities
+ * decode into literal "<h2>" *text* once tags have already been
+ * stripped, which is the "raw tags showing up" bug.
+ */
+function decodeEntities(html: string): string {
   return html
-    .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
+    .replace(/&gt;/g, '>');
+}
+
+const ALLOWED_TAGS = ['h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li', 'strong', 'b', 'em', 'i', 'br', 'a', 'span'];
+
+/**
+ * Decodes + sanitizes a job description down to a small safe set of
+ * formatting tags (headers, paragraphs, lists, bold/italic, links) —
+ * enough to preserve "Who we are" / "What you'll do" style section
+ * structure, with everything else (scripts, styles, inline handlers,
+ * unknown tags) stripped. Safe to render with dangerouslySetInnerHTML.
+ */
+export function sanitizeJobHtml(rawHtml: string): string {
+  const decoded = decodeEntities(rawHtml);
+  return DOMPurify.sanitize(decoded, {
+    ALLOWED_TAGS,
+    ALLOWED_ATTR: ['href'],
+  });
+}
+
+/** Plain-text fallback (e.g. for meta descriptions or previews). */
+export function stripHtml(html: string): string {
+  return decodeEntities(html)
+    .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
