@@ -144,6 +144,8 @@ export type AdminProgram = {
   category: string;
   status: ListingStatus;
   created_at: string;
+  approved_at: string | null;
+  expires_at: string | null;
   country_id: string | null;
   city: string | null;
   duration_text: string | null;
@@ -182,6 +184,8 @@ export type AdminSponsoredJob = {
   remote: boolean;
   status: ListingStatus;
   created_at: string;
+  approved_at: string | null;
+  expires_at: string | null;
   country_id: string | null;
   city: string | null;
   compensation_text: string | null;
@@ -213,9 +217,9 @@ export type AdminSponsoredJob = {
 };
 
 const adminProgramColumns =
-  'id, title, description, category, status, created_at, country_id, city, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, official_url, application_url, image_url, spots_available, citizenship_any, citizenship_allowed, min_age, max_age, applications_open_at, applications_close_at, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, description, category, status, created_at, approved_at, expires_at, country_id, city, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, official_url, application_url, image_url, spots_available, citizenship_any, citizenship_allowed, min_age, max_age, applications_open_at, applications_close_at, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const adminSponsoredJobColumns =
-  'id, title, description, category, employment_type, remote, status, created_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, description, category, employment_type, remote, status, created_at, approved_at, expires_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 
 export async function fetchAllPrograms(): Promise<AdminProgram[]> {
   const { data, error } = await supabase

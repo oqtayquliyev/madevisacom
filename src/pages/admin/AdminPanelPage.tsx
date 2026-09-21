@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Briefcase, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Landmark, Pencil, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSeo } from '@/lib/seo';
@@ -93,11 +93,17 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
   const [allJobs, setAllJobs] = useState<AdminSponsoredJob[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
+  const hasLoadedOnce = useRef(false);
 
   const isAdmin = profile?.role === 'admin';
 
   const loadAll = () => {
-    setDataLoading(true);
+    // Only blank the whole panel on the very first load — every
+    // subsequent refresh (after approving/rejecting/deleting/etc.)
+    // updates the data in place instead, so the page doesn't look
+    // like it's reloading on every click.
+    if (!hasLoadedOnce.current) setDataLoading(true);
+
     Promise.all([
       fetchPendingPublishers(),
       fetchVerifiedPublishers(),
@@ -121,6 +127,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
       setAllJobs(allJ);
       setCountries(ctys);
       setDataLoading(false);
+      hasLoadedOnce.current = true;
     });
   };
 
@@ -205,6 +212,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                     <p className="text-xs text-ink-500">
                       {p.category} · {p.publisher?.name ?? 'Unknown publisher'}{p.country ? ` · ${p.country.name}` : ''}
                     </p>
+                    <p className="text-[11px] text-ink-400">Submitted {formatDate(p.created_at)}</p>
                   </div>
                   <Actions
                     onApprove={async () => { if (await setProgramStatus(p.id, 'published')) loadAll(); }}
@@ -240,6 +248,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                     <p className="text-xs text-ink-500">
                       {j.employment_type} · {j.publisher?.name ?? 'Unknown publisher'}{j.country ? ` · ${j.country.name}` : ''}
                     </p>
+                    <p className="text-[11px] text-ink-400">Submitted {formatDate(j.created_at)}</p>
                   </div>
                   <Actions
                     onApprove={async () => { if (await setSponsoredJobStatus(j.id, 'published')) loadAll(); }}
@@ -794,6 +803,11 @@ function EditableProgramRow({ p, onChange, selected, onToggleSelect }: { p: Admi
           <p className="text-xs text-ink-500">
             {p.category} · {p.publisher?.name ?? 'Unknown publisher'}{p.country ? ` · ${p.country.name}` : ''}{p.city ? `, ${p.city}` : ''}
           </p>
+          <p className="text-[11px] text-ink-400">
+            Submitted {formatDate(p.created_at)}
+            {p.approved_at && ` · Approved ${formatDate(p.approved_at)}`}
+            {p.expires_at && ` · Expires ${formatDate(p.expires_at)}`}
+          </p>
         </div>
         <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600">
           <Trash2 className="h-4 w-4" />
@@ -981,6 +995,11 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
           </p>
           <p className="text-xs text-ink-500">
             {j.category} · {j.publisher?.name ?? 'Unknown publisher'}{j.country ? ` · ${j.country.name}` : ''}{j.city ? `, ${j.city}` : ''}
+          </p>
+          <p className="text-[11px] text-ink-400">
+            Submitted {formatDate(j.created_at)}
+            {j.approved_at && ` · Approved ${formatDate(j.approved_at)}`}
+            {j.expires_at && ` · Expires ${formatDate(j.expires_at)}`}
           </p>
         </div>
         <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600">
@@ -1516,6 +1535,11 @@ function Pager({ page, totalPages, onChange }: { page: number; totalPages: numbe
       </button>
     </div>
   );
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function Row({ children }: { children: React.ReactNode }) {

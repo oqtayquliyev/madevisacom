@@ -42,13 +42,15 @@ export type SponsoredJob = {
   source_verified: boolean;
   needs_info_message: string | null;
   created_at: string;
+  approved_at: string | null;
+  expires_at: string | null;
   additional_locations: string[] | null;
   publisher?: { id: string; name: string; org_type: OrgType; logo_url: string | null };
   country?: { id: string; name: string; iso_code: string };
 };
 
 const columns =
-  'id, publisher_id, title, description, category, employment_type, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, created_at, additional_locations, publisher:program_publishers(id, name, org_type, logo_url), country:countries(id, name, iso_code)';
+  'id, publisher_id, title, description, category, employment_type, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, created_at, approved_at, expires_at, additional_locations, publisher:program_publishers(id, name, org_type, logo_url), country:countries(id, name, iso_code)';
 
 export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
   return {
@@ -66,6 +68,7 @@ export async function fetchPublishedSponsoredJobs(): Promise<SponsoredJob[]> {
     .from('sponsored_jobs')
     .select(columns)
     .eq('status', 'published')
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
     .order('created_at', { ascending: false });
 
   if (error) {
