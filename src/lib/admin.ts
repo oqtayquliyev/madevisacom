@@ -318,46 +318,46 @@ export async function revokeAdminByEmail(email: string): Promise<{ ok: boolean; 
   return { ok: true };
 }
 
-export async function setPublisherStatus(id: string, status: 'verified' | 'rejected' | 'suspended' | 'pending') {
+export async function setPublisherStatus(id: string, status: 'verified' | 'rejected' | 'suspended' | 'pending'): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from('program_publishers').update({ verification_status: status }).eq('id', id);
-  if (error) console.error('setPublisherStatus failed', error);
-  return !error;
+  if (error) { console.error('setPublisherStatus failed', error); return { ok: false, error: error.message }; }
+  return { ok: true };
 }
 
-export async function updatePublisherName(id: string, name: string) {
+export async function updatePublisherName(id: string, name: string): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from('program_publishers').update({ name }).eq('id', id);
-  if (error) console.error('updatePublisherName failed', error);
-  return !error;
+  if (error) { console.error('updatePublisherName failed', error); return { ok: false, error: error.message }; }
+  return { ok: true };
 }
 
-export async function updatePublisherContactEmail(id: string, contactEmail: string) {
+export async function updatePublisherContactEmail(id: string, contactEmail: string): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from('program_publishers').update({ contact_email: contactEmail }).eq('id', id);
-  if (error) console.error('updatePublisherContactEmail failed', error);
-  return !error;
+  if (error) { console.error('updatePublisherContactEmail failed', error); return { ok: false, error: error.message }; }
+  return { ok: true };
 }
 
-export async function setProgramStatus(id: string, status: ListingStatus) {
+export async function setProgramStatus(id: string, status: ListingStatus): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from('programs').update({ status }).eq('id', id);
-  if (error) console.error('setProgramStatus failed', error);
-  return !error;
+  if (error) { console.error('setProgramStatus failed', error); return { ok: false, error: error.message }; }
+  return { ok: true };
 }
 
-export async function setSponsoredJobStatus(id: string, status: ListingStatus) {
+export async function setSponsoredJobStatus(id: string, status: ListingStatus): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from('sponsored_jobs').update({ status }).eq('id', id);
-  if (error) console.error('setSponsoredJobStatus failed', error);
-  return !error;
+  if (error) { console.error('setSponsoredJobStatus failed', error); return { ok: false, error: error.message }; }
+  return { ok: true };
 }
 
-export async function setAgencyStatus(id: string, status: 'verified' | 'rejected' | 'pending') {
+export async function setAgencyStatus(id: string, status: 'verified' | 'rejected' | 'pending'): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from('agencies').update({ verification_status: status }).eq('id', id);
-  if (error) console.error('setAgencyStatus failed', error);
-  return !error;
+  if (error) { console.error('setAgencyStatus failed', error); return { ok: false, error: error.message }; }
+  return { ok: true };
 }
 
-export async function updateAgencyName(id: string, name: string) {
+export async function updateAgencyName(id: string, name: string): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from('agencies').update({ name }).eq('id', id);
-  if (error) console.error('updateAgencyName failed', error);
-  return !error;
+  if (error) { console.error('updateAgencyName failed', error); return { ok: false, error: error.message }; }
+  return { ok: true };
 }
 
 export async function findOrCreateImportedPublisher(companyName: string): Promise<{ ok: boolean; id?: string; error?: string }> {

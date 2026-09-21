@@ -178,8 +178,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
               renderRow={(p) => (
                 <PublisherRow key={p.id} p={p} onChange={loadAll}>
                   <Actions
-                    onApprove={async () => { if (await setPublisherStatus(p.id, 'verified')) loadAll(); }}
-                    onReject={async () => { if (await setPublisherStatus(p.id, 'rejected')) loadAll(); }}
+                    onApprove={async () => { const r = await setPublisherStatus(p.id, 'verified'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
+                    onReject={async () => { const r = await setPublisherStatus(p.id, 'rejected'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
                   />
                 </PublisherRow>
               )}
@@ -192,7 +192,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
               renderRow={(p) => (
                 <PublisherRow key={p.id} p={p} onChange={loadAll}>
                   <button
-                    onClick={async () => { if (await setPublisherStatus(p.id, 'suspended')) loadAll(); }}
+                    onClick={async () => { const r = await setPublisherStatus(p.id, 'suspended'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
                     className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
                   >
                     Suspend
@@ -215,8 +215,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                     <p className="text-[11px] text-ink-400">Submitted {formatDate(p.created_at)}</p>
                   </div>
                   <Actions
-                    onApprove={async () => { if (await setProgramStatus(p.id, 'published')) loadAll(); }}
-                    onReject={async () => { if (await setProgramStatus(p.id, 'rejected')) loadAll(); }}
+                    onApprove={async () => { const r = await setProgramStatus(p.id, 'published'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
+                    onReject={async () => { const r = await setProgramStatus(p.id, 'rejected'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
                   />
                   <button
                     onClick={async () => {
@@ -251,8 +251,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                     <p className="text-[11px] text-ink-400">Submitted {formatDate(j.created_at)}</p>
                   </div>
                   <Actions
-                    onApprove={async () => { if (await setSponsoredJobStatus(j.id, 'published')) loadAll(); }}
-                    onReject={async () => { if (await setSponsoredJobStatus(j.id, 'rejected')) loadAll(); }}
+                    onApprove={async () => { const r = await setSponsoredJobStatus(j.id, 'published'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
+                    onReject={async () => { const r = await setSponsoredJobStatus(j.id, 'rejected'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
                   />
                   <button
                     onClick={async () => {
@@ -281,8 +281,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
               renderRow={(a) => (
                 <AgencyRow key={a.id} a={a} onChange={loadAll}>
                   <Actions
-                    onApprove={async () => { if (await setAgencyStatus(a.id, 'verified')) loadAll(); }}
-                    onReject={async () => { if (await setAgencyStatus(a.id, 'rejected')) loadAll(); }}
+                    onApprove={async () => { const r = await setAgencyStatus(a.id, 'verified'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
+                    onReject={async () => { const r = await setAgencyStatus(a.id, 'rejected'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
                   />
                 </AgencyRow>
               )}
@@ -295,7 +295,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
               renderRow={(a) => (
                 <AgencyRow key={a.id} a={a} onChange={loadAll}>
                   <button
-                    onClick={async () => { if (await setAgencyStatus(a.id, 'pending')) loadAll(); }}
+                    onClick={async () => { const r = await setAgencyStatus(a.id, 'pending'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
                     className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
                   >
                     Revoke
@@ -321,10 +321,15 @@ function PublisherRow({ p, onChange, children }: { p: PendingPublisher; onChange
 
   const save = async () => {
     setSaving(true);
-    const nameOk = name === p.name || (await updatePublisherName(p.id, name));
-    const emailOk = email === p.contact_email || (await updatePublisherContactEmail(p.id, email));
+    const nameResult = name === p.name ? { ok: true } : await updatePublisherName(p.id, name);
+    const emailResult = email === p.contact_email ? { ok: true } : await updatePublisherContactEmail(p.id, email);
     setSaving(false);
-    if (nameOk && emailOk) { setEditing(false); onChange(); }
+    if (nameResult.ok && emailResult.ok) {
+      setEditing(false);
+      onChange();
+    } else {
+      window.alert(nameResult.error ?? emailResult.error ?? 'Failed.');
+    }
   };
 
   return (
@@ -378,9 +383,10 @@ function AgencyRow({ a, onChange, children }: { a: PendingAgency; onChange: () =
 
   const save = async () => {
     setSaving(true);
-    const ok = await updateAgencyName(a.id, name);
+    const result = await updateAgencyName(a.id, name);
     setSaving(false);
-    if (ok) { setEditing(false); onChange(); }
+    if (result.ok) { setEditing(false); onChange(); }
+    else window.alert(result.error ?? 'Failed.');
   };
 
   return (
