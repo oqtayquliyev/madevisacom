@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Briefcase, Building2, Check, ChevronLeft, ChevronRight, Landmark, Pencil, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
+import { Briefcase, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Landmark, Pencil, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSeo } from '@/lib/seo';
 import {
@@ -14,8 +14,11 @@ import {
   fetchVerifiedPublishers,
   deleteProgram,
   deleteSponsoredJob,
+  bulkDeleteJobs,
+  bulkDeletePrograms,
   bulkSetJobStatus,
   bulkSetJobImage,
+  bulkSetProgramStatus,
   findOrCreateImportedPublisher,
   grantAdminByEmail,
   importJobsAsPending,
@@ -161,19 +164,25 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
 
             <ImportFromAtsSection countries={countries} onImported={loadAll} />
 
-            <Section title="Pending publisher accounts" count={pendingPublishers.length}>
-              {pendingPublishers.map((p) => (
+            <PaginatedSection
+              title="Pending publisher accounts"
+              items={pendingPublishers}
+              searchText={(p) => `${p.name} ${p.contact_email}`}
+              renderRow={(p) => (
                 <PublisherRow key={p.id} p={p} onChange={loadAll}>
                   <Actions
                     onApprove={async () => { if (await setPublisherStatus(p.id, 'verified')) loadAll(); }}
                     onReject={async () => { if (await setPublisherStatus(p.id, 'rejected')) loadAll(); }}
                   />
                 </PublisherRow>
-              ))}
-            </Section>
+              )}
+            />
 
-            <Section title="Verified publisher accounts" count={verifiedPublishers.length}>
-              {verifiedPublishers.map((p) => (
+            <PaginatedSection
+              title="Verified publisher accounts"
+              items={verifiedPublishers}
+              searchText={(p) => `${p.name} ${p.contact_email}`}
+              renderRow={(p) => (
                 <PublisherRow key={p.id} p={p} onChange={loadAll}>
                   <button
                     onClick={async () => { if (await setPublisherStatus(p.id, 'suspended')) loadAll(); }}
@@ -182,11 +191,14 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                     Suspend
                   </button>
                 </PublisherRow>
-              ))}
-            </Section>
+              )}
+            />
 
-            <Section title="Pending sponsored programs" count={pendingPrograms.length}>
-              {pendingPrograms.map((p) => (
+            <PaginatedSection
+              title="Pending sponsored programs"
+              items={pendingPrograms}
+              searchText={(p) => `${p.title} ${p.publisher?.name ?? ''}`}
+              renderRow={(p) => (
                 <Row key={p.id}>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-ink-900">{p.title}</p>
@@ -198,12 +210,27 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                     onApprove={async () => { if (await setProgramStatus(p.id, 'published')) loadAll(); }}
                     onReject={async () => { if (await setProgramStatus(p.id, 'rejected')) loadAll(); }}
                   />
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm(`Delete "${p.title}"? This can't be undone.`)) return;
+                      const result = await deleteProgram(p.id);
+                      if (result.ok) loadAll();
+                      else window.alert(result.error ?? 'Delete failed.');
+                    }}
+                    aria-label="Delete"
+                    className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </Row>
-              ))}
-            </Section>
+              )}
+            />
 
-            <Section title="Pending sponsored jobs" count={pendingJobs.length}>
-              {pendingJobs.map((j) => (
+            <PaginatedSection
+              title="Pending sponsored jobs"
+              items={pendingJobs}
+              searchText={(j) => `${j.title} ${j.publisher?.name ?? ''}`}
+              renderRow={(j) => (
                 <Row key={j.id}>
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500">
                     <Briefcase className="h-4 w-4" />
@@ -218,31 +245,45 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                     onApprove={async () => { if (await setSponsoredJobStatus(j.id, 'published')) loadAll(); }}
                     onReject={async () => { if (await setSponsoredJobStatus(j.id, 'rejected')) loadAll(); }}
                   />
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm(`Delete "${j.title}"? This can't be undone.`)) return;
+                      const result = await deleteSponsoredJob(j.id);
+                      if (result.ok) loadAll();
+                      else window.alert(result.error ?? 'Delete failed.');
+                    }}
+                    aria-label="Delete"
+                    className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </Row>
-              ))}
-            </Section>
+              )}
+            />
 
-            <Section title="All sponsored programs" count={allPrograms.length}>
-              {allPrograms.map((p) => (
-                <EditableProgramRow key={p.id} p={p} onChange={loadAll} />
-              ))}
-            </Section>
+            <ManagedProgramsSection programs={allPrograms} onChange={loadAll} />
 
             <ManagedJobsSection jobs={allJobs} onChange={loadAll} />
 
-            <Section title="Pending travel agencies" count={pendingAgencies.length}>
-              {pendingAgencies.map((a) => (
+            <PaginatedSection
+              title="Pending travel agencies"
+              items={pendingAgencies}
+              searchText={(a) => a.name}
+              renderRow={(a) => (
                 <AgencyRow key={a.id} a={a} onChange={loadAll}>
                   <Actions
                     onApprove={async () => { if (await setAgencyStatus(a.id, 'verified')) loadAll(); }}
                     onReject={async () => { if (await setAgencyStatus(a.id, 'rejected')) loadAll(); }}
                   />
                 </AgencyRow>
-              ))}
-            </Section>
+              )}
+            />
 
-            <Section title="Verified travel agencies" count={verifiedAgencies.length}>
-              {verifiedAgencies.map((a) => (
+            <PaginatedSection
+              title="Verified travel agencies"
+              items={verifiedAgencies}
+              searchText={(a) => a.name}
+              renderRow={(a) => (
                 <AgencyRow key={a.id} a={a} onChange={loadAll}>
                   <button
                     onClick={async () => { if (await setAgencyStatus(a.id, 'pending')) loadAll(); }}
@@ -251,8 +292,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                     Revoke
                   </button>
                 </AgencyRow>
-              ))}
-            </Section>
+              )}
+            />
           </>
         )}
       </main>
@@ -664,7 +705,7 @@ function SelectField({ label, value, onChange, options }: { label: string; value
   );
 }
 
-function EditableProgramRow({ p, onChange }: { p: AdminProgram; onChange: () => void }) {
+function EditableProgramRow({ p, onChange, selected, onToggleSelect }: { p: AdminProgram; onChange: () => void; selected?: boolean; onToggleSelect?: () => void }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(p.title);
   const [category, setCategory] = useState<ProgramCategory>(p.category as ProgramCategory);
@@ -731,12 +772,17 @@ function EditableProgramRow({ p, onChange }: { p: AdminProgram; onChange: () => 
 
   const remove = async () => {
     if (!window.confirm(`Delete "${p.title}"? This can't be undone.`)) return;
-    if (await deleteProgram(p.id)) onChange();
+    const result = await deleteProgram(p.id);
+    if (result.ok) onChange();
+    else window.alert(result.error ?? 'Delete failed.');
   };
 
   if (!editing) {
     return (
       <Row>
+        {onToggleSelect && (
+          <input type="checkbox" checked={selected} onChange={onToggleSelect} className="mt-1.5 shrink-0" />
+        )}
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
             {p.title}
@@ -911,7 +957,9 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
 
   const remove = async () => {
     if (!window.confirm(`Delete "${j.title}"? This can't be undone.`)) return;
-    if (await deleteSponsoredJob(j.id)) onChange();
+    const result = await deleteSponsoredJob(j.id);
+    if (result.ok) onChange();
+    else window.alert(result.error ?? 'Delete failed.');
   };
 
   if (!editing) {
@@ -1044,9 +1092,8 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-const JOBS_PAGE_SIZE = 25;
-
 function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onChange: () => void }) {
+  const [open, setOpen] = useState(jobs.length <= ADMIN_PAGE_SIZE);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | ListingStatus>('all');
   const [page, setPage] = useState(0);
@@ -1066,8 +1113,8 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
     return matchesSearch && matchesStatus;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / JOBS_PAGE_SIZE));
-  const pageJobs = filtered.slice(page * JOBS_PAGE_SIZE, page * JOBS_PAGE_SIZE + JOBS_PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ADMIN_PAGE_SIZE));
+  const pageJobs = filtered.slice(page * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE + ADMIN_PAGE_SIZE);
   const allOnPageSelected = pageJobs.length > 0 && pageJobs.every((j) => selectedIds.has(j.id));
 
   const toggle = (id: string) => {
@@ -1098,7 +1145,22 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
       setSelectedIds(new Set());
       onChange();
     } else {
-      setBulkMessage(result.error ?? 'Bulk approve failed.');
+      setBulkMessage(result.error ?? 'Bulk publish failed.');
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (!window.confirm(`Delete ${selectedIds.size} job${selectedIds.size === 1 ? '' : 's'}? This can't be undone.`)) return;
+    setBulkBusy(true);
+    setBulkMessage(null);
+    const result = await bulkDeleteJobs(Array.from(selectedIds));
+    setBulkBusy(false);
+    if (result.ok) {
+      setBulkMessage(`Deleted ${selectedIds.size} job${selectedIds.size === 1 ? '' : 's'}.`);
+      setSelectedIds(new Set());
+      onChange();
+    } else {
+      setBulkMessage(result.error ?? 'Bulk delete failed.');
     }
   };
 
@@ -1120,12 +1182,8 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
   };
 
   return (
-    <section className="mt-8">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">
-        All sponsored jobs <span className="text-ink-400">({filtered.length}{filtered.length !== jobs.length ? ` of ${jobs.length}` : ''})</span>
-      </h2>
-
-      <div className="mt-3 flex flex-wrap gap-2">
+    <CollapsibleSection title="All sponsored jobs" count={jobs.length} open={open} onToggle={() => setOpen((v) => !v)}>
+      <div className="flex flex-wrap gap-2 p-2">
         <input
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(0); }}
@@ -1144,11 +1202,18 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
         </select>
       </div>
 
+      {filtered.length !== jobs.length && (
+        <p className="px-2 text-xs text-ink-400">{filtered.length} of {jobs.length} match this search/filter</p>
+      )}
+
       {selectedIds.size > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2">
+        <div className="m-2 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2">
           <span className="text-xs font-semibold text-brand-800">{selectedIds.size} selected</span>
           <button onClick={bulkApprove} disabled={bulkBusy} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
             Publish selected
+          </button>
+          <button onClick={bulkDelete} disabled={bulkBusy} className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+            Delete selected
           </button>
           <button onClick={() => setShowLogoTool((v) => !v)} className="rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
             Apply logo to selected
@@ -1160,7 +1225,7 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
       )}
 
       {showLogoTool && (
-        <div className="mt-2 rounded-lg border border-ink-200 bg-white p-3">
+        <div className="mx-2 mb-2 rounded-lg border border-ink-200 bg-white p-3">
           {profile?.id && <ImageUploadField userId={profile.id} value={logoUrl} onChange={setLogoUrl} label="Logo to apply to all selected jobs" />}
           <button onClick={applyLogo} disabled={bulkBusy || !logoUrl} className="mt-2 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
             Apply to {selectedIds.size} job{selectedIds.size === 1 ? '' : 's'}
@@ -1168,63 +1233,288 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
         </div>
       )}
 
-      {bulkMessage && <p className="mt-2 text-xs font-medium text-emerald-700">{bulkMessage}</p>}
+      {bulkMessage && <p className="mx-2 mb-2 text-xs font-medium text-emerald-700">{bulkMessage}</p>}
 
-      <div className="mt-3 border border-ink-200 bg-white">
-        {pageJobs.length > 0 && (
-          <label className="flex items-center gap-2 border-b border-ink-100 bg-ink-50 px-3 py-2 text-xs font-semibold text-ink-600">
-            <input type="checkbox" checked={allOnPageSelected} onChange={toggleAllOnPage} />
-            Select all on this page ({pageJobs.length})
-          </label>
+      {pageJobs.length > 0 && (
+        <label className="flex items-center gap-2 border-y border-ink-100 bg-ink-50 px-3 py-2 text-xs font-semibold text-ink-600">
+          <input type="checkbox" checked={allOnPageSelected} onChange={toggleAllOnPage} />
+          Select all on this page ({pageJobs.length})
+        </label>
+      )}
+      <div className="divide-y divide-ink-100">
+        {pageJobs.length === 0 ? (
+          <p className="px-3 py-6 text-center text-xs text-ink-400">No jobs match this search/filter.</p>
+        ) : (
+          pageJobs.map((j) => (
+            <EditableJobRow key={j.id} j={j} onChange={onChange} selected={selectedIds.has(j.id)} onToggleSelect={() => toggle(j.id)} />
+          ))
         )}
-        <div className="divide-y divide-ink-100">
-          {pageJobs.length === 0 ? (
-            <p className="px-3 py-6 text-center text-xs text-ink-400">No jobs match this search/filter.</p>
-          ) : (
-            pageJobs.map((j) => (
-              <EditableJobRow key={j.id} j={j} onChange={onChange} selected={selectedIds.has(j.id)} onToggleSelect={() => toggle(j.id)} />
-            ))
-          )}
-        </div>
       </div>
 
-      {totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-center gap-3">
-          <button
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-            className="rounded-full border border-ink-200 p-2 text-ink-500 hover:bg-ink-50 disabled:opacity-30"
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="h-4 w-4" />
+      <Pager page={page} totalPages={totalPages} onChange={setPage} />
+    </CollapsibleSection>
+  );
+}
+
+function ManagedProgramsSection({ programs, onChange }: { programs: AdminProgram[]; onChange: () => void }) {
+  const [open, setOpen] = useState(programs.length <= ADMIN_PAGE_SIZE);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | ListingStatus>('all');
+  const [page, setPage] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+
+  const filtered = programs.filter((p) => {
+    const matchesSearch =
+      !search.trim() ||
+      p.title.toLowerCase().includes(search.toLowerCase()) ||
+      (p.publisher?.name ?? '').toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ADMIN_PAGE_SIZE));
+  const pagePrograms = filtered.slice(page * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE + ADMIN_PAGE_SIZE);
+  const allOnPageSelected = pagePrograms.length > 0 && pagePrograms.every((p) => selectedIds.has(p.id));
+
+  const toggle = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllOnPage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allOnPageSelected) pagePrograms.forEach((p) => next.delete(p.id));
+      else pagePrograms.forEach((p) => next.add(p.id));
+      return next;
+    });
+  };
+
+  const bulkApprove = async () => {
+    setBulkBusy(true);
+    setBulkMessage(null);
+    const result = await bulkSetProgramStatus(Array.from(selectedIds), 'published');
+    setBulkBusy(false);
+    if (result.ok) {
+      setBulkMessage(`Published ${selectedIds.size} program${selectedIds.size === 1 ? '' : 's'}.`);
+      setSelectedIds(new Set());
+      onChange();
+    } else {
+      setBulkMessage(result.error ?? 'Bulk publish failed.');
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (!window.confirm(`Delete ${selectedIds.size} program${selectedIds.size === 1 ? '' : 's'}? This can't be undone.`)) return;
+    setBulkBusy(true);
+    setBulkMessage(null);
+    const result = await bulkDeletePrograms(Array.from(selectedIds));
+    setBulkBusy(false);
+    if (result.ok) {
+      setBulkMessage(`Deleted ${selectedIds.size} program${selectedIds.size === 1 ? '' : 's'}.`);
+      setSelectedIds(new Set());
+      onChange();
+    } else {
+      setBulkMessage(result.error ?? 'Bulk delete failed.');
+    }
+  };
+
+  return (
+    <CollapsibleSection title="All sponsored programs" count={programs.length} open={open} onToggle={() => setOpen((v) => !v)}>
+      <div className="flex flex-wrap gap-2 p-2">
+        <input
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+          placeholder="Search title or publisher…"
+          className="h-9 min-w-[220px] flex-1 rounded-md border border-ink-200 px-3 text-sm text-ink-900 outline-none focus:border-brand-500"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value as 'all' | ListingStatus); setPage(0); }}
+          className="h-9 rounded-md border border-ink-200 px-2 text-sm text-ink-700 outline-none focus:border-brand-500"
+        >
+          <option value="all">All statuses</option>
+          {LISTING_STATUSES.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {filtered.length !== programs.length && (
+        <p className="px-2 text-xs text-ink-400">{filtered.length} of {programs.length} match this search/filter</p>
+      )}
+
+      {selectedIds.size > 0 && (
+        <div className="m-2 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2">
+          <span className="text-xs font-semibold text-brand-800">{selectedIds.size} selected</span>
+          <button onClick={bulkApprove} disabled={bulkBusy} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+            Publish selected
           </button>
-          <span className="text-xs font-medium text-ink-400">Page {page + 1} of {totalPages}</span>
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            disabled={page >= totalPages - 1}
-            className="rounded-full border border-ink-200 p-2 text-ink-500 hover:bg-ink-50 disabled:opacity-30"
-            aria-label="Next page"
-          >
-            <ChevronRight className="h-4 w-4" />
+          <button onClick={bulkDelete} disabled={bulkBusy} className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+            Delete selected
+          </button>
+          <button onClick={() => setSelectedIds(new Set())} className="text-xs text-ink-500 hover:text-ink-700">
+            Clear selection
           </button>
         </div>
       )}
+
+      {bulkMessage && <p className="mx-2 mb-2 text-xs font-medium text-emerald-700">{bulkMessage}</p>}
+
+      {pagePrograms.length > 0 && (
+        <label className="flex items-center gap-2 border-y border-ink-100 bg-ink-50 px-3 py-2 text-xs font-semibold text-ink-600">
+          <input type="checkbox" checked={allOnPageSelected} onChange={toggleAllOnPage} />
+          Select all on this page ({pagePrograms.length})
+        </label>
+      )}
+      <div className="divide-y divide-ink-100">
+        {pagePrograms.length === 0 ? (
+          <p className="px-3 py-6 text-center text-xs text-ink-400">No programs match this search/filter.</p>
+        ) : (
+          pagePrograms.map((p) => (
+            <EditableProgramRow key={p.id} p={p} onChange={onChange} selected={selectedIds.has(p.id)} onToggleSelect={() => toggle(p.id)} />
+          ))
+        )}
+      </div>
+
+      <Pager page={page} totalPages={totalPages} onChange={setPage} />
+    </CollapsibleSection>
+  );
+}
+
+const ADMIN_PAGE_SIZE = 10;
+
+/**
+ * Generic collapsible + searchable + paginated list wrapper, used for
+ * every simple admin review section (pending/verified publishers,
+ * agencies, pending programs/jobs). Sections with bulk actions
+ * (all programs/jobs) use their own Managed*Section instead, wrapped
+ * in the same CollapsibleSection shell for a consistent look.
+ */
+function PaginatedSection<T>({
+  title,
+  items,
+  searchText,
+  renderRow,
+  defaultOpen,
+  emptyLabel = 'Nothing here.',
+}: {
+  title: string;
+  items: T[];
+  searchText: (item: T) => string;
+  renderRow: (item: T) => React.ReactNode;
+  defaultOpen?: boolean;
+  emptyLabel?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen ?? items.length <= ADMIN_PAGE_SIZE);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+
+  const filtered = items.filter((item) => !search.trim() || searchText(item).toLowerCase().includes(search.toLowerCase()));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ADMIN_PAGE_SIZE));
+  const pageItems = filtered.slice(page * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE + ADMIN_PAGE_SIZE);
+
+  return (
+    <CollapsibleSection title={title} count={items.length} open={open} onToggle={() => setOpen((v) => !v)}>
+      {items.length > ADMIN_PAGE_SIZE && (
+        <div className="border-b border-ink-100 p-2">
+          <input
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+            placeholder="Search…"
+            className="h-9 w-full max-w-xs rounded-md border border-ink-200 px-3 text-sm text-ink-900 outline-none focus:border-brand-500"
+          />
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <p className="p-4 text-xs text-ink-400">{items.length === 0 ? emptyLabel : 'No matches.'}</p>
+      ) : (
+        <div className="divide-y divide-ink-100">{pageItems.map(renderRow)}</div>
+      )}
+
+      <Pager page={page} totalPages={totalPages} onChange={setPage} />
+    </CollapsibleSection>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  count,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  count: number;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mt-8">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-2 text-left"
+      >
+        <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">
+          {title} <span className="text-ink-400">({count})</span>
+        </h2>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && <div className="mt-3 border border-ink-200 bg-white">{children}</div>}
     </section>
   );
 }
 
-function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+function Pager({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) {
+  if (totalPages <= 1) return null;
+
+  // Keep the page-number list short even with many pages: current ±2,
+  // plus first/last, with ellipses for the gaps.
+  const pages = new Set<number>([0, totalPages - 1, page, page - 1, page + 1, page - 2, page + 2]);
+  const sorted = Array.from(pages).filter((p) => p >= 0 && p < totalPages).sort((a, b) => a - b);
+
   return (
-    <section className="mt-8">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">
-        {title} <span className="text-ink-400">({count})</span>
-      </h2>
-      {count === 0 ? (
-        <p className="mt-3 text-xs text-ink-400">Nothing here.</p>
-      ) : (
-        <div className="mt-3 divide-y divide-ink-100 border border-ink-200 bg-white">{children}</div>
-      )}
-    </section>
+    <div className="flex items-center justify-center gap-1 border-t border-ink-100 p-3">
+      <button
+        onClick={() => onChange(Math.max(0, page - 1))}
+        disabled={page === 0}
+        aria-label="Previous page"
+        className="rounded-full p-1.5 text-ink-500 hover:bg-ink-50 disabled:opacity-30"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+
+      {sorted.map((p, i) => (
+        <span key={p} className="flex items-center">
+          {i > 0 && p - sorted[i - 1] > 1 && <span className="px-1 text-xs text-ink-300">…</span>}
+          <button
+            onClick={() => onChange(p)}
+            className={`h-7 min-w-[28px] rounded-md px-1.5 text-xs font-semibold ${p === page ? 'bg-brand-600 text-white' : 'text-ink-600 hover:bg-ink-50'}`}
+          >
+            {p + 1}
+          </button>
+        </span>
+      ))}
+
+      <button
+        onClick={() => onChange(Math.min(totalPages - 1, page + 1))}
+        disabled={page >= totalPages - 1}
+        aria-label="Next page"
+        className="rounded-full p-1.5 text-ink-500 hover:bg-ink-50 disabled:opacity-30"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
   );
 }
 

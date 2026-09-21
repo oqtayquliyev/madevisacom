@@ -253,16 +253,40 @@ export async function updateSponsoredJobAsAdmin(id: string, patch: Partial<Admin
   return !error;
 }
 
-export async function deleteProgram(id: string) {
+export async function deleteProgram(id: string): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from('programs').delete().eq('id', id);
-  if (error) console.error('deleteProgram failed', error);
-  return !error;
+  if (error) {
+    console.error('deleteProgram failed', error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
 }
 
-export async function deleteSponsoredJob(id: string) {
+export async function deleteSponsoredJob(id: string): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from('sponsored_jobs').delete().eq('id', id);
-  if (error) console.error('deleteSponsoredJob failed', error);
-  return !error;
+  if (error) {
+    console.error('deleteSponsoredJob failed', error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
+export async function bulkDeleteJobs(ids: string[]): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from('sponsored_jobs').delete().in('id', ids);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function bulkDeletePrograms(ids: string[]): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from('programs').delete().in('id', ids);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function bulkSetProgramStatus(ids: string[], status: ListingStatus): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from('programs').update({ status }).in('id', ids);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 export async function fetchAdmins(): Promise<AdminProfile[]> {
