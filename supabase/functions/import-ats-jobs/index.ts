@@ -128,6 +128,130 @@ function extractPhenomDdo(html: string): any | null {
   return null;
 }
 
+/**
+ * Search results only ever carry a short teaser (job.descriptionTeaser) —
+ * that's what was landing in MadeVisa's description field, which is why
+ * imported jobs looked like a flattened wall of field labels ("Job Title",
+ * "Company Introduction", ...) instead of a real formatted posting, and
+ * why location showed as generic "Various" instead of the job's actual
+ * city. The real, fully-formatted description and location live on each
+ * job's own page — the functions below fetch that page per job and pull
+ * the clean data out of it.
+ *
+ * Primary source: the `JobPosting` schema.org JSON-LD block. This isn't
+ * Phenom-specific — it's a standard nearly every serious careers site
+ * (Phenom, Workday, SuccessFactors, custom builds) embeds specifically so
+ * Google/LinkedIn/etc. can index the posting correctly, which makes it a
+ * far more reliable source than trying to keep up with each platform's
+ * own internal JSON shape. Falls back to Phenom's own detail-page ddo
+ * blob (same shape/idea as the search-page one above) when a site has no
+ * JSON-LD.
+ */
+function extractJsonLdJobPosting(html: string): any | null {
+  const scriptRe = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = scriptRe.exec(html))) {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(match[1].trim());
+    } catch {
+      continue; // malformed block on this page — try the next <script> tag
+    }
+    const candidates = Array.isArray(parsed) ? parsed : [parsed];
+    for (const c of candidates) {
+      if (!c) continue;
+      const type = c["@type"];
+      if (type === "JobPosting" || (Array.isArray(type) && type.includes("JobPosting"))) return c;
+      if (Array.isArray(c["@graph"])) {
+        const found = c["@graph"].find(
+          (g: any) => g?.["@type"] === "JobPosting" || (Array.isArray(g?.["@type"]) && g["@type"].includes("JobPosting"))
+        );
+        if (found) return found;
+      }
+    }
+  }
+  return null;
+}
+
+function officesFromJsonLdLocations(jobLocation: any): string[] {
+  const items = Array.isArray(jobLocation) ? jobLocation : jobLocation ? [jobLocation] : [];
+  const offices: string[] = [];
+  for (const loc of items) {
+    const addr = loc?.address;
+    if (!addr) continue;
+    const parts = [addr.addressLocality, addr.addressRegion, addr.addressCountry].filter(Boolean);
+    if (parts.length) offices.push(parts.join(", "));
+  }
+  return offices;
+}
+
+/** Fallback for the (rarer) case where a Phenom detail page has no JSON-LD — reuse the same ddo blob shape as the search page. */
+function jobDetailFromPhenomDdo(ddo: any): { descriptionHtml: string; offices: string[] } | null {
+  const job = ddo?.jobDetail?.data?.job;
+  if (!job) return null;
+  const offices: string[] = job.multi_location || (job.location ? [job.location] : []);
+  const descriptionHtml = job.description || job.jobDescription || "";
+  if (!descriptionHtml) return null;
+  return { descriptionHtml, offices };
+}
+
+async function fetchJobDetailPage(
+  detailUrl: string,
+  signal: AbortSignal
+): Promise<{ descriptionHtml: string; offices: string[] } | null> {
+  const res = await fetch(detailUrl, { headers: { "User-Agent": USER_AGENT, Accept: "text/html" }, signal });
+  if (!res.ok) return null;
+  const html = await res.text();
+
+  const jsonLd = extractJsonLdJobPosting(html);
+  if (jsonLd?.description) {
+    return { descriptionHtml: String(jsonLd.description), offices: officesFromJsonLdLocations(jsonLd.jobLocation) };
+  }
+
+  const ddo = extractPhenomDdo(html);
+  return ddo ? jobDetailFromPhenomDdo(ddo) : null;
+}
+
+// A handful of workers fetch job detail pages concurrently, each bailing
+// out once the shared deadline passes — so a slow/huge site degrades
+// gracefully (later jobs just keep their search-page teaser) instead of
+// making the whole request time out or fail. Individual page fetches also
+// get their own short timeout so one hung page can't stall a worker.
+const DETAIL_FETCH_CONCURRENCY = 6;
+const DETAIL_FETCH_TIME_BUDGET_MS = 25_000;
+const DETAIL_FETCH_TIMEOUT_MS = 8_000;
+
+async function enrichWithJobDetailPages(jobs: NormalizedJob[]): Promise<void> {
+  const deadline = Date.now() + DETAIL_FETCH_TIME_BUDGET_MS;
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < jobs.length && Date.now() < deadline) {
+      const job = jobs[cursor++];
+      if (!job.url) continue;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), DETAIL_FETCH_TIMEOUT_MS);
+      try {
+        const detail = await fetchJobDetailPage(job.url, controller.signal);
+        if (detail?.descriptionHtml) {
+          job.descriptionHtml = detail.descriptionHtml;
+          if (detail.offices.length) {
+            job.offices = detail.offices;
+            job.locationText = detail.offices[0];
+          }
+        }
+      } catch {
+        // Timed out or errored — keep the teaser already on this job
+        // rather than losing it from the batch entirely.
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: DETAIL_FETCH_CONCURRENCY }, worker));
+}
+
 async function fetchPhenomJobs(baseUrl: string): Promise<NormalizedJob[]> {
   const jobs: NormalizedJob[] = [];
   const seenIds = new Set<string>();
@@ -187,6 +311,12 @@ async function fetchPhenomJobs(baseUrl: string): Promise<NormalizedJob[]> {
 
     await sleep(PAGE_DELAY_MS);
   }
+
+  // Now go fetch each job's own page for the real description/location —
+  // the search-page teaser we've got so far is just a placeholder until
+  // this fills in (or, for whichever jobs run past the time budget,
+  // stays as the fallback).
+  await enrichWithJobDetailPages(jobs);
 
   return jobs;
 }
