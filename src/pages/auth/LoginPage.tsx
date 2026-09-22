@@ -3,7 +3,6 @@ import { CheckCircle2, Link } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { handleNavClick } from '@/lib/navLink';
 import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
-import { Turnstile } from '@/components/auth/Turnstile';
 import { useSeo } from '@/lib/seo';
 
 type LoginPageProps = {
@@ -20,20 +19,11 @@ export function LoginPage({ onSwitchToRegister, onHome }: LoginPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState('');
 
   const handleSignIn = async () => {
-    if (!captchaToken) {
-      setError('Please complete the verification below.');
-      return;
-    }
     setLoading(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-      options: { captchaToken },
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError('Invalid email or password. Please try again.');
       setLoading(false);
@@ -58,10 +48,15 @@ export function LoginPage({ onSwitchToRegister, onHome }: LoginPageProps) {
       setError('Enter your email above first, then click "Forgot password?".');
       return;
     }
+    if (!captchaToken) {
+      setError('Please complete the verification below first.');
+      return;
+    }
     setResetLoading(true);
     setError(null);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
+      captchaToken,
     });
     setResetLoading(false);
     if (error) {
@@ -86,13 +81,12 @@ export function LoginPage({ onSwitchToRegister, onHome }: LoginPageProps) {
         <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="you@example.com" required autoComplete="email" />
         <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="Your password" required autoComplete="current-password" />
       </div>
-      <Turnstile onVerify={setCaptchaToken} />
-      <PrimaryButton onClick={handleSignIn} loading={loading} disabled={!captchaToken} className="mt-5">Sign in</PrimaryButton>
+      <PrimaryButton onClick={handleSignIn} loading={loading} className="mt-5">Sign in</PrimaryButton>
       <div className="mt-4 flex items-center justify-between text-sm">
         <button
           type="button"
           onClick={handleForgotPassword}
-          disabled={resetLoading}
+          disabled={resetLoading || !captchaToken}
           className="font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50"
         >
           Forgot password?
