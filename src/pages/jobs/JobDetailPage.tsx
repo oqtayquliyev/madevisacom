@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Briefcase, Building2, Check, Landmark, Loader2, MapPin, Share2, UserRound, Users } from 'lucide-react';
+import { ArrowLeft, Briefcase, Building2, Calendar, Check, Landmark, Loader2, MapPin, Share2, UserRound, Users } from 'lucide-react';
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
@@ -142,9 +142,11 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             )}
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {job.salary && <InfoRow icon={Briefcase} label="Compensation" value={job.salary} />}
-              {job.spotsAvailable != null && <InfoRow icon={Users} label="Positions available" value={String(job.spotsAvailable)} />}
+              <InfoRow icon={Briefcase} label="Compensation" value={job.salary || 'Not specified'} />
               <InfoRow icon={MapPin} label="Location" value={job.city ? `${job.city}, ${job.country}` : job.country} />
+              <InfoRow icon={Calendar} label="Posted" value={formatPostedDate(job.postedDate)} />
+              <InfoRow icon={Users} label="Remote" value={job.remote ? 'Yes' : 'No'} />
+              {job.spotsAvailable != null && <InfoRow icon={Users} label="Positions available" value={String(job.spotsAvailable)} />}
             </div>
 
             {job.requirements && (
@@ -185,6 +187,14 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );
+}
+
+/** "Not specified" when there's genuinely no posted date — rather than hiding the row, per-request: missing info should say so, not disappear. */
+function formatPostedDate(iso: string | null | undefined): string {
+  if (!iso) return 'Not specified';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'Not specified';
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function InfoRow({ icon: Icon, label, value }: { icon: typeof Briefcase; label: string; value: string }) {

@@ -76,7 +76,26 @@ type NormalizedJob = {
   offices: string[];
   descriptionHtml: string;
   url: string;
+  /** Best-effort — extracted with several candidate field names since exact
+   * per-platform JSON keys aren't publicly documented. Null/undefined means
+   * "genuinely not found", which the frontend renders as "Not specified"
+   * rather than guessing. */
+  category: string | null;
+  employmentTypeRaw: string | null;
+  postedAt: string | null; // ISO date string, or null
+  remote: boolean | null;
+  salaryText: string | null;
 };
+
+/** Reads the first present, non-empty value across several candidate object keys — used throughout this file since exact field names vary by site/platform and aren't documented anywhere we can check ahead of time. */
+function firstOf(obj: any, keys: string[]): any {
+  if (!obj) return undefined;
+  for (const k of keys) {
+    const v = obj[k];
+    if (v !== undefined && v !== null && v !== "") return v;
+  }
+  return undefined;
+}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -185,31 +204,86 @@ function officesFromJsonLdLocations(jobLocation: any): string[] {
   return offices;
 }
 
-/** Fallback for the (rarer) case where a Phenom detail page has no JSON-LD — reuse the same ddo blob shape as the search page. */
-function jobDetailFromPhenomDdo(ddo: any): { descriptionHtml: string; offices: string[] } | null {
+/** schema.org JobPosting's baseSalary is a nested MonetaryAmount — this flattens whichever shape a site actually used into one human-readable line, or null if the block genuinely isn't there. */
+function salaryTextFromJsonLd(baseSalary: any): string | null {
+  if (!baseSalary) return null;
+  const currency = baseSalary.currency ?? "";
+  const v = baseSalary.value;
+  if (!v) return null;
+  const unit = v.unitText ? `/${String(v.unitText).toLowerCase()}` : "";
+  if (v.minValue != null && v.maxValue != null && v.minValue !== v.maxValue) {
+    return `${currency} ${v.minValue}–${v.maxValue}${unit}`.trim();
+  }
+  const single = v.value ?? v.minValue ?? v.maxValue;
+  return single != null ? `${currency} ${single}${unit}`.trim() : null;
+}
+
+type DetailEnrichment = {
+  descriptionHtml?: string;
+  offices?: string[];
+  category?: string | null;
+  employmentTypeRaw?: string | null;
+  postedAt?: string | null;
+  remote?: boolean | null;
+  salaryText?: string | null;
+};
+
+/** Fallback for the (rarer) case where a Phenom detail page has no JSON-LD — reuse the same ddo blob shape as the search page. This is the PRIMARY source for the description itself when present, though: it's the same data Phenom uses to render the visible description box, so it carries the real formatting (paragraphs, bold, lists) — JSON-LD descriptions on some sites turn out to be plain-text-flattened despite the spec allowing HTML there. */
+function jobDetailFromPhenomDdo(ddo: any): DetailEnrichment | null {
   const job = ddo?.jobDetail?.data?.job;
   if (!job) return null;
   const offices: string[] = job.multi_location || (job.location ? [job.location] : []);
-  const descriptionHtml = job.description || job.jobDescription || "";
+  const descriptionHtml = firstOf(job, ["description", "jobDescription", "descriptionTeaser"]);
   if (!descriptionHtml) return null;
-  return { descriptionHtml, offices };
+  return {
+    descriptionHtml,
+    offices,
+    category: firstOf(job, ["category", "primaryCategory", "jobCategory"]) ?? null,
+    employmentTypeRaw: firstOf(job, ["jobType", "type", "employmentType", "jobShiftType"]) ?? null,
+    postedAt: firstOf(job, ["postedDate", "postingDate", "date", "createdDate"]) ?? null,
+    remote: typeof job.isRemote === "boolean" ? job.isRemote : null,
+    salaryText: firstOf(job, ["salary", "salaryText", "compensation"]) ?? null,
+  };
 }
 
-async function fetchJobDetailPage(
-  detailUrl: string,
-  signal: AbortSignal
-): Promise<{ descriptionHtml: string; offices: string[] } | null> {
+async function fetchJobDetailPage(detailUrl: string, signal: AbortSignal): Promise<DetailEnrichment | null> {
   const res = await fetch(detailUrl, { headers: { "User-Agent": USER_AGENT, Accept: "text/html" }, signal });
   if (!res.ok) return null;
   const html = await res.text();
 
-  const jsonLd = extractJsonLdJobPosting(html);
-  if (jsonLd?.description) {
-    return { descriptionHtml: String(jsonLd.description), offices: officesFromJsonLdLocations(jsonLd.jobLocation) };
-  }
-
   const ddo = extractPhenomDdo(html);
-  return ddo ? jobDetailFromPhenomDdo(ddo) : null;
+  const fromDdo = ddo ? jobDetailFromPhenomDdo(ddo) : null;
+
+  const jsonLd = extractJsonLdJobPosting(html);
+  const jsonLdMeta: DetailEnrichment = jsonLd
+    ? {
+        category: firstOf(jsonLd, ["occupationalCategory", "industry"]) ?? null,
+        employmentTypeRaw: jsonLd.employmentType
+          ? Array.isArray(jsonLd.employmentType)
+            ? jsonLd.employmentType.join(", ")
+            : String(jsonLd.employmentType)
+          : null,
+        postedAt: jsonLd.datePosted ?? null,
+        remote: jsonLd.jobLocationType === "TELECOMMUTE" ? true : null,
+        salaryText: salaryTextFromJsonLd(jsonLd.baseSalary),
+      }
+    : {};
+
+  // ddo's description wins when present (real HTML formatting); JSON-LD
+  // fills in whichever structured metadata ddo didn't have, and is the
+  // description fallback if ddo had none at all.
+  const descriptionHtml = fromDdo?.descriptionHtml ?? (jsonLd?.description ? String(jsonLd.description) : undefined);
+  if (!descriptionHtml) return null;
+
+  return {
+    descriptionHtml,
+    offices: fromDdo?.offices?.length ? fromDdo.offices : officesFromJsonLdLocations(jsonLd?.jobLocation),
+    category: fromDdo?.category ?? jsonLdMeta.category ?? null,
+    employmentTypeRaw: fromDdo?.employmentTypeRaw ?? jsonLdMeta.employmentTypeRaw ?? null,
+    postedAt: fromDdo?.postedAt ?? jsonLdMeta.postedAt ?? null,
+    remote: fromDdo?.remote ?? jsonLdMeta.remote ?? null,
+    salaryText: fromDdo?.salaryText ?? jsonLdMeta.salaryText ?? null,
+  };
 }
 
 // A handful of workers fetch job detail pages concurrently, each bailing
@@ -235,14 +309,21 @@ async function enrichWithJobDetailPages(jobs: NormalizedJob[]): Promise<void> {
         const detail = await fetchJobDetailPage(job.url, controller.signal);
         if (detail?.descriptionHtml) {
           job.descriptionHtml = detail.descriptionHtml;
-          if (detail.offices.length) {
+          if (detail.offices?.length) {
             job.offices = detail.offices;
             job.locationText = detail.offices[0];
           }
+          // Detail-page values win over the listing-stub guesses below
+          // when present; otherwise keep whatever the stub already had.
+          if (detail.category) job.category = detail.category;
+          if (detail.employmentTypeRaw) job.employmentTypeRaw = detail.employmentTypeRaw;
+          if (detail.postedAt) job.postedAt = detail.postedAt;
+          if (detail.remote !== null && detail.remote !== undefined) job.remote = detail.remote;
+          if (detail.salaryText) job.salaryText = detail.salaryText;
         }
       } catch {
-        // Timed out or errored — keep the teaser already on this job
-        // rather than losing it from the batch entirely.
+        // Timed out or errored — keep the teaser/stub data already on
+        // this job rather than losing it from the batch entirely.
       } finally {
         clearTimeout(timer);
       }
@@ -293,6 +374,7 @@ async function fetchPhenomJobs(baseUrl: string): Promise<NormalizedJob[]> {
       seenIds.add(id);
 
       const locations: string[] = job.multi_location || (job.location ? [job.location] : []);
+      const rawType: string | null = firstOf(job, ["jobType", "type", "employmentType", "jobShiftType"]) ?? null;
       jobs.push({
         externalId: String(id),
         title: job.title ?? "",
@@ -300,6 +382,16 @@ async function fetchPhenomJobs(baseUrl: string): Promise<NormalizedJob[]> {
         offices: locations,
         descriptionHtml: job.descriptionTeaser ? `<p>${job.descriptionTeaser}</p>` : "",
         url: job.applyUrl || "",
+        category: firstOf(job, ["category", "primaryCategory", "jobCategory"]) ?? null,
+        employmentTypeRaw: rawType,
+        postedAt: firstOf(job, ["postedDate", "postingDate", "date", "createdDate"]) ?? null,
+        remote:
+          typeof job.isRemote === "boolean"
+            ? job.isRemote
+            : /remote|home[\s-]?based/i.test(job.location ?? "")
+            ? true
+            : null,
+        salaryText: firstOf(job, ["salary", "salaryText", "compensation"]) ?? null,
       });
       newCount++;
       if (jobs.length >= MAX_JOBS_PER_REQUEST) break;

@@ -22,6 +22,7 @@ import { DestinationsPage } from '@/pages/destinations/DestinationsPage';
 import { ProgramDetailPage } from '@/pages/programs/ProgramDetailPage';
 import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
 import { AdminPanelPage } from '@/pages/admin/AdminPanelPage';
+import { AdminJobEditorPage } from '@/pages/admin/AdminJobEditorPage';
 import { OfficialPartnersPage } from '@/pages/partners/OfficialPartnersPage';
 import { PublicProfilePage } from '@/pages/u/PublicProfilePage';
 import { LegalPage } from '@/pages/legal/LegalPage';
@@ -212,6 +213,13 @@ export default function App() {
 
   if (path === '/admin') {
     return <AdminPanelPage go={go} onAuth={goToAuth} />;
+  }
+
+  // Full-page admin job editor (opened in its own tab via window.open
+  // from the admin panel's "Preview & edit" buttons). Self-gates admin
+  // access internally, same pattern as AdminPanelPage above.
+  if (path.startsWith('/admin/jobs/')) {
+    return <AdminJobEditorPage id={path.slice('/admin/jobs/'.length)} go={go} onAuth={goToAuth} />;
   }
 
   if (path === '/official-partners') {

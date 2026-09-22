@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import type { OrgType } from '@/lib/programs';
 import type { ListingStatus, SalaryStatus, SalaryPeriod, CostStatus } from '@/lib/listingCategories';
+import { JOB_CATEGORIES, type JobCategory } from '@/lib/listingCategories';
+import { matchCountriesFromOfficeNames } from '@/lib/officeLocations';
 
 export type PendingPublisher = {
   id: string;
@@ -215,6 +217,11 @@ export type AdminSponsoredJob = {
   created_at: string;
   approved_at: string | null;
   expires_at: string | null;
+  /** Original posting date on the source career site (e.g. Roche's own
+   * listing date), distinct from created_at (when MadeVisa imported it).
+   * Null when the source didn't expose one, or for jobs not from an ATS
+   * import. */
+  source_posted_at: string | null;
   country_id: string | null;
   city: string | null;
   compensation_text: string | null;
@@ -248,7 +255,7 @@ export type AdminSponsoredJob = {
 const adminProgramColumns =
   'id, title, description, category, status, created_at, approved_at, expires_at, country_id, city, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, official_url, application_url, image_url, spots_available, citizenship_any, citizenship_allowed, min_age, max_age, applications_open_at, applications_close_at, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const adminSponsoredJobColumns =
-  'id, title, description, category, employment_type, remote, status, created_at, approved_at, expires_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, description, category, employment_type, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 
 export async function fetchAllPrograms(): Promise<AdminProgram[]> {
   const { data, error } = await supabase
@@ -275,6 +282,16 @@ export async function fetchAllSponsoredJobs(): Promise<AdminSponsoredJob[]> {
     console.error('fetchAllSponsoredJobs failed', error);
     return [];
   }
+}
+
+/** One job, any status — for the full-page admin editor (src/pages/admin/AdminJobEditorPage.tsx), which needs to open a draft/pending/rejected job just as well as a published one. */
+export async function fetchSponsoredJobByIdAsAdmin(id: string): Promise<AdminSponsoredJob | null> {
+  const { data, error } = await supabase.from('sponsored_jobs').select(adminSponsoredJobColumns).eq('id', id).maybeSingle();
+  if (error) {
+    console.error('fetchSponsoredJobByIdAsAdmin failed', error);
+    return null;
+  }
+  return data as unknown as AdminSponsoredJob | null;
 }
 
 export async function updateProgramAsAdmin(id: string, patch: Partial<AdminProgram>) {
@@ -422,28 +439,94 @@ export async function findOrCreateImportedPublisher(companyName: string): Promis
   return { ok: true, id: created.data.id };
 }
 
+/** A country this import can resolve locations against — just the two fields matchCountriesFromOfficeNames' output can be joined to. */
+export type ImportCountryLookup = { id: string; iso_code: string };
+
+/**
+ * Turns a job's scraped office/location strings into a countries.id —
+ * automatically, no admin pick required. Reuses the same name-matching
+ * MultiCountryBadge already uses for its "hiring in multiple countries"
+ * hint (src/lib/officeLocations.ts), so the two stay consistent.
+ * Returns null — which the rest of the app already renders as "Various"
+ * — when there's no confident single match: either nothing recognizable
+ * was found, or the office list genuinely spans more than one country.
+ * additionalLocations (stored separately) still carries the raw office
+ * list either way, so nothing about the original data is lost.
+ */
+function resolveCountryId(offices: string[] | undefined, locationText: string | undefined, countries: ImportCountryLookup[]): string | null {
+  const candidates = offices && offices.length ? offices : locationText ? [locationText] : [];
+  if (candidates.length === 0) return null;
+  const matches = matchCountriesFromOfficeNames(candidates);
+  if (matches.length !== 1) return null;
+  return countries.find((c) => c.iso_code === matches[0].code)?.id ?? null;
+}
+
+/** First comma-separated segment of a location string ("Blumenau, Santa Catarina, Brazil" → "Blumenau") — good enough for the free-text city field without needing per-site parsing rules. */
+function deriveCity(locationText: string | undefined): string | null {
+  const first = locationText?.split(',')[0]?.trim();
+  return first || null;
+}
+
+/** Maps a scraped employment-type/category string onto the fixed JOB_CATEGORIES set this app actually uses (both the `category` and `employment_type` columns are always kept equal to one of these — see EditableJobRow) — sites phrase this a hundred different ways ("Full time", "FULL_TIME", "Vollzeit"...), so this matches on keywords rather than exact values, and falls back to 'Other' rather than guessing wrong. */
+function normalizeJobCategory(raw: string | null | undefined): JobCategory {
+  if (!raw) return 'Other';
+  const s = raw.toLowerCase();
+  if (s.includes('intern')) return 'Internship';
+  if (s.includes('apprentice')) return 'Apprenticeship';
+  if (s.includes('volunteer')) return 'Volunteer';
+  if (s.includes('season')) return 'Seasonal work';
+  if (s.includes('contract') || s.includes('freelance') || s.includes('temp')) return 'Contract / Freelance';
+  if (s.includes('part')) return 'Part time';
+  if (s.includes('full')) return 'Full time';
+  return JOB_CATEGORIES.includes(raw as JobCategory) ? (raw as JobCategory) : 'Other';
+}
+
+/** Parses whatever date format a source site used (ISO, "08/27/2025", etc.) into a clean ISO string for storage, or null if it isn't a real date rather than letting `new Date(garbage)` produce "Invalid Date" downstream. */
+function parseSourceDate(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 export async function importJobsAsPending(
   publisherId: string,
-  /** null (or the "mixed" sentinel resolved to null by the caller) means the
-   * batch isn't tied to one destination country — e.g. a role open across
-   * several countries/offices at once. additionalLocations still carries
-   * the office list for display (see MultiCountryBadge). */
-  countryId: string | null,
-  jobs: { title: string; description: string; officialUrl: string; additionalLocations?: string[] }[]
+  /** Every country this import can auto-match against — pass the full
+   * fetchCountries() list from src/lib/programs.ts. Destination is now
+   * resolved per job from its own scraped location (see resolveCountryId
+   * above); there's nothing left for the admin to pick per batch. */
+  countries: ImportCountryLookup[],
+  jobs: {
+    title: string;
+    description: string;
+    officialUrl: string;
+    additionalLocations?: string[];
+    locationText?: string;
+    category?: string | null;
+    employmentTypeRaw?: string | null;
+    postedAt?: string | null;
+    remote?: boolean | null;
+    salaryText?: string | null;
+  }[]
 ): Promise<{ ok: boolean; imported: number; error?: string }> {
-  const rows = jobs.map((j) => ({
-    publisher_id: publisherId,
-    title: j.title,
-    description: j.description,
-    category: 'Other',
-    employment_type: 'Other',
-    remote: false,
-    country_id: countryId,
-    official_url: j.officialUrl,
-    additional_locations: j.additionalLocations && j.additionalLocations.length > 1 ? j.additionalLocations : null,
-    contact_email: 'hello@madevisa.com',
-    status: 'pending',
-  }));
+  const rows = jobs.map((j) => {
+    const jobCategory = normalizeJobCategory(j.employmentTypeRaw ?? j.category);
+    return {
+      publisher_id: publisherId,
+      title: j.title,
+      description: j.description,
+      category: jobCategory,
+      employment_type: jobCategory,
+      remote: j.remote ?? false,
+      country_id: resolveCountryId(j.additionalLocations, j.locationText, countries),
+      city: deriveCity(j.additionalLocations?.[0] ?? j.locationText),
+      official_url: j.officialUrl,
+      additional_locations: j.additionalLocations && j.additionalLocations.length > 1 ? j.additionalLocations : null,
+      contact_email: 'hello@madevisa.com',
+      status: 'pending',
+      source_posted_at: parseSourceDate(j.postedAt),
+      ...(j.salaryText ? { compensation_text: j.salaryText, salary_status: 'disclosed' as const } : {}),
+    };
+  });
 
   // Insert in chunks rather than one giant request — an ATS batch (e.g.
   // Roche's 1000+ listings) as a single insert risks the request body/

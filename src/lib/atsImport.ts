@@ -8,6 +8,15 @@ export type FetchedJob = {
   descriptionHtml: string;
   url: string;
   updatedAt: string;
+  /** Best-effort metadata — present for careers-page (Phenom) imports,
+   * always undefined for Greenhouse (whose public API doesn't expose
+   * these in a normalized way). Undefined/null means "not found",
+   * rendered downstream as "Not specified" rather than guessed at. */
+  category?: string | null;
+  employmentTypeRaw?: string | null;
+  postedAt?: string | null;
+  remote?: boolean | null;
+  salaryText?: string | null;
 };
 
 /**
@@ -100,7 +109,7 @@ import { supabase } from '@/lib/supabase';
 export type FetchJobsResult =
   | {
       ok: true;
-      jobs: { externalId: string; title: string; locationText: string; offices: string[]; descriptionHtml: string; url: string }[];
+      jobs: { externalId: string; title: string; locationText: string; offices: string[]; descriptionHtml: string; url: string; category?: string | null; employmentTypeRaw?: string | null; postedAt?: string | null; remote?: boolean | null; salaryText?: string | null }[];
     }
   | { ok: false; error: string };
 

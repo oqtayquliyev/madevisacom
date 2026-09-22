@@ -64,13 +64,6 @@ import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import type { View } from '@/types';
 import type { OrgType } from '@/lib/programs';
 
-/** Sentinel value for the "Mixed — valid for several countries" option in
- * the ATS/careers-page import destination selects. Never sent to the
- * database as-is — resolved to a null country_id at import time (see
- * importJobsAsPending in src/lib/admin.ts), since countries.id is a real
- * foreign key and "mixed" isn't a country. */
-const MIXED_COUNTRY_VALUE = '__mixed__';
-
 type AdminPanelPageProps = {
   go: (view: View) => void;
   onAuth?: (page: 'login' | 'register') => void;
@@ -480,7 +473,6 @@ function AdminAccessSection({ admins, currentEmail, onChange }: { admins: AdminP
 function ImportFromAtsSection({ countries, onImported }: { countries: CountryOption[]; onImported: () => void }) {
   const [boardToken, setBoardToken] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [countryId, setCountryId] = useState('');
   const [busy, setBusy] = useState<'fetching' | 'importing' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -518,12 +510,18 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
 
     const importResult = await importJobsAsPending(
       publisherResult.id,
-      countryId === MIXED_COUNTRY_VALUE ? null : countryId || null,
+      countries,
       res.jobs.map((j) => ({
         title: j.title,
         description: sanitizeJobHtml(j.descriptionHtml),
         officialUrl: j.url,
         additionalLocations: j.offices,
+        locationText: j.locationText,
+        category: j.category,
+        employmentTypeRaw: j.employmentTypeRaw,
+        postedAt: j.postedAt,
+        remote: j.remote,
+        salaryText: j.salaryText,
       }))
     );
 
@@ -532,14 +530,13 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
       setResult(`Added ${importResult.imported} ${company} job${importResult.imported === 1 ? '' : 's'} to Pending sponsored jobs below.`);
       setBoardToken('');
       setCompanyName('');
-      setCountryId('');
       onImported();
     } else {
       setError(importResult.error ?? 'Import failed.');
     }
   };
 
-  const canFetch = !busy && boardToken.trim() && countryId;
+  const canFetch = !busy && boardToken.trim();
 
   return (
     <section className="mt-8">
@@ -548,10 +545,11 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
         <p className="text-xs text-ink-500">
           Pulls live listings from a company's public Greenhouse job board — a documented, no-auth endpoint meant
           for exactly this kind of syndication — and adds them straight to <strong>Pending sponsored jobs</strong>,
-          grouped under this company, for review below.
+          grouped under this company, for review below. Each job's destination country is matched automatically
+          from its own listed location — nothing to pick here.
         </p>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-[11px] font-semibold text-ink-500">Greenhouse board token</label>
             <input
@@ -571,21 +569,6 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
               className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
             />
             <p className="mt-1 text-[10px] text-ink-400">Leave blank to reuse the board token.</p>
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Destination country for this batch</label>
-            <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500">
-              <option value="">Select</option>
-              <option value={MIXED_COUNTRY_VALUE}>Mixed — valid for several countries</option>
-              {countries.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            {countryId === MIXED_COUNTRY_VALUE && (
-              <p className="mt-1 text-[10px] text-ink-400">
-                No single destination will be stored — each job's office list (if any) still shows on its card.
-              </p>
-            )}
           </div>
         </div>
 
@@ -615,7 +598,6 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
 function ImportFromCareersUrlSection({ countries, onImported }: { countries: CountryOption[]; onImported: () => void }) {
   const [careersUrl, setCareersUrl] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [countryId, setCountryId] = useState('');
   const [busy, setBusy] = useState<'fetching' | 'importing' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -653,12 +635,18 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
 
     const importResult = await importJobsAsPending(
       publisherResult.id,
-      countryId === MIXED_COUNTRY_VALUE ? null : countryId || null,
+      countries,
       res.jobs.map((j) => ({
         title: j.title,
         description: sanitizeJobHtml(j.descriptionHtml),
         officialUrl: j.url,
         additionalLocations: j.offices,
+        locationText: j.locationText,
+        category: j.category,
+        employmentTypeRaw: j.employmentTypeRaw,
+        postedAt: j.postedAt,
+        remote: j.remote,
+        salaryText: j.salaryText,
       }))
     );
 
@@ -667,14 +655,13 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
       setResult(`Added ${importResult.imported} ${company} job${importResult.imported === 1 ? '' : 's'} to Pending sponsored jobs below.`);
       setCareersUrl('');
       setCompanyName('');
-      setCountryId('');
       onImported();
     } else {
       setError(importResult.error ?? 'Import failed.');
     }
   };
 
-  const canFetch = !busy && careersUrl.trim() && companyName.trim() && countryId;
+  const canFetch = !busy && careersUrl.trim() && companyName.trim();
 
   return (
     <section className="mt-8">
@@ -683,10 +670,12 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
         <p className="text-xs text-ink-500">
           For companies not on Greenhouse. Paste their careers/search-results page URL — the platform behind it
           (currently: Phenom People sites) is auto-detected server-side — and jobs get added straight to{' '}
-          <strong>Pending sponsored jobs</strong>, grouped under this company, for review below.
+          <strong>Pending sponsored jobs</strong>, grouped under this company, for review below. Each job's
+          destination country, description, type, and (where the source page has them) posted date and salary are
+          all pulled from that job's own page automatically — nothing to pick here.
         </p>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-[11px] font-semibold text-ink-500">Careers page URL</label>
             <input
@@ -705,21 +694,6 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
               placeholder="e.g. Roche"
               className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Destination country for this batch</label>
-            <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500">
-              <option value="">Select</option>
-              <option value={MIXED_COUNTRY_VALUE}>Mixed — valid for several countries</option>
-              {countries.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            {countryId === MIXED_COUNTRY_VALUE && (
-              <p className="mt-1 text-[10px] text-ink-400">
-                No single destination will be stored — each job's office list (if any) still shows on its card.
-              </p>
-            )}
           </div>
         </div>
 
@@ -1089,6 +1063,12 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
             {j.expires_at && ` · Expires ${formatDate(j.expires_at)}`}
           </p>
         </div>
+        <button
+          onClick={() => window.open(`/admin/jobs/${j.id}`, '_blank', 'noopener')}
+          className="shrink-0 rounded-lg border border-ink-200 px-2.5 py-1.5 text-[11px] font-semibold text-ink-600 hover:bg-ink-50"
+        >
+          Preview &amp; edit
+        </button>
         <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600">
           <Trash2 className="h-4 w-4" />
         </button>
@@ -1544,6 +1524,12 @@ function CompanyPendingJobsGroup({
                   </p>
                   <p className="text-[11px] text-ink-400">Submitted {formatDate(j.created_at)}</p>
                 </div>
+                <button
+                  onClick={() => window.open(`/admin/jobs/${j.id}`, '_blank', 'noopener')}
+                  className="shrink-0 rounded-lg border border-ink-200 px-2.5 py-1.5 text-[11px] font-semibold text-ink-600 hover:bg-ink-50"
+                >
+                  Preview &amp; edit
+                </button>
                 <Actions
                   onApprove={async () => {
                     const r = await setSponsoredJobStatus(j.id, 'published');
