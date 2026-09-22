@@ -476,21 +476,38 @@ function isPhenomSite(html: string): boolean {
 // any particular URL shape belongs to one company.
 // ---------------------------------------------------------------------------
 
-// Matches an href whose path contains a "job-like" segment followed by
-// an identifier — e.g. /about/careers/job/4964372, /jobs/12345,
-// /career/opening/abc-123. Broad enough to catch common corporate-site
-// conventions without also matching ordinary nav links (which won't
-// have a job/opening/position/vacancy segment followed by an id).
-const JOB_LINK_RE = /href="([^"#?]*\/(?:job|jobs|opening|openings|position|positions|vacancy|vacancies)\/[A-Za-z0-9][A-Za-z0-9_-]*)[^"]*"/gi;
+// Matches a "job-like" path segment anywhere in an href — deliberately
+// just a boolean test, not a capturing/truncating regex (see below for
+// why that distinction matters).
+const JOB_SEGMENT_RE = /\/(?:jobs?|openings?|positions?|vacanc(?:y|ies))\//i;
+const HREF_RE = /href="([^"]+)"/gi;
 
 function extractJobLinksFromHtml(html: string, baseUrl: string): string[] {
   const seen = new Set<string>();
   const links: string[] = [];
   let match: RegExpExecArray | null;
-  JOB_LINK_RE.lastIndex = 0;
-  while ((match = JOB_LINK_RE.exec(html))) {
+  HREF_RE.lastIndex = 0;
+
+  while ((match = HREF_RE.exec(html))) {
+    const raw = match[1];
+    const segMatch = raw.match(JOB_SEGMENT_RE);
+    if (!segMatch) continue;
+
+    // Require something after the job/jobs/opening/etc. segment — a
+    // bare ".../careers/jobs" (a listing/category link, not a posting)
+    // has nothing there. Critically, this checks the RAW href, not a
+    // regex capture group that would otherwise stop at the first
+    // path segment after the match (e.g. Novartis's
+    // ".../job/details/req-10085487-..." has "details" as its own
+    // segment before the real id — an earlier version of this
+    // function captured only up through "details" and silently
+    // dropped everything after it, which is why every job link on a
+    // site shaped like this collapsed into the same broken URL).
+    const afterSeg = raw.slice((segMatch.index ?? 0) + segMatch[0].length).replace(/[?#].*$/, "");
+    if (afterSeg.length < 3) continue;
+
     try {
-      const resolved = new URL(match[1], baseUrl).toString();
+      const resolved = new URL(raw, baseUrl).toString();
       if (!seen.has(resolved)) {
         seen.add(resolved);
         links.push(resolved);
