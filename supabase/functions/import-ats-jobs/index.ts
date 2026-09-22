@@ -735,12 +735,19 @@ const SECTION_HEADER_KEYWORDS = [
   'qualifications', 'skills', 'about you', 'who you are',
   'benefits and rewards', 'benefits', 'what we offer', 'rewards',
   'other job details', 'additional information', 'diversity statement',
-  'eeo statement', 'about us', 'who we are',
+  'eeo statement', 'about us', 'who we are', 'education',
+  'required skills and experience', 'preferred skills and experience',
+  'job function:', 'job sub function:', 'job category:', 'all job posting locations:',
 ];
+
+// Trailing colons above are for readability only — isSectionHeaderLine
+// strips a trailing colon from the input line before comparing, so the
+// keyword list must be colon-free to actually match.
+const SECTION_HEADER_KEYWORDS_NORMALIZED = SECTION_HEADER_KEYWORDS.map((k) => k.replace(/:$/, ''));
 
 function isSectionHeaderLine(line: string): boolean {
   const normalized = line.trim().replace(/:$/, '').toLowerCase();
-  return SECTION_HEADER_KEYWORDS.includes(normalized);
+  return SECTION_HEADER_KEYWORDS_NORMALIZED.includes(normalized);
 }
 
 /**
@@ -846,6 +853,118 @@ function normalizedJobFromJsonLd(jsonLd: any, detailUrl: string): NormalizedJob 
  *  description. This gets the job into the pending queue with a real
  *  title and link rather than being silently skipped; an admin can
  *  fill in the rest during review, same as any other pending listing. */
+// ---------------------------------------------------------------------------
+// Generic labeled-field extraction — the fallback used when a page has
+// neither JSON-LD nor any of the JSON-based strategies above. A great
+// many corporate career sites (J&J's among them, confirmed directly —
+// Location / Date posted / Category / Function / Requisition number /
+// Work pattern all appear as plain "Label — Value" pairs in the
+// rendered HTML) don't bother with schema.org markup but DO lay out
+// their own metadata in a consistent, human-labeled way. Rather than
+// writing a J&J-specific parser, this recognizes a broad set of common
+// label synonyms so the same code picks up equivalent fields on other
+// sites shaped similarly, without hardcoding to any one company.
+
+/** Strips tags to a linearized, line-based text approximation of the
+ *  page, inserting a line break at common block/list boundaries so
+ *  "label" and "value" that sit in separate elements don't get smashed
+ *  onto the same line — which is what made earlier plain-text
+ *  extraction attempts merge unrelated sentences together. */
+function htmlToLines(html: string): string[] {
+  let text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<(li|tr|p|div|br|dt|dd|h[1-6])[ >]/gi, "\n$&")
+    .replace(/<[^>]+>/g, " ");
+
+  text = text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#39;|&rsquo;/gi, "'")
+    .replace(/&quot;|&ldquo;|&rdquo;/gi, '"')
+    .replace(/&ndash;|&mdash;/gi, "-");
+
+  return text
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+/** Canonical field -> recognized label synonyms (case-insensitive,
+ *  matched at the start of a line). Extend this list as new sites turn
+ *  up label wording not covered yet — that's the whole point of
+ *  keeping it centralized here rather than per-site logic. */
+const LABEL_SYNONYMS: Record<string, string[]> = {
+  location: ["all job posting locations", "job location", "work location", "location"],
+  postedAt: ["date posted", "posting date", "posted date", "post date"],
+  category: ["job category", "category", "department", "job function", "function", "business unit", "division"],
+  employmentType: ["employment type", "job type", "work pattern", "job schedule", "schedule"],
+  externalId: ["requisition number", "requisition id", "req id", "req number", "job id", "reference number"],
+};
+
+/** Given a line already identified as starting with a known label,
+ *  returns the value — either text after a separator on the same line
+ *  ("Location: Titusville"), or, if the label is the whole line, the
+ *  next non-empty line ("Location" / "Titusville" as two list items —
+ *  J&J's own structure works this way in places). */
+function valueForLabel(lines: string[], lineIndex: number, label: string): string | null {
+  const line = lines[lineIndex];
+  const afterLabel = line.slice(label.length).replace(/^[\s:–—-]+/, "").trim();
+  if (afterLabel) return afterLabel;
+  const next = lines[lineIndex + 1];
+  return next && !isKnownLabel(next) ? next : null;
+}
+
+function isKnownLabel(line: string): boolean {
+  const lower = line.toLowerCase();
+  return Object.values(LABEL_SYNONYMS)
+    .flat()
+    .some((label) => lower === label || lower.startsWith(label + ":") || lower.startsWith(label + " "));
+}
+
+function extractLabeledFields(lines: string[]): Partial<Record<keyof typeof LABEL_SYNONYMS, string>> {
+  const found: Partial<Record<keyof typeof LABEL_SYNONYMS, string>> = {};
+
+  for (let i = 0; i < lines.length; i++) {
+    const lower = lines[i].toLowerCase();
+    for (const [field, labels] of Object.entries(LABEL_SYNONYMS)) {
+      if (found[field as keyof typeof LABEL_SYNONYMS]) continue;
+      const matchedLabel = labels.find((label) => lower === label || lower.startsWith(label + ":") || lower.startsWith(label + " "));
+      if (matchedLabel) {
+        const value = valueForLabel(lines, i, matchedLabel);
+        if (value) found[field as keyof typeof LABEL_SYNONYMS] = value;
+      }
+    }
+  }
+  return found;
+}
+
+/** Best-effort description: starts from wherever the job's own title
+ *  reappears as a heading in the body (very commonly the real content
+ *  begins right around there), runs until a common
+ *  boilerplate/legal-footer marker, capped at a generous length. Not
+ *  perfect on every layout, but far better than an empty description. */
+function extractDescriptionBody(lines: string[], title: string): string {
+  const titleLower = title.toLowerCase();
+  const startIdx = lines.findIndex((l) => l.toLowerCase() === titleLower);
+  const bodyLines = startIdx >= 0 ? lines.slice(startIdx + 1) : lines;
+
+  const stopMarkers = [
+    "equal opportunity employer",
+    "privacy policy",
+    "cookie policy",
+    "terms of use",
+    "recruitment fraud",
+    "e-verify",
+  ];
+  const stopIdx = bodyLines.findIndex((l) => stopMarkers.some((m) => l.toLowerCase().includes(m)));
+  const relevant = (stopIdx >= 0 ? bodyLines.slice(0, stopIdx) : bodyLines).slice(0, 400); // generous line cap
+
+  return relevant.map((l) => (isSectionHeaderLine(l) ? `<h3>${l.replace(/:$/, "")}</h3>` : `<p>${l}</p>`)).join("").slice(0, 20000); // generous char cap
+}
+
 function fallbackJobFromTitleTag(html: string, detailUrl: string): NormalizedJob | null {
   const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
   if (!match) return null;
@@ -860,18 +979,23 @@ function fallbackJobFromTitleTag(html: string, detailUrl: string): NormalizedJob
   const cut = Math.max(lastPipe, lastDash);
   if (cut > 0) title = title.slice(0, cut).trim();
 
+  const lines = htmlToLines(html);
+  const fields = extractLabeledFields(lines);
+  const description = extractDescriptionBody(lines, title);
+
   const idFromUrl = detailUrl.match(/([A-Za-z0-9][A-Za-z0-9_-]{2,})\/?(?:\?.*)?$/)?.[1];
+  const offices = fields.location ? [fields.location] : [];
 
   return {
-    externalId: String(idFromUrl ?? detailUrl),
+    externalId: String(fields.externalId ?? idFromUrl ?? detailUrl),
     title,
-    locationText: "",
-    offices: [],
-    descriptionHtml: "",
+    locationText: fields.location ?? "",
+    offices,
+    descriptionHtml: description,
     url: detailUrl,
-    category: null,
-    employmentTypeRaw: null,
-    postedAt: null,
+    category: fields.category ?? null,
+    employmentTypeRaw: fields.employmentType ?? null,
+    postedAt: fields.postedAt ?? null,
     remote: null,
     salaryText: null,
   };
@@ -901,7 +1025,7 @@ async function fetchGenericJobsViaLinks(
   if (links.length === 0) {
     if (startFrom === 0) {
       throw new Error(
-        "Couldn't find any job links on this page, and it doesn't match a known ATS platform (Phenom, Greenhouse, Drupal JSON:API, flat jobs JSON). This usually means the page builds its job list with client-side JavaScript rather than embedding it in the raw HTML this function receives — nothing this function fetches server-side will ever see that data, no matter how it's requested. Open the listing page in a browser, open DevTools → Network → filter Fetch/XHR, reload, and look for a request that comes back as JSON containing job data; sharing that request's URL is the fastest way to get a dedicated strategy added for this site."
+        "Couldn't find any job links on this page, and it doesn't match a known ATS platform (Phenom, Greenhouse). This site may need a dedicated strategy added to this function."
       );
     }
     return { jobs: [], nextFrom: null, totalHits: null }; // ran past the last page — done
@@ -909,49 +1033,50 @@ async function fetchGenericJobsViaLinks(
 
   const jobs: NormalizedJob[] = [];
   const deadline = Date.now() + DETAIL_FETCH_TIME_BUDGET_MS;
+  let cursor = 0;
 
   // Tracked so that, if every single link fails, the error we surface
   // says WHY rather than just "zero jobs" — those are very different
-  // situations (blocked/JS-rendered vs. genuinely no usable data) and
-  // look identical to the caller unless we distinguish them here.
+  // situations (bot-blocked vs. genuinely no usable data) and look
+  // identical to the caller unless we distinguish them here.
   let fetchFailures = 0; // non-OK HTTP status or network/timeout error
   let noDataExtracted = 0; // page fetched fine, but no JSON-LD and no <title>
 
-  // Fully serial — one request at a time, not several workers in
-  // parallel — with a real pause between each. This is the strategy
-  // used on sites with no recognized ATS fingerprint, which on average
-  // skew toward having *some* form of bot mitigation in front of them
-  // more than a known platform does, so this deliberately trades speed
-  // for looking as little like a scraping burst as possible. If a
-  // site's data still can't be read this way, that's a strong signal
-  // the wall isn't about request pacing at all (see the error message
-  // below) — going even slower won't help a page with no server-
-  // rendered job data to begin with.
-  for (const link of links) {
-    if (Date.now() >= deadline) break;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), DETAIL_FETCH_TIMEOUT_MS);
-    try {
-      const res = await fetch(link, { headers: { "User-Agent": USER_AGENT, Accept: "text/html" }, signal: controller.signal });
-      if (!res.ok) {
+  async function worker() {
+    while (cursor < links.length && Date.now() < deadline) {
+      const link = links[cursor++];
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), DETAIL_FETCH_TIMEOUT_MS);
+      try {
+        const res = await fetch(link, { headers: { "User-Agent": USER_AGENT, Accept: "text/html" }, signal: controller.signal });
+        if (!res.ok) {
+          fetchFailures++;
+          continue;
+        }
+        const html = await res.text();
+        const jsonLd = extractJsonLdJobPosting(html);
+        const job = jsonLd ? normalizedJobFromJsonLd(jsonLd, link) : fallbackJobFromTitleTag(html, link);
+        if (job) {
+          jobs.push(job);
+        } else {
+          noDataExtracted++;
+        }
+      } catch {
         fetchFailures++;
-        continue;
+      } finally {
+        clearTimeout(timer);
       }
-      const html = await res.text();
-      const jsonLd = extractJsonLdJobPosting(html);
-      const job = jsonLd ? normalizedJobFromJsonLd(jsonLd, link) : fallbackJobFromTitleTag(html, link);
-      if (job) {
-        jobs.push(job);
-      } else {
-        noDataExtracted++;
-      }
-    } catch {
-      fetchFailures++;
-    } finally {
-      clearTimeout(timer);
+      // Small stagger between this worker's requests — 6 workers firing
+      // as fast as possible looks like a burst to basic rate-limiting/
+      // bot-detection; spacing them out is cheap insurance against
+      // exactly the kind of site this generic strategy targets (large
+      // corporate sites, more likely than average to have some bot
+      // mitigation in front of them).
+      await sleep(200);
     }
-    await sleep(600);
   }
+
+  await Promise.all(Array.from({ length: DETAIL_FETCH_CONCURRENCY }, worker));
 
   if (jobs.length === 0) {
     // Found real job links, but couldn't get data from a single one of
@@ -959,9 +1084,8 @@ async function fetchGenericJobsViaLinks(
     // empty ok:true result, which the frontend can only report as a
     // generic "zero jobs" with no way to tell these cases apart.
     if (fetchFailures === links.length) {
-      const smallSample = links.length <= 3;
       throw new Error(
-        `Found ${links.length} job link(s) on the listing page${smallSample ? " — a suspiciously small number for a real careers listing, which often means these are just incidental nav/footer links rather than the actual job grid" : ""} — but every single detail-page request failed, even fetched one at a time with a pause between each. Two real possibilities, and this function can't fully tell them apart: the site renders job data with client-side JavaScript that a plain server-side fetch can never see (most likely for large corporate sites built on platforms like Eightfold, e.g. Booking.com), or it has bot protection this function's simple request can't get past. Either way, going slower won't fix it. Open the listing page's Network tab in your browser's DevTools, reload, and look for a request that returns job data as JSON — sharing that endpoint's URL is the fastest path to real support for this specific site.`
+        `Found ${links.length} job link(s) on the listing page, but every single detail-page request failed (blocked, rate-limited, or timed out). This site likely has bot protection rejecting automated requests — a slower/serial fetch pattern may be needed for this site specifically.`
       );
     }
     throw new Error(
