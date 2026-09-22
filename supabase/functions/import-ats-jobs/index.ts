@@ -901,7 +901,7 @@ async function fetchGenericJobsViaLinks(
   if (links.length === 0) {
     if (startFrom === 0) {
       throw new Error(
-        "Couldn't find any job links on this page, and it doesn't match a known ATS platform (Phenom, Greenhouse). This site may need a dedicated strategy added to this function."
+        "Couldn't find any job links on this page, and it doesn't match a known ATS platform (Phenom, Greenhouse, Drupal JSON:API, flat jobs JSON). This usually means the page builds its job list with client-side JavaScript rather than embedding it in the raw HTML this function receives — nothing this function fetches server-side will ever see that data, no matter how it's requested. Open the listing page in a browser, open DevTools → Network → filter Fetch/XHR, reload, and look for a request that comes back as JSON containing job data; sharing that request's URL is the fastest way to get a dedicated strategy added for this site."
       );
     }
     return { jobs: [], nextFrom: null, totalHits: null }; // ran past the last page — done
@@ -909,50 +909,49 @@ async function fetchGenericJobsViaLinks(
 
   const jobs: NormalizedJob[] = [];
   const deadline = Date.now() + DETAIL_FETCH_TIME_BUDGET_MS;
-  let cursor = 0;
 
   // Tracked so that, if every single link fails, the error we surface
   // says WHY rather than just "zero jobs" — those are very different
-  // situations (bot-blocked vs. genuinely no usable data) and look
-  // identical to the caller unless we distinguish them here.
+  // situations (blocked/JS-rendered vs. genuinely no usable data) and
+  // look identical to the caller unless we distinguish them here.
   let fetchFailures = 0; // non-OK HTTP status or network/timeout error
   let noDataExtracted = 0; // page fetched fine, but no JSON-LD and no <title>
 
-  async function worker() {
-    while (cursor < links.length && Date.now() < deadline) {
-      const link = links[cursor++];
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), DETAIL_FETCH_TIMEOUT_MS);
-      try {
-        const res = await fetch(link, { headers: { "User-Agent": USER_AGENT, Accept: "text/html" }, signal: controller.signal });
-        if (!res.ok) {
-          fetchFailures++;
-          continue;
-        }
-        const html = await res.text();
-        const jsonLd = extractJsonLdJobPosting(html);
-        const job = jsonLd ? normalizedJobFromJsonLd(jsonLd, link) : fallbackJobFromTitleTag(html, link);
-        if (job) {
-          jobs.push(job);
-        } else {
-          noDataExtracted++;
-        }
-      } catch {
+  // Fully serial — one request at a time, not several workers in
+  // parallel — with a real pause between each. This is the strategy
+  // used on sites with no recognized ATS fingerprint, which on average
+  // skew toward having *some* form of bot mitigation in front of them
+  // more than a known platform does, so this deliberately trades speed
+  // for looking as little like a scraping burst as possible. If a
+  // site's data still can't be read this way, that's a strong signal
+  // the wall isn't about request pacing at all (see the error message
+  // below) — going even slower won't help a page with no server-
+  // rendered job data to begin with.
+  for (const link of links) {
+    if (Date.now() >= deadline) break;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DETAIL_FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(link, { headers: { "User-Agent": USER_AGENT, Accept: "text/html" }, signal: controller.signal });
+      if (!res.ok) {
         fetchFailures++;
-      } finally {
-        clearTimeout(timer);
+        continue;
       }
-      // Small stagger between this worker's requests — 6 workers firing
-      // as fast as possible looks like a burst to basic rate-limiting/
-      // bot-detection; spacing them out is cheap insurance against
-      // exactly the kind of site this generic strategy targets (large
-      // corporate sites, more likely than average to have some bot
-      // mitigation in front of them).
-      await sleep(200);
+      const html = await res.text();
+      const jsonLd = extractJsonLdJobPosting(html);
+      const job = jsonLd ? normalizedJobFromJsonLd(jsonLd, link) : fallbackJobFromTitleTag(html, link);
+      if (job) {
+        jobs.push(job);
+      } else {
+        noDataExtracted++;
+      }
+    } catch {
+      fetchFailures++;
+    } finally {
+      clearTimeout(timer);
     }
+    await sleep(600);
   }
-
-  await Promise.all(Array.from({ length: DETAIL_FETCH_CONCURRENCY }, worker));
 
   if (jobs.length === 0) {
     // Found real job links, but couldn't get data from a single one of
@@ -960,8 +959,9 @@ async function fetchGenericJobsViaLinks(
     // empty ok:true result, which the frontend can only report as a
     // generic "zero jobs" with no way to tell these cases apart.
     if (fetchFailures === links.length) {
+      const smallSample = links.length <= 3;
       throw new Error(
-        `Found ${links.length} job link(s) on the listing page, but every single detail-page request failed (blocked, rate-limited, or timed out). This site likely has bot protection rejecting automated requests — a slower/serial fetch pattern may be needed for this site specifically.`
+        `Found ${links.length} job link(s) on the listing page${smallSample ? " — a suspiciously small number for a real careers listing, which often means these are just incidental nav/footer links rather than the actual job grid" : ""} — but every single detail-page request failed, even fetched one at a time with a pause between each. Two real possibilities, and this function can't fully tell them apart: the site renders job data with client-side JavaScript that a plain server-side fetch can never see (most likely for large corporate sites built on platforms like Eightfold, e.g. Booking.com), or it has bot protection this function's simple request can't get past. Either way, going slower won't fix it. Open the listing page's Network tab in your browser's DevTools, reload, and look for a request that returns job data as JSON — sharing that endpoint's URL is the fastest path to real support for this specific site.`
       );
     }
     throw new Error(
