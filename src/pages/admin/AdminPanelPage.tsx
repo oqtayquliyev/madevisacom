@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Briefcase, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Landmark, Pencil, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSeo } from '@/lib/seo';
@@ -243,41 +243,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
               )}
             />
 
-            <PaginatedSection
-              title="Pending sponsored jobs"
-              items={pendingJobs}
-              searchText={(j) => `${j.title} ${j.publisher?.name ?? ''}`}
-              renderRow={(j) => (
-                <Row key={j.id}>
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500">
-                    <Briefcase className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-ink-900">{j.title}</p>
-                    <p className="text-xs text-ink-500">
-                      {j.employment_type} · {j.publisher?.name ?? 'Unknown publisher'}{j.country ? ` · ${j.country.name}` : ''}
-                    </p>
-                    <p className="text-[11px] text-ink-400">Submitted {formatDate(j.created_at)}</p>
-                  </div>
-                  <Actions
-                    onApprove={async () => { const r = await setSponsoredJobStatus(j.id, 'published'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
-                    onReject={async () => { const r = await setSponsoredJobStatus(j.id, 'rejected'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
-                  />
-                  <button
-                    onClick={async () => {
-                      if (!window.confirm(`Delete "${j.title}"? This can't be undone.`)) return;
-                      const result = await deleteSponsoredJob(j.id);
-                      if (result.ok) loadAll();
-                      else window.alert(result.error ?? 'Delete failed.');
-                    }}
-                    aria-label="Delete"
-                    className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </Row>
-              )}
-            />
+            <GroupedPendingJobsSection jobs={pendingJobs} onChange={loadAll} />
 
             <ManagedProgramsSection programs={allPrograms} onChange={loadAll} />
 
@@ -511,76 +477,69 @@ function AdminAccessSection({ admins, currentEmail, onChange }: { admins: AdminP
   );
 }
 
-type PreviewJob = { externalId: string; title: string; locationText: string; offices: string[]; description: string; url: string; selected: boolean };
-
 function ImportFromAtsSection({ countries, onImported }: { countries: CountryOption[]; onImported: () => void }) {
   const [boardToken, setBoardToken] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [countryId, setCountryId] = useState('');
-  const [fetching, setFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<PreviewJob[] | null>(null);
-  const [importing, setImporting] = useState(false);
+  const [busy, setBusy] = useState<'fetching' | 'importing' | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 
-  const fetchJobs = async () => {
-    setFetching(true);
-    setFetchError(null);
-    setPreview(null);
+  // Fetch and commit are one step now: the moment a board's jobs come
+  // back, they're inserted as pending and show up for real in the
+  // "Pending sponsored jobs" panel below (grouped by company there) —
+  // no separate in-memory preview to review and then import.
+  const fetchAndImport = async () => {
+    const company = companyName.trim() || boardToken.trim();
+    if (!company) return;
+    setBusy('fetching');
+    setError(null);
     setResult(null);
+
     const res = await fetchGreenhouseJobs(boardToken);
-    setFetching(false);
     if (!res.ok) {
-      setFetchError(res.error ?? 'Could not fetch that board.');
+      setBusy(null);
+      setError(res.error ?? 'Could not fetch that board.');
       return;
     }
-    setPreview(
-      res.jobs.map((j) => ({
-        externalId: j.externalId,
-        title: j.title,
-        locationText: j.locationText,
-        offices: j.offices,
-        description: sanitizeJobHtml(j.descriptionHtml),
-        url: j.url,
-        selected: true,
-      }))
-    );
-    if (!companyName) setCompanyName(boardToken);
-  };
+    if (res.jobs.length === 0) {
+      setBusy(null);
+      setError('That board returned zero jobs — double-check the token.');
+      return;
+    }
 
-  const toggle = (id: string) => {
-    setPreview((rows) => rows?.map((r) => (r.externalId === id ? { ...r, selected: !r.selected } : r)) ?? null);
-  };
-
-  const runImport = async () => {
-    if (!preview || !countryId || !companyName.trim()) return;
-    setImporting(true);
-    setResult(null);
-
-    const publisherResult = await findOrCreateImportedPublisher(companyName);
+    setBusy('importing');
+    const publisherResult = await findOrCreateImportedPublisher(company);
     if (!publisherResult.ok || !publisherResult.id) {
-      setImporting(false);
-      setResult(publisherResult.error ?? 'Could not set up the publisher.');
+      setBusy(null);
+      setError(publisherResult.error ?? 'Could not set up the publisher.');
       return;
     }
 
-    const selected = preview.filter((j) => j.selected);
     const importResult = await importJobsAsPending(
       publisherResult.id,
-      countryId === MIXED_COUNTRY_VALUE ? null : countryId,
-      selected.map((j) => ({ title: j.title, description: j.description, officialUrl: j.url, additionalLocations: j.offices }))
+      countryId === MIXED_COUNTRY_VALUE ? null : countryId || null,
+      res.jobs.map((j) => ({
+        title: j.title,
+        description: sanitizeJobHtml(j.descriptionHtml),
+        officialUrl: j.url,
+        additionalLocations: j.offices,
+      }))
     );
 
-    setImporting(false);
+    setBusy(null);
     if (importResult.ok) {
-      setResult(`Imported ${importResult.imported} job${importResult.imported === 1 ? '' : 's'} as pending — review them below.`);
-      setPreview(null);
+      setResult(`Added ${importResult.imported} ${company} job${importResult.imported === 1 ? '' : 's'} to Pending sponsored jobs below.`);
       setBoardToken('');
+      setCompanyName('');
+      setCountryId('');
       onImported();
     } else {
-      setResult(importResult.error ?? 'Import failed.');
+      setError(importResult.error ?? 'Import failed.');
     }
   };
+
+  const canFetch = !busy && boardToken.trim() && countryId;
 
   return (
     <section className="mt-8">
@@ -588,8 +547,8 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
       <div className="mt-3 border border-ink-200 bg-white p-4">
         <p className="text-xs text-ink-500">
           Pulls live listings from a company's public Greenhouse job board — a documented, no-auth endpoint meant
-          for exactly this kind of syndication. Imported jobs land as <strong>pending</strong>, same review flow as
-          everything else.
+          for exactly this kind of syndication — and adds them straight to <strong>Pending sponsored jobs</strong>,
+          grouped under this company, for review below.
         </p>
 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -611,6 +570,7 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
               placeholder="e.g. Stripe"
               className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
             />
+            <p className="mt-1 text-[10px] text-ink-400">Leave blank to reuse the board token.</p>
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-semibold text-ink-500">Destination country for this batch</label>
@@ -630,42 +590,14 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
         </div>
 
         <button
-          onClick={fetchJobs}
-          disabled={fetching || !boardToken.trim()}
-          className="mt-3 rounded-lg bg-ink-900 px-4 py-2 text-xs font-semibold text-white hover:bg-ink-800 disabled:opacity-50"
+          onClick={fetchAndImport}
+          disabled={!canFetch}
+          className="mt-3 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
-          {fetching ? 'Fetching…' : 'Fetch jobs'}
+          {busy === 'fetching' ? 'Fetching…' : busy === 'importing' ? 'Adding to pending…' : 'Fetch & add to pending'}
         </button>
 
-        {fetchError && <p className="mt-2 text-xs font-medium text-rose-600">{fetchError}</p>}
-
-        {preview && (
-          <div className="mt-4">
-            <p className="text-xs font-semibold text-ink-700">
-              {preview.length} job{preview.length === 1 ? '' : 's'} found — {preview.filter((j) => j.selected).length} selected
-            </p>
-            <div className="mt-2 max-h-80 divide-y divide-ink-100 overflow-auto rounded-md border border-ink-200">
-              {preview.map((j) => (
-                <label key={j.externalId} className="flex items-start gap-2 p-2.5 text-xs hover:bg-ink-50">
-                  <input type="checkbox" checked={j.selected} onChange={() => toggle(j.externalId)} className="mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="font-semibold text-ink-900">{j.title}</p>
-                    <p className="text-ink-400">{j.locationText}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-
-            <button
-              onClick={runImport}
-              disabled={importing || !countryId || !companyName.trim() || preview.every((j) => !j.selected)}
-              className="mt-3 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-            >
-              {importing ? 'Importing…' : `Import ${preview.filter((j) => j.selected).length} selected as pending`}
-            </button>
-          </div>
-        )}
-
+        {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
         {result && <p className="mt-3 text-xs font-medium text-emerald-700">{result}</p>}
       </div>
     </section>
@@ -684,69 +616,65 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
   const [careersUrl, setCareersUrl] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [countryId, setCountryId] = useState('');
-  const [fetching, setFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<PreviewJob[] | null>(null);
-  const [importing, setImporting] = useState(false);
+  const [busy, setBusy] = useState<'fetching' | 'importing' | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 
-  const fetchJobs = async () => {
-    setFetching(true);
-    setFetchError(null);
-    setPreview(null);
+  // Same one-step fetch-and-commit pattern as ImportFromAtsSection above —
+  // no in-between preview to import separately. A company name is required
+  // here (unlike the Greenhouse token, a careers URL isn't a usable name
+  // on its own), so the button stays disabled until it's filled in.
+  const fetchAndImport = async () => {
+    const company = companyName.trim();
+    if (!company) return;
+    setBusy('fetching');
+    setError(null);
     setResult(null);
+
     const res = await fetchJobsFromCareersUrl(careersUrl);
-    setFetching(false);
     if (!res.ok) {
-      setFetchError(res.error ?? 'Could not fetch that careers page.');
+      setBusy(null);
+      setError(res.error ?? 'Could not fetch that careers page.');
       return;
     }
-    setPreview(
-      res.jobs.map((j) => ({
-        externalId: j.externalId,
-        title: j.title,
-        locationText: j.locationText,
-        offices: j.offices,
-        description: sanitizeJobHtml(j.descriptionHtml),
-        url: j.url,
-        selected: true,
-      }))
-    );
-  };
+    if (res.jobs.length === 0) {
+      setBusy(null);
+      setError('That page returned zero jobs.');
+      return;
+    }
 
-  const toggle = (id: string) => {
-    setPreview((rows) => rows?.map((r) => (r.externalId === id ? { ...r, selected: !r.selected } : r)) ?? null);
-  };
-
-  const runImport = async () => {
-    if (!preview || !countryId || !companyName.trim()) return;
-    setImporting(true);
-    setResult(null);
-
-    const publisherResult = await findOrCreateImportedPublisher(companyName);
+    setBusy('importing');
+    const publisherResult = await findOrCreateImportedPublisher(company);
     if (!publisherResult.ok || !publisherResult.id) {
-      setImporting(false);
-      setResult(publisherResult.error ?? 'Could not set up the publisher.');
+      setBusy(null);
+      setError(publisherResult.error ?? 'Could not set up the publisher.');
       return;
     }
 
-    const selected = preview.filter((j) => j.selected);
     const importResult = await importJobsAsPending(
       publisherResult.id,
-      countryId === MIXED_COUNTRY_VALUE ? null : countryId,
-      selected.map((j) => ({ title: j.title, description: j.description, officialUrl: j.url, additionalLocations: j.offices }))
+      countryId === MIXED_COUNTRY_VALUE ? null : countryId || null,
+      res.jobs.map((j) => ({
+        title: j.title,
+        description: sanitizeJobHtml(j.descriptionHtml),
+        officialUrl: j.url,
+        additionalLocations: j.offices,
+      }))
     );
 
-    setImporting(false);
+    setBusy(null);
     if (importResult.ok) {
-      setResult(`Imported ${importResult.imported} job${importResult.imported === 1 ? '' : 's'} as pending — review them below.`);
-      setPreview(null);
+      setResult(`Added ${importResult.imported} ${company} job${importResult.imported === 1 ? '' : 's'} to Pending sponsored jobs below.`);
       setCareersUrl('');
+      setCompanyName('');
+      setCountryId('');
       onImported();
     } else {
-      setResult(importResult.error ?? 'Import failed.');
+      setError(importResult.error ?? 'Import failed.');
     }
   };
+
+  const canFetch = !busy && careersUrl.trim() && companyName.trim() && countryId;
 
   return (
     <section className="mt-8">
@@ -754,8 +682,8 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
       <div className="mt-3 border border-ink-200 bg-white p-4">
         <p className="text-xs text-ink-500">
           For companies not on Greenhouse. Paste their careers/search-results page URL — the platform behind it
-          (currently: Phenom People sites) is auto-detected server-side. Imported jobs land as{' '}
-          <strong>pending</strong>, same review flow as everything else.
+          (currently: Phenom People sites) is auto-detected server-side — and jobs get added straight to{' '}
+          <strong>Pending sponsored jobs</strong>, grouped under this company, for review below.
         </p>
 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -796,42 +724,14 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
         </div>
 
         <button
-          onClick={fetchJobs}
-          disabled={fetching || !careersUrl.trim()}
-          className="mt-3 rounded-lg bg-ink-900 px-4 py-2 text-xs font-semibold text-white hover:bg-ink-800 disabled:opacity-50"
+          onClick={fetchAndImport}
+          disabled={!canFetch}
+          className="mt-3 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
-          {fetching ? 'Fetching…' : 'Fetch jobs'}
+          {busy === 'fetching' ? 'Fetching…' : busy === 'importing' ? 'Adding to pending…' : 'Fetch & add to pending'}
         </button>
 
-        {fetchError && <p className="mt-2 text-xs font-medium text-rose-600">{fetchError}</p>}
-
-        {preview && (
-          <div className="mt-4">
-            <p className="text-xs font-semibold text-ink-700">
-              {preview.length} job{preview.length === 1 ? '' : 's'} found — {preview.filter((j) => j.selected).length} selected
-            </p>
-            <div className="mt-2 max-h-80 divide-y divide-ink-100 overflow-auto rounded-md border border-ink-200">
-              {preview.map((j) => (
-                <label key={j.externalId} className="flex items-start gap-2 p-2.5 text-xs hover:bg-ink-50">
-                  <input type="checkbox" checked={j.selected} onChange={() => toggle(j.externalId)} className="mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="font-semibold text-ink-900">{j.title}</p>
-                    <p className="text-ink-400">{j.locationText}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-
-            <button
-              onClick={runImport}
-              disabled={importing || !countryId || !companyName.trim() || preview.every((j) => !j.selected)}
-              className="mt-3 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-            >
-              {importing ? 'Importing…' : `Import ${preview.filter((j) => j.selected).length} selected as pending`}
-            </button>
-          </div>
-        )}
-
+        {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
         {result && <p className="mt-3 text-xs font-medium text-emerald-700">{result}</p>}
       </div>
     </section>
@@ -1459,6 +1359,222 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
 
       <Pager page={page} totalPages={totalPages} onChange={setPage} />
     </CollapsibleSection>
+  );
+}
+
+/**
+ * Dashboard-filter style view of pending sponsored jobs: grouped into a
+ * collapsible row per company — "Roche (1290)", "Philips (900)" — instead
+ * of one long flat list. This is where ATS-imported batches (see
+ * ImportFromAtsSection / ImportFromCareersUrlSection above) actually land
+ * and become reviewable as real rows, not a one-off success message.
+ * The search box filters by job title OR company name across every group
+ * at once, auto-expanding any group with a match.
+ */
+function GroupedPendingJobsSection({ jobs, onChange }: { jobs: PendingSponsoredJob[]; onChange: () => void }) {
+  const [search, setSearch] = useState('');
+  const [openCompanies, setOpenCompanies] = useState<Set<string>>(new Set());
+  const [busyGroup, setBusyGroup] = useState<string | null>(null);
+  const [groupMessage, setGroupMessage] = useState<string | null>(null);
+
+  const query = search.trim().toLowerCase();
+  const isSearching = query.length > 0;
+
+  const filtered = useMemo(
+    () =>
+      !query
+        ? jobs
+        : jobs.filter(
+            (j) => j.title.toLowerCase().includes(query) || (j.publisher?.name ?? '').toLowerCase().includes(query)
+          ),
+    [jobs, query]
+  );
+
+  const groups = useMemo(() => {
+    const map = new Map<string, PendingSponsoredJob[]>();
+    for (const j of filtered) {
+      const key = j.publisher?.name ?? 'Unknown publisher';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(j);
+    }
+    // Biggest batches first (that's usually what you just imported and
+    // came here to review) — ties broken alphabetically.
+    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  }, [filtered]);
+
+  const toggleCompany = (name: string) => {
+    setOpenCompanies((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const approveAllInGroup = async (name: string, groupJobs: PendingSponsoredJob[]) => {
+    if (!window.confirm(`Publish all ${groupJobs.length} pending ${name} job${groupJobs.length === 1 ? '' : 's'}?`)) return;
+    setBusyGroup(name);
+    setGroupMessage(null);
+    const result = await bulkSetJobStatus(groupJobs.map((j) => j.id), 'published');
+    setBusyGroup(null);
+    if (result.ok) {
+      setGroupMessage(`Published ${groupJobs.length} ${name} job${groupJobs.length === 1 ? '' : 's'}.`);
+      onChange();
+    } else {
+      setGroupMessage(result.error ?? 'Bulk publish failed.');
+    }
+  };
+
+  const deleteAllInGroup = async (name: string, groupJobs: PendingSponsoredJob[]) => {
+    if (!window.confirm(`Delete all ${groupJobs.length} pending ${name} job${groupJobs.length === 1 ? '' : 's'}? This can't be undone.`)) return;
+    setBusyGroup(name);
+    setGroupMessage(null);
+    const result = await bulkDeleteJobs(groupJobs.map((j) => j.id));
+    setBusyGroup(null);
+    if (result.ok) {
+      setGroupMessage(`Deleted ${groupJobs.length} ${name} job${groupJobs.length === 1 ? '' : 's'}.`);
+      onChange();
+    } else {
+      setGroupMessage(result.error ?? 'Bulk delete failed.');
+    }
+  };
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">
+        Pending sponsored jobs <span className="text-ink-400">({jobs.length})</span>
+      </h2>
+      <div className="mt-3 border border-ink-200 bg-white">
+        <div className="border-b border-ink-100 p-2">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search job title or company…"
+            className="h-9 w-full max-w-sm rounded-md border border-ink-200 px-3 text-sm text-ink-900 outline-none focus:border-brand-500"
+          />
+        </div>
+
+        {isSearching && (
+          <p className="px-3 pt-2 text-[11px] text-ink-400">
+            {filtered.length} of {jobs.length} match "{search.trim()}"
+          </p>
+        )}
+        {groupMessage && <p className="px-3 pt-2 text-xs font-medium text-emerald-700">{groupMessage}</p>}
+
+        {groups.length === 0 ? (
+          <p className="p-4 text-xs text-ink-400">{jobs.length === 0 ? 'Nothing here.' : 'No matches.'}</p>
+        ) : (
+          <div className="divide-y divide-ink-100">
+            {groups.map(([company, companyJobs]) => (
+              <CompanyPendingJobsGroup
+                key={company}
+                company={company}
+                jobs={companyJobs}
+                open={isSearching || openCompanies.has(company)}
+                onToggle={() => toggleCompany(company)}
+                onApproveAll={() => approveAllInGroup(company, companyJobs)}
+                onDeleteAll={() => deleteAllInGroup(company, companyJobs)}
+                busy={busyGroup === company}
+                onChange={onChange}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** One collapsible "{Company} (count)" row within GroupedPendingJobsSection, with its own pagination once expanded. */
+function CompanyPendingJobsGroup({
+  company,
+  jobs,
+  open,
+  onToggle,
+  onApproveAll,
+  onDeleteAll,
+  busy,
+  onChange,
+}: {
+  company: string;
+  jobs: PendingSponsoredJob[];
+  open: boolean;
+  onToggle: () => void;
+  onApproveAll: () => void;
+  onDeleteAll: () => void;
+  busy: boolean;
+  onChange: () => void;
+}) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(jobs.length / ADMIN_PAGE_SIZE));
+  const pageJobs = jobs.slice(page * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE + ADMIN_PAGE_SIZE);
+
+  return (
+    <div>
+      <div className="flex w-full items-center justify-between gap-2 px-3 py-2.5 hover:bg-ink-50">
+        <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${open ? 'rotate-180' : ''}`} />
+          <Building2 className="h-4 w-4 shrink-0 text-ink-400" />
+          <span className="truncate text-sm font-bold text-ink-900">{company}</span>
+          <span className="shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-600">{jobs.length}</span>
+        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button onClick={onApproveAll} disabled={busy} className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+            Publish all
+          </button>
+          <button onClick={onDeleteAll} disabled={busy} className="rounded-lg border border-rose-200 px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+            Delete all
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="border-t border-ink-100 bg-ink-50/40">
+          <div className="divide-y divide-ink-100">
+            {pageJobs.map((j) => (
+              <Row key={j.id}>
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-ink-500">
+                  <Briefcase className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-ink-900">{j.title}</p>
+                  <p className="text-xs text-ink-500">
+                    {j.employment_type}
+                    {j.country ? ` · ${j.country.name}` : ''}
+                  </p>
+                  <p className="text-[11px] text-ink-400">Submitted {formatDate(j.created_at)}</p>
+                </div>
+                <Actions
+                  onApprove={async () => {
+                    const r = await setSponsoredJobStatus(j.id, 'published');
+                    if (r.ok) onChange();
+                    else window.alert(r.error ?? 'Failed.');
+                  }}
+                  onReject={async () => {
+                    const r = await setSponsoredJobStatus(j.id, 'rejected');
+                    if (r.ok) onChange();
+                    else window.alert(r.error ?? 'Failed.');
+                  }}
+                />
+                <button
+                  onClick={async () => {
+                    if (!window.confirm(`Delete "${j.title}"? This can't be undone.`)) return;
+                    const result = await deleteSponsoredJob(j.id);
+                    if (result.ok) onChange();
+                    else window.alert(result.error ?? 'Delete failed.');
+                  }}
+                  aria-label="Delete"
+                  className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </Row>
+            ))}
+          </div>
+          <Pager page={page} totalPages={totalPages} onChange={setPage} />
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -53,6 +53,32 @@ const sponsoredJobColumns =
   'id, title, category, employment_type, status, created_at, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const agencyColumns = 'id, name, email, country, city, website, verification_status, created_at';
 
+// PostgREST (what Supabase's data API runs on) caps a single response at
+// 1000 rows by default, silently — a query that matches more rows just
+// comes back truncated, with no error. That's invisible for most of this
+// admin panel's tables, but a single ATS import (see src/lib/atsImport.ts)
+// can land 1000+ pending jobs for one company in one go, so anything that
+// lists "all pending jobs" or "all jobs" has to page through in batches
+// of 1000 and concatenate, or it'll quietly under-report — e.g. showing
+// "Roche (1000)" when there are actually 1290.
+const SUPABASE_PAGE_SIZE = 1000;
+
+async function fetchAllRows<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const rows: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await page(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const chunk = data ?? [];
+    rows.push(...chunk);
+    if (chunk.length < SUPABASE_PAGE_SIZE) break;
+    from += SUPABASE_PAGE_SIZE;
+  }
+  return rows;
+}
+
 export async function fetchPendingPublishers(): Promise<PendingPublisher[]> {
   const { data, error } = await supabase
     .from('program_publishers')
@@ -93,16 +119,19 @@ export async function fetchPendingPrograms(): Promise<PendingProgram[]> {
 }
 
 export async function fetchPendingSponsoredJobs(): Promise<PendingSponsoredJob[]> {
-  const { data, error } = await supabase
-    .from('sponsored_jobs')
-    .select(sponsoredJobColumns)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true });
-  if (error) {
+  try {
+    return await fetchAllRows<PendingSponsoredJob>((from, to) =>
+      supabase
+        .from('sponsored_jobs')
+        .select(sponsoredJobColumns)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .range(from, to) as unknown as PromiseLike<{ data: PendingSponsoredJob[] | null; error: { message: string } | null }>
+    );
+  } catch (error) {
     console.error('fetchPendingSponsoredJobs failed', error);
     return [];
   }
-  return (data ?? []) as unknown as PendingSponsoredJob[];
 }
 
 export async function fetchPendingAgencies(): Promise<PendingAgency[]> {
@@ -234,15 +263,18 @@ export async function fetchAllPrograms(): Promise<AdminProgram[]> {
 }
 
 export async function fetchAllSponsoredJobs(): Promise<AdminSponsoredJob[]> {
-  const { data, error } = await supabase
-    .from('sponsored_jobs')
-    .select(adminSponsoredJobColumns)
-    .order('created_at', { ascending: false });
-  if (error) {
+  try {
+    return await fetchAllRows<AdminSponsoredJob>((from, to) =>
+      supabase
+        .from('sponsored_jobs')
+        .select(adminSponsoredJobColumns)
+        .order('created_at', { ascending: false })
+        .range(from, to) as unknown as PromiseLike<{ data: AdminSponsoredJob[] | null; error: { message: string } | null }>
+    );
+  } catch (error) {
     console.error('fetchAllSponsoredJobs failed', error);
     return [];
   }
-  return (data ?? []) as unknown as AdminSponsoredJob[];
 }
 
 export async function updateProgramAsAdmin(id: string, patch: Partial<AdminProgram>) {
@@ -413,9 +445,28 @@ export async function importJobsAsPending(
     status: 'pending',
   }));
 
-  const { error } = await supabase.from('sponsored_jobs').insert(rows);
-  if (error) return { ok: false, imported: 0, error: error.message };
-  return { ok: true, imported: rows.length };
+  // Insert in chunks rather than one giant request — an ATS batch (e.g.
+  // Roche's 1000+ listings) as a single insert risks the request body/
+  // statement-timeout limits some Postgres/PostgREST setups impose.
+  // Chunking also means a failure partway through still leaves the jobs
+  // that already landed intact, instead of losing the whole batch.
+  const INSERT_CHUNK_SIZE = 250;
+  let imported = 0;
+  for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + INSERT_CHUNK_SIZE);
+    const { error } = await supabase.from('sponsored_jobs').insert(chunk);
+    if (error) {
+      return {
+        ok: imported > 0,
+        imported,
+        error: imported > 0
+          ? `Imported ${imported} before failing: ${error.message}`
+          : error.message,
+      };
+    }
+    imported += chunk.length;
+  }
+  return { ok: true, imported };
 }
 
 export async function bulkSetJobStatus(ids: string[], status: ListingStatus): Promise<{ ok: boolean; error?: string }> {
