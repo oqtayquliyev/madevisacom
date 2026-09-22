@@ -42,7 +42,7 @@ import {
 } from '@/lib/admin';
 import { ImageUploadField } from '@/components/common/ImageUploadField';
 import { fetchCountries, type CountryOption } from '@/lib/programs';
-import { fetchJobsFromCareersUrl, sanitizeJobHtml } from '@/lib/atsImport';
+import { fetchGreenhouseJobs, fetchJobsFromCareersUrl, sanitizeJobHtml } from '@/lib/atsImport';
 import {
   COST_STATUSES,
   JOB_CATEGORIES,
@@ -170,6 +170,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
             <AdminAccessSection admins={admins} currentEmail={profile?.email ?? ''} onChange={loadAll} />
 
             <ImportFromAtsSection countries={countries} onImported={loadAll} />
+
+            <ImportFromCareersUrlSection countries={countries} onImported={loadAll} />
 
             <PaginatedSection
               title="Pending publisher accounts"
@@ -519,7 +521,7 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
     setFetchError(null);
     setPreview(null);
     setResult(null);
-    const res = await fetchJobsFromCareersUrl(boardToken);
+    const res = await fetchGreenhouseJobs(boardToken);
     setFetching(false);
     if (!res.ok) {
       setFetchError(res.error ?? 'Could not fetch that board.');
@@ -578,20 +580,21 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
       <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Import jobs from an ATS</h2>
       <div className="mt-3 border border-ink-200 bg-white p-4">
         <p className="text-xs text-ink-500">
-          Pulls live listings from a company's Greenhouse board or Phenom-powered careers page (auto-detected).
-          Imported jobs land as <strong>pending</strong>, same review flow as everything else.
+          Pulls live listings from a company's public Greenhouse job board — a documented, no-auth endpoint meant
+          for exactly this kind of syndication. Imported jobs land as <strong>pending</strong>, same review flow as
+          everything else.
         </p>
 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
-            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Greenhouse token or careers page URL</label>
+            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Greenhouse board token</label>
             <input
               value={boardToken}
               onChange={(e) => setBoardToken(e.target.value)}
-              placeholder="stripe, or https://careers.roche.com/global/en/search-results"
+              placeholder="e.g. stripe"
               className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
             />
-            <p className="mt-1 text-[10px] text-ink-400">A bare token (e.g. "stripe") or Greenhouse URL fetches directly; any other careers URL is auto-detected (currently: Phenom-powered sites).</p>
+            <p className="mt-1 text-[10px] text-ink-400">The slug in boards.greenhouse.io/&lt;this&gt;</p>
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-semibold text-ink-500">Company name (as shown on MadeVisa)</label>
@@ -616,6 +619,166 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
         <button
           onClick={fetchJobs}
           disabled={fetching || !boardToken.trim()}
+          className="mt-3 rounded-lg bg-ink-900 px-4 py-2 text-xs font-semibold text-white hover:bg-ink-800 disabled:opacity-50"
+        >
+          {fetching ? 'Fetching…' : 'Fetch jobs'}
+        </button>
+
+        {fetchError && <p className="mt-2 text-xs font-medium text-rose-600">{fetchError}</p>}
+
+        {preview && (
+          <div className="mt-4">
+            <p className="text-xs font-semibold text-ink-700">
+              {preview.length} job{preview.length === 1 ? '' : 's'} found — {preview.filter((j) => j.selected).length} selected
+            </p>
+            <div className="mt-2 max-h-80 divide-y divide-ink-100 overflow-auto rounded-md border border-ink-200">
+              {preview.map((j) => (
+                <label key={j.externalId} className="flex items-start gap-2 p-2.5 text-xs hover:bg-ink-50">
+                  <input type="checkbox" checked={j.selected} onChange={() => toggle(j.externalId)} className="mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-ink-900">{j.title}</p>
+                    <p className="text-ink-400">{j.locationText}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <button
+              onClick={runImport}
+              disabled={importing || !countryId || !companyName.trim() || preview.every((j) => !j.selected)}
+              className="mt-3 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {importing ? 'Importing…' : `Import ${preview.filter((j) => j.selected).length} selected as pending`}
+            </button>
+          </div>
+        )}
+
+        {result && <p className="mt-3 text-xs font-medium text-emerald-700">{result}</p>}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Separate from ImportFromAtsSection above (Greenhouse only). This one
+ * takes any careers page URL and auto-detects the ATS platform behind it
+ * server-side (currently: Phenom People sites, e.g. Roche's), since those
+ * sites don't allow direct cross-origin browser fetches the way
+ * Greenhouse's public API does. See fetchJobsFromCareersUrl in
+ * src/lib/atsImport.ts and the import-ats-jobs edge function.
+ */
+function ImportFromCareersUrlSection({ countries, onImported }: { countries: CountryOption[]; onImported: () => void }) {
+  const [careersUrl, setCareersUrl] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [countryId, setCountryId] = useState('');
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PreviewJob[] | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const fetchJobs = async () => {
+    setFetching(true);
+    setFetchError(null);
+    setPreview(null);
+    setResult(null);
+    const res = await fetchJobsFromCareersUrl(careersUrl);
+    setFetching(false);
+    if (!res.ok) {
+      setFetchError(res.error ?? 'Could not fetch that careers page.');
+      return;
+    }
+    setPreview(
+      res.jobs.map((j) => ({
+        externalId: j.externalId,
+        title: j.title,
+        locationText: j.locationText,
+        offices: j.offices,
+        description: sanitizeJobHtml(j.descriptionHtml),
+        url: j.url,
+        selected: true,
+      }))
+    );
+  };
+
+  const toggle = (id: string) => {
+    setPreview((rows) => rows?.map((r) => (r.externalId === id ? { ...r, selected: !r.selected } : r)) ?? null);
+  };
+
+  const runImport = async () => {
+    if (!preview || !countryId || !companyName.trim()) return;
+    setImporting(true);
+    setResult(null);
+
+    const publisherResult = await findOrCreateImportedPublisher(companyName);
+    if (!publisherResult.ok || !publisherResult.id) {
+      setImporting(false);
+      setResult(publisherResult.error ?? 'Could not set up the publisher.');
+      return;
+    }
+
+    const selected = preview.filter((j) => j.selected);
+    const importResult = await importJobsAsPending(
+      publisherResult.id,
+      countryId,
+      selected.map((j) => ({ title: j.title, description: j.description, officialUrl: j.url, additionalLocations: j.offices }))
+    );
+
+    setImporting(false);
+    if (importResult.ok) {
+      setResult(`Imported ${importResult.imported} job${importResult.imported === 1 ? '' : 's'} as pending — review them below.`);
+      setPreview(null);
+      setCareersUrl('');
+      onImported();
+    } else {
+      setResult(importResult.error ?? 'Import failed.');
+    }
+  };
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Import jobs from a careers page</h2>
+      <div className="mt-3 border border-ink-200 bg-white p-4">
+        <p className="text-xs text-ink-500">
+          For companies not on Greenhouse. Paste their careers/search-results page URL — the platform behind it
+          (currently: Phenom People sites) is auto-detected server-side. Imported jobs land as{' '}
+          <strong>pending</strong>, same review flow as everything else.
+        </p>
+
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Careers page URL</label>
+            <input
+              value={careersUrl}
+              onChange={(e) => setCareersUrl(e.target.value)}
+              placeholder="https://careers.roche.com/global/en/search-results"
+              className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
+            />
+            <p className="mt-1 text-[10px] text-ink-400">The company's job search/listing page — not a single job's URL.</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Company name (as shown on MadeVisa)</label>
+            <input
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              placeholder="e.g. Roche"
+              className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Destination country for this batch</label>
+            <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500">
+              <option value="">Select</option>
+              {countries.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <button
+          onClick={fetchJobs}
+          disabled={fetching || !careersUrl.trim()}
           className="mt-3 rounded-lg bg-ink-900 px-4 py-2 text-xs font-semibold text-white hover:bg-ink-800 disabled:opacity-50"
         >
           {fetching ? 'Fetching…' : 'Fetch jobs'}
