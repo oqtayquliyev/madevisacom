@@ -456,6 +456,205 @@ function isPhenomSite(html: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Strategy: "flat jobs JSON" — e.g. Booking.com's careers site. Detected
+// by response shape: a top-level `jobs` array whose items carry a
+// `data` object with the full job record already inline (title,
+// description, location, category, apply URL — everything), unlike the
+// Drupal JSON:API strategy above, which only returns metadata and needs
+// a second fetch per job for the description. No enrichment step needed
+// here at all.
+// ---------------------------------------------------------------------------
+
+function parseFlatJobsJson(responseText: string): any | null {
+  try {
+    const json = JSON.parse(responseText);
+    if (Array.isArray(json?.jobs) && json.jobs.length > 0 && json.jobs[0]?.data?.title) return json;
+  } catch {
+    // not JSON, or not this shape
+  }
+  return null;
+}
+
+/** startFrom is 0-based internally (consistent with every other
+ *  strategy's cursor convention here); Booking's own `page` param is
+ *  1-based, so it's offset by one when building the request. */
+async function fetchFlatJobsJson(
+  baseUrl: string,
+  startFrom: number
+): Promise<{ jobs: NormalizedJob[]; nextFrom: number | null; totalHits: number | null }> {
+  const pageUrl = new URL(baseUrl);
+  pageUrl.searchParams.set("page", String(startFrom + 1));
+
+  const res = await fetch(pageUrl.toString(), { headers: { "User-Agent": USER_AGENT, Accept: "application/json" } });
+  if (!res.ok) throw new Error(`Careers page returned ${res.status}`);
+  const text = await res.text();
+  const json = parseFlatJobsJson(text);
+  if (!json) throw new Error("Response no longer matches the expected flat-jobs-JSON shape — the endpoint may have changed.");
+
+  const items: any[] = json.jobs ?? [];
+  const totalHits: number | null =
+    typeof json.totalCount === "number" ? json.totalCount : typeof json.count === "number" ? json.count : null;
+  const perPage: number = typeof json.filter?.displayLimit === "number" ? json.filter.displayLimit : items.length || 10;
+
+  const jobs: NormalizedJob[] = items
+    .map((item): NormalizedJob | null => {
+      const d = item.data ?? {};
+      const title = d.title;
+      if (!title) return null;
+
+      const category = Array.isArray(d.category)
+        ? d.category.map((c: string) => String(c).trim()).filter(Boolean).join(", ")
+        : d.category ?? null;
+
+      const url = d.meta_data?.canonical_url || d.apply_url || pageUrl.toString();
+      const offices = [d.full_location, d.country].filter((v): v is string => !!v);
+
+      let descriptionHtml = formatDescriptionHtml(d.description ? String(d.description) : "");
+      if (d.department) {
+        descriptionHtml += `<h3>Additional Details</h3><ul><li><strong>Department:</strong> ${String(d.department)}</li></ul>`;
+      }
+
+      const hasSalary = d.salary_min_value || d.salary_max_value;
+      const salaryText = hasSalary ? `${d.salary_min_value ?? "?"}–${d.salary_max_value ?? "?"}` : null;
+
+      return {
+        externalId: String(d.req_id ?? d.slug ?? url),
+        title: String(title),
+        locationText: d.full_location || d.short_location || d.city || "",
+        offices,
+        descriptionHtml,
+        url,
+        category,
+        employmentTypeRaw: d.employment_type ?? null,
+        postedAt: d.posted_date ?? null,
+        remote: null,
+        salaryText,
+      };
+    })
+    .filter((j): j is NormalizedJob => j !== null);
+
+  const nextFrom = totalHits !== null && (startFrom + 1) * perPage >= totalHits ? null : startFrom + 1;
+  return { jobs, nextFrom, totalHits };
+}
+
+// ---------------------------------------------------------------------------
+// Strategy: Drupal JSON:API job listings (e.g. Sandoz's headless CMS
+// backend). Detected by response shape (JSON, not HTML — jsonapi.version
+// present, data is an array), not by URL pattern, since this lives on a
+// completely different subdomain (sandoz-com.cms.sandoz.com) than the
+// public careers page (www.sandoz.com) — there's no way to derive one
+// from the other automatically. For a site like this, the admin pastes
+// the actual JSON:API URL captured from the browser's Network tab
+// (Preview/Response of the request that returns the job list) rather
+// than the public-facing search page URL.
+// ---------------------------------------------------------------------------
+
+function parseDrupalJsonApiJobs(responseText: string): any | null {
+  try {
+    const json = JSON.parse(responseText);
+    if (json?.jsonapi?.version && Array.isArray(json.data)) return json;
+  } catch {
+    // not JSON at all, or not this shape — not our strategy
+  }
+  return null;
+}
+
+/** Fetches each stub's own public job page just to fill in the
+ *  description (the JSON:API listing response is metadata-only) —
+ *  reuses the same JSON-LD-first, title-tag-fallback logic as the
+ *  generic link-scanning strategy, so formatting stays consistent. */
+async function enrichDrupalJobDescriptions(jobs: NormalizedJob[]): Promise<void> {
+  const deadline = Date.now() + DETAIL_FETCH_TIME_BUDGET_MS;
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < jobs.length && Date.now() < deadline) {
+      const job = jobs[cursor++];
+      if (!job.url) continue;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), DETAIL_FETCH_TIMEOUT_MS);
+      try {
+        const res = await fetch(job.url, { headers: { "User-Agent": USER_AGENT, Accept: "text/html" }, signal: controller.signal });
+        if (!res.ok) continue;
+        const html = await res.text();
+        const jsonLd = extractJsonLdJobPosting(html);
+        if (jsonLd?.description) {
+          job.descriptionHtml = formatDescriptionHtml(String(jsonLd.description)) + additionalPropertiesHtml(jsonLd);
+        }
+      } catch {
+        // leave descriptionHtml empty for this one rather than failing the batch
+      } finally {
+        clearTimeout(timer);
+      }
+      await sleep(200); // same burst-avoidance stagger as the generic strategy
+    }
+  }
+
+  await Promise.all(Array.from({ length: DETAIL_FETCH_CONCURRENCY }, worker));
+}
+
+/** startFrom is a page index, matching Drupal's own `page=N` param —
+ *  the response's own `number_of_items_per_page` and `meta.count` tell
+ *  us exactly when to stop, no guessing needed (unlike the generic
+ *  strategy, which has to infer exhaustion from empty results). */
+async function fetchDrupalJsonApiJobs(
+  baseUrl: string,
+  startFrom: number
+): Promise<{ jobs: NormalizedJob[]; nextFrom: number | null; totalHits: number | null }> {
+  const pageUrl = new URL(baseUrl);
+  pageUrl.searchParams.set("page", String(startFrom));
+
+  const res = await fetch(pageUrl.toString(), { headers: { "User-Agent": USER_AGENT, Accept: "application/vnd.api+json" } });
+  if (!res.ok) throw new Error(`API returned ${res.status}`);
+  const text = await res.text();
+  const json = parseDrupalJsonApiJobs(text);
+  if (!json) throw new Error("Response no longer matches the expected Drupal JSON:API shape — the endpoint may have changed.");
+
+  const items: any[] = json.data ?? [];
+  const totalHits: number | null = typeof json.meta?.count === "number" ? json.meta.count : null;
+  const perPage: number = typeof json.number_of_items_per_page === "number" ? json.number_of_items_per_page : items.length || 10;
+
+  const jobs: NormalizedJob[] = items
+    .map((item): NormalizedJob | null => {
+      const attrs = item.attributes ?? {};
+      const title = attrs.field_job_title || attrs.title || null;
+      if (!title) return null;
+
+      const countryTerm = item.relationships?.field_job_country?.data?.[0]?.meta?.term_name;
+      const countryCode = typeof countryTerm === "string" ? countryTerm.replace(/^LOC_/i, "") : null;
+      const workLocation = attrs.field_job_work_location || "";
+      const alias = attrs.path?.alias || "";
+      const jobId = attrs.field_job_id || item.id;
+
+      // Reconstructs the real public job URL (confirmed against an
+      // actual browser-visited Sandoz job page) — the JSON:API alias
+      // alone is just the slug, missing the /job-details/{id}/ prefix
+      // the live site's router actually uses.
+      const url = new URL(`/careers/career-search/job-details/${encodeURIComponent(jobId)}${alias}/`, baseUrl).toString();
+
+      return {
+        externalId: String(jobId),
+        title: String(title),
+        locationText: workLocation,
+        offices: [workLocation, countryCode].filter((v): v is string => !!v),
+        descriptionHtml: "", // filled in by enrichDrupalJobDescriptions below
+        url,
+        category: attrs.field_job_business_unit ?? null,
+        employmentTypeRaw: attrs.field_job_type ?? attrs.field_job_employment_type ?? null,
+        postedAt: attrs.field_date ?? null,
+        remote: null,
+        salaryText: null,
+      };
+    })
+    .filter((j): j is NormalizedJob => j !== null);
+
+  await enrichDrupalJobDescriptions(jobs);
+
+  const nextFrom = totalHits !== null && (startFrom + 1) * perPage >= totalHits ? null : startFrom + 1;
+  return { jobs, nextFrom, totalHits };
+}
+
+// ---------------------------------------------------------------------------
 // Generic strategy: for any career site that isn't Phenom or Greenhouse.
 //
 // Rather than writing a new per-platform parser for every ATS (Workday,
@@ -858,6 +1057,41 @@ serve(async (req) => {
       });
     }
     const html = await probeRes.text();
+
+    // Checked first, ahead of the Phenom string-match: a JSON response
+    // is unambiguous evidence of the Drupal JSON:API strategy, and
+    // cheaper to rule in/out than scanning for HTML markers.
+    const drupalJson = parseDrupalJsonApiJobs(html);
+    if (drupalJson) {
+      try {
+        const { jobs, nextFrom, totalHits } = await fetchDrupalJsonApiJobs(url, startFrom);
+        return new Response(JSON.stringify({ ok: true, jobs, nextFrom, totalHits }), {
+          status: 200,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      } catch (drupalErr) {
+        return new Response(
+          JSON.stringify({ ok: false, error: drupalErr instanceof Error ? drupalErr.message : "Failed to read this JSON:API endpoint." }),
+          { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    const flatJson = parseFlatJobsJson(html);
+    if (flatJson) {
+      try {
+        const { jobs, nextFrom, totalHits } = await fetchFlatJobsJson(url, startFrom);
+        return new Response(JSON.stringify({ ok: true, jobs, nextFrom, totalHits }), {
+          status: 200,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      } catch (flatErr) {
+        return new Response(
+          JSON.stringify({ ok: false, error: flatErr instanceof Error ? flatErr.message : "Failed to read this jobs endpoint." }),
+          { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     if (!isPhenomSite(html)) {
       // Not Phenom — try the generic link-scan + JSON-LD strategy before
