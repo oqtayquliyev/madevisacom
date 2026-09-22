@@ -392,7 +392,11 @@ export async function findOrCreateImportedPublisher(companyName: string): Promis
 
 export async function importJobsAsPending(
   publisherId: string,
-  countryId: string,
+  /** null (or the "mixed" sentinel resolved to null by the caller) means the
+   * batch isn't tied to one destination country — e.g. a role open across
+   * several countries/offices at once. additionalLocations still carries
+   * the office list for display (see MultiCountryBadge). */
+  countryId: string | null,
   jobs: { title: string; description: string; officialUrl: string; additionalLocations?: string[] }[]
 ): Promise<{ ok: boolean; imported: number; error?: string }> {
   const rows = jobs.map((j) => ({

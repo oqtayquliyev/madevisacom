@@ -64,6 +64,13 @@ import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import type { View } from '@/types';
 import type { OrgType } from '@/lib/programs';
 
+/** Sentinel value for the "Mixed — valid for several countries" option in
+ * the ATS/careers-page import destination selects. Never sent to the
+ * database as-is — resolved to a null country_id at import time (see
+ * importJobsAsPending in src/lib/admin.ts), since countries.id is a real
+ * foreign key and "mixed" isn't a country. */
+const MIXED_COUNTRY_VALUE = '__mixed__';
+
 type AdminPanelPageProps = {
   go: (view: View) => void;
   onAuth?: (page: 'login' | 'register') => void;
@@ -560,7 +567,7 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
     const selected = preview.filter((j) => j.selected);
     const importResult = await importJobsAsPending(
       publisherResult.id,
-      countryId,
+      countryId === MIXED_COUNTRY_VALUE ? null : countryId,
       selected.map((j) => ({ title: j.title, description: j.description, officialUrl: j.url, additionalLocations: j.offices }))
     );
 
@@ -609,10 +616,16 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
             <label className="mb-1 block text-[11px] font-semibold text-ink-500">Destination country for this batch</label>
             <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500">
               <option value="">Select</option>
+              <option value={MIXED_COUNTRY_VALUE}>Mixed — valid for several countries</option>
               {countries.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            {countryId === MIXED_COUNTRY_VALUE && (
+              <p className="mt-1 text-[10px] text-ink-400">
+                No single destination will be stored — each job's office list (if any) still shows on its card.
+              </p>
+            )}
           </div>
         </div>
 
@@ -720,7 +733,7 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
     const selected = preview.filter((j) => j.selected);
     const importResult = await importJobsAsPending(
       publisherResult.id,
-      countryId,
+      countryId === MIXED_COUNTRY_VALUE ? null : countryId,
       selected.map((j) => ({ title: j.title, description: j.description, officialUrl: j.url, additionalLocations: j.offices }))
     );
 
@@ -769,10 +782,16 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
             <label className="mb-1 block text-[11px] font-semibold text-ink-500">Destination country for this batch</label>
             <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500">
               <option value="">Select</option>
+              <option value={MIXED_COUNTRY_VALUE}>Mixed — valid for several countries</option>
               {countries.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            {countryId === MIXED_COUNTRY_VALUE && (
+              <p className="mt-1 text-[10px] text-ink-400">
+                No single destination will be stored — each job's office list (if any) still shows on its card.
+              </p>
+            )}
           </div>
         </div>
 

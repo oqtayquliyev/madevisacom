@@ -99,13 +99,15 @@ function GlobeIllustration({ destinations }: { destinations: typeof destinationI
                 className="absolute left-1/2 top-1/2 h-0 w-0"
                 style={{ transform: `rotate(${angle}deg) translateX(${GLOBE_RADIUS}px)` }}
               >
-                <div className="auth-globe-counter -translate-x-1/2 -translate-y-1/2">
-                  <CircleFlag
-                    countryCode={d.countryCode}
-                    label={d.countryName}
-                    size={22}
-                    className="ring-2 ring-ink-950"
-                  />
+                <div className="auth-globe-counter">
+                  <div className="-translate-x-1/2 -translate-y-1/2">
+                    <CircleFlag
+                      countryCode={d.countryCode}
+                      label={d.countryName}
+                      size={22}
+                      className="ring-2 ring-ink-950"
+                    />
+                  </div>
                 </div>
               </div>
             );

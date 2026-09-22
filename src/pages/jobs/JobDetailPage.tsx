@@ -99,13 +99,17 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
         </button>
 
         <div className="mt-5 overflow-hidden border border-ink-200 bg-white">
-          {job.imageUrl ? (
-            <img src={job.imageUrl} alt="" className="h-56 w-full object-cover" />
-          ) : (
-            <div className="grid h-40 w-full place-items-center bg-gradient-to-br from-brand-50 to-indigo-50">
-              {job.publisherOrgType ? <SponsorIcon className="h-10 w-10 text-brand-300" /> : <CompanyLogo name={job.company} size={64} />}
-            </div>
-          )}
+          <div className="border-b border-ink-100 bg-ink-50/60 px-6 py-6 sm:px-8 sm:py-8">
+            {job.imageUrl ? (
+              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-ink-200 bg-white p-2.5 shadow-sm sm:h-24 sm:w-24">
+                <img src={job.imageUrl} alt="" className="h-full w-full object-contain" />
+              </div>
+            ) : (
+              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-ink-200 bg-gradient-to-br from-brand-50 to-indigo-50 sm:h-24 sm:w-24">
+                {job.publisherOrgType ? <SponsorIcon className="h-8 w-8 text-brand-300" /> : <CompanyLogo name={job.company} size={48} />}
+              </div>
+            )}
+          </div>
 
           <div className="p-6 sm:p-8">
             <div className="flex flex-wrap items-center gap-2">
