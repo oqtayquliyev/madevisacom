@@ -478,8 +478,11 @@ function isPhenomSite(html: string): boolean {
 
 // Matches a "job-like" path segment anywhere in an href — deliberately
 // just a boolean test, not a capturing/truncating regex (see below for
-// why that distinction matters).
-const JOB_SEGMENT_RE = /\/(?:jobs?|openings?|positions?|vacanc(?:y|ies))\//i;
+// why that distinction matters). Allows the job keyword to be combined
+// with other words in the same hyphenated segment (e.g. Sandoz's
+// "/job-details/", not just an isolated "/job/"), since plenty of
+// sites phrase it that way rather than as its own bare path segment.
+const JOB_SEGMENT_RE = /\/[a-z0-9]*(?:jobs?|openings?|positions?|vacanc(?:y|ies))[a-z0-9-]*\//i;
 const HREF_RE = /href="([^"]+)"/gi;
 
 function extractJobLinksFromHtml(html: string, baseUrl: string): string[] {
