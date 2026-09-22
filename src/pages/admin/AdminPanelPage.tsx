@@ -27,6 +27,7 @@ import {
   setProgramStatus,
   setPublisherStatus,
   setSponsoredJobStatus,
+  setPublisherLogoForAllJobs,
   updateAgencyName,
   updateProgramAsAdmin,
   updatePublisherContactEmail,
@@ -601,29 +602,25 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
   const [busy, setBusy] = useState<'fetching' | 'importing' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ imported: number; totalHits: number | null } | null>(null);
+  const stopRequested = useRef(false);
 
-  // Same one-step fetch-and-commit pattern as ImportFromAtsSection above —
-  // no in-between preview to import separately. A company name is required
-  // here (unlike the Greenhouse token, a careers URL isn't a usable name
-  // on its own), so the button stays disabled until it's filled in.
+  // A large site (Roche has 1000+ listings) can't be fetched in one
+  // edge-function call — each call is capped (MAX_JOBS_PER_REQUEST in
+  // the function) to stay well inside its execution time limit. So
+  // this fetches repeatedly, passing back the `nextFrom` offset the
+  // function returns each time, importing every batch as it lands
+  // (visible growing live in Pending sponsored jobs below) until the
+  // source reports nothing left — rather than silently stopping at
+  // whatever the first call's cap happened to be.
+  const MAX_BATCHES = 60; // up to ~6,000 jobs in one run — a safety ceiling, not an expected real-world size
+
   const fetchAndImport = async () => {
     const company = companyName.trim();
     if (!company) return;
-    setBusy('fetching');
     setError(null);
     setResult(null);
-
-    const res = await fetchJobsFromCareersUrl(careersUrl);
-    if (!res.ok) {
-      setBusy(null);
-      setError(res.error ?? 'Could not fetch that careers page.');
-      return;
-    }
-    if (res.jobs.length === 0) {
-      setBusy(null);
-      setError('That page returned zero jobs.');
-      return;
-    }
+    stopRequested.current = false;
 
     setBusy('importing');
     const publisherResult = await findOrCreateImportedPublisher(company);
@@ -633,32 +630,78 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
       return;
     }
 
-    const importResult = await importJobsAsPending(
-      publisherResult.id,
-      countries,
-      res.jobs.map((j) => ({
-        title: j.title,
-        description: sanitizeJobHtml(j.descriptionHtml),
-        officialUrl: j.url,
-        additionalLocations: j.offices,
-        locationText: j.locationText,
-        category: j.category,
-        employmentTypeRaw: j.employmentTypeRaw,
-        postedAt: j.postedAt,
-        remote: j.remote,
-        salaryText: j.salaryText,
-      }))
-    );
+    let from = 0;
+    let totalImported = 0;
+    let totalHits: number | null = null;
+
+    for (let batch = 0; batch < MAX_BATCHES; batch++) {
+      if (stopRequested.current) break;
+
+      setBusy('fetching');
+      setProgress({ imported: totalImported, totalHits });
+      const res = await fetchJobsFromCareersUrl(careersUrl, from);
+
+      if (!res.ok) {
+        setBusy(null);
+        setProgress(null);
+        setError(totalImported > 0 ? `Stopped after ${totalImported} jobs — ${res.error}` : res.error ?? 'Could not fetch that careers page.');
+        if (totalImported > 0) onImported();
+        return;
+      }
+      if (res.totalHits != null) totalHits = res.totalHits;
+
+      if (res.jobs.length === 0) {
+        if (batch === 0) {
+          setBusy(null);
+          setProgress(null);
+          setError('That page returned zero jobs.');
+          return;
+        }
+        break;
+      }
+
+      setBusy('importing');
+      setProgress({ imported: totalImported, totalHits });
+      const importResult = await importJobsAsPending(
+        publisherResult.id,
+        countries,
+        res.jobs.map((j) => ({
+          title: j.title,
+          description: sanitizeJobHtml(j.descriptionHtml),
+          officialUrl: j.url,
+          additionalLocations: j.offices,
+          locationText: j.locationText,
+          category: j.category,
+          employmentTypeRaw: j.employmentTypeRaw,
+          postedAt: j.postedAt,
+          remote: j.remote,
+          salaryText: j.salaryText,
+        }))
+      );
+
+      if (!importResult.ok && importResult.imported === 0) {
+        setBusy(null);
+        setProgress(null);
+        setError(totalImported > 0 ? `Stopped after ${totalImported} jobs — ${importResult.error}` : importResult.error ?? 'Import failed.');
+        if (totalImported > 0) onImported();
+        return;
+      }
+      totalImported += importResult.imported;
+      onImported(); // refresh the pending-jobs panel after every batch, so it visibly fills up live rather than jumping once at the very end
+
+      if (!res.nextFrom) break; // source reports nothing left
+      from = res.nextFrom;
+    }
 
     setBusy(null);
-    if (importResult.ok) {
-      setResult(`Added ${importResult.imported} ${company} job${importResult.imported === 1 ? '' : 's'} to Pending sponsored jobs below.`);
-      setCareersUrl('');
-      setCompanyName('');
-      onImported();
-    } else {
-      setError(importResult.error ?? 'Import failed.');
-    }
+    setProgress(null);
+    setResult(
+      stopRequested.current
+        ? `Stopped early — added ${totalImported} ${company} job${totalImported === 1 ? '' : 's'} to Pending sponsored jobs below.`
+        : `Added ${totalImported} ${company} job${totalImported === 1 ? '' : 's'} to Pending sponsored jobs below.`
+    );
+    setCareersUrl('');
+    setCompanyName('');
   };
 
   const canFetch = !busy && careersUrl.trim() && companyName.trim();
@@ -672,7 +715,8 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
           (currently: Phenom People sites) is auto-detected server-side — and jobs get added straight to{' '}
           <strong>Pending sponsored jobs</strong>, grouped under this company, for review below. Each job's
           destination country, description, type, and (where the source page has them) posted date and salary are
-          all pulled from that job's own page automatically — nothing to pick here.
+          all pulled from that job's own page automatically — nothing to pick here. Large sites (1000+ listings)
+          are fetched in batches automatically until everything's in — no need to run this more than once.
         </p>
 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -697,13 +741,32 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
           </div>
         </div>
 
-        <button
-          onClick={fetchAndImport}
-          disabled={!canFetch}
-          className="mt-3 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-        >
-          {busy === 'fetching' ? 'Fetching…' : busy === 'importing' ? 'Adding to pending…' : 'Fetch & add to pending'}
-        </button>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            onClick={fetchAndImport}
+            disabled={!canFetch}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {busy === 'fetching'
+              ? 'Fetching…'
+              : busy === 'importing'
+              ? 'Adding to pending…'
+              : 'Fetch & add to pending'}
+          </button>
+          {busy && (
+            <button
+              onClick={() => { stopRequested.current = true; }}
+              className="rounded-lg border border-ink-200 px-3 py-2 text-xs font-semibold text-ink-600 hover:bg-ink-50"
+            >
+              Stop after this batch
+            </button>
+          )}
+          {progress && (
+            <span className="text-xs font-medium text-ink-500">
+              {progress.imported} imported{progress.totalHits ? ` of ~${progress.totalHits.toLocaleString()}` : ''} so far…
+            </span>
+          )}
+        </div>
 
         {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
         {result && <p className="mt-3 text-xs font-medium text-emerald-700">{result}</p>}
@@ -1449,6 +1512,7 @@ function GroupedPendingJobsSection({ jobs, onChange }: { jobs: PendingSponsoredJ
               <CompanyPendingJobsGroup
                 key={company}
                 company={company}
+                publisherId={companyJobs[0]?.publisher?.id ?? null}
                 jobs={companyJobs}
                 open={isSearching || openCompanies.has(company)}
                 onToggle={() => toggleCompany(company)}
@@ -1468,6 +1532,7 @@ function GroupedPendingJobsSection({ jobs, onChange }: { jobs: PendingSponsoredJ
 /** One collapsible "{Company} (count)" row within GroupedPendingJobsSection, with its own pagination once expanded. */
 function CompanyPendingJobsGroup({
   company,
+  publisherId,
   jobs,
   open,
   onToggle,
@@ -1477,6 +1542,7 @@ function CompanyPendingJobsGroup({
   onChange,
 }: {
   company: string;
+  publisherId: string | null;
   jobs: PendingSponsoredJob[];
   open: boolean;
   onToggle: () => void;
@@ -1486,8 +1552,29 @@ function CompanyPendingJobsGroup({
   onChange: () => void;
 }) {
   const [page, setPage] = useState(0);
+  const [showLogoTool, setShowLogoTool] = useState(false);
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoMessage, setLogoMessage] = useState<string | null>(null);
+  const { profile } = useAuth();
   const totalPages = Math.max(1, Math.ceil(jobs.length / ADMIN_PAGE_SIZE));
   const pageJobs = jobs.slice(page * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE + ADMIN_PAGE_SIZE);
+
+  const applyCompanyLogo = async () => {
+    if (!publisherId || !logoUrl) return;
+    setLogoBusy(true);
+    setLogoMessage(null);
+    const result = await setPublisherLogoForAllJobs(publisherId, logoUrl);
+    setLogoBusy(false);
+    if (result.ok) {
+      setLogoMessage(`Applied to every ${company} job.`);
+      setShowLogoTool(false);
+      setLogoUrl('');
+      onChange();
+    } else {
+      setLogoMessage(result.error ?? 'Could not apply logo.');
+    }
+  };
 
   return (
     <div>
@@ -1499,6 +1586,15 @@ function CompanyPendingJobsGroup({
           <span className="shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-600">{jobs.length}</span>
         </button>
         <div className="flex shrink-0 items-center gap-1.5">
+          {publisherId && (
+            <button
+              onClick={() => setShowLogoTool((v) => !v)}
+              disabled={busy}
+              className="rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-600 hover:bg-ink-50 disabled:opacity-50"
+            >
+              Set company logo
+            </button>
+          )}
           <button onClick={onApproveAll} disabled={busy} className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
             Publish all
           </button>
@@ -1507,6 +1603,23 @@ function CompanyPendingJobsGroup({
           </button>
         </div>
       </div>
+
+      {showLogoTool && publisherId && (
+        <div className="mx-3 mb-2 rounded-lg border border-ink-200 bg-white p-3">
+          <p className="text-[11px] text-ink-500">
+            Applied to every {company} job (pending, published, and any future ones) at once — not just what's shown here.
+          </p>
+          {profile?.id && <ImageUploadField userId={profile.id} value={logoUrl} onChange={setLogoUrl} label="Company logo" />}
+          <button
+            onClick={applyCompanyLogo}
+            disabled={logoBusy || !logoUrl}
+            className="mt-2 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {logoBusy ? 'Applying…' : `Apply to all ${company} jobs`}
+          </button>
+          {logoMessage && <p className="mt-1.5 text-xs font-medium text-ink-600">{logoMessage}</p>}
+        </div>
+      )}
 
       {open && (
         <div className="border-t border-ink-100 bg-ink-50/40">

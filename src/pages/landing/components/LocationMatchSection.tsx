@@ -19,12 +19,14 @@ import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/c
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { fetchSponsoredPrograms } from '@/lib/programs';
 import { formatCost } from '@/lib/listingCategories';
+import { stripHtml } from '@/lib/atsImport';
+import { formatShortDate } from '@/lib/dates';
 import type { Job } from '@/data/jobs';
 import { CircleFlag } from '@/components/common/CircleFlag';
 
 export type MatchItem =
-  | { kind: 'job'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; remote: boolean; salary?: string; imageUrl?: string | null; createdAt: string }
-  | { kind: 'program'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; funding: string | null; imageUrl?: string | null; createdAt: string };
+  | { kind: 'job'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; remote: boolean; salary?: string; imageUrl?: string | null; createdAt: string; description?: string | null; postedDate?: string | null }
+  | { kind: 'program'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; funding: string | null; imageUrl?: string | null; createdAt: string; description?: string | null; postedDate?: string | null };
 
 
 /** Fetches every published job + program once. Shared by the landing
@@ -47,6 +49,8 @@ export async function fetchMatchItems(): Promise<MatchItem[]> {
       salary: board.salary,
       imageUrl: board.imageUrl,
       createdAt: j.created_at,
+      description: board.description,
+      postedDate: board.postedDate,
     };
   });
   const programItems: MatchItem[] = programs.map((p) => ({
@@ -60,6 +64,7 @@ export async function fetchMatchItems(): Promise<MatchItem[]> {
     funding: formatCost(p),
     imageUrl: p.image_url,
     createdAt: p.created_at,
+    description: p.description,
   }));
 
   // Interleave so it doesn't read as "all jobs, then all programs".
@@ -203,7 +208,7 @@ export function LocationMatchSection({
       {shownItems === null ? (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-[300px] animate-pulse rounded bg-ink-100" />
+            <div key={i} className="h-[360px] animate-pulse rounded-lg bg-ink-100" />
           ))}
         </div>
       ) : shownItems.length === 0 ? (
@@ -228,7 +233,7 @@ export function LocationMatchSection({
 
 function ExploreMoreTile({ countryParam, destinationName }: { countryParam: string; destinationName?: string }) {
   return (
-    <div className="flex h-[300px] flex-col items-center justify-center gap-3 rounded border-2 border-dashed border-brand-200 bg-brand-50/40 p-4 text-center">
+    <div className="flex h-[360px] flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-brand-200 bg-brand-50/40 p-4 text-center">
       <span className="grid h-14 w-14 place-items-center rounded-full bg-brand-100 text-brand-600">
         <ArrowRight className="h-6 w-6" />
       </span>
@@ -292,10 +297,11 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
   const showCostPill = item.kind === 'program';
   const salaryOrFunding = item.kind === 'job' ? item.salary : item.funding;
   const hasImage = Boolean(item.imageUrl) && !imgFailed;
+  const snippet = item.description ? stripHtml(item.description).slice(0, 140) : null;
 
   return (
-    <div className="relative h-[300px]">
-      <a href={href} className="flex h-full flex-col rounded border border-ink-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg">
+    <div className="relative h-[360px]">
+      <a href={href} className="group flex h-full flex-col rounded-lg border border-ink-900/20 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg">
         {hasImage ? (
           <img
             src={item.imageUrl!}
@@ -327,6 +333,10 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
           {item.kind === 'job' && item.remote && <span className="shrink-0 rounded bg-ink-50 px-2 py-0.5 text-[11px] font-medium text-ink-600">Remote</span>}
         </div>
 
+        {snippet && <p className="mt-2 line-clamp-2 text-xs leading-5 text-ink-500">{snippet}</p>}
+
+        {item.postedDate && <p className="mt-1.5 text-[11px] text-ink-400">Posted {formatShortDate(item.postedDate)}</p>}
+
         <div className="mt-auto pt-2">
           {showCostPill && (
             <div className="flex items-center gap-1 border-t border-ink-100 pt-2">
@@ -343,6 +353,11 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
               </button>
             </div>
           )}
+          {/* Visual only — the whole card is already the clickable <a>, so
+              this is a styled span rather than a second nested link. */}
+          <span className="mt-2 block rounded-lg border border-ink-200 py-1.5 text-center text-xs font-semibold text-brand-700 transition group-hover:bg-brand-50">
+            See more
+          </span>
         </div>
       </a>
 

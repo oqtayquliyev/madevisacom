@@ -333,15 +333,16 @@ async function enrichWithJobDetailPages(jobs: NormalizedJob[]): Promise<void> {
   await Promise.all(Array.from({ length: DETAIL_FETCH_CONCURRENCY }, worker));
 }
 
-async function fetchPhenomJobs(baseUrl: string): Promise<NormalizedJob[]> {
+async function fetchPhenomJobs(baseUrl: string, startFrom: number): Promise<{ jobs: NormalizedJob[]; nextFrom: number | null; totalHits: number | null }> {
   const jobs: NormalizedJob[] = [];
   const seenIds = new Set<string>();
-  let from = 0;
+  let offset = startFrom;
   let totalHits: number | null = null;
+  let exhausted = false;
 
   while (jobs.length < MAX_JOBS_PER_REQUEST) {
     const url = new URL(baseUrl);
-    url.searchParams.set("from", String(from));
+    url.searchParams.set("from", String(offset));
 
     const res = await fetch(url.toString(), {
       headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
@@ -351,24 +352,40 @@ async function fetchPhenomJobs(baseUrl: string): Promise<NormalizedJob[]> {
 
     const ddo = extractPhenomDdo(html);
     if (!ddo) {
-      if (jobs.length === 0) throw new Error("Could not find embedded job data on this page — site may not be Phenom-based, or its structure changed.");
+      // Only a hard error on the very first page of the very first
+      // batch — if this is a later page (or a later batch, i.e.
+      // startFrom > 0), it more likely just means we've run past the
+      // end of the results than that the site isn't Phenom at all.
+      if (jobs.length === 0 && startFrom === 0) {
+        throw new Error("Could not find embedded job data on this page — site may not be Phenom-based, or its structure changed.");
+      }
+      exhausted = true;
       break;
     }
 
     const searchBlock = ddo.eagerLoadRefineSearch;
     const searchData = searchBlock?.data;
     if (!searchData) {
-      if (jobs.length === 0) throw new Error("Page structure didn't match the expected Phenom shape (eagerLoadRefineSearch missing).");
+      if (jobs.length === 0 && startFrom === 0) {
+        throw new Error("Page structure didn't match the expected Phenom shape (eagerLoadRefineSearch missing).");
+      }
+      exhausted = true;
       break;
     }
 
     if (totalHits === null) totalHits = searchBlock.totalHits;
 
     const pageJobs = searchData.jobs || [];
-    if (pageJobs.length === 0) break;
+    if (pageJobs.length === 0) {
+      exhausted = true;
+      break;
+    }
 
     let newCount = 0;
+    let consumedThisPage = 0;
+    let hitCap = false;
     for (const job of pageJobs) {
+      consumedThisPage++;
       const id = job.jobId || job.reqId;
       if (!id || seenIds.has(id)) continue;
       seenIds.add(id);
@@ -394,12 +411,33 @@ async function fetchPhenomJobs(baseUrl: string): Promise<NormalizedJob[]> {
         salaryText: firstOf(job, ["salary", "salaryText", "compensation"]) ?? null,
       });
       newCount++;
-      if (jobs.length >= MAX_JOBS_PER_REQUEST) break;
+      if (jobs.length >= MAX_JOBS_PER_REQUEST) {
+        hitCap = true;
+        break;
+      }
     }
 
-    from += searchBlock.hits || 10;
-    if (totalHits && from >= totalHits) break;
-    if (newCount === 0) break;
+    if (hitCap) {
+      // Stopped partway through this page — advance the offset by only
+      // what we actually consumed from it (not the whole page size), so
+      // the *next* batch picks up exactly where this one left off
+      // instead of skipping the rest of this page.
+      offset += consumedThisPage;
+      break;
+    }
+
+    offset += searchBlock.hits || pageJobs.length || 10;
+    if (totalHits && offset >= totalHits) {
+      exhausted = true;
+      break;
+    }
+    if (newCount === 0) {
+      // Every job on this page was one we'd already seen — the site
+      // isn't actually advancing with `from`, so stop rather than loop
+      // forever re-fetching the same page.
+      exhausted = true;
+      break;
+    }
 
     await sleep(PAGE_DELAY_MS);
   }
@@ -410,7 +448,7 @@ async function fetchPhenomJobs(baseUrl: string): Promise<NormalizedJob[]> {
   // stays as the fallback).
   await enrichWithJobDetailPages(jobs);
 
-  return jobs;
+  return { jobs, nextFrom: exhausted ? null : offset, totalHits };
 }
 
 function isPhenomSite(html: string): boolean {
@@ -465,13 +503,14 @@ serve(async (req) => {
     }
     // --- End auth check ---
 
-    const { url } = await req.json();
+    const { url, from } = await req.json();
     if (!url || typeof url !== "string") {
       return new Response(JSON.stringify({ ok: false, error: "Missing url." }), {
         status: 400,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
     }
+    const startFrom = typeof from === "number" && Number.isFinite(from) && from >= 0 ? Math.floor(from) : 0;
 
     // --- SSRF guard: reject internal/metadata/private-range hosts
     // before making any outbound request. ---
@@ -512,8 +551,8 @@ serve(async (req) => {
       );
     }
 
-    const jobs = await fetchPhenomJobs(url);
-    return new Response(JSON.stringify({ ok: true, jobs }), {
+    const { jobs, nextFrom, totalHits } = await fetchPhenomJobs(url, startFrom);
+    return new Response(JSON.stringify({ ok: true, jobs, nextFrom, totalHits }), {
       status: 200,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });

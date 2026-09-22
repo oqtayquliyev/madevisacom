@@ -32,7 +32,7 @@ export type PendingSponsoredJob = {
   employment_type: string;
   status: string;
   created_at: string;
-  publisher?: { name: string; org_type: OrgType } | null;
+  publisher?: { id: string; name: string; org_type: OrgType } | null;
   country?: { name: string; iso_code: string } | null;
 };
 
@@ -52,7 +52,7 @@ const publisherColumns =
 const programColumns =
   'id, title, category, status, created_at, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const sponsoredJobColumns =
-  'id, title, category, employment_type, status, created_at, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, category, employment_type, status, created_at, publisher:program_publishers(id, name, org_type), country:countries(name, iso_code)';
 const agencyColumns = 'id, name, email, country, city, website, verification_status, created_at';
 
 // PostgREST (what Supabase's data API runs on) caps a single response at
@@ -561,5 +561,22 @@ export async function bulkSetJobStatus(ids: string[], status: ListingStatus): Pr
 export async function bulkSetJobImage(ids: string[], imageUrl: string): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from('sponsored_jobs').update({ image_url: imageUrl }).in('id', ids);
   if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/**
+ * Sets one logo for an entire company at once — every job under that
+ * publisher (any status: pending, published, rejected, all of them),
+ * not just whichever ones happen to be selected in a list right now.
+ * Also updates the publisher's own logo_url for consistency, in case
+ * anything reads from there later.
+ */
+export async function setPublisherLogoForAllJobs(publisherId: string, imageUrl: string): Promise<{ ok: boolean; error?: string }> {
+  const [jobsResult, publisherResult] = await Promise.all([
+    supabase.from('sponsored_jobs').update({ image_url: imageUrl }).eq('publisher_id', publisherId),
+    supabase.from('program_publishers').update({ logo_url: imageUrl }).eq('id', publisherId),
+  ]);
+  if (jobsResult.error) return { ok: false, error: jobsResult.error.message };
+  if (publisherResult.error) return { ok: false, error: publisherResult.error.message };
   return { ok: true };
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Briefcase, Building2, Calendar, Check, Landmark, Loader2, MapPin, Share2, UserRound, Users } from 'lucide-react';
+import { ArrowLeft, Briefcase, Building2, Calendar, Check, Landmark, Loader2, Share2, UserRound, Users } from 'lucide-react';
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
@@ -12,6 +12,7 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { useSeo } from '@/lib/seo';
 import { sanitizeJobHtml } from '@/lib/atsImport';
+import { formatShortDate } from '@/lib/dates';
 import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
 
 type JobDetailPageProps = {
@@ -99,7 +100,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
         </button>
 
         <div className="mt-5 overflow-hidden border border-ink-200 bg-white">
-          <div className="border-b border-ink-100 bg-ink-50/60 px-6 py-6 sm:px-8 sm:py-8">
+          <div className="flex items-center gap-4 border-b border-ink-100 bg-ink-50/60 px-6 py-6 sm:px-8 sm:py-8">
             {job.imageUrl ? (
               <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-ink-200 bg-white p-2.5 shadow-sm sm:h-24 sm:w-24">
                 <img src={job.imageUrl} alt="" className="h-full w-full object-contain" />
@@ -109,11 +110,25 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                 {job.publisherOrgType ? <SponsorIcon className="h-8 w-8 text-brand-300" /> : <CompanyLogo name={job.company} size={48} />}
               </div>
             )}
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 truncate text-base font-bold text-ink-900 sm:text-lg">
+                {job.publisherOrgType && <SponsorIcon className="h-4 w-4 shrink-0 text-ink-400" />}
+                {job.company}
+              </p>
+              {job.publisherOrgType && <p className="text-xs text-ink-500">Verified sponsor</p>}
+            </div>
           </div>
 
           <div className="p-6 sm:p-8">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">{job.category}</span>
+              {/* For sponsored/imported jobs, category and type are kept
+                  equal (see EditableJobRow / importJobsAsPending) — only
+                  show both badges when they actually say something
+                  different, or the same word (e.g. "Full time") shows up
+                  twice side by side. */}
+              {job.category !== job.type && (
+                <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">{job.category}</span>
+              )}
               <span className="rounded-full bg-ink-100 px-2.5 py-1 text-[11px] font-semibold text-ink-600">{job.type}</span>
               {job.remote && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Remote</span>}
               {job.visaSponsorship && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700">Visa sponsorship</span>}
@@ -123,15 +138,15 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
             <h1 className="mt-3 font-slab text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">{job.title}</h1>
 
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-ink-500">
-              <span className="flex items-center gap-1.5">
-                {job.publisherOrgType ? <SponsorIcon className="h-4 w-4 text-ink-400" /> : <Briefcase className="h-4 w-4 text-ink-400" />}
-                {job.company}
-              </span>
-              <span className="flex items-center gap-1.5">
+            <div className="mt-3 text-sm text-ink-500">
+              <div className="flex items-center gap-1.5">
                 <CircleFlag countryCode={job.countryCode} label={job.country} size={16} />
                 {job.city ? `${job.city}, ${job.country}` : job.country}
-              </span>
+              </div>
+              <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-400">
+                <Calendar className="h-3.5 w-3.5" />
+                Posted {formatShortDate(job.postedDate)}
+              </div>
             </div>
 
             {job.description && (
@@ -143,8 +158,6 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <InfoRow icon={Briefcase} label="Compensation" value={job.salary || 'Not specified'} />
-              <InfoRow icon={MapPin} label="Location" value={job.city ? `${job.city}, ${job.country}` : job.country} />
-              <InfoRow icon={Calendar} label="Posted" value={formatPostedDate(job.postedDate)} />
               <InfoRow icon={Users} label="Remote" value={job.remote ? 'Yes' : 'No'} />
               {job.spotsAvailable != null && <InfoRow icon={Users} label="Positions available" value={String(job.spotsAvailable)} />}
             </div>
@@ -187,14 +200,6 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );
-}
-
-/** "Not specified" when there's genuinely no posted date — rather than hiding the row, per-request: missing info should say so, not disappear. */
-function formatPostedDate(iso: string | null | undefined): string {
-  if (!iso) return 'Not specified';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'Not specified';
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function InfoRow({ icon: Icon, label, value }: { icon: typeof Briefcase; label: string; value: string }) {

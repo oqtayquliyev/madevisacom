@@ -110,6 +110,13 @@ export type FetchJobsResult =
   | {
       ok: true;
       jobs: { externalId: string; title: string; locationText: string; offices: string[]; descriptionHtml: string; url: string; category?: string | null; employmentTypeRaw?: string | null; postedAt?: string | null; remote?: boolean | null; salaryText?: string | null }[];
+      /** Present (non-null) when there are more jobs beyond this batch —
+       * pass it back as `from` on the next call to continue. Null means
+       * this source is fully exhausted (or doesn't support paging at
+       * all, e.g. Greenhouse, which always returns everything in one
+       * shot). */
+      nextFrom?: number | null;
+      totalHits?: number | null;
     }
   | { ok: false; error: string };
 
@@ -138,7 +145,7 @@ function extractGreenhouseToken(value: string): string {
  *   - a full careers page URL for a Phenom-powered site (e.g. Roche) —
  *     proxied through the import-ats-jobs edge function.
  */
-export async function fetchJobsFromCareersUrl(input: string): Promise<FetchJobsResult> {
+export async function fetchJobsFromCareersUrl(input: string, from: number = 0): Promise<FetchJobsResult> {
   const trimmed = input.trim();
   if (!trimmed) return { ok: false, error: 'Enter a Greenhouse token or a careers page URL.' };
 
@@ -146,14 +153,14 @@ export async function fetchJobsFromCareersUrl(input: string): Promise<FetchJobsR
 
   if (!looksLikeUrl || isGreenhouseUrl(trimmed)) {
     const token = looksLikeUrl ? extractGreenhouseToken(trimmed) : trimmed;
-    return fetchGreenhouseJobs(token);
+    return fetchGreenhouseJobs(token); // Greenhouse's API always returns the full board in one shot — no paging needed.
   }
 
   const { data, error } = await supabase.functions.invoke('import-ats-jobs', {
-    body: { url: trimmed },
+    body: { url: trimmed, from },
   });
 
   if (error) return { ok: false, error: error.message };
   if (!data?.ok) return { ok: false, error: data?.error ?? 'Import failed.' };
-  return { ok: true, jobs: data.jobs };
+  return { ok: true, jobs: data.jobs, nextFrom: data.nextFrom ?? null, totalHits: data.totalHits ?? null };
 }
