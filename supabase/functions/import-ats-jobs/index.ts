@@ -455,6 +455,150 @@ function isPhenomSite(html: string): boolean {
   return html.includes("phApp.ddo") || html.includes("phApp =");
 }
 
+// ---------------------------------------------------------------------------
+// Generic strategy: for any career site that isn't Phenom or Greenhouse.
+//
+// Rather than writing a new per-platform parser for every ATS (Workday,
+// SuccessFactors, Drupal-based custom sites like Pfizer's, etc.), this
+// leans on something nearly all of them already do for SEO: embed each
+// job's detail page with schema.org JobPosting structured data
+// (https://schema.org/JobPosting) inside a <script type="application/
+// ld+json"> block, specifically so Google/LinkedIn/Indeed can index the
+// posting. extractJsonLdJobPosting() above already parses this — it was
+// built for Phenom detail-page enrichment, but the schema itself has
+// nothing to do with Phenom; it's a public standard, which is exactly
+// what makes this approach general rather than site-specific.
+//
+// So the only genuinely new piece needed is: given an arbitrary listing
+// page, find the links to each job's detail page. That's done with a
+// broad-but-bounded regex over real anchor hrefs (works on any
+// server-rendered HTML, no JS execution needed) rather than assuming
+// any particular URL shape belongs to one company.
+// ---------------------------------------------------------------------------
+
+// Matches an href whose path contains a "job-like" segment followed by
+// an identifier — e.g. /about/careers/job/4964372, /jobs/12345,
+// /career/opening/abc-123. Broad enough to catch common corporate-site
+// conventions without also matching ordinary nav links (which won't
+// have a job/opening/position/vacancy segment followed by an id).
+const JOB_LINK_RE = /href="([^"#?]*\/(?:job|jobs|opening|openings|position|positions|vacancy|vacancies)\/[A-Za-z0-9][A-Za-z0-9_-]*)[^"]*"/gi;
+
+function extractJobLinksFromHtml(html: string, baseUrl: string): string[] {
+  const seen = new Set<string>();
+  const links: string[] = [];
+  let match: RegExpExecArray | null;
+  JOB_LINK_RE.lastIndex = 0;
+  while ((match = JOB_LINK_RE.exec(html))) {
+    try {
+      const resolved = new URL(match[1], baseUrl).toString();
+      if (!seen.has(resolved)) {
+        seen.add(resolved);
+        links.push(resolved);
+      }
+    } catch {
+      // Malformed href — skip it rather than fail the whole batch.
+    }
+  }
+  return links;
+}
+
+/** Builds a full job record from a detail page's own JSON-LD block —
+ *  this is the PRIMARY source here (unlike the Phenom flow, where
+ *  JSON-LD is only used to fill gaps around the ddo blob), so unlike
+ *  jobDetailFromPhenomDdo/fetchJobDetailPage above, this also needs the
+ *  title and an external id, which schema.org's JobPosting provides via
+ *  `title` and `identifier`. */
+function normalizedJobFromJsonLd(jsonLd: any, detailUrl: string): NormalizedJob | null {
+  const title = jsonLd.title ? String(jsonLd.title) : null;
+  if (!title) return null; // no usable title — not worth importing a blank row
+
+  const identifierRaw = jsonLd.identifier;
+  const identifierValue =
+    typeof identifierRaw === "object" && identifierRaw ? identifierRaw.value : identifierRaw;
+  const idFromUrl = detailUrl.match(/([A-Za-z0-9][A-Za-z0-9_-]{2,})\/?(?:\?.*)?$/)?.[1];
+  const externalId = String(identifierValue ?? idFromUrl ?? detailUrl);
+
+  const offices = officesFromJsonLdLocations(jsonLd.jobLocation);
+
+  return {
+    externalId,
+    title,
+    locationText: offices[0] ?? "",
+    offices,
+    descriptionHtml: jsonLd.description ? String(jsonLd.description) : "",
+    url: detailUrl,
+    category: firstOf(jsonLd, ["occupationalCategory", "industry"]) ?? null,
+    employmentTypeRaw: jsonLd.employmentType
+      ? Array.isArray(jsonLd.employmentType)
+        ? jsonLd.employmentType.join(", ")
+        : String(jsonLd.employmentType)
+      : null,
+    postedAt: jsonLd.datePosted ?? null,
+    remote: jsonLd.jobLocationType === "TELECOMMUTE" ? true : null,
+    salaryText: salaryTextFromJsonLd(jsonLd.baseSalary),
+  };
+}
+
+/** startFrom here is a PAGE INDEX (0-based), not an item offset — each
+ *  strategy is free to give the opaque from/nextFrom cursor its own
+ *  meaning, since the frontend just echoes it back unexamined. Tries
+ *  the listing URL's own pagination first (many sites, including
+ *  Pfizer's, already carry query params like `count=`); once past page
+ *  0, appends a generic `page=` param, since that's the most common
+ *  convention (Drupal Views among them) — if a given site uses
+ *  something else, this simply stops advancing (no new links found)
+ *  rather than looping incorrectly. */
+async function fetchGenericJobsViaLinks(
+  baseUrl: string,
+  startFrom: number
+): Promise<{ jobs: NormalizedJob[]; nextFrom: number | null; totalHits: number | null }> {
+  const pageUrl = new URL(baseUrl);
+  if (startFrom > 0) pageUrl.searchParams.set("page", String(startFrom));
+
+  const listingRes = await fetch(pageUrl.toString(), { headers: { "User-Agent": USER_AGENT, Accept: "text/html" } });
+  if (!listingRes.ok) throw new Error(`Careers page returned ${listingRes.status}`);
+  const listingHtml = await listingRes.text();
+
+  const links = extractJobLinksFromHtml(listingHtml, pageUrl.toString()).slice(0, MAX_JOBS_PER_REQUEST);
+  if (links.length === 0) {
+    if (startFrom === 0) {
+      throw new Error(
+        "Couldn't find any job links on this page, and it doesn't match a known ATS platform (Phenom, Greenhouse). This site may need a dedicated strategy added to this function."
+      );
+    }
+    return { jobs: [], nextFrom: null, totalHits: null }; // ran past the last page — done
+  }
+
+  const jobs: NormalizedJob[] = [];
+  const deadline = Date.now() + DETAIL_FETCH_TIME_BUDGET_MS;
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < links.length && Date.now() < deadline) {
+      const link = links[cursor++];
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), DETAIL_FETCH_TIMEOUT_MS);
+      try {
+        const res = await fetch(link, { headers: { "User-Agent": USER_AGENT, Accept: "text/html" }, signal: controller.signal });
+        if (!res.ok) continue;
+        const html = await res.text();
+        const jsonLd = extractJsonLdJobPosting(html);
+        if (!jsonLd) continue; // this particular link didn't turn out to be a job posting — skip, not fatal
+        const job = normalizedJobFromJsonLd(jsonLd, link);
+        if (job) jobs.push(job);
+      } catch {
+        // timed out or errored on this one link — move on, keep the rest of the batch
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: DETAIL_FETCH_CONCURRENCY }, worker));
+
+  return { jobs, nextFrom: startFrom + 1, totalHits: null };
+}
+
 serve(async (req) => {
   const CORS_HEADERS = corsHeadersFor(req);
 
@@ -542,13 +686,27 @@ serve(async (req) => {
     const html = await probeRes.text();
 
     if (!isPhenomSite(html)) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "This doesn't look like a Phenom-powered career site. If it's Greenhouse, use the board token directly instead. Other ATS platforms need a new strategy added to this function.",
-        }),
-        { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
+      // Not Phenom — try the generic link-scan + JSON-LD strategy before
+      // giving up. This is what makes sites like Pfizer's (Drupal-based,
+      // not Phenom or Greenhouse) work without a bespoke parser.
+      try {
+        const { jobs, nextFrom, totalHits } = await fetchGenericJobsViaLinks(url, startFrom);
+        return new Response(JSON.stringify({ ok: true, jobs, nextFrom, totalHits }), {
+          status: 200,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      } catch (genericErr) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error:
+              genericErr instanceof Error
+                ? genericErr.message
+                : "This doesn't look like a supported career site.",
+          }),
+          { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     const { jobs, nextFrom, totalHits } = await fetchPhenomJobs(url, startFrom);
