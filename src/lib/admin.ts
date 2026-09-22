@@ -12,6 +12,7 @@ export type PendingPublisher = {
   contact_email: string;
   verification_status: string;
   created_at: string;
+  logo_url?: string | null;
   country?: { name: string; iso_code: string } | null;
 };
 
@@ -48,7 +49,7 @@ export type PendingAgency = {
 };
 
 const publisherColumns =
-  'id, org_type, name, website, contact_email, verification_status, created_at, country:countries(name, iso_code)';
+  'id, org_type, name, website, contact_email, verification_status, created_at, logo_url, country:countries(name, iso_code)';
 const programColumns =
   'id, title, category, status, created_at, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const sponsoredJobColumns =
@@ -324,21 +325,46 @@ export async function deleteSponsoredJob(id: string): Promise<{ ok: boolean; err
   return { ok: true };
 }
 
+// Same reasoning as the chunked insert in importJobsAsPending: a huge
+// .in('id', [...]) filter gets serialized into the request's query
+// string, and a batch large enough (642 UUIDs here, ~24KB+ of just IDs)
+// exceeds what Supabase/PostgREST will accept in a single request,
+// failing the whole call with a generic "Bad Request" — this is what
+// left the Stripe batch stuck and undeletable.
+// 200 IDs per chunk was still large enough to occasionally trip a
+// request-size limit somewhere in the stack (Supabase/PostgREST/CDN) —
+// `.in('id', chunk)` embeds every UUID directly in the request URL's
+// query string, and 200 UUIDs (~37 chars each with the separator) is
+// ~7,400 characters just for the ID list, on top of everything else in
+// the URL. That's what a bare "Bad Request" with no specific Postgres
+// error message usually means here. 50 keeps every request comfortably
+// under any realistic limit.
+const BULK_OP_CHUNK_SIZE = 50;
+
 export async function bulkDeleteJobs(ids: string[]): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase.from('sponsored_jobs').delete().in('id', ids);
-  if (error) return { ok: false, error: error.message };
+  for (let i = 0; i < ids.length; i += BULK_OP_CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + BULK_OP_CHUNK_SIZE);
+    const { error } = await supabase.from('sponsored_jobs').delete().in('id', chunk);
+    if (error) return { ok: false, error: error.message };
+  }
   return { ok: true };
 }
 
 export async function bulkDeletePrograms(ids: string[]): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase.from('programs').delete().in('id', ids);
-  if (error) return { ok: false, error: error.message };
+  for (let i = 0; i < ids.length; i += BULK_OP_CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + BULK_OP_CHUNK_SIZE);
+    const { error } = await supabase.from('programs').delete().in('id', chunk);
+    if (error) return { ok: false, error: error.message };
+  }
   return { ok: true };
 }
 
 export async function bulkSetProgramStatus(ids: string[], status: ListingStatus): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase.from('programs').update({ status }).in('id', ids);
-  if (error) return { ok: false, error: error.message };
+  for (let i = 0; i < ids.length; i += BULK_OP_CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + BULK_OP_CHUNK_SIZE);
+    const { error } = await supabase.from('programs').update({ status }).in('id', chunk);
+    if (error) return { ok: false, error: error.message };
+  }
   return { ok: true };
 }
 
@@ -553,14 +579,20 @@ export async function importJobsAsPending(
 }
 
 export async function bulkSetJobStatus(ids: string[], status: ListingStatus): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase.from('sponsored_jobs').update({ status }).in('id', ids);
-  if (error) return { ok: false, error: error.message };
+  for (let i = 0; i < ids.length; i += BULK_OP_CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + BULK_OP_CHUNK_SIZE);
+    const { error } = await supabase.from('sponsored_jobs').update({ status }).in('id', chunk);
+    if (error) return { ok: false, error: error.message };
+  }
   return { ok: true };
 }
 
 export async function bulkSetJobImage(ids: string[], imageUrl: string): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase.from('sponsored_jobs').update({ image_url: imageUrl }).in('id', ids);
-  if (error) return { ok: false, error: error.message };
+  for (let i = 0; i < ids.length; i += BULK_OP_CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + BULK_OP_CHUNK_SIZE);
+    const { error } = await supabase.from('sponsored_jobs').update({ image_url: imageUrl }).in('id', chunk);
+    if (error) return { ok: false, error: error.message };
+  }
   return { ok: true };
 }
 
