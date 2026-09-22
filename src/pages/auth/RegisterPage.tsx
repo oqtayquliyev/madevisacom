@@ -3,7 +3,7 @@ import { Building2, Check, ChevronDown, Landmark, Search, Sparkles, UserRound } 
 import { supabase } from '@/lib/supabase';
 import { handleNavClick } from '@/lib/navLink';
 import { PhoneInput } from '@/components/common/PhoneInput';
-import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
+import { AuthCard, BackButton, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
 import { Turnstile } from '@/components/auth/Turnstile';
 import { useSeo } from '@/lib/seo';
 
@@ -83,8 +83,8 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
             </span>
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-600 text-white"><UserRound className="h-6 w-6" /></span>
             <div>
-              <p className="font-semibold text-ink-900">I'm a traveler</p>
-              <p className="mt-0.5 text-sm text-ink-500">Plan trips, track requirements, get agency help.</p>
+              <p className="font-semibold text-ink-900">Explore opportunities</p>
+              <p className="mt-0.5 text-sm text-ink-500">Jobs, programs, and visa paths abroad — track requirements, get agency help.</p>
             </div>
           </button>
           <button
@@ -210,11 +210,12 @@ function CustomerForm({
 
   return (
     <div className="space-y-4">
+      <BackButton onClick={onBack} />
       <Input label="Full name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
       <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="you@example.com" required autoComplete="email" />
       <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 8 characters" required autoComplete="new-password" />
+      <CountrySelect label="Country (optional)" countries={countries} value={countryId} onChange={setCountryId} />
       <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} />
-      <CountrySelect label="Country" countries={countries} value={countryId} onChange={setCountryId} />
 
       <label className="flex items-center gap-2 text-sm text-ink-600">
         <input
@@ -231,8 +232,7 @@ function CustomerForm({
       )}
 
       <Turnstile onVerify={setCaptchaToken} />
-      <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captchaToken}>Create traveler account</PrimaryButton>
-      <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
+      <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captchaToken}>Create account</PrimaryButton>
     </div>
   );
 }
@@ -315,6 +315,7 @@ function AgencyForm({
 
   return (
     <div className="space-y-4">
+      <BackButton onClick={onBack} />
       <Input label="Contact person name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
       <Input label="Company name" value={companyName} onChange={setCompanyName} placeholder="Your travel agency" required />
       <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="agency@example.com" required autoComplete="email" />
@@ -325,7 +326,6 @@ function AgencyForm({
       <Input label="Website (optional)" value={website} onChange={setWebsite} placeholder="https://youragency.com" />
       <Turnstile onVerify={setCaptchaToken} />
       <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captchaToken}>Create agency account</PrimaryButton>
-      <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
     </div>
   );
 }
@@ -410,6 +410,7 @@ function GovernmentForm({
 
   return (
     <div className="space-y-4">
+      <BackButton onClick={onBack} />
       <Input label="Contact person name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
       <Input label="Ministry / institution name" value={orgName} onChange={setOrgName} placeholder="e.g. Ministry of Labor" required />
       <Input label="Official email" type="email" value={email} onChange={setEmail} placeholder="you@ministry.gov" required autoComplete="email" />
@@ -419,7 +420,6 @@ function GovernmentForm({
       <Input label="Official website (optional)" value={website} onChange={setWebsite} placeholder="https://www.ministry.gov" />
       <Turnstile onVerify={setCaptchaToken} />
       <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captchaToken}>Create government account</PrimaryButton>
-      <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
       <p className="text-center text-[11px] text-ink-400">
         Verified by MadeVisa before you can publish — usually within 1-2 business days.
       </p>

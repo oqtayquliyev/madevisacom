@@ -1,22 +1,15 @@
-import { useEffect, useState } from 'react';
-import { Building2, Landmark, ShieldCheck, UserRound } from 'lucide-react';
+import { Globe2 } from 'lucide-react';
 import { destinationInfo } from '@/data/destinationInfo';
-import { fetchAllVerifiedPublisherNames, type OrgType, type VerifiedPublisherName } from '@/lib/programs';
 import { CircleFlag } from '@/components/common/CircleFlag';
 
-const orgIcon: Record<OrgType, typeof Building2> = {
-  agency: Building2,
-  company: Building2,
-  government: Landmark,
-  expert: UserRound,
-};
+// How many destination flags to orbit — more than ~10 gets visually
+// crowded at this radius, and the full list isn't needed for the effect.
+const ORBIT_COUNT = 8;
+const ORBIT_RADIUS = 108; // px, distance from center
+const ORBIT_DURATION = 26; // seconds per full revolution
 
 export function AuthSidePanel() {
-  const [partners, setPartners] = useState<VerifiedPublisherName[] | null>(null);
-
-  useEffect(() => {
-    fetchAllVerifiedPublisherNames().then(setPartners);
-  }, []);
+  const orbitDestinations = destinationInfo.slice(0, ORBIT_COUNT);
 
   return (
     <div className="hidden h-full flex-col justify-between bg-ink-950 px-10 py-12 text-white lg:flex">
@@ -31,64 +24,77 @@ export function AuthSidePanel() {
         </p>
       </div>
 
-      <div>
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-white/40">Explore destinations</p>
-        <div className="grid grid-cols-5 gap-3">
-          {destinationInfo.map((d) => (
-            <div
-              key={d.countryCode}
-              title={d.countryName}
-              className="group flex flex-col items-center gap-1.5 rounded-xl bg-white/5 py-3 transition duration-200 hover:-translate-y-1 hover:bg-white/10 hover:shadow-lg"
-            >
-              <CircleFlag countryCode={d.countryCode} label={d.countryName} size={28} />
-              <span className="truncate text-[10px] font-medium text-white/50 transition group-hover:text-white/80">
-                {d.countryCode}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <OrbitingGlobe destinations={orbitDestinations} />
 
-      <div>
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-white/40">Verified partners</p>
+      <div />
+    </div>
+  );
+}
 
-        {partners === null ? (
-          <div className="flex gap-3">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-12 w-12 animate-pulse rounded-xl bg-white/10" />
-            ))}
+function OrbitingGlobe({ destinations }: { destinations: typeof destinationInfo }) {
+  const size = ORBIT_RADIUS * 2 + 56; // container size, with margin for flag icons at the edge
+
+  return (
+    <div className="flex flex-col items-center">
+      <style>{`
+        @keyframes auth-orbit-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes auth-orbit-counter-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(-360deg); }
+        }
+        .auth-orbit-ring {
+          animation: auth-orbit-spin ${ORBIT_DURATION}s linear infinite;
+        }
+        .auth-orbit-counter {
+          animation: auth-orbit-counter-spin ${ORBIT_DURATION}s linear infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .auth-orbit-ring, .auth-orbit-counter {
+            animation: none;
+          }
+        }
+      `}</style>
+
+      <div className="relative" style={{ width: size, height: size }}>
+        {/* Center globe, static */}
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="grid h-16 w-16 place-items-center rounded-full bg-brand-500/15 ring-1 ring-brand-400/30">
+            <Globe2 className="h-8 w-8 text-brand-300" />
           </div>
-        ) : partners.length === 0 ? (
-          <p className="max-w-xs text-xs leading-5 text-white/40">
-            Governments, agencies and companies appear here once they're registered, verified, and have shared their
-            official logo — with their permission, after review.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-3">
-            {partners.slice(0, 10).map((p) => {
-              const Icon = orgIcon[p.org_type];
-              return (
-                <div
-                  key={p.id}
-                  title={p.name}
-                  className="group flex h-12 w-12 items-center justify-center rounded-xl bg-white/5 transition duration-200 hover:-translate-y-1 hover:bg-white/10"
-                >
-                  {p.logo_url ? (
-                    <img src={p.logo_url} alt={p.name} className="h-full w-full rounded-xl object-cover" />
-                  ) : (
-                    <Icon className="h-5 w-5 text-white/40 transition group-hover:text-white/70" />
-                  )}
+        </div>
+
+        {/* Rotating ring holding the flags */}
+        <div className="auth-orbit-ring absolute inset-0">
+          {destinations.map((d, i) => {
+            const angle = (360 / destinations.length) * i;
+            return (
+              <div
+                key={d.countryCode}
+                className="absolute left-1/2 top-1/2 h-0 w-0"
+                style={{ transform: `rotate(${angle}deg) translateX(${ORBIT_RADIUS}px)` }}
+              >
+                {/* Counter-rotate so the flag itself always stays upright,
+                    regardless of where it currently sits on the ring. */}
+                <div className="auth-orbit-counter -translate-x-1/2 -translate-y-1/2">
+                  <div
+                    title={d.countryName}
+                    className="rounded-full bg-white/5 p-1 shadow-lg ring-1 ring-white/10 transition hover:bg-white/15"
+                  >
+                    <CircleFlag countryCode={d.countryCode} label={d.countryName} size={26} />
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2">
-          <ShieldCheck className="h-4 w-4 text-emerald-400" />
-          <span className="text-xs font-semibold text-white/80">Verified &amp; secured opportunities</span>
+              </div>
+            );
+          })}
         </div>
       </div>
+
+      <p className="mt-4 text-center text-xs font-medium text-white/40">
+        Opportunities across {destinationInfo.length}+ destinations worldwide
+      </p>
     </div>
   );
 }
