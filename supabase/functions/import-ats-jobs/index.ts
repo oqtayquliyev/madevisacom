@@ -14,18 +14,24 @@
 import { serve } from "https://deno.land/std@0.192.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-// Only these origins may call this function from a browser. Direct
-// server-to-server/curl calls aren't blocked by CORS at all (CORS is a
-// browser-enforced mechanism) — that's what the auth check below is for.
-const ALLOWED_ORIGINS = new Set([
-  "https://madevisa.com",
-  "https://www.madevisa.com",
-]);
-
+// Every browser origin is allowed here. This looks looser than the old
+// allowlist, but it isn't actually weaker: CORS only ever restricts
+// browsers, never direct server-to-server calls (see the comment above),
+// so an allowlist was never the real access control — the admin-only
+// auth check further down is. What the old allowlist *did* do is break
+// legitimate calls the moment the site was viewed from any origin that
+// wasn't exactly "https://madevisa.com" (a Vercel preview URL, a staging
+// domain, "www." vs bare domain, http during local dev, etc.) — the
+// preflight OPTIONS request would come back with a mismatched
+// Access-Control-Allow-Origin, the browser would block it client-side,
+// and supabase-js reports that as "Failed to send a request to the Edge
+// Function" (a network-level failure, before this function's own code
+// — including its real auth check — ever runs). Echoing back whatever
+// Origin the browser sent removes that whole failure mode.
 function corsHeadersFor(req: Request) {
-  const origin = req.headers.get("Origin") ?? "";
+  const origin = req.headers.get("Origin") ?? "*";
   return {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.has(origin) ? origin : "https://madevisa.com",
+    "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Vary": "Origin",
   };
