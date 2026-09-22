@@ -539,6 +539,45 @@ function normalizedJobFromJsonLd(jsonLd: any, detailUrl: string): NormalizedJob 
   };
 }
 
+/** Best-effort fallback for sites with no JSON-LD JobPosting block at
+ *  all (not every career site bothers with it, despite it being
+ *  Google's recommendation). Pulls just the <title> tag — present on
+ *  virtually every page — strips a common " | Company Name" / " - 
+ *  Company Name" suffix, and uses that as the job title with an empty
+ *  description. This gets the job into the pending queue with a real
+ *  title and link rather than being silently skipped; an admin can
+ *  fill in the rest during review, same as any other pending listing. */
+function fallbackJobFromTitleTag(html: string, detailUrl: string): NormalizedJob | null {
+  const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  if (!match) return null;
+  let title = match[1].trim();
+  if (!title) return null;
+
+  // Strip a trailing " | Site Name" or " - Site Name" if present —
+  // common convention, and safe to strip only the LAST such segment
+  // so a title that legitimately contains " - " elsewhere is untouched.
+  const lastPipe = title.lastIndexOf(" | ");
+  const lastDash = title.lastIndexOf(" - ");
+  const cut = Math.max(lastPipe, lastDash);
+  if (cut > 0) title = title.slice(0, cut).trim();
+
+  const idFromUrl = detailUrl.match(/([A-Za-z0-9][A-Za-z0-9_-]{2,})\/?(?:\?.*)?$/)?.[1];
+
+  return {
+    externalId: String(idFromUrl ?? detailUrl),
+    title,
+    locationText: "",
+    offices: [],
+    descriptionHtml: "",
+    url: detailUrl,
+    category: null,
+    employmentTypeRaw: null,
+    postedAt: null,
+    remote: null,
+    salaryText: null,
+  };
+}
+
 /** startFrom here is a PAGE INDEX (0-based), not an item offset — each
  *  strategy is free to give the opaque from/nextFrom cursor its own
  *  meaning, since the frontend just echoes it back unexamined. Tries
@@ -583,8 +622,7 @@ async function fetchGenericJobsViaLinks(
         if (!res.ok) continue;
         const html = await res.text();
         const jsonLd = extractJsonLdJobPosting(html);
-        if (!jsonLd) continue; // this particular link didn't turn out to be a job posting — skip, not fatal
-        const job = normalizedJobFromJsonLd(jsonLd, link);
+        const job = jsonLd ? normalizedJobFromJsonLd(jsonLd, link) : fallbackJobFromTitleTag(html, link);
         if (job) jobs.push(job);
       } catch {
         // timed out or errored on this one link — move on, keep the rest of the batch
