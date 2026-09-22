@@ -12,11 +12,46 @@
 // Deploy with: supabase functions deploy import-ats-jobs
 
 import { serve } from "https://deno.land/std@0.192.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*", // tighten to your actual domain in production
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// Only these origins may call this function from a browser. Direct
+// server-to-server/curl calls aren't blocked by CORS at all (CORS is a
+// browser-enforced mechanism) — that's what the auth check below is for.
+const ALLOWED_ORIGINS = new Set([
+  "https://madevisa.com",
+  "https://www.madevisa.com",
+]);
+
+function corsHeadersFor(req: Request) {
+  const origin = req.headers.get("Origin") ?? "";
+  return {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.has(origin) ? origin : "https://madevisa.com",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
+  };
+}
+
+// Hosts/IP ranges a career-page importer should never legitimately need
+// to reach. Blocks the most common SSRF targets (cloud metadata
+// endpoints, loopback, link-local, and RFC1918 private ranges) before
+// any fetch is attempted. Not an exhaustive network-level control —
+// defense in depth alongside the auth check, not a replacement for it.
+function isBlockedHost(hostname: string): boolean {
+  const lower = hostname.toLowerCase();
+  if (lower === "localhost" || lower === "metadata.google.internal") return true;
+
+  const ipMatch = lower.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipMatch) {
+    const [a, b] = ipMatch.slice(1).map(Number);
+    if (a === 127) return true; // loopback
+    if (a === 169 && b === 254) return true; // link-local / cloud metadata (169.254.169.254)
+    if (a === 10) return true; // RFC1918
+    if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
+    if (a === 192 && b === 168) return true; // RFC1918
+    if (a === 0) return true;
+  }
+  return false;
+}
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
@@ -155,11 +190,53 @@ function isPhenomSite(html: string): boolean {
 }
 
 serve(async (req) => {
+  const CORS_HEADERS = corsHeadersFor(req);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
   }
 
   try {
+    // --- Auth check: admin-only, mirroring the pattern already used
+    // correctly in supabase/functions/delete-account/index.ts ---
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ ok: false, error: "Missing Authorization header." }), {
+        status: 401,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const callerClient = createClient(supabaseUrl, serviceRoleKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: userError } = await callerClient.auth.getUser();
+    if (userError || !user) {
+      return new Response(JSON.stringify({ ok: false, error: "Not authenticated." }), {
+        status: 401,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const { data: profile, error: profileError } = await adminClient
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError || profile?.role !== "admin") {
+      return new Response(JSON.stringify({ ok: false, error: "Admin access required." }), {
+        status: 403,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+    // --- End auth check ---
+
     const { url } = await req.json();
     if (!url || typeof url !== "string") {
       return new Response(JSON.stringify({ ok: false, error: "Missing url." }), {
@@ -167,6 +244,25 @@ serve(async (req) => {
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
     }
+
+    // --- SSRF guard: reject internal/metadata/private-range hosts
+    // before making any outbound request. ---
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      return new Response(JSON.stringify({ ok: false, error: "Invalid URL." }), {
+        status: 400,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+    if (parsedUrl.protocol !== "https:" || isBlockedHost(parsedUrl.hostname)) {
+      return new Response(JSON.stringify({ ok: false, error: "This host is not allowed." }), {
+        status: 400,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+    // --- End SSRF guard ---
 
     // Quick peek to decide the strategy.
     const probeRes = await fetch(url, { headers: { "User-Agent": USER_AGENT } });

@@ -4,10 +4,22 @@ import { supabase } from '@/lib/supabase';
 import { handleNavClick } from '@/lib/navLink';
 import { PhoneInput } from '@/components/common/PhoneInput';
 import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
+import { Turnstile } from '@/components/auth/Turnstile';
 import { useSeo } from '@/lib/seo';
 
 type Country = { id: string; name: string; flag_emoji: string | null; iso_code: string };
 type Role = 'customer' | 'agency' | 'government' | null;
+
+const MIN_PASSWORD_LENGTH = 8;
+
+/** Shared minimum across every signup flow in this file. Returns an
+ *  error message, or null if the password is acceptable. Client-side
+ *  UX only — Supabase Auth's own configured minimum is the real
+ *  enforcement boundary and should be set to match. */
+function passwordError(password: string): string | null {
+  if (password.length < MIN_PASSWORD_LENGTH) return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+  return null;
+}
 
 export type PendingSignup = {
   email: string;
@@ -139,11 +151,23 @@ function CustomerForm({
   const [nationalitySameAsCountry, setNationalitySameAsCountry] = useState(true);
   const [nationalityId, setNationalityId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
 
   const country = countries.find((c) => c.id === countryId) ?? null;
   const effectiveNationalityId = nationalitySameAsCountry ? countryId : nationalityId;
 
   const handleSubmit = async () => {
+    const pwError = passwordError(password);
+    if (pwError) {
+      onError(pwError);
+      return;
+    }
+
+    if (!captchaToken) {
+      onError('Please complete the verification below.');
+      return;
+    }
+
     setLoading(true);
     onError('');
 
@@ -151,6 +175,7 @@ function CustomerForm({
       email,
       password,
       options: {
+        captchaToken,
         data: {
           role: 'customer',
           full_name: fullName,
@@ -187,7 +212,7 @@ function CustomerForm({
     <div className="space-y-4">
       <Input label="Full name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
       <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="you@example.com" required autoComplete="email" />
-      <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" required autoComplete="new-password" />
+      <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 8 characters" required autoComplete="new-password" />
       <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} />
       <CountrySelect label="Country" countries={countries} value={countryId} onChange={setCountryId} />
 
@@ -205,7 +230,8 @@ function CustomerForm({
         <CountrySelect label="Nationality / citizenship" countries={countries} value={nationalityId} onChange={setNationalityId} />
       )}
 
-      <PrimaryButton onClick={handleSubmit} loading={loading}>Create traveler account</PrimaryButton>
+      <Turnstile onVerify={setCaptchaToken} />
+      <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captchaToken}>Create traveler account</PrimaryButton>
       <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
     </div>
   );
@@ -231,10 +257,22 @@ function AgencyForm({
   const [city, setCity] = useState('');
   const [website, setWebsite] = useState('');
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
 
   const country = countries.find((c) => c.id === countryId) ?? null;
 
   const handleSubmit = async () => {
+    const pwError = passwordError(password);
+    if (pwError) {
+      onError(pwError);
+      return;
+    }
+
+    if (!captchaToken) {
+      onError('Please complete the verification below.');
+      return;
+    }
+
     setLoading(true);
     onError('');
 
@@ -242,6 +280,7 @@ function AgencyForm({
       email,
       password,
       options: {
+        captchaToken,
         data: {
           role: 'agency',
           full_name: fullName,
@@ -279,12 +318,13 @@ function AgencyForm({
       <Input label="Contact person name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
       <Input label="Company name" value={companyName} onChange={setCompanyName} placeholder="Your travel agency" required />
       <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="agency@example.com" required autoComplete="email" />
-      <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" required autoComplete="new-password" />
+      <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 8 characters" required autoComplete="new-password" />
       <CountrySelect label="Country" countries={countries} value={countryId} onChange={setCountryId} />
       <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} required />
       <Input label="City" value={city} onChange={setCity} placeholder="Baku" required />
       <Input label="Website (optional)" value={website} onChange={setWebsite} placeholder="https://youragency.com" />
-      <PrimaryButton onClick={handleSubmit} loading={loading}>Create agency account</PrimaryButton>
+      <Turnstile onVerify={setCaptchaToken} />
+      <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captchaToken}>Create agency account</PrimaryButton>
       <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
     </div>
   );
@@ -309,10 +349,22 @@ function GovernmentForm({
   const [countryId, setCountryId] = useState('');
   const [website, setWebsite] = useState('');
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
 
   const country = countries.find((c) => c.id === countryId) ?? null;
 
   const handleSubmit = async () => {
+    const pwError = passwordError(password);
+    if (pwError) {
+      onError(pwError);
+      return;
+    }
+
+    if (!captchaToken) {
+      onError('Please complete the verification below.');
+      return;
+    }
+
     setLoading(true);
     onError('');
 
@@ -324,6 +376,7 @@ function GovernmentForm({
       email,
       password,
       options: {
+        captchaToken,
         data: {
           role: 'customer',
           full_name: fullName,
@@ -360,11 +413,12 @@ function GovernmentForm({
       <Input label="Contact person name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
       <Input label="Ministry / institution name" value={orgName} onChange={setOrgName} placeholder="e.g. Ministry of Labor" required />
       <Input label="Official email" type="email" value={email} onChange={setEmail} placeholder="you@ministry.gov" required autoComplete="email" />
-      <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" required autoComplete="new-password" />
+      <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 8 characters" required autoComplete="new-password" />
       <CountrySelect label="Country" countries={countries} value={countryId} onChange={setCountryId} />
       <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} required />
       <Input label="Official website (optional)" value={website} onChange={setWebsite} placeholder="https://www.ministry.gov" />
-      <PrimaryButton onClick={handleSubmit} loading={loading}>Create government account</PrimaryButton>
+      <Turnstile onVerify={setCaptchaToken} />
+      <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captchaToken}>Create government account</PrimaryButton>
       <button onClick={onBack} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-900">Back to options</button>
       <p className="text-center text-[11px] text-ink-400">
         Verified by MadeVisa before you can publish — usually within 1-2 business days.

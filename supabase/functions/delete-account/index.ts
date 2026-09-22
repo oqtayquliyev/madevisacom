@@ -12,12 +12,20 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const ALLOWED_ORIGINS = new Set(['https://madevisa.com', 'https://www.madevisa.com']);
+
+function corsHeadersFor(req: Request) {
+  const origin = req.headers.get('Origin') ?? '';
+  return {
+    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.has(origin) ? origin : 'https://madevisa.com',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Vary': 'Origin',
+  };
+}
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
