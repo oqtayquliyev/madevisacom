@@ -276,7 +276,7 @@ async function fetchJobDetailPage(detailUrl: string, signal: AbortSignal): Promi
   if (!descriptionHtml) return null;
 
   return {
-    descriptionHtml,
+    descriptionHtml: formatDescriptionHtml(descriptionHtml) + additionalPropertiesHtml(jsonLd),
     offices: fromDdo?.offices?.length ? fromDdo.offices : officesFromJsonLdLocations(jsonLd?.jobLocation),
     category: fromDdo?.category ?? jsonLdMeta.category ?? null,
     employmentTypeRaw: fromDdo?.employmentTypeRaw ?? jsonLdMeta.employmentTypeRaw ?? null,
@@ -519,6 +519,85 @@ function extractJobLinksFromHtml(html: string, baseUrl: string): string[] {
   return links;
 }
 
+/** Section-header labels commonly found in job postings — matched as a
+ *  whole trimmed line (case-insensitive, optional trailing colon), not
+ *  a substring, to avoid false positives on ordinary sentences that
+ *  happen to contain one of these words. Extend this list as new
+ *  sites/formats turn up ones not covered yet. */
+const SECTION_HEADER_KEYWORDS = [
+  'job description', 'about the role', 'about this role', 'summary',
+  'job requirements', 'requirements', 'essential requirements', 'nice-to-have',
+  'nice to have', 'must-have', 'must have', 'preferred qualifications',
+  'key responsibilities', 'responsibilities', 'major accountabilities',
+  'what you will achieve', 'how you will achieve it', 'why patients need you',
+  'qualifications', 'skills', 'about you', 'who you are',
+  'benefits and rewards', 'benefits', 'what we offer', 'rewards',
+  'other job details', 'additional information', 'diversity statement',
+  'eeo statement', 'about us', 'who we are',
+];
+
+function isSectionHeaderLine(line: string): boolean {
+  const normalized = line.trim().replace(/:$/, '').toLowerCase();
+  return SECTION_HEADER_KEYWORDS.includes(normalized);
+}
+
+/**
+ * Normalizes a job description into clean HTML paragraphs/headings.
+ *
+ * schema.org JobPosting's `description` field is frequently just plain
+ * text with newline-separated paragraphs (no HTML at all) — passing
+ * that straight through meant every line break silently vanished once
+ * rendered (browsers collapse raw whitespace), producing one giant
+ * run-together block. If the source already contains real HTML tags,
+ * this leaves it alone; otherwise it splits on blank lines, turns any
+ * line matching a known section-header label into a <h3> (which the
+ * frontend's sanitizer/stylesheet renders bold and larger, with the
+ * heading's own natural spacing — no inline styles needed, since those
+ * get stripped by the sanitizer anyway), and wraps everything else in
+ * <p> tags.
+ */
+function formatDescriptionHtml(raw: string): string {
+  if (!raw) return '';
+  if (/<\s*(p|div|ul|ol|br|h[1-6])[\s>]/i.test(raw)) return raw; // already real HTML — leave as-is
+
+  const paragraphs = raw
+    .replace(/\r\n/g, '\n')
+    .split(/\n\s*\n|\n(?=[A-Z][a-z]+.{0,40}:?\s*$)/) // blank lines, or a line break right before a short Title-Case line (likely a header run together with no blank line — common in scraped plain text)
+    .flatMap((chunk) => chunk.split(/\n/))
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return paragraphs
+    .map((line) => (isSectionHeaderLine(line) ? `<h3>${line.replace(/:$/, '')}</h3>` : `<p>${line}</p>`))
+    .join('');
+}
+
+/**
+ * schema.org's sanctioned way for a site to attach extra structured
+ * fields beyond the core JobPosting properties (Division, Business
+ * Unit, Site, Functional Area, Shift Work, Company/Legal Entity, and
+ * whatever else a given platform tracks) is the `additionalProperty`
+ * array of PropertyValue objects. Not every site populates it, but
+ * when present it's exactly the kind of metadata worth surfacing —
+ * appended here as a clean list rather than lost.
+ */
+function additionalPropertiesHtml(jsonLd: any): string {
+  const props = jsonLd?.additionalProperty;
+  if (!Array.isArray(props) || props.length === 0) return '';
+
+  const items = props
+    .map((p: any) => {
+      const name = p?.name ?? p?.propertyID;
+      const value = p?.value;
+      if (!name || value === undefined || value === null || value === '') return null;
+      return `<li><strong>${String(name)}:</strong> ${String(value)}</li>`;
+    })
+    .filter(Boolean)
+    .join('');
+
+  return items ? `<h3>Additional Details</h3><ul>${items}</ul>` : '';
+}
+
 /** Builds a full job record from a detail page's own JSON-LD block —
  *  this is the PRIMARY source here (unlike the Phenom flow, where
  *  JSON-LD is only used to fill gaps around the ddo blob), so unlike
@@ -536,13 +615,14 @@ function normalizedJobFromJsonLd(jsonLd: any, detailUrl: string): NormalizedJob 
   const externalId = String(identifierValue ?? idFromUrl ?? detailUrl);
 
   const offices = officesFromJsonLdLocations(jsonLd.jobLocation);
+  const descriptionHtml = formatDescriptionHtml(jsonLd.description ? String(jsonLd.description) : '') + additionalPropertiesHtml(jsonLd);
 
   return {
     externalId,
     title,
     locationText: offices[0] ?? "",
     offices,
-    descriptionHtml: jsonLd.description ? String(jsonLd.description) : "",
+    descriptionHtml,
     url: detailUrl,
     category: firstOf(jsonLd, ["occupationalCategory", "industry"]) ?? null,
     employmentTypeRaw: jsonLd.employmentType
