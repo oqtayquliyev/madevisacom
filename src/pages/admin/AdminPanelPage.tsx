@@ -42,7 +42,7 @@ import {
 } from '@/lib/admin';
 import { ImageUploadField } from '@/components/common/ImageUploadField';
 import { fetchCountries, type CountryOption } from '@/lib/programs';
-import { fetchGreenhouseJobs, sanitizeJobHtml } from '@/lib/atsImport';
+import { fetchJobsFromCareersUrl, sanitizeJobHtml } from '@/lib/atsImport';
 import {
   COST_STATUSES,
   JOB_CATEGORIES,
@@ -519,7 +519,7 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
     setFetchError(null);
     setPreview(null);
     setResult(null);
-    const res = await fetchGreenhouseJobs(boardToken);
+    const res = await fetchJobsFromCareersUrl(boardToken);
     setFetching(false);
     if (!res.ok) {
       setFetchError(res.error ?? 'Could not fetch that board.');
@@ -578,21 +578,20 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
       <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Import jobs from an ATS</h2>
       <div className="mt-3 border border-ink-200 bg-white p-4">
         <p className="text-xs text-ink-500">
-          Pulls live listings from a company's public Greenhouse job board — a documented, no-auth endpoint meant
-          for exactly this kind of syndication. Imported jobs land as <strong>pending</strong>, same review flow as
-          everything else.
+          Pulls live listings from a company's Greenhouse board or Phenom-powered careers page (auto-detected).
+          Imported jobs land as <strong>pending</strong>, same review flow as everything else.
         </p>
 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
-            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Greenhouse board token</label>
+            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Greenhouse token or careers page URL</label>
             <input
               value={boardToken}
               onChange={(e) => setBoardToken(e.target.value)}
-              placeholder="e.g. stripe"
+              placeholder="stripe, or https://careers.roche.com/global/en/search-results"
               className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
             />
-            <p className="mt-1 text-[10px] text-ink-400">The slug in boards.greenhouse.io/&lt;this&gt;</p>
+            <p className="mt-1 text-[10px] text-ink-400">A bare token (e.g. "stripe") or Greenhouse URL fetches directly; any other careers URL is auto-detected (currently: Phenom-powered sites).</p>
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-semibold text-ink-500">Company name (as shown on MadeVisa)</label>
