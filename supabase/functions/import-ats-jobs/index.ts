@@ -629,6 +629,13 @@ async function fetchGenericJobsViaLinks(
   const deadline = Date.now() + DETAIL_FETCH_TIME_BUDGET_MS;
   let cursor = 0;
 
+  // Tracked so that, if every single link fails, the error we surface
+  // says WHY rather than just "zero jobs" — those are very different
+  // situations (bot-blocked vs. genuinely no usable data) and look
+  // identical to the caller unless we distinguish them here.
+  let fetchFailures = 0; // non-OK HTTP status or network/timeout error
+  let noDataExtracted = 0; // page fetched fine, but no JSON-LD and no <title>
+
   async function worker() {
     while (cursor < links.length && Date.now() < deadline) {
       const link = links[cursor++];
@@ -636,20 +643,49 @@ async function fetchGenericJobsViaLinks(
       const timer = setTimeout(() => controller.abort(), DETAIL_FETCH_TIMEOUT_MS);
       try {
         const res = await fetch(link, { headers: { "User-Agent": USER_AGENT, Accept: "text/html" }, signal: controller.signal });
-        if (!res.ok) continue;
+        if (!res.ok) {
+          fetchFailures++;
+          continue;
+        }
         const html = await res.text();
         const jsonLd = extractJsonLdJobPosting(html);
         const job = jsonLd ? normalizedJobFromJsonLd(jsonLd, link) : fallbackJobFromTitleTag(html, link);
-        if (job) jobs.push(job);
+        if (job) {
+          jobs.push(job);
+        } else {
+          noDataExtracted++;
+        }
       } catch {
-        // timed out or errored on this one link — move on, keep the rest of the batch
+        fetchFailures++;
       } finally {
         clearTimeout(timer);
       }
+      // Small stagger between this worker's requests — 6 workers firing
+      // as fast as possible looks like a burst to basic rate-limiting/
+      // bot-detection; spacing them out is cheap insurance against
+      // exactly the kind of site this generic strategy targets (large
+      // corporate sites, more likely than average to have some bot
+      // mitigation in front of them).
+      await sleep(200);
     }
   }
 
   await Promise.all(Array.from({ length: DETAIL_FETCH_CONCURRENCY }, worker));
+
+  if (jobs.length === 0) {
+    // Found real job links, but couldn't get data from a single one of
+    // them — say specifically what happened instead of returning an
+    // empty ok:true result, which the frontend can only report as a
+    // generic "zero jobs" with no way to tell these cases apart.
+    if (fetchFailures === links.length) {
+      throw new Error(
+        `Found ${links.length} job link(s) on the listing page, but every single detail-page request failed (blocked, rate-limited, or timed out). This site likely has bot protection rejecting automated requests — a slower/serial fetch pattern may be needed for this site specifically.`
+      );
+    }
+    throw new Error(
+      `Found ${links.length} job link(s), fetched ${links.length - fetchFailures} of them successfully, but none had usable data (no JSON-LD JobPosting block and no <title> tag). This site's job pages may need a dedicated parser.`
+    );
+  }
 
   return { jobs, nextFrom: startFrom + 1, totalHits: null };
 }
