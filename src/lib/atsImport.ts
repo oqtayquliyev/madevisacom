@@ -87,3 +87,64 @@ export function stripHtml(html: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+// ---------------------------------------------------------------------------
+// Generic (non-Greenhouse) careers-page import — e.g. Phenom People sites
+// like Roche's, which don't allow direct cross-origin browser fetches the
+// way Greenhouse's public API does. Proxied through the import-ats-jobs
+// Supabase edge function.
+// ---------------------------------------------------------------------------
+
+import { supabase } from '@/lib/supabase';
+
+export type FetchJobsResult =
+  | {
+      ok: true;
+      jobs: { externalId: string; title: string; locationText: string; offices: string[]; descriptionHtml: string; url: string }[];
+    }
+  | { ok: false; error: string };
+
+function isGreenhouseUrl(value: string): boolean {
+  try {
+    return new URL(value).hostname.includes('greenhouse.io');
+  } catch {
+    return false;
+  }
+}
+
+function extractGreenhouseToken(value: string): string {
+  try {
+    const u = new URL(value);
+    return u.pathname.split('/').filter(Boolean)[0] ?? value.trim();
+  } catch {
+    return value.trim(); // wasn't a URL at all — treat as a bare token
+  }
+}
+
+/**
+ * Entry point for the "Import jobs from a careers page" admin section.
+ * Accepts either:
+ *   - a bare Greenhouse board token (e.g. "stripe")
+ *   - a full Greenhouse URL (e.g. "https://boards.greenhouse.io/stripe")
+ *   - a full careers page URL for a Phenom-powered site (e.g. Roche) —
+ *     proxied through the import-ats-jobs edge function.
+ */
+export async function fetchJobsFromCareersUrl(input: string): Promise<FetchJobsResult> {
+  const trimmed = input.trim();
+  if (!trimmed) return { ok: false, error: 'Enter a Greenhouse token or a careers page URL.' };
+
+  const looksLikeUrl = /^https?:\/\//i.test(trimmed);
+
+  if (!looksLikeUrl || isGreenhouseUrl(trimmed)) {
+    const token = looksLikeUrl ? extractGreenhouseToken(trimmed) : trimmed;
+    return fetchGreenhouseJobs(token);
+  }
+
+  const { data, error } = await supabase.functions.invoke('import-ats-jobs', {
+    body: { url: trimmed },
+  });
+
+  if (error) return { ok: false, error: error.message };
+  if (!data?.ok) return { ok: false, error: data?.error ?? 'Import failed.' };
+  return { ok: true, jobs: data.jobs };
+}
