@@ -288,8 +288,6 @@ function ExploreMoreTile({ countryParam, destinationName, jobCount }: { countryP
     </a>
   );
 }
-  );
-}
 
 function CostBreakdownPopover({ est, onClose }: { est: JourneyCostBreakdown; onClose: () => void }) {
   return (
