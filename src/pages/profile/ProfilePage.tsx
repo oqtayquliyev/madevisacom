@@ -7,6 +7,7 @@ import {
   Building2,
   Camera,
   CheckCircle2,
+  Clock,
   Copy,
   Compass,
   Download,
@@ -42,6 +43,7 @@ import {
   type SponsoredProgram,
 } from '@/lib/programs';
 import { fetchMySponsoredJobs, updateMySponsoredJob, type SponsoredJob } from '@/lib/sponsoredJobs';
+import { getRecentlyViewedJobs, type ViewedJobSnapshot } from '@/lib/viewedJobs';
 import { uploadListingImage } from '@/lib/uploadImage';
 import { deleteMyAccount } from '@/lib/accountDeletion';
 import { OriginCountryProvider, useOriginCountry } from '@/lib/originCountry';
@@ -177,6 +179,14 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   const savedAgencies = useMemo(() => applications.filter((a) => a.kind === 'agency'), [applications]);
   const savedExperts = useMemo(() => applications.filter((a) => a.kind === 'expert'), [applications]);
   const savedDestinations = useMemo(() => applications.filter((a) => a.kind === 'destination'), [applications]);
+
+  // Client-only, same as "Saved" — reads straight from localStorage,
+  // loaded once on mount since the tab switch itself doesn't remount
+  // this component.
+  const [recentlyViewedJobs, setRecentlyViewedJobs] = useState<ViewedJobSnapshot[]>([]);
+  useEffect(() => {
+    setRecentlyViewedJobs(getRecentlyViewedJobs());
+  }, []);
 
   const journeyDestinations = useMemo(() => {
     const map = new Map<string, { country: string; countryCode: string; count: number }>();
@@ -577,6 +587,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
               onBrowse={() => go('jobs')}
               onRemove={handleRemove}
             />
+            <RecentlyViewedSection items={recentlyViewedJobs} onBrowse={() => go('jobs')} />
             <SavedSection
               icon={GraduationCap}
               title="Saved programs"
@@ -887,6 +898,46 @@ function SummaryCard({
       <p className="mt-0.5 text-lg font-bold text-ink-950">{value}</p>
       <p className="mt-1 text-xs text-ink-400">{detail}</p>
     </button>
+  );
+}
+
+function RecentlyViewedSection({ items, onBrowse }: { items: ViewedJobSnapshot[]; onBrowse: () => void }) {
+  // Deliberately no "empty state" card here (unlike Saved) — an empty
+  // recent-views list is the normal, unremarkable case for most
+  // visits, not something worth a dedicated call-to-action block.
+  if (items.length === 0) return null;
+
+  return (
+    <section>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-ink-400" />
+          <h2 className="text-lg font-bold text-ink-950">Recently viewed</h2>
+          <span className="text-xs text-ink-400">({items.length})</span>
+        </div>
+        <span className="text-xs text-ink-400">Clears after 48 hours</span>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {items.map((item) => (
+          <a
+            key={item.id}
+            href={`/jobs/${item.id}`}
+            className="flex items-start justify-between gap-3 border border-ink-200 bg-white p-4 transition hover:border-brand-300"
+          >
+            <div className="min-w-0">
+              {item.countryCode && (
+                <div className="flex items-center gap-1.5 text-xs text-ink-400">
+                  <CircleFlagInline countryCode={item.countryCode} />
+                  {item.country}
+                </div>
+              )}
+              <h3 className="mt-1 truncate text-sm font-bold text-ink-900">{item.title}</h3>
+              <p className="truncate text-xs text-ink-500">{item.organization}</p>
+            </div>
+          </a>
+        ))}
+      </div>
+    </section>
   );
 }
 
