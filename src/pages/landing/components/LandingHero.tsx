@@ -53,14 +53,14 @@ const journeys: {
     icon: Briefcase,
   },
   {
-    id: 'study',
-    label: 'Study',
-    icon: GraduationCap,
-  },
-  {
     id: 'programs',
     label: 'Programs',
     icon: Building2,
+  },
+  {
+    id: 'study',
+    label: 'Study',
+    icon: GraduationCap,
   },
 ];
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { jobPath } from '@/lib/jobUrl';
 import {
   Briefcase,
@@ -209,6 +209,39 @@ function pickDiverseByCompany(items: MatchItem[], count: number): MatchItem[] {
   return picked;
 }
 
+/**
+ * Animates a number from its previous value up (or down) to `target`
+ * with requestAnimationFrame — works the same on desktop and mobile.
+ * Returns 0 until `target` is known.
+ */
+function useCountUp(target: number | null, duration = 1400): number {
+  const [value, setValue] = useState(0);
+  const currentRef = useRef(0);
+
+  useEffect(() => {
+    if (target == null) return;
+    const from = currentRef.current;
+    if (from === target) {
+      setValue(target);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out: fast start, gentle landing
+      const next = Math.round(from + (target - from) * eased);
+      currentRef.current = next;
+      setValue(next);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+
+  return value;
+}
+
 export function LocationMatchSection({
   items,
   originCode,
@@ -226,6 +259,7 @@ export function LocationMatchSection({
   const visibleItems = items?.filter((item) => !destinationCode || item.countryCode === destinationCode) ?? null;
   const shownItems = visibleItems ? pickDiverseByCompany(visibleItems, 4) : null;
   const countryParam = destinationCountry ? `?country=${encodeURIComponent(destinationCountry.name)}` : '';
+  const animatedCount = useCountUp(visibleItems ? visibleItems.length : null);
 
   return (
     <div className="px-6 py-8 sm:px-8">
@@ -237,6 +271,16 @@ export function LocationMatchSection({
 
       <h2 className="mt-3 text-xl font-bold tracking-tight text-ink-950 sm:text-2xl">
         From <span className="text-brand-600">{originName ?? 'your country'}</span> to{' '}
+        {visibleItems ? (
+          <a
+            href={`/jobs${countryParam}`}
+            className="inline-block rounded-md bg-brand-50 px-1.5 tabular-nums text-brand-700 ring-1 ring-brand-100 transition hover:bg-brand-100"
+          >
+            {animatedCount.toLocaleString()}
+          </a>
+        ) : (
+          <span className="skeleton-shimmer inline-block h-[1.1em] w-20 rounded-md align-[-0.2em]" aria-hidden="true" />
+        )}{' '}
         {destinationCountry ? (
           <>
             opportunities in <span className="text-brand-600">{destinationCountry.name}</span>
@@ -245,20 +289,13 @@ export function LocationMatchSection({
           'opportunities worldwide'
         )}
       </h2>
-      {visibleItems && visibleItems.length > 0 && (
-        <p className="mt-1 text-sm text-ink-500">
-          <a href={`/jobs${countryParam}`} className="font-bold text-ink-900 underline decoration-2 underline-offset-2 hover:text-brand-700">
-            {visibleItems.length.toLocaleString()}
-          </a>{' '}
-          opportunities {destinationCountry ? <>in <span className="font-bold text-brand-600">{destinationCountry.name}</span> and abroad</> : 'worldwide'}
-        </p>
-      )}
 
       {shownItems === null ? (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-[360px] animate-pulse rounded-lg bg-ink-100" />
+        <div className="mt-6 grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 lg:grid-cols-5" aria-busy="true" aria-label="Loading opportunities">
+          {[0, 1, 2, 3].map((i) => (
+            <MatchCardSkeleton key={i} />
           ))}
+          <div className="skeleton-shimmer h-[360px] rounded-lg" />
         </div>
       ) : shownItems.length === 0 ? (
         <div className="mt-6 flex flex-col items-center justify-center gap-2 rounded border-2 border-dashed border-ink-200 bg-white px-5 py-10 text-center">
@@ -273,35 +310,66 @@ export function LocationMatchSection({
           {shownItems.map((item) => (
             <MatchCard key={`${item.kind}-${item.id}`} item={item} originCode={originCode} />
           ))}
-          <ExploreMoreTile countryParam={countryParam} destinationName={destinationCountry?.name} />
+          <ExploreMoreTile countryParam={countryParam} destinationName={destinationCountry?.name} count={animatedCount} />
         </div>
       )}
     </div>
   );
 }
 
-function ExploreMoreTile({ countryParam, destinationName }: { countryParam: string; destinationName?: string }) {
+/** Grey animated placeholder shaped like a real MatchCard. */
+function MatchCardSkeleton() {
   return (
-    <div className="flex h-[360px] flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-brand-200 bg-brand-50/40 p-4 text-center">
-      <span className="grid h-14 w-14 place-items-center rounded-full bg-brand-100 text-brand-600">
-        <ArrowRight className="h-6 w-6" />
+    <div className="flex h-[360px] flex-col rounded-lg border border-ink-200 bg-white p-4">
+      <div className="skeleton-shimmer h-14 w-14 rounded" />
+      <div className="skeleton-shimmer mt-4 h-4 w-11/12 rounded" />
+      <div className="skeleton-shimmer mt-2 h-4 w-3/5 rounded" />
+      <div className="skeleton-shimmer mt-3 h-3 w-2/5 rounded" />
+      <div className="mt-3 flex items-center gap-2">
+        <div className="skeleton-shimmer h-4 w-4 rounded-full" />
+        <div className="skeleton-shimmer h-3 w-1/3 rounded" />
+      </div>
+      <div className="mt-3 flex gap-2">
+        <div className="skeleton-shimmer h-5 w-20 rounded" />
+        <div className="skeleton-shimmer h-5 w-14 rounded" />
+      </div>
+      <div className="skeleton-shimmer mt-3 h-3 w-1/4 rounded" />
+      <div className="skeleton-shimmer mt-auto h-8 w-full rounded-lg" />
+    </div>
+  );
+}
+
+function ExploreMoreTile({ countryParam, destinationName, count }: { countryParam: string; destinationName?: string; count: number }) {
+  return (
+    <div className="relative flex h-[360px] flex-col items-center justify-center gap-3 overflow-hidden rounded-lg border border-brand-200 bg-gradient-to-br from-brand-50 via-white to-indigo-50 p-4 text-center shadow-sm">
+      {/* Soft decorative shapes */}
+      <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-brand-200/50 blur-2xl" />
+      <span aria-hidden="true" className="pointer-events-none absolute -bottom-12 -left-10 h-40 w-40 rounded-full bg-indigo-200/50 blur-2xl" />
+      <span aria-hidden="true" className="pointer-events-none absolute left-6 top-8 h-3 w-3 rotate-45 rounded-sm bg-brand-300/60" />
+      <span aria-hidden="true" className="pointer-events-none absolute bottom-24 right-6 h-2.5 w-2.5 rounded-full bg-indigo-300/70" />
+
+      <span className="relative grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-500 text-white shadow-lg shadow-brand-500/25">
+        <Briefcase className="h-6 w-6" />
       </span>
-      <div>
-        <p className="text-sm font-bold text-ink-900">Explore more</p>
-        <p className="mt-0.5 text-xs text-ink-500">
-          {destinationName ? `All opportunities in ${destinationName}` : 'All sponsored opportunities'}
+
+      <div className="relative">
+        <p className="text-3xl font-extrabold tracking-tight text-ink-950 tabular-nums">{count.toLocaleString()}</p>
+        <p className="mt-0.5 text-xs font-medium text-ink-500">
+          {destinationName ? `opportunities in ${destinationName}` : 'opportunities open now'}
         </p>
       </div>
-      <div className="flex flex-col gap-2 w-full">
+
+      <div className="relative flex w-full flex-col gap-2">
         <a
           href={`/jobs${countryParam}`}
-          className="rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700"
+          className="flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:-translate-y-0.5 hover:bg-brand-700"
         >
+          <Briefcase className="h-4 w-4" />
           Explore Jobs
         </a>
         <a
           href={`/programs${countryParam}`}
-          className="rounded-lg border border-brand-300 bg-white px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+          className="rounded-lg border border-brand-300 bg-white/80 px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50"
         >
           Explore Programs
         </a>
