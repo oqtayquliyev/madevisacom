@@ -10,6 +10,7 @@ import {
   Building2,
   ArrowRight,
   ChevronDown,
+  Search,
   ChevronRight,
   Globe2,
   Info,
@@ -255,6 +256,7 @@ export function LocationMatchSection({
   setOriginCountry: (code: string) => void;
 }) {
   const [destinationCode, setDestinationCode] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const destinationCountry = allCountries.find((c) => c.code === destinationCode);
   const visibleItems = items?.filter((item) => !destinationCode || item.countryCode === destinationCode) ?? null;
@@ -275,7 +277,7 @@ export function LocationMatchSection({
         {visibleItems ? (
           <a
             href={`/jobs${countryParam}`}
-            className="inline-block rounded-md bg-brand-50 px-1.5 tabular-nums text-brand-700 ring-1 ring-brand-100 transition hover:bg-brand-100"
+            className="tabular-nums text-brand-700 underline decoration-2 underline-offset-4 transition hover:text-brand-800"
           >
             {animatedCount.toLocaleString()}
           </a>
@@ -289,7 +291,52 @@ export function LocationMatchSection({
         ) : (
           'opportunities worldwide'
         )}
+        <a
+          href={`/jobs${countryParam}`}
+          aria-label="See all jobs"
+          className="group ml-2 inline-flex items-center align-middle text-brand-600 hover:text-brand-700"
+        >
+          <GrowingArrow />
+        </a>
       </h2>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const params = new URLSearchParams();
+          if (query.trim()) params.set('q', query.trim());
+          if (destinationCountry) params.set('country', destinationCountry.name);
+          const qs = params.toString();
+          // In-app navigation (no reload): App listens for popstate and
+          // JobsPage reads q/country from the URL when it opens.
+          window.history.pushState({}, '', qs ? `/jobs?${qs}` : '/jobs');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+          window.scrollTo({ top: 0 });
+        }}
+        className="mt-4 flex flex-col gap-2 sm:flex-row"
+      >
+        <div className="flex h-12 flex-1 items-center gap-3 rounded-md border border-ink-300 bg-white px-3.5 focus-within:border-brand-400">
+          <Search className="h-4.5 w-4.5 shrink-0 text-ink-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Job title, skill, company or city"
+            className="h-full w-full bg-transparent text-sm font-medium text-ink-900 outline-none placeholder:text-ink-400"
+          />
+          {query && (
+            <button type="button" onClick={() => setQuery('')} aria-label="Clear search" className="text-ink-400 hover:text-ink-700">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <button
+          type="submit"
+          className="flex h-12 items-center justify-center gap-2 rounded-md bg-brand-600 px-6 text-sm font-semibold text-white transition hover:bg-brand-700"
+        >
+          <Search className="h-4 w-4" />
+          Search
+        </button>
+      </form>
 
       {shownItems === null ? (
         <div className="mt-6 grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 lg:grid-cols-5" aria-busy="true" aria-label="Loading opportunities">
@@ -340,6 +387,16 @@ function MatchCardSkeleton() {
   );
 }
 
+/** Arrow whose shaft grows when its parent `group` is hovered/pressed. */
+function GrowingArrow() {
+  return (
+    <span aria-hidden="true" className="flex items-center">
+      <span className="h-[2px] w-2.5 rounded-full bg-current transition-all duration-300 ease-out group-hover:w-6 group-active:w-6" />
+      <ChevronRight className="-ml-[10px] h-4 w-4" strokeWidth={2.75} />
+    </span>
+  );
+}
+
 function ExploreMoreTile({ countryParam, destinationName, count }: { countryParam: string; destinationName?: string; count: number }) {
   // The whole tile is one link to the Jobs page.
   return (
@@ -357,10 +414,7 @@ function ExploreMoreTile({ countryParam, destinationName, count }: { countryPara
       <span className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition group-hover:bg-brand-700">
         Explore Jobs
         {/* Arrow whose shaft grows on hover */}
-        <span aria-hidden="true" className="flex items-center">
-          <span className="h-[2px] w-2.5 rounded-full bg-current transition-all duration-300 ease-out group-hover:w-6 group-active:w-6" />
-          <ChevronRight className="-ml-[10px] h-4 w-4" strokeWidth={2.75} />
-        </span>
+        <GrowingArrow />
       </span>
     </a>
   );
@@ -440,9 +494,8 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
 
         {snippet && <p className="mt-2 line-clamp-2 text-xs leading-5 text-ink-500">{snippet}</p>}
 
-        {item.postedDate && <p className="mt-1.5 text-[11px] text-ink-400">Posted {formatRelativeTime(item.postedDate)}</p>}
-
         <div className="mt-auto pt-2">
+          {item.postedDate && <p className="mb-2 text-xs font-semibold text-ink-800">Posted {formatRelativeTime(item.postedDate)}</p>}
           {showCostPill && (
             <div className="flex items-center gap-1 border-t border-ink-100 pt-2">
               <span className="truncate rounded bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">
