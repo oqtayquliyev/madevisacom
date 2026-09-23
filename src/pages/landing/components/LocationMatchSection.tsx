@@ -10,6 +10,7 @@ import {
   Building2,
   ArrowRight,
   ChevronDown,
+  ChevronUp,
   Search,
   ChevronRight,
   Globe2,
@@ -404,7 +405,13 @@ function ExploreMoreTile({ countryParam, destinationName, count }: { countryPara
       href={`/jobs${countryParam}`}
       className="group flex h-[360px] flex-col items-center justify-center gap-4 rounded-lg border border-brand-600/20 bg-gradient-to-br from-brand-600/[0.04] via-brand-600/[0.08] to-brand-600/[0.16] p-4 text-center transition hover:-translate-y-0.5 hover:border-brand-600/40 hover:shadow-soft-lg"
     >
-      <div>
+      <div className="flex flex-col items-center">
+        {/* Outlined arrow head pointing up — rises and grows on hover */}
+        <ChevronUp
+          aria-hidden="true"
+          className="mb-1 h-9 w-9 text-brand-600 transition-transform duration-300 ease-out group-hover:-translate-y-1 group-hover:scale-125 group-active:-translate-y-1 group-active:scale-125"
+          strokeWidth={2.5}
+        />
         <p className="text-3xl font-extrabold tracking-tight text-ink-950 tabular-nums">{count.toLocaleString()}</p>
         <p className="mt-0.5 text-xs font-medium text-ink-500">
           {destinationName ? `opportunities in ${destinationName}` : 'opportunities open now'}
