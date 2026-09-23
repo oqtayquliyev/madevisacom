@@ -10,6 +10,7 @@ import {
   Building2,
   ArrowRight,
   ChevronDown,
+  ChevronRight,
   Globe2,
   Info,
   X,
@@ -340,41 +341,28 @@ function MatchCardSkeleton() {
 }
 
 function ExploreMoreTile({ countryParam, destinationName, count }: { countryParam: string; destinationName?: string; count: number }) {
+  // The whole tile is one link to the Jobs page.
   return (
-    <div className="relative flex h-[360px] flex-col items-center justify-center gap-3 overflow-hidden rounded-lg border border-brand-200 bg-gradient-to-br from-brand-50 via-white to-indigo-50 p-4 text-center shadow-sm">
-      {/* Soft decorative shapes */}
-      <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-brand-200/50 blur-2xl" />
-      <span aria-hidden="true" className="pointer-events-none absolute -bottom-12 -left-10 h-40 w-40 rounded-full bg-indigo-200/50 blur-2xl" />
-      <span aria-hidden="true" className="pointer-events-none absolute left-6 top-8 h-3 w-3 rotate-45 rounded-sm bg-brand-300/60" />
-      <span aria-hidden="true" className="pointer-events-none absolute bottom-24 right-6 h-2.5 w-2.5 rounded-full bg-indigo-300/70" />
-
-      <span className="relative grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-500 text-white shadow-lg shadow-brand-500/25">
-        <Briefcase className="h-6 w-6" />
-      </span>
-
-      <div className="relative">
+    <a
+      href={`/jobs${countryParam}`}
+      className="group flex h-[360px] flex-col items-center justify-center gap-4 rounded-lg border border-brand-600/20 bg-gradient-to-br from-brand-600/[0.04] via-brand-600/[0.08] to-brand-600/[0.16] p-4 text-center transition hover:-translate-y-0.5 hover:border-brand-600/40 hover:shadow-soft-lg"
+    >
+      <div>
         <p className="text-3xl font-extrabold tracking-tight text-ink-950 tabular-nums">{count.toLocaleString()}</p>
         <p className="mt-0.5 text-xs font-medium text-ink-500">
           {destinationName ? `opportunities in ${destinationName}` : 'opportunities open now'}
         </p>
       </div>
 
-      <div className="relative flex w-full flex-col gap-2">
-        <a
-          href={`/jobs${countryParam}`}
-          className="flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:-translate-y-0.5 hover:bg-brand-700"
-        >
-          <Briefcase className="h-4 w-4" />
-          Explore Jobs
-        </a>
-        <a
-          href={`/programs${countryParam}`}
-          className="rounded-lg border border-brand-300 bg-white/80 px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50"
-        >
-          Explore Programs
-        </a>
-      </div>
-    </div>
+      <span className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition group-hover:bg-brand-700">
+        Explore Jobs
+        {/* Arrow whose shaft grows on hover */}
+        <span aria-hidden="true" className="flex items-center">
+          <span className="h-[2px] w-2.5 rounded-full bg-current transition-all duration-300 ease-out group-hover:w-6 group-active:w-6" />
+          <ChevronRight className="-ml-[10px] h-4 w-4" strokeWidth={2.75} />
+        </span>
+      </span>
+    </a>
   );
 }
 
