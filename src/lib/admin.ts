@@ -13,6 +13,7 @@ export type PendingPublisher = {
   contact_email: string;
   verification_status: string;
   created_at: string;
+  logo_url: string | null;
   country?: { name: string; iso_code: string } | null;
 };
 
@@ -49,7 +50,7 @@ export type PendingAgency = {
 };
 
 const publisherColumns =
-  'id, org_type, name, website, contact_email, verification_status, created_at, country:countries(name, iso_code)';
+  'id, org_type, name, website, contact_email, verification_status, created_at, logo_url, country:countries(name, iso_code)';
 const programColumns =
   'id, title, category, status, created_at, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const sponsoredJobColumns =

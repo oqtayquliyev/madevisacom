@@ -196,7 +196,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
               items={verifiedPublishers}
               searchText={(p) => `${p.name} ${p.contact_email}`}
               renderRow={(p) => (
-                <PublisherRow key={p.id} p={p} onChange={loadAll}>
+                <PublisherRow key={p.id} p={p} onChange={loadAll} allowLogo>
                   <button
                     onClick={async () => { const r = await setPublisherStatus(p.id, 'suspended'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
                     className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
@@ -284,12 +284,28 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
   );
 }
 
-function PublisherRow({ p, onChange, children }: { p: PendingPublisher; onChange: () => void; children: React.ReactNode }) {
+function PublisherRow({
+  p,
+  onChange,
+  children,
+  allowLogo = false,
+}: {
+  p: PendingPublisher;
+  onChange: () => void;
+  children: React.ReactNode;
+  allowLogo?: boolean;
+}) {
   const Icon = orgIcon[p.org_type];
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(p.name);
   const [email, setEmail] = useState(p.contact_email);
   const [saving, setSaving] = useState(false);
+
+  const [showLogoTool, setShowLogoTool] = useState(false);
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoMessage, setLogoMessage] = useState<string | null>(null);
+  const { profile } = useAuth();
 
   const save = async () => {
     setSaving(true);
@@ -304,10 +320,29 @@ function PublisherRow({ p, onChange, children }: { p: PendingPublisher; onChange
     }
   };
 
+  const applyLogo = async () => {
+    if (!logoUrl) return;
+    setLogoBusy(true);
+    setLogoMessage(null);
+    const result = await setPublisherLogoForAllJobs(p.id, logoUrl);
+    setLogoBusy(false);
+    if (result.ok) {
+      setShowLogoTool(false);
+      setLogoUrl('');
+      onChange();
+    } else {
+      setLogoMessage(result.error ?? 'Could not apply logo.');
+    }
+  };
+
   return (
     <Row>
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500">
-        <Icon className="h-4 w-4" />
+      <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-ink-50 text-ink-500">
+        {p.logo_url ? (
+          <img src={p.logo_url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <Icon className="h-4 w-4" />
+        )}
       </span>
       <div className="min-w-0 flex-1">
         {editing ? (
@@ -342,7 +377,30 @@ function PublisherRow({ p, onChange, children }: { p: PendingPublisher; onChange
             </p>
           </>
         )}
+
+        {allowLogo && showLogoTool && (
+          <div className="mt-2 max-w-xs rounded-lg border border-ink-200 bg-white p-3">
+            <p className="text-[11px] text-ink-500">Applied to every {p.name} job (pending, published, and any future ones) at once.</p>
+            {profile?.id && <ImageUploadField userId={profile.id} value={logoUrl} onChange={setLogoUrl} label="Company logo" />}
+            <button
+              onClick={applyLogo}
+              disabled={logoBusy || !logoUrl}
+              className="mt-2 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {logoBusy ? 'Applying…' : 'Apply'}
+            </button>
+            {logoMessage && <p className="mt-1.5 text-xs font-medium text-rose-600">{logoMessage}</p>}
+          </div>
+        )}
       </div>
+      {allowLogo && (
+        <button
+          onClick={() => setShowLogoTool((v) => !v)}
+          className="shrink-0 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50"
+        >
+          {p.logo_url ? 'Change logo' : 'Set logo'}
+        </button>
+      )}
       {children}
     </Row>
   );
