@@ -66,19 +66,39 @@ export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
 }
 
 /** Fetches published sponsored jobs — meant to be merged into the main Jobs board. */
-export async function fetchPublishedSponsoredJobs(): Promise<SponsoredJob[]> {
-  const { data, error } = await supabase
-    .from('sponsored_jobs')
-    .select(columns)
-    .eq('status', 'published')
-    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-    .order('created_at', { ascending: false });
+// Supabase/PostgREST caps any single request at 1000 rows by default —
+// with more published jobs than that (increasingly likely as more
+// companies get imported), a single .select() silently truncates and
+// the site shows a stale, too-low "X opportunities" count. Paginating
+// with .range() in 1000-row pages until a page comes back short is the
+// standard way to pull every row past that default cap.
+const SUPABASE_MAX_ROWS_PER_REQUEST = 1000;
 
-  if (error) {
-    console.error('fetchPublishedSponsoredJobs failed', error);
-    return [];
+export async function fetchPublishedSponsoredJobs(): Promise<SponsoredJob[]> {
+  const all: SponsoredJob[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('sponsored_jobs')
+      .select(columns)
+      .eq('status', 'published')
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .order('created_at', { ascending: false })
+      .range(from, from + SUPABASE_MAX_ROWS_PER_REQUEST - 1);
+
+    if (error) {
+      console.error('fetchPublishedSponsoredJobs failed', error);
+      return all; // return whatever pages already succeeded rather than discarding them
+    }
+
+    const page = (data ?? []) as unknown as SponsoredJob[];
+    all.push(...page);
+    if (page.length < SUPABASE_MAX_ROWS_PER_REQUEST) break; // last page
+    from += SUPABASE_MAX_ROWS_PER_REQUEST;
   }
-  return (data ?? []) as unknown as SponsoredJob[];
+
+  return all;
 }
 
 export async function fetchMySponsoredJobs(publisherId: string): Promise<SponsoredJob[]> {

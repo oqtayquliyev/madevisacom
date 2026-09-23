@@ -24,6 +24,7 @@ import { categories, countries, jobTypes, type Job } from '@/data/jobs';
 import { DISCOVERY_CATEGORIES, matchesDiscoveryCategory } from '@/lib/jobCategories';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
 
 type JobsPageProps = {
@@ -144,7 +145,7 @@ function SourceLabel({ job }: { job: Job }) {
   }
   return (
     <span className="flex items-center gap-1 text-[11px] text-ink-400">
-      Source: {job.company} careers · Added by madevisa
+      Source: {job.company} careers ·
       <Logo variant="header" style={{ height: '1em', width: 'auto' }} />
     </span>
   );
@@ -190,9 +191,17 @@ function SaveButton({
 
 function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void }) {
   const isExternal = job.sourceType === 'live_feed';
+  const viewed = isJobViewed(job.id);
 
   const inner = (
     <>
+      {/* Absolutely positioned so it never affects the card's height —
+          overlaid on top of existing content rather than adding a row. */}
+      {viewed && (
+        <span className="absolute right-3 top-3 rounded-full bg-ink-900/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+          Viewed
+        </span>
+      )}
       <div className="flex items-start gap-3.5">
         <JobLogo job={job} size={52} />
         <div className="min-w-0 flex-1">
@@ -225,7 +234,7 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
   );
 
   const cardClass =
-    'group block rounded-lg border border-ink-900/15 bg-white p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg sm:p-6';
+    'group relative block rounded-lg border border-ink-900/15 bg-white p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg sm:p-6';
 
   if (isExternal) {
     return (
@@ -239,9 +248,9 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
     <div
       role="link"
       tabIndex={0}
-      onClick={() => goToJob?.(job.id)}
+      onClick={() => { markJobViewed(job.id, { id: job.id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url }); goToJob?.(job.id); }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') goToJob?.(job.id);
+        if (e.key === 'Enter') { markJobViewed(job.id, { id: job.id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url }); goToJob?.(job.id); }
       }}
       className={`${cardClass} cursor-pointer`}
     >
@@ -490,6 +499,21 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   };
 
   const countryOptions = ['All countries', ...countries.map((c) => c.name)];
+  // The full `countries` list will keep growing as more destinations
+  // get added; capping the pill row to a fixed top 8 (with the rest
+  // reachable via the "Filters" dropdown, which already lists all of
+  // them) keeps this row from wrapping into a wall of pills. If the
+  // active filter is a country outside that top 8, swap it into the
+  // last slot so the selection is always visible here without the
+  // person needing to open Filters just to see what's applied.
+  const POPULAR_COUNTRY_PILL_COUNT = 8;
+  const topCountries = countries.slice(0, POPULAR_COUNTRY_PILL_COUNT);
+  const visibleCountryPills =
+    country !== 'All countries' && !topCountries.some((c) => c.name === country)
+      ? [...topCountries.slice(0, POPULAR_COUNTRY_PILL_COUNT - 1), countries.find((c) => c.name === country)].filter(
+          (c): c is (typeof countries)[number] => Boolean(c)
+        )
+      : topCountries;
 
   const activeFilterCount =
     Number(country !== 'All countries') +
@@ -565,7 +589,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
             </button>
           </div>
 
-          <div className="-mx-5 mt-5 flex gap-2 overflow-x-auto px-5 pb-1 sm:mx-0 sm:px-0">
+          <div className="-mx-5 mt-5 flex flex-wrap gap-2 px-5 pb-1 sm:mx-0 sm:px-0">
             <button
               type="button"
               onClick={() => setCountry('All countries')}
@@ -576,7 +600,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
               <Globe2 className="h-3.5 w-3.5" />
               All countries
             </button>
-            {countries.map((item) => (
+            {visibleCountryPills.map((item) => (
               <button
                 key={item.code}
                 type="button"

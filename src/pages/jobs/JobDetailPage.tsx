@@ -4,6 +4,7 @@ import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { fetchSponsoredJobById, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { markJobViewed } from '@/lib/viewedJobs';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
 import { EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -34,6 +35,14 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       setJob(curatedJobs.find((j) => j.id === id) ?? null);
     }
   }, [id]);
+
+  // Marks this job "viewed" (for the listing page's badge and the
+  // profile page's recent list) whenever the person actually lands
+  // here with real job data loaded — covers direct links/bookmarks as
+  // well as clicking through from a card.
+  useEffect(() => {
+    if (job) markJobViewed(id, { id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url });
+  }, [job, id]);
 
   useSeo({
     title: job ? `${job.title} at ${job.company}` : 'Job',
