@@ -94,7 +94,21 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
 
       <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
-        <button onClick={() => go('jobs')} className="flex items-center gap-1.5 text-xs font-semibold text-ink-500 hover:text-ink-800">
+        <button
+          onClick={() => {
+            // Real browser back navigation, not go('jobs') — that pushes
+            // a bare /jobs with no query string, silently dropping
+            // whatever search/filters were active on the list. Back
+            // returns to that exact previous /jobs?... URL instead, and
+            // JobsPage already reads its filters from the URL on mount,
+            // so they come back automatically. Falls back to go('jobs')
+            // only when there's nowhere to go back to (e.g. this page
+            // was opened directly/in a new tab).
+            if (window.history.length > 1) window.history.back();
+            else go('jobs');
+          }}
+          className="flex items-center gap-1.5 text-xs font-semibold text-ink-500 hover:text-ink-800"
+        >
           <ArrowLeft className="h-3.5 w-3.5" />
           All jobs
         </button>

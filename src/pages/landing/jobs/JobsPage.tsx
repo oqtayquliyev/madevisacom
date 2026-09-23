@@ -17,6 +17,7 @@ import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
+import { Logo } from '@/components/layout/Logo';
 import { categories, countries, jobTypes, type Job } from '@/data/jobs';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
@@ -64,15 +65,20 @@ function matchesDiscoveryCategory(rawCategory: string, bucket: string): boolean 
   return keywords.some((k) => s.includes(k));
 }
 
-function formatDateTag(iso: string | null | undefined): { label: 'NEW' | 'ADDED'; dateText: string } | null {
+function formatDateTag(iso: string | null | undefined): { text: string; isNew: boolean } | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  const days = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24);
+
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return { text: 'Added today', isNew: true };
+  if (diffDays === 1) return { text: 'Added yesterday', isNew: true };
+
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dateText = `${dd}/${mm}/${d.getFullYear()}`;
-  return { label: days <= 3 ? 'NEW' : 'ADDED', dateText };
+  return { text: `${dd}/${mm}/${d.getFullYear()}`, isNew: false };
 }
 
 function withinDateWindow(iso: string | null | undefined, window: DatePostedOption): boolean {
@@ -108,10 +114,10 @@ function DateTag({ job }: { job: Job }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded px-1.5 py-[3px] text-[10px] font-bold tracking-wide text-white ${
-        tag.label === 'NEW' ? 'bg-emerald-600' : 'bg-ink-800'
+        tag.isNew ? 'bg-emerald-600' : 'bg-ink-800'
       }`}
     >
-      {tag.label} · {tag.dateText}
+      {tag.text}
     </span>
   );
 }
@@ -123,7 +129,13 @@ function SourceLabel({ job }: { job: Job }) {
   if (job.sourceType === 'live_feed') {
     return <span className="text-[11px] text-ink-400">Source: {job.source} · live listing</span>;
   }
-  return <span className="text-[11px] text-ink-400">Source: {job.company} careers · Added by MadeVisa</span>;
+  return (
+    <span className="flex items-center gap-1 text-[11px] text-ink-400">
+      Source: {job.company} careers ·
+      <Logo variant="footer" className="h-3 w-auto opacity-70" />
+      Added by MadeVisa
+    </span>
+  );
 }
 
 function SaveButton({
@@ -261,7 +273,7 @@ function SelectField({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-10 w-full items-center justify-between rounded-md border border-ink-200 bg-white px-3 text-left text-sm font-medium text-ink-800 transition hover:border-brand-300"
+        className="flex h-10 w-full items-center justify-between rounded-md border border-ink-300 bg-white px-3 text-left text-sm font-medium text-ink-800 transition hover:border-brand-400"
       >
         <span className="truncate">{value}</span>
         <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${open ? 'rotate-180' : ''}`} />
@@ -269,7 +281,7 @@ function SelectField({
       {open && (
         <>
           <button type="button" aria-label={`Close ${label}`} onClick={() => setOpen(false)} className="fixed inset-0 z-20 cursor-default" />
-          <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-md border border-ink-200 bg-white p-1 shadow-xl">
+          <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-md border border-ink-300 bg-white p-1 shadow-xl">
             {options.map((option) => (
               <button
                 key={option}
@@ -298,7 +310,7 @@ function TextField({ label, value, onChange, placeholder }: { label: string; val
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-10 w-full rounded-md border border-ink-200 bg-white px-3 text-sm font-medium text-ink-900 outline-none placeholder:text-ink-400 focus:border-brand-400"
+        className="h-10 w-full rounded-md border border-ink-300 bg-white px-3 text-sm font-medium text-ink-900 outline-none placeholder:text-ink-400 focus:border-brand-400"
       />
     </div>
   );
@@ -559,18 +571,12 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
               )}
               <SelectField label="Date posted" value={datePosted} options={[...DATE_POSTED_OPTIONS]} onChange={(v) => setDatePosted(v as DatePostedOption)} />
 
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-ink-500">Remote</label>
-                <button
-                  type="button"
-                  onClick={() => setRemoteOnly((v) => !v)}
-                  className={`flex h-10 w-full items-center justify-between rounded-md border px-3 text-left text-sm font-medium transition ${
-                    remoteOnly ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-200 bg-white text-ink-700'
-                  }`}
-                >
-                  Remote only
-                </button>
-              </div>
+              <SelectField
+                label="Remote"
+                value={remoteOnly ? 'Remote only' : 'Any'}
+                options={['Any', 'Remote only']}
+                onChange={(v) => setRemoteOnly(v === 'Remote only')}
+              />
 
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-ink-500">Salary</label>
@@ -578,7 +584,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
                   type="button"
                   onClick={() => setSalaryOnly((v) => !v)}
                   className={`flex h-10 w-full items-center justify-between rounded-md border px-3 text-left text-sm font-medium transition ${
-                    salaryOnly ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-200 bg-white text-ink-700'
+                    salaryOnly ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-300 bg-white text-ink-700 hover:border-brand-400'
                   }`}
                 >
                   Salary listed only
