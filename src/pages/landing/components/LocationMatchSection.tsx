@@ -20,39 +20,13 @@ import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/spons
 import { fetchSponsoredPrograms } from '@/lib/programs';
 import { formatCost } from '@/lib/listingCategories';
 import { stripHtml } from '@/lib/atsImport';
-import { formatShortDate } from '@/lib/dates';
+import { formatRelativeTime } from '@/lib/dates';
 import type { Job } from '@/data/jobs';
 import { CircleFlag } from '@/components/common/CircleFlag';
 
 export type MatchItem =
   | { kind: 'job'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; remote: boolean; salary?: string; imageUrl?: string | null; createdAt: string; description?: string | null; postedDate?: string | null }
   | { kind: 'program'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; funding: string | null; imageUrl?: string | null; createdAt: string; description?: string | null; postedDate?: string | null };
-
-/** Selects up to `count` items favoring variety of `org` — one per
- *  distinct org on the first pass through the list (in its existing
- *  order), a second per org on a second pass, and so on. Only repeats
- *  an org once every other org already shown has had its turn, so a
- *  handful of orgs with hundreds of items each can't crowd out the
- *  rest just because they happen to sort first. */
-function pickDiverseByOrg<T extends { org: string }>(items: T[], count: number): T[] {
-  const byOrg = new Map<string, T[]>();
-  for (const item of items) {
-    const list = byOrg.get(item.org);
-    if (list) list.push(item);
-    else byOrg.set(item.org, [item]);
-  }
-  const queues = Array.from(byOrg.values());
-  const picked: T[] = [];
-  let round = 0;
-  while (picked.length < count && queues.some((q) => round < q.length)) {
-    for (const q of queues) {
-      if (picked.length >= count) break;
-      if (round < q.length) picked.push(q[round]);
-    }
-    round++;
-  }
-  return picked;
-}
 
 
 /** Fetches every published job + program once. Shared by the landing
@@ -216,15 +190,7 @@ export function LocationMatchSection({
 
   const destinationCountry = allCountries.find((c) => c.code === destinationCode);
   const visibleItems = items?.filter((item) => !destinationCode || item.countryCode === destinationCode) ?? null;
-  // Pick for variety, not just recency: walk items in their given order,
-  // taking at most one per org on the first pass, a second per org on
-  // the second pass, and so on — so four different companies show up
-  // whenever four are available, rather than whichever single company
-  // happened to have the most recent imports dominating all four slots.
-  // Falls back naturally to repeats from fewer companies when there
-  // simply aren't four distinct ones yet.
-  const shownItems = visibleItems ? pickDiverseByOrg(visibleItems, 4) : null;
-  const totalJobCount = visibleItems?.filter((item) => item.kind === 'job').length ?? 0;
+  const shownItems = visibleItems?.slice(0, 4) ?? null;
   const countryParam = destinationCountry ? `?country=${encodeURIComponent(destinationCountry.name)}` : '';
 
   return (
@@ -242,14 +208,7 @@ export function LocationMatchSection({
       {shownItems === null ? (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-[360px] rounded-lg border border-ink-900/10 bg-white p-5">
-              <div className="h-9 w-9 rounded-lg skeleton-shimmer" />
-              <div className="mt-3 h-3 w-2/3 rounded skeleton-shimmer" />
-              <div className="mt-2 h-4 w-full rounded skeleton-shimmer" />
-              <div className="mt-1 h-4 w-4/5 rounded skeleton-shimmer" />
-              <div className="mt-4 h-3 w-1/2 rounded skeleton-shimmer" />
-              <div className="mt-6 h-24 w-full rounded skeleton-shimmer" />
-            </div>
+            <div key={i} className="h-[360px] animate-pulse rounded-lg bg-ink-100" />
           ))}
         </div>
       ) : shownItems.length === 0 ? (
@@ -265,34 +224,40 @@ export function LocationMatchSection({
           {shownItems.map((item) => (
             <MatchCard key={`${item.kind}-${item.id}`} item={item} originCode={originCode} />
           ))}
-          <ExploreMoreTile countryParam={countryParam} destinationName={destinationCountry?.name} jobCount={totalJobCount} />
+          <ExploreMoreTile countryParam={countryParam} destinationName={destinationCountry?.name} />
         </div>
       )}
     </div>
   );
 }
 
-function ExploreMoreTile({ countryParam, destinationName, jobCount }: { countryParam: string; destinationName?: string; jobCount: number }) {
-  const jobLabel = jobCount === 1 ? '1 job' : `${jobCount.toLocaleString()} jobs`;
+function ExploreMoreTile({ countryParam, destinationName }: { countryParam: string; destinationName?: string }) {
   return (
-    <a
-      href={`/jobs${countryParam}`}
-      className="group flex h-[360px] flex-col items-center justify-center gap-3 rounded-lg border-2 border-brand-300 bg-gradient-to-b from-brand-50 to-brand-100/60 p-5 text-center transition hover:border-brand-500 hover:shadow-lg"
-    >
-      <span className="grid h-14 w-14 place-items-center rounded-full bg-brand-600 text-white transition group-hover:translate-x-1">
+    <div className="flex h-[360px] flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-brand-200 bg-brand-50/40 p-4 text-center">
+      <span className="grid h-14 w-14 place-items-center rounded-full bg-brand-100 text-brand-600">
         <ArrowRight className="h-6 w-6" />
       </span>
       <div>
-        <p className="text-base font-extrabold text-ink-950">Explore all jobs</p>
-        <p className="mt-1 text-sm font-semibold text-brand-700">
-          {jobCount > 0 ? `${jobLabel} waiting${destinationName ? ` in ${destinationName}` : ''}` : destinationName ? `All opportunities in ${destinationName}` : 'All sponsored opportunities'}
+        <p className="text-sm font-bold text-ink-900">Explore more</p>
+        <p className="mt-0.5 text-xs text-ink-500">
+          {destinationName ? `All opportunities in ${destinationName}` : 'All sponsored opportunities'}
         </p>
       </div>
-      <span className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition group-hover:bg-brand-700 group-hover:gap-2.5">
-        See all jobs
-        <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
-      </span>
-    </a>
+      <div className="flex flex-col gap-2 w-full">
+        <a
+          href={`/jobs${countryParam}`}
+          className="rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700"
+        >
+          Explore Jobs
+        </a>
+        <a
+          href={`/programs${countryParam}`}
+          className="rounded-lg border border-brand-300 bg-white px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+        >
+          Explore Programs
+        </a>
+      </div>
+    </div>
   );
 }
 
@@ -370,7 +335,7 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
 
         {snippet && <p className="mt-2 line-clamp-2 text-xs leading-5 text-ink-500">{snippet}</p>}
 
-        {item.postedDate && <p className="mt-1.5 text-[11px] text-ink-400">Posted {formatShortDate(item.postedDate)}</p>}
+        {item.postedDate && <p className="mt-1.5 text-[11px] text-ink-400">Posted {formatRelativeTime(item.postedDate)}</p>}
 
         <div className="mt-auto pt-2">
           {showCostPill && (

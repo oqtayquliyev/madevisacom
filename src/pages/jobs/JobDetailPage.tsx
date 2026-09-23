@@ -4,7 +4,6 @@ import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { fetchSponsoredJobById, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
-import { markJobViewed } from '@/lib/viewedJobs';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
 import { EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -13,7 +12,7 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { useSeo } from '@/lib/seo';
 import { sanitizeJobHtml } from '@/lib/atsImport';
-import { formatShortDate } from '@/lib/dates';
+import { formatRelativeTime } from '@/lib/dates';
 import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
 
 type JobDetailPageProps = {
@@ -35,14 +34,6 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       setJob(curatedJobs.find((j) => j.id === id) ?? null);
     }
   }, [id]);
-
-  // Marks this job "viewed" (for the listing page's badge and the
-  // profile page's recent list) whenever the person actually lands
-  // here with real job data loaded — covers direct links/bookmarks as
-  // well as clicking through from a card.
-  useEffect(() => {
-    if (job) markJobViewed(id, { id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url });
-  }, [job, id]);
 
   useSeo({
     title: job ? `${job.title} at ${job.company}` : 'Job',
@@ -168,7 +159,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               </div>
               <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-400">
                 <Calendar className="h-3.5 w-3.5" />
-                Posted {formatShortDate(job.postedDate)}
+                Posted {formatRelativeTime(job.postedDate)}
               </div>
             </div>
 

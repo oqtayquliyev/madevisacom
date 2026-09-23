@@ -24,8 +24,8 @@ import { categories, countries, jobTypes, type Job } from '@/data/jobs';
 import { DISCOVERY_CATEGORIES, matchesDiscoveryCategory } from '@/lib/jobCategories';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
-import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
+import { formatRelativeTime } from '@/lib/dates';
 
 type JobsPageProps = {
   go: (view: View) => void;
@@ -45,15 +45,9 @@ function formatDateTag(iso: string | null | undefined): { text: string; tier: 't
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
 
-  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / (1000 * 60 * 60 * 24));
-
-  if (diffDays <= 0) return { text: 'Added today', tier: 'today' };
-  if (diffDays === 1) return { text: 'Added yesterday', tier: 'yesterday' };
-
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return { text: `${dd}/${mm}/${d.getFullYear()}`, tier: 'older' };
+  const hours = (Date.now() - d.getTime()) / (1000 * 60 * 60);
+  const tier: 'today' | 'yesterday' | 'older' = hours < 24 ? 'today' : hours < 48 ? 'yesterday' : 'older';
+  return { text: formatRelativeTime(iso), tier };
 }
 
 function withinDateWindow(iso: string | null | undefined, window: DatePostedOption): boolean {
@@ -65,32 +59,6 @@ function withinDateWindow(iso: string | null | undefined, window: DatePostedOpti
   if (window === 'Past 24 hours') return days <= 1;
   if (window === 'Past week') return days <= 7;
   return days <= 31;
-}
-
-/** Round-robins a list across `company` so that, when hundreds of jobs
- *  come from a handful of companies (a big ATS import batch), scrolling
- *  through the list alternates between companies instead of running
- *  through one company's entire batch before the next company ever
- *  appears. Preserves each company's own relative order — this only
- *  reorders which company gets the next slot, not each company's
- *  internal ordering (already applied by the caller, e.g. newest-first). */
-function interleaveByCompany(jobs: Job[]): Job[] {
-  const byCompany = new Map<string, Job[]>();
-  for (const job of jobs) {
-    const list = byCompany.get(job.company);
-    if (list) list.push(job);
-    else byCompany.set(job.company, [job]);
-  }
-  const queues = Array.from(byCompany.values());
-  const result: Job[] = [];
-  let round = 0;
-  while (result.length < jobs.length) {
-    for (const q of queues) {
-      if (round < q.length) result.push(q[round]);
-    }
-    round++;
-  }
-  return result;
 }
 
 function JobLogo({ job, size = 48 }: { job: Job; size?: number }) {
@@ -145,7 +113,7 @@ function SourceLabel({ job }: { job: Job }) {
   }
   return (
     <span className="flex items-center gap-1 text-[11px] text-ink-400">
-      Source: {job.company} careers ·
+      Source: {job.company} careers · Added by madevisa
       <Logo variant="header" style={{ height: '1em', width: 'auto' }} />
     </span>
   );
@@ -191,17 +159,9 @@ function SaveButton({
 
 function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void }) {
   const isExternal = job.sourceType === 'live_feed';
-  const viewed = isJobViewed(job.id);
 
   const inner = (
     <>
-      {/* Absolutely positioned so it never affects the card's height —
-          overlaid on top of existing content rather than adding a row. */}
-      {viewed && (
-        <span className="absolute right-3 top-3 rounded-full bg-ink-900/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-          Viewed
-        </span>
-      )}
       <div className="flex items-start gap-3.5">
         <JobLogo job={job} size={52} />
         <div className="min-w-0 flex-1">
@@ -234,7 +194,7 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
   );
 
   const cardClass =
-    'group relative block rounded-lg border border-ink-900/15 bg-white p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg sm:p-6';
+    'group block rounded-lg border border-ink-900/15 bg-white p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg sm:p-6';
 
   if (isExternal) {
     return (
@@ -248,9 +208,9 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
     <div
       role="link"
       tabIndex={0}
-      onClick={() => { markJobViewed(job.id, { id: job.id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url }); goToJob?.(job.id); }}
+      onClick={() => goToJob?.(job.id)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') { markJobViewed(job.id, { id: job.id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url }); goToJob?.(job.id); }
+        if (e.key === 'Enter') goToJob?.(job.id);
       }}
       className={`${cardClass} cursor-pointer`}
     >
@@ -263,14 +223,14 @@ function JobCardSkeleton() {
   return (
     <div className="rounded-lg border border-ink-200 bg-white p-5 sm:p-6">
       <div className="flex items-start gap-3.5">
-        <div className="h-[52px] w-[52px] shrink-0 rounded-lg skeleton-shimmer" />
+        <div className="h-[52px] w-[52px] shrink-0 animate-pulse rounded-lg bg-ink-100" />
         <div className="min-w-0 flex-1 space-y-2 pt-1">
-          <div className="h-3 w-1/3 rounded skeleton-shimmer" />
-          <div className="h-4 w-2/3 rounded skeleton-shimmer" />
+          <div className="h-3 w-1/3 animate-pulse rounded bg-ink-100" />
+          <div className="h-4 w-2/3 animate-pulse rounded bg-ink-100" />
         </div>
       </div>
-      <div className="mt-4 h-3 w-1/2 rounded skeleton-shimmer" />
-      <div className="mt-5 h-3 w-1/3 rounded skeleton-shimmer" />
+      <div className="mt-4 h-3 w-1/2 animate-pulse rounded bg-ink-100" />
+      <div className="mt-5 h-3 w-1/3 animate-pulse rounded bg-ink-100" />
     </div>
   );
 }
@@ -394,26 +354,10 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   }, []);
 
   const allJobs = useMemo(() => [...sponsoredJobs, ...liveJobs], [liveJobs, sponsoredJobs]);
-  // OR, not AND: sponsored jobs and the live feed are two independent
-  // fetches that resolve at different times (sponsored now paginates
-  // past Supabase's 1000-row cap, so it can genuinely take longer than
-  // the live feed). With AND, as soon as the faster one finished while
-  // the other was still in flight, `loading` flipped to false too
-  // early — showing "No jobs found" for a moment before the slower
-  // fetch's results actually arrived. Staying "loading" until BOTH are
-  // done (or something has already arrived to show) fixes that flash.
-  const loading = (loadingLive || loadingSponsored) && allJobs.length === 0;
+  const loading = loadingLive && loadingSponsored && allJobs.length === 0;
 
   const cityOptions = useMemo(() => Array.from(new Set(allJobs.map((j) => j.city).filter(Boolean))).sort(), [allJobs]);
   const companyOptions = useMemo(() => Array.from(new Set(allJobs.map((j) => j.company).filter(Boolean))).sort(), [allJobs]);
-  // Unlike cityOptions/companyOptions above, this used to come from the
-  // small hardcoded `countries` list (the same one behind the pill
-  // row) rather than the actual job data — so as soon as jobs existed
-  // in a country outside that curated set (India, Singapore, etc. —
-  // already true today), there was no way to filter by them even
-  // though their jobs were right there on the page. Deriving it from
-  // allJobs, same as the other two, fixes that.
-  const jobCountryOptions = useMemo(() => Array.from(new Set(allJobs.map((j) => j.country).filter(Boolean))).sort(), [allJobs]);
   const experienceLevelOptions = useMemo(
     () => Array.from(new Set(allJobs.map((j) => j.experienceLevel).filter((v): v is string => Boolean(v)))).sort(),
     [allJobs]
@@ -484,23 +428,14 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       );
     });
 
-    // Diversify by company instead of returning `matched` in whatever
-    // order the underlying fetches produced it (grouped by import
-    // batch, so one company's hundreds of listings run together before
-    // the next company appears at all — confusing when scrolling
-    // through hundreds of jobs from what will eventually be hundreds
-    // of companies). "newest" sorts each company's own jobs newest
-    // first, then round-robins across companies; "relevant" round-
-    // robins in the existing order without re-sorting within a company.
     if (sortBy === 'newest') {
-      const sorted = [...matched].sort((a, b) => {
+      return [...matched].sort((a, b) => {
         const da = a.postedDate ? new Date(a.postedDate).getTime() : 0;
         const db = b.postedDate ? new Date(b.postedDate).getTime() : 0;
         return db - da;
       });
-      return interleaveByCompany(sorted);
     }
-    return interleaveByCompany(matched);
+    return matched;
   }, [allJobs, search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy]);
 
   const visibleJobs = filteredJobs.slice(0, visibleCount);
@@ -514,22 +449,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     }, 300);
   };
 
-  const countryOptions = ['All countries', ...jobCountryOptions];
-  // The full `countries` list will keep growing as more destinations
-  // get added; capping the pill row to a fixed top 8 (with the rest
-  // reachable via the "Filters" dropdown, which already lists all of
-  // them) keeps this row from wrapping into a wall of pills. If the
-  // active filter is a country outside that top 8, swap it into the
-  // last slot so the selection is always visible here without the
-  // person needing to open Filters just to see what's applied.
-  const POPULAR_COUNTRY_PILL_COUNT = 8;
-  const topCountries = countries.slice(0, POPULAR_COUNTRY_PILL_COUNT);
-  const visibleCountryPills =
-    country !== 'All countries' && !topCountries.some((c) => c.name === country)
-      ? [...topCountries.slice(0, POPULAR_COUNTRY_PILL_COUNT - 1), countries.find((c) => c.name === country)].filter(
-          (c): c is (typeof countries)[number] => Boolean(c)
-        )
-      : topCountries;
+  const countryOptions = ['All countries', ...countries.map((c) => c.name)];
 
   const activeFilterCount =
     Number(country !== 'All countries') +
@@ -605,7 +525,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
             </button>
           </div>
 
-          <div className="-mx-5 mt-5 flex flex-wrap gap-2 px-5 pb-1 sm:mx-0 sm:px-0">
+          <div className="-mx-5 mt-5 flex gap-2 overflow-x-auto px-5 pb-1 sm:mx-0 sm:px-0">
             <button
               type="button"
               onClick={() => setCountry('All countries')}
@@ -616,7 +536,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
               <Globe2 className="h-3.5 w-3.5" />
               All countries
             </button>
-            {visibleCountryPills.map((item) => (
+            {countries.map((item) => (
               <button
                 key={item.code}
                 type="button"
