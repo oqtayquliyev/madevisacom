@@ -10,7 +10,6 @@ import {
   Building2,
   ArrowRight,
   ChevronDown,
-  ChevronUp,
   Search,
   ChevronRight,
   Globe2,
@@ -388,6 +387,15 @@ function MatchCardSkeleton() {
   );
 }
 
+/** Up arrow (icons8 "up"), colored via currentColor. */
+function UpArrowIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+      <path d="M 12 2.9296875 L 4.9296875 10 L 6.4296875 11.5 L 11 6.9296875 L 11 21 L 13 21 L 13 6.9296875 L 17.570312 11.5 L 19.070312 10 L 12 2.9296875 z" />
+    </svg>
+  );
+}
+
 /** Arrow whose shaft grows when its parent `group` is hovered/pressed. */
 function GrowingArrow() {
   return (
@@ -406,13 +414,11 @@ function ExploreMoreTile({ countryParam, destinationName, count }: { countryPara
       className="group flex h-[360px] flex-col items-center justify-center gap-4 rounded-lg border border-brand-600/20 bg-gradient-to-br from-brand-600/[0.04] via-brand-600/[0.08] to-brand-600/[0.16] p-4 text-center transition hover:-translate-y-0.5 hover:border-brand-600/40 hover:shadow-soft-lg"
     >
       <div className="flex flex-col items-center">
-        {/* Outlined arrow head pointing up — rises and grows on hover */}
-        <ChevronUp
-          aria-hidden="true"
-          className="mb-1 h-9 w-9 text-brand-600 transition-transform duration-300 ease-out group-hover:-translate-y-1 group-hover:scale-125 group-active:-translate-y-1 group-active:scale-125"
-          strokeWidth={2.5}
-        />
-        <p className="text-3xl font-extrabold tracking-tight text-ink-950 tabular-nums">{count.toLocaleString()}</p>
+        <p className="flex items-center gap-1.5 text-3xl font-extrabold tracking-tight text-ink-950 tabular-nums">
+          {/* Green up arrow — rises slightly on hover/tap */}
+          <UpArrowIcon className="h-7 w-7 text-emerald-600 transition-transform duration-300 ease-out group-hover:-translate-y-1 group-active:-translate-y-1" />
+          {count.toLocaleString()}
+        </p>
         <p className="mt-0.5 text-xs font-medium text-ink-500">
           {destinationName ? `opportunities in ${destinationName}` : 'opportunities open now'}
         </p>
