@@ -28,6 +28,7 @@ import {
   setPublisherStatus,
   setSponsoredJobStatus,
   setPublisherLogoForAllJobs,
+  backfillJobFunctions,
   updateAgencyName,
   updateProgramAsAdmin,
   updatePublisherContactEmail,
@@ -170,6 +171,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
           <>
             <AdminAccessSection admins={admins} currentEmail={profile?.email ?? ''} onChange={loadAll} />
 
+            <BackfillJobFunctionsSection onChange={loadAll} />
+
             <ImportFromAtsSection countries={countries} onImported={loadAll} />
 
             <ImportFromCareersUrlSection countries={countries} onImported={loadAll} />
@@ -193,7 +196,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
               items={verifiedPublishers}
               searchText={(p) => `${p.name} ${p.contact_email}`}
               renderRow={(p) => (
-                <PublisherRow key={p.id} p={p} onChange={loadAll} allowLogo>
+                <PublisherRow key={p.id} p={p} onChange={loadAll}>
                   <button
                     onClick={async () => { const r = await setPublisherStatus(p.id, 'suspended'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
                     className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
@@ -281,17 +284,12 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
   );
 }
 
-function PublisherRow({ p, onChange, allowLogo = false, children }: { p: PendingPublisher; onChange: () => void; allowLogo?: boolean; children: React.ReactNode }) {
+function PublisherRow({ p, onChange, children }: { p: PendingPublisher; onChange: () => void; children: React.ReactNode }) {
   const Icon = orgIcon[p.org_type];
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(p.name);
   const [email, setEmail] = useState(p.contact_email);
   const [saving, setSaving] = useState(false);
-  const [showLogoTool, setShowLogoTool] = useState(false);
-  const [logoUrl, setLogoUrl] = useState(p.logo_url ?? '');
-  const [logoBusy, setLogoBusy] = useState(false);
-  const [logoMessage, setLogoMessage] = useState<string | null>(null);
-  const { profile } = useAuth();
 
   const save = async () => {
     setSaving(true);
@@ -306,89 +304,47 @@ function PublisherRow({ p, onChange, allowLogo = false, children }: { p: Pending
     }
   };
 
-  const applyLogo = async () => {
-    if (!logoUrl) return;
-    setLogoBusy(true);
-    setLogoMessage(null);
-    const result = await setPublisherLogoForAllJobs(p.id, logoUrl);
-    setLogoBusy(false);
-    if (result.ok) {
-      setLogoMessage('Logo updated.');
-      setShowLogoTool(false);
-      onChange();
-    } else {
-      setLogoMessage(result.error ?? 'Could not apply logo.');
-    }
-  };
-
   return (
-    <div>
-      <Row>
-        <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-ink-50 text-ink-500">
-          {p.logo_url ? <img src={p.logo_url} alt="" className="h-full w-full object-cover" /> : <Icon className="h-4 w-4" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          {editing ? (
-            <div className="space-y-1.5">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Organization name"
-                className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500"
-              />
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Contact email"
-                className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500"
-              />
-              <div className="flex items-center gap-2">
-                <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
-                <button onClick={() => { setEditing(false); setName(p.name); setEmail(p.contact_email); }} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
-              </div>
+    <Row>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500">
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        {editing ? (
+          <div className="space-y-1.5">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Organization name"
+              className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500"
+            />
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Contact email"
+              className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500"
+            />
+            <div className="flex items-center gap-2">
+              <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
+              <button onClick={() => { setEditing(false); setName(p.name); setEmail(p.contact_email); }} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
             </div>
-          ) : (
-            <>
-              <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
-                {p.name}
-                <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600">
-                  <Pencil className="h-3 w-3" />
-                </button>
-              </p>
-              <p className="text-xs text-ink-500">
-                {p.org_type} · {p.contact_email}{p.country ? ` · ${p.country.name}` : ''}{p.website ? ` · ${p.website}` : ''}
-              </p>
-            </>
-          )}
-        </div>
-        {allowLogo && (
-          <button
-            onClick={() => setShowLogoTool((v) => !v)}
-            className="shrink-0 rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-600 hover:bg-ink-50"
-          >
-            {p.logo_url ? 'Change logo' : 'Set logo'}
-          </button>
+          </div>
+        ) : (
+          <>
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
+              {p.name}
+              <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600">
+                <Pencil className="h-3 w-3" />
+              </button>
+            </p>
+            <p className="text-xs text-ink-500">
+              {p.org_type} · {p.contact_email}{p.country ? ` · ${p.country.name}` : ''}{p.website ? ` · ${p.website}` : ''}
+            </p>
+          </>
         )}
-        {children}
-      </Row>
-
-      {allowLogo && showLogoTool && (
-        <div className="mx-3 mb-2 rounded-lg border border-ink-200 bg-white p-3">
-          <p className="text-[11px] text-ink-500">
-            Sets this company's logo — shown on its profile and applied to every one of its jobs at once (pending, published, and any future ones).
-          </p>
-          {profile?.id && <ImageUploadField userId={profile.id} value={logoUrl} onChange={setLogoUrl} label="Company logo" />}
-          <button
-            onClick={applyLogo}
-            disabled={logoBusy || !logoUrl}
-            className="mt-2 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-          >
-            {logoBusy ? 'Applying…' : 'Apply logo'}
-          </button>
-          {logoMessage && <p className="mt-1.5 text-xs font-medium text-ink-600">{logoMessage}</p>}
-        </div>
-      )}
-    </div>
+      </div>
+      {children}
+    </Row>
   );
 }
 
@@ -513,6 +469,60 @@ function AdminAccessSection({ admins, currentEmail, onChange }: { admins: AdminP
             ))}
           </div>
         )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * One-off fixup section for jobs imported before job_function existed —
+ * see backfillJobFunctions in src/lib/admin.ts for what this actually
+ * does. Safe to run repeatedly (it only ever touches jobs that still
+ * have no job_function), and safe to leave visible permanently since
+ * it's a no-op button once everything's classified — but it earns its
+ * spot at the top of the page while there's a backlog to clear.
+ */
+function BackfillJobFunctionsSection({ onChange }: { onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async () => {
+    setBusy(true);
+    setResult(null);
+    setError(null);
+    const res = await backfillJobFunctions();
+    setBusy(false);
+    if (res.ok) {
+      setResult(
+        `Categorized ${res.updated} job${res.updated === 1 ? '' : 's'} from their titles.` +
+          (res.skipped > 0 ? ` ${res.skipped} didn't match any known category and were left as-is.` : '')
+      );
+      onChange();
+    } else {
+      setError(res.error ?? 'Backfill failed.');
+    }
+  };
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Fix existing job categories</h2>
+      <div className="mt-3 border border-ink-200 bg-white p-4">
+        <p className="text-xs text-ink-500">
+          Jobs imported before category tracking existed have no job function set, so they won't show up under any category
+          filter on the public Jobs page. This classifies each one from its title (Design, Engineering, Healthcare, ...) and
+          fills it in directly — no re-import needed, and nothing else about the job is touched. Safe to run more than once;
+          it only ever affects jobs that still have no category set.
+        </p>
+        <button
+          onClick={run}
+          disabled={busy}
+          className="mt-3 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+        >
+          {busy ? 'Categorizing…' : 'Categorize existing jobs'}
+        </button>
+        {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
+        {result && <p className="mt-3 text-xs font-medium text-emerald-700">{result}</p>}
       </div>
     </section>
   );
@@ -1292,7 +1302,6 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
   const [open, setOpen] = useState(jobs.length <= ADMIN_PAGE_SIZE);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | ListingStatus>('all');
-  const [companyFilter, setCompanyFilter] = useState('all');
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -1301,16 +1310,13 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
   const [showLogoTool, setShowLogoTool] = useState(false);
   const { profile } = useAuth();
 
-  const companyOptions = Array.from(new Set(jobs.map((j) => j.publisher?.name).filter((n): n is string => !!n))).sort();
-
   const filtered = jobs.filter((j) => {
     const matchesSearch =
       !search.trim() ||
       j.title.toLowerCase().includes(search.toLowerCase()) ||
       (j.publisher?.name ?? '').toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'all' || j.status === statusFilter;
-    const matchesCompany = companyFilter === 'all' || j.publisher?.name === companyFilter;
-    return matchesSearch && matchesStatus && matchesCompany;
+    return matchesSearch && matchesStatus;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ADMIN_PAGE_SIZE));
@@ -1398,16 +1404,6 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
           <option value="all">All statuses</option>
           {LISTING_STATUSES.map((s) => (
             <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
-        <select
-          value={companyFilter}
-          onChange={(e) => { setCompanyFilter(e.target.value); setPage(0); }}
-          className="h-9 rounded-md border border-ink-200 px-2 text-sm text-ink-700 outline-none focus:border-brand-500"
-        >
-          <option value="all">All companies</option>
-          {companyOptions.map((name) => (
-            <option key={name} value={name}>{name}</option>
           ))}
         </select>
       </div>
@@ -1742,13 +1738,10 @@ function ManagedProgramsSection({ programs, onChange }: { programs: AdminProgram
   const [open, setOpen] = useState(programs.length <= ADMIN_PAGE_SIZE);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | ListingStatus>('all');
-  const [companyFilter, setCompanyFilter] = useState('all');
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
-
-  const companyOptions = Array.from(new Set(programs.map((p) => p.publisher?.name).filter((n): n is string => !!n))).sort();
 
   const filtered = programs.filter((p) => {
     const matchesSearch =
@@ -1756,8 +1749,7 @@ function ManagedProgramsSection({ programs, onChange }: { programs: AdminProgram
       p.title.toLowerCase().includes(search.toLowerCase()) ||
       (p.publisher?.name ?? '').toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
-    const matchesCompany = companyFilter === 'all' || p.publisher?.name === companyFilter;
-    return matchesSearch && matchesStatus && matchesCompany;
+    return matchesSearch && matchesStatus;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ADMIN_PAGE_SIZE));
@@ -1828,16 +1820,6 @@ function ManagedProgramsSection({ programs, onChange }: { programs: AdminProgram
           <option value="all">All statuses</option>
           {LISTING_STATUSES.map((s) => (
             <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
-        <select
-          value={companyFilter}
-          onChange={(e) => { setCompanyFilter(e.target.value); setPage(0); }}
-          className="h-9 rounded-md border border-ink-200 px-2 text-sm text-ink-700 outline-none focus:border-brand-500"
-        >
-          <option value="all">All companies</option>
-          {companyOptions.map((name) => (
-            <option key={name} value={name}>{name}</option>
           ))}
         </select>
       </div>

@@ -19,6 +19,7 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { Logo } from '@/components/layout/Logo';
 import { categories, countries, jobTypes, type Job } from '@/data/jobs';
+import { DISCOVERY_CATEGORIES, matchesDiscoveryCategory } from '@/lib/jobCategories';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { useSeo } from '@/lib/seo';
@@ -35,35 +36,6 @@ type DatePostedOption = (typeof DATE_POSTED_OPTIONS)[number];
 type SortOption = 'newest' | 'relevant';
 
 const PAGE_SIZE = 12;
-
-const DISCOVERY_CATEGORIES = ['Technology', 'Design', 'Engineering', 'Healthcare', 'Finance', 'Marketing', 'Business', 'Education'];
-
-// Real source category text ("Legal & Public Affairs", "IT Services",
-// "Product") will rarely exact-match one of the fixed discovery
-// buckets above — companies phrase departments however they like. This
-// classifies by keyword instead of exact equality, so the tabs actually
-// catch real jobs rather than only ones whose source happened to use
-// our exact wording. A category can match more than one bucket (e.g.
-// "Software Engineer" is both Technology and Engineering) or none —
-// "none" jobs still show up under "All categories".
-const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  Technology: ['engineer', 'software', 'developer', 'it ', ' it', 'data', 'security', 'devops', 'technology', 'infrastructure', 'qa', 'quality assurance'],
-  Design: ['design', 'ux', 'ui'],
-  Engineering: ['engineer', 'engineering', 'manufacturing', 'r&d', 'r & d'],
-  Healthcare: ['health', 'medical', 'clinical', 'pharma', 'nursing'],
-  Finance: ['finance', 'financial', 'accounting', 'tax'],
-  Marketing: ['marketing', 'communications', 'brand', 'pr'],
-  Business: ['business', 'sales', 'commercial', 'strategy', 'operations', 'legal', 'compliance', 'hr', 'human resources', 'procurement', 'supply chain', 'product'],
-  Education: ['education', 'training', 'learning', 'academic'],
-};
-
-function matchesDiscoveryCategory(rawCategory: string, bucket: string): boolean {
-  if (!rawCategory) return false;
-  const s = ` ${rawCategory.toLowerCase()} `;
-  const keywords = CATEGORY_KEYWORDS[bucket];
-  if (!keywords) return s.includes(bucket.toLowerCase());
-  return keywords.some((k) => s.includes(k));
-}
 
 function formatDateTag(iso: string | null | undefined): { text: string; isNew: boolean } | null {
   if (!iso) return null;
@@ -648,15 +620,6 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
               {c}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={() => setRemoteOnly((v) => !v)}
-            className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-              remoteOnly ? 'bg-emerald-600 text-white' : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
-            }`}
-          >
-            Remote
-          </button>
         </div>
 
         {loading ? (

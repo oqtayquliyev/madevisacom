@@ -3,6 +3,7 @@ import type { OrgType } from '@/lib/programs';
 import type { ListingStatus, SalaryStatus, SalaryPeriod, CostStatus } from '@/lib/listingCategories';
 import { JOB_CATEGORIES, type JobCategory } from '@/lib/listingCategories';
 import { matchCountriesFromOfficeNames } from '@/lib/officeLocations';
+import { classifyJobFunctionFromTitle } from '@/lib/jobCategories';
 
 export type PendingPublisher = {
   id: string;
@@ -592,4 +593,58 @@ export async function setPublisherLogoForAllJobs(publisherId: string, imageUrl: 
   if (jobsResult.error) return { ok: false, error: jobsResult.error.message };
   if (publisherResult.error) return { ok: false, error: publisherResult.error.message };
   return { ok: true };
+}
+
+/**
+ * One-time fixup for jobs that predate job_function existing at all
+ * (imported before that column/extraction logic shipped — see the
+ * comment on AdminSponsoredJob.job_function) — classifies each from its
+ * title using the same keyword logic the public Jobs page filters use
+ * (src/lib/jobCategories.ts), so a re-import isn't needed just to make
+ * existing jobs show up under a category. Jobs whose title doesn't
+ * match any known bucket are left alone (job_function stays null)
+ * rather than being forced into a wrong one.
+ *
+ * Uses upsert rather than one request per row: PostgREST's upsert only
+ * sets the columns actually present in each payload row — here just id
+ * and job_function — so every other column on each row is left exactly
+ * as it was, this just does it in large batches instead of one HTTP
+ * request per job.
+ */
+export async function backfillJobFunctions(): Promise<{ ok: boolean; updated: number; skipped: number; error?: string }> {
+  let rows: { id: string; title: string }[];
+  try {
+    rows = await fetchAllRows<{ id: string; title: string }>((from, to) =>
+      supabase
+        .from('sponsored_jobs')
+        .select('id, title')
+        .is('job_function', null)
+        .range(from, to) as unknown as PromiseLike<{ data: { id: string; title: string }[] | null; error: { message: string } | null }>
+    );
+  } catch (error) {
+    return { ok: false, updated: 0, skipped: 0, error: error instanceof Error ? error.message : 'Fetch failed.' };
+  }
+
+  const classified = rows
+    .map((r) => ({ id: r.id, job_function: classifyJobFunctionFromTitle(r.title) }))
+    .filter((r): r is { id: string; job_function: string } => r.job_function !== null);
+  const skipped = rows.length - classified.length;
+
+  const CHUNK_SIZE = 500;
+  let updated = 0;
+  for (let i = 0; i < classified.length; i += CHUNK_SIZE) {
+    const chunk = classified.slice(i, i + CHUNK_SIZE);
+    const { error } = await supabase.from('sponsored_jobs').upsert(chunk, { onConflict: 'id' });
+    if (error) {
+      return {
+        ok: updated > 0,
+        updated,
+        skipped,
+        error: updated > 0 ? `Updated ${updated} before failing: ${error.message}` : error.message,
+      };
+    }
+    updated += chunk.length;
+  }
+
+  return { ok: true, updated, skipped };
 }
