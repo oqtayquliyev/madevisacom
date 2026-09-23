@@ -142,12 +142,12 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950 text-ink-900 dark:text-ink-50">
+      <div className="min-h-screen bg-[#f8fafc] text-ink-900">
         <LandingHeader go={go} onAuth={onAuth} active="home" />
         <main className="mx-auto max-w-lg px-5 py-24 text-center sm:px-8">
           <ShieldAlert className="mx-auto h-10 w-10 text-ink-300" />
-          <h1 className="mt-4 text-xl font-bold text-ink-900 dark:text-ink-50">Admins only</h1>
-          <p className="mt-2 text-sm text-ink-500 dark:text-ink-400">You don't have access to this page.</p>
+          <h1 className="mt-4 text-xl font-bold text-ink-900">Admins only</h1>
+          <p className="mt-2 text-sm text-ink-500">You don't have access to this page.</p>
           <button onClick={() => go('home')} className="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
             Back to MadeVisa
           </button>
@@ -158,12 +158,12 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950 text-ink-900 dark:text-ink-50">
+    <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="home" />
 
       <main className="mx-auto max-w-5xl px-5 py-12 sm:px-8">
-        <h1 className="text-2xl font-bold tracking-tight text-ink-950 dark:text-ink-50">Admin panel</h1>
-        <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">Approve or reject publisher accounts, listings, and agencies.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-ink-950">Admin panel</h1>
+        <p className="mt-1 text-sm text-ink-500">Approve or reject publisher accounts, listings, and agencies.</p>
 
         {dataLoading ? (
           <p className="mt-8 text-sm text-ink-400">Loading…</p>
@@ -201,7 +201,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                 <PublisherRow key={p.id} p={p} onChange={loadAll} allowLogo>
                   <button
                     onClick={async () => { const r = await setPublisherStatus(p.id, 'suspended'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
-                    className="rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-1.5 text-xs font-semibold text-ink-600 dark:text-ink-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-700 dark:hover:text-rose-300"
+                    className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
                   >
                     Suspend
                   </button>
@@ -216,8 +216,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
               renderRow={(p) => (
                 <Row key={p.id}>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-ink-900 dark:text-ink-50">{p.title}</p>
-                    <p className="text-xs text-ink-500 dark:text-ink-400">
+                    <p className="text-sm font-semibold text-ink-900">{p.title}</p>
+                    <p className="text-xs text-ink-500">
                       {p.category} · {p.publisher?.name ?? 'Unknown publisher'}{p.country ? ` · ${p.country.name}` : ''}
                     </p>
                     <p className="text-[11px] text-ink-400">Submitted {formatDate(p.created_at)}</p>
@@ -234,7 +234,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                       else window.alert(result.error ?? 'Delete failed.');
                     }}
                     aria-label="Delete"
-                    className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-600 dark:hover:text-rose-400"
+                    className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -270,7 +270,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                 <AgencyRow key={a.id} a={a} onChange={loadAll}>
                   <button
                     onClick={async () => { const r = await setAgencyStatus(a.id, 'pending'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
-                    className="rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-1.5 text-xs font-semibold text-ink-600 dark:text-ink-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-700 dark:hover:text-rose-300"
+                    className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
                   >
                     Revoke
                   </button>
@@ -339,7 +339,7 @@ function PublisherRow({
 
   return (
     <Row>
-      <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-ink-50 dark:bg-ink-800 text-ink-500 dark:text-ink-400">
+      <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-ink-50 text-ink-500">
         {p.logo_url ? (
           <img src={p.logo_url} alt="" className="h-full w-full object-cover" />
         ) : (
@@ -353,36 +353,36 @@ function PublisherRow({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Organization name"
-              className="h-8 w-full max-w-xs rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm font-semibold text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+              className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500"
             />
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Contact email"
-              className="h-8 w-full max-w-xs rounded-md border border-ink-200 dark:border-ink-700 px-2 text-xs text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500"
+              className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500"
             />
             <div className="flex items-center gap-2">
-              <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Save</button>
-              <button onClick={() => { setEditing(false); setName(p.name); setEmail(p.contact_email); }} className="text-xs text-ink-400 hover:text-ink-700 dark:hover:text-ink-200">Cancel</button>
+              <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
+              <button onClick={() => { setEditing(false); setName(p.name); setEmail(p.contact_email); }} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
             </div>
           </div>
         ) : (
           <>
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900 dark:text-ink-50">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
               {p.name}
-              <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600 dark:hover:text-ink-300">
+              <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600">
                 <Pencil className="h-3 w-3" />
               </button>
             </p>
-            <p className="text-xs text-ink-500 dark:text-ink-400">
+            <p className="text-xs text-ink-500">
               {p.org_type} · {p.contact_email}{p.country ? ` · ${p.country.name}` : ''}{p.website ? ` · ${p.website}` : ''}
             </p>
           </>
         )}
 
         {allowLogo && showLogoTool && (
-          <div className="mt-2 max-w-xs rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-3">
-            <p className="text-[11px] text-ink-500 dark:text-ink-400">Applied to every {p.name} job (pending, published, and any future ones) at once.</p>
+          <div className="mt-2 max-w-xs rounded-lg border border-ink-200 bg-white p-3">
+            <p className="text-[11px] text-ink-500">Applied to every {p.name} job (pending, published, and any future ones) at once.</p>
             {profile?.id && <ImageUploadField userId={profile.id} value={logoUrl} onChange={setLogoUrl} label="Company logo" />}
             <button
               onClick={applyLogo}
@@ -391,14 +391,14 @@ function PublisherRow({
             >
               {logoBusy ? 'Applying…' : 'Apply'}
             </button>
-            {logoMessage && <p className="mt-1.5 text-xs font-medium text-rose-600 dark:text-rose-400">{logoMessage}</p>}
+            {logoMessage && <p className="mt-1.5 text-xs font-medium text-rose-600">{logoMessage}</p>}
           </div>
         )}
       </div>
       {allowLogo && (
         <button
           onClick={() => setShowLogoTool((v) => !v)}
-          className="shrink-0 rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-1.5 text-xs font-semibold text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800"
+          className="shrink-0 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50"
         >
           {p.logo_url ? 'Change logo' : 'Set logo'}
         </button>
@@ -423,7 +423,7 @@ function AgencyRow({ a, onChange, children }: { a: PendingAgency; onChange: () =
 
   return (
     <Row>
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-50 dark:bg-ink-800 text-ink-500 dark:text-ink-400">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500">
         <Building2 className="h-4 w-4" />
       </span>
       <div className="min-w-0 flex-1">
@@ -432,20 +432,20 @@ function AgencyRow({ a, onChange, children }: { a: PendingAgency; onChange: () =
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="h-8 w-full max-w-xs rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm font-semibold text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+              className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500"
             />
-            <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Save</button>
-            <button onClick={() => { setEditing(false); setName(a.name); }} className="text-xs text-ink-400 hover:text-ink-700 dark:hover:text-ink-200">Cancel</button>
+            <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
+            <button onClick={() => { setEditing(false); setName(a.name); }} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
           </div>
         ) : (
-          <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900 dark:text-ink-50">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
             {a.name}
-            <button onClick={() => setEditing(true)} aria-label="Edit name" className="text-ink-300 hover:text-ink-600 dark:hover:text-ink-300">
+            <button onClick={() => setEditing(true)} aria-label="Edit name" className="text-ink-300 hover:text-ink-600">
               <Pencil className="h-3 w-3" />
             </button>
           </p>
         )}
-        <p className="text-xs text-ink-500 dark:text-ink-400">
+        <p className="text-xs text-ink-500">
           {[a.city, a.country].filter(Boolean).join(', ')}{a.email ? ` · ${a.email}` : ''}{a.website ? ` · ${a.website}` : ''}
         </p>
       </div>
@@ -482,18 +482,18 @@ function AdminAccessSection({ admins, currentEmail, onChange }: { admins: AdminP
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">
         Admin access <span className="text-ink-400">({admins.length})</span>
       </h2>
 
-      <div className="mt-3 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4">
+      <div className="mt-3 border border-ink-200 bg-white p-4">
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="person@example.com"
-            className="h-10 flex-1 rounded-md border border-ink-200 dark:border-ink-700 px-3 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+            className="h-10 flex-1 rounded-md border border-ink-200 px-3 text-sm text-ink-900 outline-none focus:border-brand-500"
           />
           <button
             onClick={grant}
@@ -504,23 +504,23 @@ function AdminAccessSection({ admins, currentEmail, onChange }: { admins: AdminP
             Grant admin access
           </button>
         </div>
-        {error && <p className="mt-2 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
+        {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
         <p className="mt-2 text-xs text-ink-400">
           The email must already have a MadeVisa account. They'll get full admin access immediately.
         </p>
 
         {admins.length > 0 && (
-          <div className="mt-4 divide-y divide-ink-100 dark:divide-ink-800 border-t border-ink-100 dark:border-ink-800 pt-3">
+          <div className="mt-4 divide-y divide-ink-100 border-t border-ink-100 pt-3">
             {admins.map((a) => (
               <div key={a.id} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink-900 dark:text-ink-50">{a.full_name || 'Unnamed'}</p>
-                  <p className="truncate text-xs text-ink-500 dark:text-ink-400">{a.email}</p>
+                  <p className="truncate text-sm font-semibold text-ink-900">{a.full_name || 'Unnamed'}</p>
+                  <p className="truncate text-xs text-ink-500">{a.email}</p>
                 </div>
                 {a.email !== currentEmail && (
                   <button
                     onClick={() => revoke(a.email)}
-                    className="shrink-0 rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-1.5 text-xs font-semibold text-ink-600 dark:text-ink-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-700 dark:hover:text-rose-300"
+                    className="shrink-0 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
                   >
                     Revoke
                   </button>
@@ -566,9 +566,9 @@ function BackfillJobFunctionsSection({ onChange }: { onChange: () => void }) {
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">Fix existing job categories</h2>
-      <div className="mt-3 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4">
-        <p className="text-xs text-ink-500 dark:text-ink-400">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Fix existing job categories</h2>
+      <div className="mt-3 border border-ink-200 bg-white p-4">
+        <p className="text-xs text-ink-500">
           Jobs imported before category tracking existed have no job function set, so they won't show up under any category
           filter on the public Jobs page. This classifies each one from its title (Design, Engineering, Healthcare, ...) and
           fills it in directly — no re-import needed, and nothing else about the job is touched. Safe to run more than once;
@@ -581,8 +581,8 @@ function BackfillJobFunctionsSection({ onChange }: { onChange: () => void }) {
         >
           {busy ? 'Categorizing…' : 'Categorize existing jobs'}
         </button>
-        {error && <p className="mt-2 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
-        {result && <p className="mt-3 text-xs font-medium text-emerald-700 dark:text-emerald-300">{result}</p>}
+        {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
+        {result && <p className="mt-3 text-xs font-medium text-emerald-700">{result}</p>}
       </div>
     </section>
   );
@@ -796,9 +796,9 @@ function BulkGreenhouseImportSection({
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">Bulk import from Greenhouse</h2>
-      <div className="mt-3 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4">
-        <p className="text-xs text-ink-500 dark:text-ink-400">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Bulk import from Greenhouse</h2>
+      <div className="mt-3 border border-ink-200 bg-white p-4">
+        <p className="text-xs text-ink-500">
           Pick any number of companies below and fetch them all in one go — each runs through the exact same
           Greenhouse import as the single-company tool above, straight into <strong>Pending sponsored jobs</strong>.
           Safe to re-run on a company you've already imported (e.g. weekly, to pick up new postings) — it only ever
@@ -810,44 +810,44 @@ function BulkGreenhouseImportSection({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Filter by name…"
-            className="h-8 w-48 rounded-md border border-ink-200 dark:border-ink-700 px-2 text-xs text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+            className="h-8 w-48 rounded-md border border-ink-200 px-2 text-xs text-ink-900 outline-none focus:border-brand-500"
           />
-          <button onClick={selectAll} disabled={running} className="rounded-lg border border-ink-200 dark:border-ink-700 px-2.5 py-1 text-[11px] font-semibold text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800 disabled:opacity-50">
+          <button onClick={selectAll} disabled={running} className="rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-600 hover:bg-ink-50 disabled:opacity-50">
             Select all ({GREENHOUSE_COMPANIES.length})
           </button>
           {search.trim() && (
-            <button onClick={selectFiltered} disabled={running} className="rounded-lg border border-ink-200 dark:border-ink-700 px-2.5 py-1 text-[11px] font-semibold text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800 disabled:opacity-50">
+            <button onClick={selectFiltered} disabled={running} className="rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-600 hover:bg-ink-50 disabled:opacity-50">
               Select filtered ({filtered.length})
             </button>
           )}
-          <button onClick={selectNone} disabled={running} className="rounded-lg border border-ink-200 dark:border-ink-700 px-2.5 py-1 text-[11px] font-semibold text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800 disabled:opacity-50">
+          <button onClick={selectNone} disabled={running} className="rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-600 hover:bg-ink-50 disabled:opacity-50">
             Select none
           </button>
           <span className="text-[11px] text-ink-400">{selected.size} selected</span>
         </div>
 
-        <div className="mt-3 max-h-80 overflow-y-auto rounded-lg border border-ink-100 dark:border-ink-800">
-          <div className="divide-y divide-ink-100 dark:divide-ink-800">
+        <div className="mt-3 max-h-80 overflow-y-auto rounded-lg border border-ink-100">
+          <div className="divide-y divide-ink-100">
             {filtered.map((c) => {
               const rowStatus = statuses[c.token];
               return (
-                <label key={c.token} className="flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-ink-50 dark:hover:bg-ink-800">
+                <label key={c.token} className="flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-ink-50">
                   <input
                     type="checkbox"
                     checked={selected.has(c.token)}
                     onChange={() => toggle(c.token)}
                     disabled={running}
-                    className="h-3.5 w-3.5 shrink-0 rounded border-ink-300 dark:border-ink-600"
+                    className="h-3.5 w-3.5 shrink-0 rounded border-ink-300"
                   />
-                  <span className="min-w-0 flex-1 truncate font-semibold text-ink-900 dark:text-ink-50">{c.name}</span>
+                  <span className="min-w-0 flex-1 truncate font-semibold text-ink-900">{c.name}</span>
                   <span className="hidden shrink-0 truncate text-ink-400 sm:block sm:w-56">{c.legalName}</span>
-                  <code className="shrink-0 rounded bg-ink-50 dark:bg-ink-800 px-1.5 py-0.5 text-[10px] text-ink-500 dark:text-ink-400">{c.token}</code>
+                  <code className="shrink-0 rounded bg-ink-50 px-1.5 py-0.5 text-[10px] text-ink-500">{c.token}</code>
                   {(() => {
                     const existingCount = countFor(c);
                     return (
                       existingCount > 0 &&
                       !rowStatus && (
-                        <span className="shrink-0 rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                        <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                           Already imported ({existingCount} job{existingCount === 1 ? '' : 's'})
                         </span>
                       )
@@ -857,12 +857,12 @@ function BulkGreenhouseImportSection({
                     <span
                       className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                         rowStatus.status === 'done'
-                          ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                          ? 'bg-emerald-50 text-emerald-700'
                           : rowStatus.status === 'error'
-                          ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300'
+                          ? 'bg-rose-50 text-rose-700'
                           : rowStatus.status === 'skipped'
-                          ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                          : 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300'
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'bg-brand-50 text-brand-700'
                       }`}
                     >
                       {rowStatus.status === 'fetching'
@@ -885,7 +885,7 @@ function BulkGreenhouseImportSection({
         >
           {running ? `Importing… (${doneCount}/${queueSize})` : `Fetch & add ${selected.size || ''} selected`}
         </button>
-        {finalSummary && <p className="mt-2 text-xs font-medium text-ink-600 dark:text-ink-300">{finalSummary}</p>}
+        {finalSummary && <p className="mt-2 text-xs font-medium text-ink-600">{finalSummary}</p>}
       </div>
     </section>
   );
@@ -961,9 +961,9 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">Import jobs from an ATS</h2>
-      <div className="mt-3 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4">
-        <p className="text-xs text-ink-500 dark:text-ink-400">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Import jobs from an ATS</h2>
+      <div className="mt-3 border border-ink-200 bg-white p-4">
+        <p className="text-xs text-ink-500">
           Pulls live listings from a company's public Greenhouse job board — a documented, no-auth endpoint meant
           for exactly this kind of syndication — and adds them straight to <strong>Pending sponsored jobs</strong>,
           grouped under this company, for review below. Each job's destination country is matched automatically
@@ -972,22 +972,22 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-[11px] font-semibold text-ink-500 dark:text-ink-400">Greenhouse board token</label>
+            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Greenhouse board token</label>
             <input
               value={boardToken}
               onChange={(e) => setBoardToken(e.target.value)}
               placeholder="e.g. stripe"
-              className="h-9 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+              className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
             />
             <p className="mt-1 text-[10px] text-ink-400">The slug in boards.greenhouse.io/&lt;this&gt;</p>
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-semibold text-ink-500 dark:text-ink-400">Company name (as shown on MadeVisa)</label>
+            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Company name (as shown on MadeVisa)</label>
             <input
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
               placeholder="e.g. Stripe"
-              className="h-9 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+              className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
             />
             <p className="mt-1 text-[10px] text-ink-400">Leave blank to reuse the board token.</p>
           </div>
@@ -1001,8 +1001,8 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
           {busy === 'fetching' ? 'Fetching…' : busy === 'importing' ? 'Adding to pending…' : 'Fetch & add to pending'}
         </button>
 
-        {error && <p className="mt-2 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
-        {result && <p className="mt-3 text-xs font-medium text-emerald-700 dark:text-emerald-300">{result}</p>}
+        {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
+        {result && <p className="mt-3 text-xs font-medium text-emerald-700">{result}</p>}
       </div>
     </section>
   );
@@ -1128,9 +1128,9 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">Import jobs from a careers page</h2>
-      <div className="mt-3 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4">
-        <p className="text-xs text-ink-500 dark:text-ink-400">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Import jobs from a careers page</h2>
+      <div className="mt-3 border border-ink-200 bg-white p-4">
+        <p className="text-xs text-ink-500">
           For companies not on Greenhouse. Paste their careers/search-results page URL — the platform behind it
           (currently: Phenom People sites) is auto-detected server-side — and jobs get added straight to{' '}
           <strong>Pending sponsored jobs</strong>, grouped under this company, for review below. Each job's
@@ -1141,22 +1141,22 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-[11px] font-semibold text-ink-500 dark:text-ink-400">Careers page URL</label>
+            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Careers page URL</label>
             <input
               value={careersUrl}
               onChange={(e) => setCareersUrl(e.target.value)}
               placeholder="https://careers.roche.com/global/en/search-results"
-              className="h-9 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+              className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
             />
             <p className="mt-1 text-[10px] text-ink-400">The company's job search/listing page — not a single job's URL.</p>
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-semibold text-ink-500 dark:text-ink-400">Company name (as shown on MadeVisa)</label>
+            <label className="mb-1 block text-[11px] font-semibold text-ink-500">Company name (as shown on MadeVisa)</label>
             <input
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
               placeholder="e.g. Roche"
-              className="h-9 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+              className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
             />
           </div>
         </div>
@@ -1176,20 +1176,20 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
           {busy && (
             <button
               onClick={() => { stopRequested.current = true; }}
-              className="rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-2 text-xs font-semibold text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800"
+              className="rounded-lg border border-ink-200 px-3 py-2 text-xs font-semibold text-ink-600 hover:bg-ink-50"
             >
               Stop after this batch
             </button>
           )}
           {progress && (
-            <span className="text-xs font-medium text-ink-500 dark:text-ink-400">
+            <span className="text-xs font-medium text-ink-500">
               {progress.imported} imported{progress.totalHits ? ` of ~${progress.totalHits.toLocaleString()}` : ''} so far…
             </span>
           )}
         </div>
 
-        {error && <p className="mt-2 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
-        {result && <p className="mt-3 text-xs font-medium text-emerald-700 dark:text-emerald-300">{result}</p>}
+        {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
+        {result && <p className="mt-3 text-xs font-medium text-emerald-700">{result}</p>}
       </div>
     </section>
   );
@@ -1198,8 +1198,8 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
 function DateInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <label className="mb-1 block text-[11px] font-semibold text-ink-500 dark:text-ink-400">{label}</label>
-      <input type="date" value={value} onChange={(e) => onChange(e.target.value)} className="h-8 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-xs text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500" />
+      <label className="mb-1 block text-[11px] font-semibold text-ink-500">{label}</label>
+      <input type="date" value={value} onChange={(e) => onChange(e.target.value)} className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
     </div>
   );
 }
@@ -1207,14 +1207,14 @@ function DateInput({ label, value, onChange }: { label: string; value: string; o
 function NumberInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
     <div>
-      <label className="mb-1 block text-[11px] font-semibold text-ink-500 dark:text-ink-400">{label}</label>
+      <label className="mb-1 block text-[11px] font-semibold text-ink-500">{label}</label>
       <input
         type="number"
         inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-8 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-xs text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500"
+        className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500"
       />
     </div>
   );
@@ -1223,8 +1223,8 @@ function NumberInput({ label, value, onChange, placeholder }: { label: string; v
 function TextField({ label, value, onChange, placeholder, className }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; className?: string }) {
   return (
     <div className={className}>
-      <label className="mb-1 block text-[11px] font-semibold text-ink-500 dark:text-ink-400">{label}</label>
-      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="h-8 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-xs text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500" />
+      <label className="mb-1 block text-[11px] font-semibold text-ink-500">{label}</label>
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
     </div>
   );
 }
@@ -1233,7 +1233,7 @@ function TextAreaField({ label, value, onChange, rows = 2, placeholder }: { labe
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
-        <label className="text-[11px] font-semibold text-ink-500 dark:text-ink-400">{label}</label>
+        <label className="text-[11px] font-semibold text-ink-500">{label}</label>
         <span className="text-[10px] text-ink-400">{value.length}/5000</span>
       </div>
       <textarea
@@ -1241,7 +1241,7 @@ function TextAreaField({ label, value, onChange, rows = 2, placeholder }: { labe
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
         placeholder={placeholder}
-        className="w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 py-1.5 text-xs leading-5 text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500"
+        className="w-full rounded-md border border-ink-200 px-2 py-1.5 text-xs leading-5 text-ink-700 outline-none focus:border-brand-500"
       />
     </div>
   );
@@ -1250,8 +1250,8 @@ function TextAreaField({ label, value, onChange, rows = 2, placeholder }: { labe
 function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: readonly string[] }) {
   return (
     <div>
-      <label className="mb-1 block text-[11px] font-semibold text-ink-500 dark:text-ink-400">{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-8 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-xs text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500">
+      <label className="mb-1 block text-[11px] font-semibold text-ink-500">{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500">
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
     </div>
@@ -1337,14 +1337,14 @@ function EditableProgramRow({ p, onChange, selected, onToggleSelect }: { p: Admi
           <input type="checkbox" checked={selected} onChange={onToggleSelect} className="mt-1.5 shrink-0" />
         )}
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900 dark:text-ink-50">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
             {p.title}
-            <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600 dark:hover:text-ink-300">
+            <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600">
               <Pencil className="h-3 w-3" />
             </button>
             <StatusPill status={p.status} />
           </p>
-          <p className="text-xs text-ink-500 dark:text-ink-400">
+          <p className="text-xs text-ink-500">
             {p.category} · {p.publisher?.name ?? 'Unknown publisher'}{p.country ? ` · ${p.country.name}` : ''}{p.city ? `, ${p.city}` : ''}
           </p>
           <p className="text-[11px] text-ink-400">
@@ -1353,7 +1353,7 @@ function EditableProgramRow({ p, onChange, selected, onToggleSelect }: { p: Admi
             {p.expires_at && ` · Expires ${formatDate(p.expires_at)}`}
           </p>
         </div>
-        <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-600 dark:hover:text-rose-400">
+        <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600">
           <Trash2 className="h-4 w-4" />
         </button>
       </Row>
@@ -1361,7 +1361,7 @@ function EditableProgramRow({ p, onChange, selected, onToggleSelect }: { p: Admi
   }
 
   return (
-    <div className="space-y-3 bg-ink-50/60 dark:bg-ink-800/60 p-4">
+    <div className="space-y-3 bg-ink-50/60 p-4">
       <div className="grid grid-cols-2 gap-3">
         <TextField label="Title" value={title} onChange={setTitle} />
         <SelectField label="Category" value={category} onChange={(v) => setCategory(v as ProgramCategory)} options={PROGRAM_CATEGORIES} />
@@ -1373,7 +1373,7 @@ function EditableProgramRow({ p, onChange, selected, onToggleSelect }: { p: Admi
         <TextField label="City" value={city} onChange={setCity} placeholder="Optional" />
         <SelectField label="Status" value={status} onChange={(v) => setStatus(v as ListingStatus)} options={LISTING_STATUSES.map((s) => s.value)} />
         <div className="flex items-end pb-1.5">
-          <label className="flex items-center gap-2 text-xs font-medium text-ink-700 dark:text-ink-200">
+          <label className="flex items-center gap-2 text-xs font-medium text-ink-700">
             <input type="checkbox" checked={sourceVerified} onChange={(e) => setSourceVerified(e.target.checked)} />
             Source verified
           </label>
@@ -1385,7 +1385,7 @@ function EditableProgramRow({ p, onChange, selected, onToggleSelect }: { p: Admi
       )}
 
       {fields.includes('cost') && (
-        <div className="rounded-md border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-3">
+        <div className="rounded-md border border-ink-200 bg-white p-3">
           <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-ink-400">Cost / funding</p>
           <div className="grid grid-cols-4 gap-3">
             <SelectField label="Cost status" value={costStatus} onChange={(v) => setCostStatus(v as CostStatus)} options={COST_STATUSES.map((s) => s.value)} />
@@ -1446,7 +1446,7 @@ function EditableProgramRow({ p, onChange, selected, onToggleSelect }: { p: Admi
         <button onClick={save} disabled={saving} className="rounded-lg bg-brand-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
           {saving ? 'Saving…' : 'Save'}
         </button>
-        <button onClick={() => setEditing(false)} className="text-xs text-ink-500 dark:text-ink-400 hover:text-ink-700 dark:hover:text-ink-200">Cancel</button>
+        <button onClick={() => setEditing(false)} className="text-xs text-ink-500 hover:text-ink-700">Cancel</button>
       </div>
     </div>
   );
@@ -1526,18 +1526,18 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
         {onToggleSelect && (
           <input type="checkbox" checked={selected} onChange={onToggleSelect} className="mt-1.5 shrink-0" />
         )}
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-50 dark:bg-ink-800 text-ink-500 dark:text-ink-400">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500">
           <Briefcase className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900 dark:text-ink-50">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
             {j.title}
-            <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600 dark:hover:text-ink-300">
+            <button onClick={() => setEditing(true)} aria-label="Edit" className="text-ink-300 hover:text-ink-600">
               <Pencil className="h-3 w-3" />
             </button>
             <StatusPill status={j.status} />
           </p>
-          <p className="text-xs text-ink-500 dark:text-ink-400">
+          <p className="text-xs text-ink-500">
             {j.category} · {j.publisher?.name ?? 'Unknown publisher'}{j.country ? ` · ${j.country.name}` : ''}{j.city ? `, ${j.city}` : ''}
           </p>
           <p className="text-[11px] text-ink-400">
@@ -1548,11 +1548,11 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
         </div>
         <button
           onClick={() => window.open(`/admin/jobs/${j.id}`, '_blank', 'noopener')}
-          className="shrink-0 rounded-lg border border-ink-200 dark:border-ink-700 px-2.5 py-1.5 text-[11px] font-semibold text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800"
+          className="shrink-0 rounded-lg border border-ink-200 px-2.5 py-1.5 text-[11px] font-semibold text-ink-600 hover:bg-ink-50"
         >
           Preview &amp; edit
         </button>
-        <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-600 dark:hover:text-rose-400">
+        <button onClick={remove} aria-label="Delete" className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600">
           <Trash2 className="h-4 w-4" />
         </button>
       </Row>
@@ -1560,7 +1560,7 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
   }
 
   return (
-    <div className="space-y-3 bg-ink-50/60 dark:bg-ink-800/60 p-4">
+    <div className="space-y-3 bg-ink-50/60 p-4">
       <div className="grid grid-cols-2 gap-3">
         <TextField label="Title" value={title} onChange={setTitle} />
         <SelectField label="Category" value={category} onChange={(v) => setCategory(v as JobCategory)} options={JOB_CATEGORIES} />
@@ -1572,11 +1572,11 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
         <TextField label="City" value={city} onChange={setCity} placeholder="Optional" />
         <SelectField label="Status" value={status} onChange={(v) => setStatus(v as ListingStatus)} options={LISTING_STATUSES.map((s) => s.value)} />
         <div className="flex items-end gap-3 pb-1.5">
-          <label className="flex items-center gap-1.5 text-xs font-medium text-ink-700 dark:text-ink-200">
+          <label className="flex items-center gap-1.5 text-xs font-medium text-ink-700">
             <input type="checkbox" checked={remote} onChange={(e) => setRemote(e.target.checked)} />
             Remote
           </label>
-          <label className="flex items-center gap-1.5 text-xs font-medium text-ink-700 dark:text-ink-200">
+          <label className="flex items-center gap-1.5 text-xs font-medium text-ink-700">
             <input type="checkbox" checked={sourceVerified} onChange={(e) => setSourceVerified(e.target.checked)} />
             Verified
           </label>
@@ -1588,7 +1588,7 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
       )}
 
       {fields.includes('salary') && (
-        <div className="rounded-md border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-3">
+        <div className="rounded-md border border-ink-200 bg-white p-3">
           <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-ink-400">Salary</p>
           <div className="grid grid-cols-5 gap-3">
             <SelectField label="Salary status" value={salaryStatus} onChange={(v) => setSalaryStatus(v as SalaryStatus)} options={SALARY_STATUSES.map((s) => s.value)} />
@@ -1605,7 +1605,7 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
       )}
 
       {fields.includes('visaSponsorship') && (
-        <label className="flex items-center gap-2 text-xs font-medium text-ink-700 dark:text-ink-200">
+        <label className="flex items-center gap-2 text-xs font-medium text-ink-700">
           <input type="checkbox" checked={visaSponsorship} onChange={(e) => setVisaSponsorship(e.target.checked)} />
           Visa sponsorship offered
         </label>
@@ -1633,7 +1633,7 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
         <button onClick={save} disabled={saving} className="rounded-lg bg-brand-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
           {saving ? 'Saving…' : 'Save'}
         </button>
-        <button onClick={() => setEditing(false)} className="text-xs text-ink-500 dark:text-ink-400 hover:text-ink-700 dark:hover:text-ink-200">Cancel</button>
+        <button onClick={() => setEditing(false)} className="text-xs text-ink-500 hover:text-ink-700">Cancel</button>
       </div>
     </div>
   );
@@ -1641,21 +1641,21 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
 
 function StatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    published: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
-    verified: 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
-    under_review: 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
-    needs_information: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
-    pending: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
-    draft: 'bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400',
-    rejected: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300',
-    expired: 'bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400',
+    published: 'bg-emerald-50 text-emerald-700',
+    verified: 'bg-sky-50 text-sky-700',
+    under_review: 'bg-indigo-50 text-indigo-700',
+    needs_information: 'bg-amber-50 text-amber-700',
+    pending: 'bg-amber-50 text-amber-700',
+    draft: 'bg-ink-100 text-ink-500',
+    rejected: 'bg-rose-50 text-rose-700',
+    expired: 'bg-ink-100 text-ink-500',
   };
   const labels: Record<string, string> = {
     needs_information: 'needs info',
     under_review: 'under review',
   };
   return (
-    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${styles[status] ?? 'bg-ink-50 dark:bg-ink-800 text-ink-500 dark:text-ink-400'}`}>
+    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${styles[status] ?? 'bg-ink-50 text-ink-500'}`}>
       {labels[status] ?? status}
     </span>
   );
@@ -1769,12 +1769,12 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(0); }}
           placeholder="Search title or company…"
-          className="h-9 min-w-[220px] flex-1 rounded-md border border-ink-200 dark:border-ink-700 px-3 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+          className="h-9 min-w-[220px] flex-1 rounded-md border border-ink-200 px-3 text-sm text-ink-900 outline-none focus:border-brand-500"
         />
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value as 'all' | ListingStatus); setPage(0); }}
-          className="h-9 rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500"
+          className="h-9 rounded-md border border-ink-200 px-2 text-sm text-ink-700 outline-none focus:border-brand-500"
         >
           <option value="all">All statuses</option>
           {LISTING_STATUSES.map((s) => (
@@ -1788,25 +1788,25 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
       )}
 
       {selectedIds.size > 0 && (
-        <div className="m-2 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-900/30 px-3 py-2">
-          <span className="text-xs font-semibold text-brand-800 dark:text-brand-300">{selectedIds.size} selected</span>
+        <div className="m-2 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2">
+          <span className="text-xs font-semibold text-brand-800">{selectedIds.size} selected</span>
           <button onClick={bulkApprove} disabled={bulkBusy} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
             Publish selected
           </button>
-          <button onClick={bulkDelete} disabled={bulkBusy} className="rounded-lg border border-rose-300 dark:border-rose-800 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 disabled:opacity-50">
+          <button onClick={bulkDelete} disabled={bulkBusy} className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
             Delete selected
           </button>
-          <button onClick={() => setShowLogoTool((v) => !v)} className="rounded-lg border border-brand-300 dark:border-brand-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30">
+          <button onClick={() => setShowLogoTool((v) => !v)} className="rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
             Apply logo to selected
           </button>
-          <button onClick={() => setSelectedIds(new Set())} className="text-xs text-ink-500 dark:text-ink-400 hover:text-ink-700 dark:hover:text-ink-200">
+          <button onClick={() => setSelectedIds(new Set())} className="text-xs text-ink-500 hover:text-ink-700">
             Clear selection
           </button>
         </div>
       )}
 
       {showLogoTool && (
-        <div className="mx-2 mb-2 rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-3">
+        <div className="mx-2 mb-2 rounded-lg border border-ink-200 bg-white p-3">
           {profile?.id && <ImageUploadField userId={profile.id} value={logoUrl} onChange={setLogoUrl} label="Logo to apply to all selected jobs" />}
           <button onClick={applyLogo} disabled={bulkBusy || !logoUrl} className="mt-2 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
             Apply to {selectedIds.size} job{selectedIds.size === 1 ? '' : 's'}
@@ -1814,23 +1814,23 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
         </div>
       )}
 
-      {bulkMessage && <p className="mx-2 mb-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">{bulkMessage}</p>}
+      {bulkMessage && <p className="mx-2 mb-2 text-xs font-medium text-emerald-700">{bulkMessage}</p>}
 
       {pageJobs.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-y border-ink-100 dark:border-ink-800 bg-ink-50 dark:bg-ink-800 px-3 py-2 text-xs font-semibold text-ink-600 dark:text-ink-300">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-y border-ink-100 bg-ink-50 px-3 py-2 text-xs font-semibold text-ink-600">
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={allOnPageSelected} onChange={toggleAllOnPage} />
             Select all on this page ({pageJobs.length})
           </label>
           {filtered.length > pageJobs.length && (
-            <label className="flex items-center gap-2 text-brand-700 dark:text-brand-300">
+            <label className="flex items-center gap-2 text-brand-700">
               <input type="checkbox" checked={allFilteredSelected} onChange={toggleAllFiltered} />
               Select all {filtered.length.toLocaleString()} {filtered.length === jobs.length ? 'jobs (all pages)' : 'matching this filter (all pages)'}
             </label>
           )}
         </div>
       )}
-      <div className="divide-y divide-ink-100 dark:divide-ink-800">
+      <div className="divide-y divide-ink-100">
         {pageJobs.length === 0 ? (
           <p className="px-3 py-6 text-center text-xs text-ink-400">No jobs match this search/filter.</p>
         ) : (
@@ -1936,16 +1936,16 @@ function GroupedPendingJobsSection({ jobs, onChange }: { jobs: PendingSponsoredJ
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">
         Pending sponsored jobs <span className="text-ink-400">({jobs.length})</span>
       </h2>
-      <div className="mt-3 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900">
-        <div className="border-b border-ink-100 dark:border-ink-800 p-2">
+      <div className="mt-3 border border-ink-200 bg-white">
+        <div className="border-b border-ink-100 p-2">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search job title or company…"
-            className="h-9 w-full max-w-sm rounded-md border border-ink-200 dark:border-ink-700 px-3 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+            className="h-9 w-full max-w-sm rounded-md border border-ink-200 px-3 text-sm text-ink-900 outline-none focus:border-brand-500"
           />
         </div>
 
@@ -1954,7 +1954,7 @@ function GroupedPendingJobsSection({ jobs, onChange }: { jobs: PendingSponsoredJ
             {filtered.length} of {jobs.length} match "{search.trim()}"
           </p>
         )}
-        {groupMessage && <p className="px-3 pt-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">{groupMessage}</p>}
+        {groupMessage && <p className="px-3 pt-2 text-xs font-medium text-emerald-700">{groupMessage}</p>}
 
         {groups.length === 0 ? (
           <p className="p-4 text-xs text-ink-400">{jobs.length === 0 ? 'Nothing here.' : 'No matches.'}</p>
@@ -1966,7 +1966,7 @@ function GroupedPendingJobsSection({ jobs, onChange }: { jobs: PendingSponsoredJ
                 {Math.min(groupsPage * GROUPS_PER_PAGE, groups.length)}
               </p>
             )}
-            <div className="divide-y divide-ink-100 dark:divide-ink-800">
+            <div className="divide-y divide-ink-100">
               {pagedGroups.map(([company, companyJobs]) => (
                 <CompanyPendingJobsGroup
                   key={company}
@@ -2039,19 +2039,19 @@ function CompanyPendingJobsGroup({
 
   return (
     <div>
-      <div className="flex w-full items-center justify-between gap-2 px-3 py-2.5 hover:bg-ink-50 dark:hover:bg-ink-800">
+      <div className="flex w-full items-center justify-between gap-2 px-3 py-2.5 hover:bg-ink-50">
         <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-2 text-left">
           <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${open ? 'rotate-180' : ''}`} />
           <Building2 className="h-4 w-4 shrink-0 text-ink-400" />
-          <span className="truncate text-sm font-bold text-ink-900 dark:text-ink-50">{company}</span>
-          <span className="shrink-0 rounded-full bg-ink-100 dark:bg-ink-800 px-2 py-0.5 text-[11px] font-semibold text-ink-600 dark:text-ink-300">{jobs.length}</span>
+          <span className="truncate text-sm font-bold text-ink-900">{company}</span>
+          <span className="shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-600">{jobs.length}</span>
         </button>
         <div className="flex shrink-0 items-center gap-1.5">
           {publisherId && (
             <button
               onClick={() => setShowLogoTool((v) => !v)}
               disabled={busy}
-              className="rounded-lg border border-ink-200 dark:border-ink-700 px-2.5 py-1 text-[11px] font-semibold text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800 disabled:opacity-50"
+              className="rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-600 hover:bg-ink-50 disabled:opacity-50"
             >
               Set company logo
             </button>
@@ -2059,15 +2059,15 @@ function CompanyPendingJobsGroup({
           <button onClick={onApproveAll} disabled={busy} className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
             Publish all
           </button>
-          <button onClick={onDeleteAll} disabled={busy} className="rounded-lg border border-rose-200 dark:border-rose-800 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 disabled:opacity-50">
+          <button onClick={onDeleteAll} disabled={busy} className="rounded-lg border border-rose-200 px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
             Delete all
           </button>
         </div>
       </div>
 
       {showLogoTool && publisherId && (
-        <div className="mx-3 mb-2 rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-3">
-          <p className="text-[11px] text-ink-500 dark:text-ink-400">
+        <div className="mx-3 mb-2 rounded-lg border border-ink-200 bg-white p-3">
+          <p className="text-[11px] text-ink-500">
             Applied to every {company} job (pending, published, and any future ones) at once — not just what's shown here.
           </p>
           {profile?.id && <ImageUploadField userId={profile.id} value={logoUrl} onChange={setLogoUrl} label="Company logo" />}
@@ -2078,21 +2078,21 @@ function CompanyPendingJobsGroup({
           >
             {logoBusy ? 'Applying…' : `Apply to all ${company} jobs`}
           </button>
-          {logoMessage && <p className="mt-1.5 text-xs font-medium text-ink-600 dark:text-ink-300">{logoMessage}</p>}
+          {logoMessage && <p className="mt-1.5 text-xs font-medium text-ink-600">{logoMessage}</p>}
         </div>
       )}
 
       {open && (
-        <div className="border-t border-ink-100 dark:border-ink-800 bg-ink-50/40 dark:bg-ink-800/40">
-          <div className="divide-y divide-ink-100 dark:divide-ink-800">
+        <div className="border-t border-ink-100 bg-ink-50/40">
+          <div className="divide-y divide-ink-100">
             {pageJobs.map((j) => (
               <Row key={j.id}>
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white dark:bg-ink-900 text-ink-500 dark:text-ink-400">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-ink-500">
                   <Briefcase className="h-4 w-4" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-ink-900 dark:text-ink-50">{j.title}</p>
-                  <p className="text-xs text-ink-500 dark:text-ink-400">
+                  <p className="text-sm font-semibold text-ink-900">{j.title}</p>
+                  <p className="text-xs text-ink-500">
                     {j.employment_type}
                     {j.country ? ` · ${j.country.name}` : ''}
                   </p>
@@ -2100,7 +2100,7 @@ function CompanyPendingJobsGroup({
                 </div>
                 <button
                   onClick={() => window.open(`/admin/jobs/${j.id}`, '_blank', 'noopener')}
-                  className="shrink-0 rounded-lg border border-ink-200 dark:border-ink-700 px-2.5 py-1.5 text-[11px] font-semibold text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800"
+                  className="shrink-0 rounded-lg border border-ink-200 px-2.5 py-1.5 text-[11px] font-semibold text-ink-600 hover:bg-ink-50"
                 >
                   Preview &amp; edit
                 </button>
@@ -2124,7 +2124,7 @@ function CompanyPendingJobsGroup({
                     else window.alert(result.error ?? 'Delete failed.');
                   }}
                   aria-label="Delete"
-                  className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-600 dark:hover:text-rose-400"
+                  className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -2214,12 +2214,12 @@ function ManagedProgramsSection({ programs, onChange }: { programs: AdminProgram
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(0); }}
           placeholder="Search title or publisher…"
-          className="h-9 min-w-[220px] flex-1 rounded-md border border-ink-200 dark:border-ink-700 px-3 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+          className="h-9 min-w-[220px] flex-1 rounded-md border border-ink-200 px-3 text-sm text-ink-900 outline-none focus:border-brand-500"
         />
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value as 'all' | ListingStatus); setPage(0); }}
-          className="h-9 rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500"
+          className="h-9 rounded-md border border-ink-200 px-2 text-sm text-ink-700 outline-none focus:border-brand-500"
         >
           <option value="all">All statuses</option>
           {LISTING_STATUSES.map((s) => (
@@ -2233,29 +2233,29 @@ function ManagedProgramsSection({ programs, onChange }: { programs: AdminProgram
       )}
 
       {selectedIds.size > 0 && (
-        <div className="m-2 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-900/30 px-3 py-2">
-          <span className="text-xs font-semibold text-brand-800 dark:text-brand-300">{selectedIds.size} selected</span>
+        <div className="m-2 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2">
+          <span className="text-xs font-semibold text-brand-800">{selectedIds.size} selected</span>
           <button onClick={bulkApprove} disabled={bulkBusy} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
             Publish selected
           </button>
-          <button onClick={bulkDelete} disabled={bulkBusy} className="rounded-lg border border-rose-300 dark:border-rose-800 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 disabled:opacity-50">
+          <button onClick={bulkDelete} disabled={bulkBusy} className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
             Delete selected
           </button>
-          <button onClick={() => setSelectedIds(new Set())} className="text-xs text-ink-500 dark:text-ink-400 hover:text-ink-700 dark:hover:text-ink-200">
+          <button onClick={() => setSelectedIds(new Set())} className="text-xs text-ink-500 hover:text-ink-700">
             Clear selection
           </button>
         </div>
       )}
 
-      {bulkMessage && <p className="mx-2 mb-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">{bulkMessage}</p>}
+      {bulkMessage && <p className="mx-2 mb-2 text-xs font-medium text-emerald-700">{bulkMessage}</p>}
 
       {pagePrograms.length > 0 && (
-        <label className="flex items-center gap-2 border-y border-ink-100 dark:border-ink-800 bg-ink-50 dark:bg-ink-800 px-3 py-2 text-xs font-semibold text-ink-600 dark:text-ink-300">
+        <label className="flex items-center gap-2 border-y border-ink-100 bg-ink-50 px-3 py-2 text-xs font-semibold text-ink-600">
           <input type="checkbox" checked={allOnPageSelected} onChange={toggleAllOnPage} />
           Select all on this page ({pagePrograms.length})
         </label>
       )}
-      <div className="divide-y divide-ink-100 dark:divide-ink-800">
+      <div className="divide-y divide-ink-100">
         {pagePrograms.length === 0 ? (
           <p className="px-3 py-6 text-center text-xs text-ink-400">No programs match this search/filter.</p>
         ) : (
@@ -2305,12 +2305,12 @@ function PaginatedSection<T>({
   return (
     <CollapsibleSection title={title} count={items.length} open={open} onToggle={() => setOpen((v) => !v)}>
       {items.length > ADMIN_PAGE_SIZE && (
-        <div className="border-b border-ink-100 dark:border-ink-800 p-2">
+        <div className="border-b border-ink-100 p-2">
           <input
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             placeholder="Search…"
-            className="h-9 w-full max-w-xs rounded-md border border-ink-200 dark:border-ink-700 px-3 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+            className="h-9 w-full max-w-xs rounded-md border border-ink-200 px-3 text-sm text-ink-900 outline-none focus:border-brand-500"
           />
         </div>
       )}
@@ -2318,7 +2318,7 @@ function PaginatedSection<T>({
       {filtered.length === 0 ? (
         <p className="p-4 text-xs text-ink-400">{items.length === 0 ? emptyLabel : 'No matches.'}</p>
       ) : (
-        <div className="divide-y divide-ink-100 dark:divide-ink-800">{pageItems.map(renderRow)}</div>
+        <div className="divide-y divide-ink-100">{pageItems.map(renderRow)}</div>
       )}
 
       <Pager page={page} totalPages={totalPages} onChange={setPage} />
@@ -2346,13 +2346,13 @@ function CollapsibleSection({
         onClick={onToggle}
         className="flex w-full items-center justify-between gap-2 text-left"
       >
-        <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">
           {title} <span className="text-ink-400">({count})</span>
         </h2>
         <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && <div className="mt-3 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900">{children}</div>}
+      {open && <div className="mt-3 border border-ink-200 bg-white">{children}</div>}
     </section>
   );
 }
@@ -2366,12 +2366,12 @@ function Pager({ page, totalPages, onChange }: { page: number; totalPages: numbe
   const sorted = Array.from(pages).filter((p) => p >= 0 && p < totalPages).sort((a, b) => a - b);
 
   return (
-    <div className="flex items-center justify-center gap-1 border-t border-ink-100 dark:border-ink-800 p-3">
+    <div className="flex items-center justify-center gap-1 border-t border-ink-100 p-3">
       <button
         onClick={() => onChange(Math.max(0, page - 1))}
         disabled={page === 0}
         aria-label="Previous page"
-        className="rounded-full p-1.5 text-ink-500 dark:text-ink-400 hover:bg-ink-50 dark:hover:bg-ink-800 disabled:opacity-30"
+        className="rounded-full p-1.5 text-ink-500 hover:bg-ink-50 disabled:opacity-30"
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
@@ -2381,7 +2381,7 @@ function Pager({ page, totalPages, onChange }: { page: number; totalPages: numbe
           {i > 0 && p - sorted[i - 1] > 1 && <span className="px-1 text-xs text-ink-300">…</span>}
           <button
             onClick={() => onChange(p)}
-            className={`h-7 min-w-[28px] rounded-md px-1.5 text-xs font-semibold ${p === page ? 'bg-brand-600 text-white' : 'text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800'}`}
+            className={`h-7 min-w-[28px] rounded-md px-1.5 text-xs font-semibold ${p === page ? 'bg-brand-600 text-white' : 'text-ink-600 hover:bg-ink-50'}`}
           >
             {p + 1}
           </button>
@@ -2392,7 +2392,7 @@ function Pager({ page, totalPages, onChange }: { page: number; totalPages: numbe
         onClick={() => onChange(Math.min(totalPages - 1, page + 1))}
         disabled={page >= totalPages - 1}
         aria-label="Next page"
-        className="rounded-full p-1.5 text-ink-500 dark:text-ink-400 hover:bg-ink-50 dark:hover:bg-ink-800 disabled:opacity-30"
+        className="rounded-full p-1.5 text-ink-500 hover:bg-ink-50 disabled:opacity-30"
       >
         <ChevronRight className="h-4 w-4" />
       </button>
@@ -2421,7 +2421,7 @@ function Actions({ onApprove, onReject }: { onApprove: () => void; onReject: () 
       </button>
       <button
         onClick={onReject}
-        className="flex items-center gap-1 rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-1.5 text-xs font-semibold text-ink-600 dark:text-ink-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-700 dark:hover:text-rose-300"
+        className="flex items-center gap-1 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
       >
         <X className="h-3.5 w-3.5" />
         Reject

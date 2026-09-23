@@ -21,7 +21,7 @@ export function CircleFlag({ countryCode, label, size = 24, className = '' }: Ci
     return (
       <span
         style={{ width: size, height: size }}
-        className={`grid shrink-0 place-items-center rounded-full bg-ink-100 dark:bg-ink-800 text-ink-400 ${className}`}
+        className={`grid shrink-0 place-items-center rounded-full bg-ink-100 text-ink-400 ${className}`}
         title={label}
       >
         <Globe2 style={{ width: size * 0.6, height: size * 0.6 }} />
@@ -35,7 +35,7 @@ export function CircleFlag({ countryCode, label, size = 24, className = '' }: Ci
       alt={label ? `${label} flag` : ''}
       title={label}
       style={{ width: size, height: size }}
-      className={`shrink-0 rounded-full border border-ink-100 dark:border-ink-800 object-cover ${className}`}
+      className={`shrink-0 rounded-full border border-ink-100 object-cover ${className}`}
       onError={(event) => {
         event.currentTarget.style.visibility = 'hidden';
       }}

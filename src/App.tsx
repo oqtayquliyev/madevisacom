@@ -172,12 +172,12 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="grid min-h-screen place-items-center gap-4 bg-[#f7f9fc] dark:bg-ink-950">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600 dark:text-brand-400" />
+      <div className="grid min-h-screen place-items-center gap-4 bg-[#f7f9fc]">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
         <button
           type="button"
           onClick={() => supabase.auth.signOut()}
-          className="text-xs font-medium text-ink-400 underline hover:text-ink-700 dark:hover:text-ink-200"
+          className="text-xs font-medium text-ink-400 underline hover:text-ink-700"
         >
           Taking too long? Sign out and try again
         </button>
@@ -505,13 +505,13 @@ function ProfileMissingScreen() {
   };
 
   return (
-    <div className="grid min-h-screen place-items-center bg-[#f7f9fc] dark:bg-ink-950 px-5">
+    <div className="grid min-h-screen place-items-center bg-[#f7f9fc] px-5">
       <div className="flex flex-col items-center gap-4 text-center">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600 dark:text-brand-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
 
         {showHelp && (
           <div className="max-w-sm">
-            <p className="text-sm font-medium text-ink-700 dark:text-ink-200">
+            <p className="text-sm font-medium text-ink-700">
               This is taking longer than expected.
             </p>
             <p className="mt-1 text-xs text-ink-400">
@@ -530,7 +530,7 @@ function ProfileMissingScreen() {
               <button
                 type="button"
                 onClick={signOut}
-                className="text-xs font-medium text-ink-400 underline hover:text-ink-700 dark:hover:text-ink-200"
+                className="text-xs font-medium text-ink-400 underline hover:text-ink-700"
               >
                 Sign out
               </button>

@@ -19,7 +19,7 @@ export function AuthCard({
   showSidePanel?: boolean;
 }) {
   return (
-    <div className="min-h-screen bg-[#f7f9fc] dark:bg-ink-950 lg:grid lg:grid-cols-2">
+    <div className="min-h-screen bg-[#f7f9fc] lg:grid lg:grid-cols-2">
       {/* Widened from max-w-md: more breathing room for inputs, especially
           the phone/country row and the password field's show/hide toggle. */}
       <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-5 py-12">
@@ -34,9 +34,9 @@ export function AuthCard({
 
         <LiveOpportunitiesBadge />
 
-        <div className="mt-4 rounded-3xl border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6 shadow-soft-lg sm:p-8">
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-900 dark:text-ink-50">{title}</h1>
-          {subtitle && <p className="mt-2 text-sm leading-relaxed text-ink-500 dark:text-ink-400">{subtitle}</p>}
+        <div className="mt-4 rounded-3xl border border-ink-200 bg-white p-6 shadow-soft-lg sm:p-8">
+          <h1 className="text-2xl font-semibold tracking-tight text-ink-900">{title}</h1>
+          {subtitle && <p className="mt-2 text-sm leading-relaxed text-ink-500">{subtitle}</p>}
           <div className="mt-6">{children}</div>
         </div>
       </div>
@@ -91,7 +91,7 @@ function LiveOpportunitiesBadge() {
   if (!state) return null;
 
   return (
-    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-50 dark:bg-brand-900/30 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300">
+    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700">
       <Sparkles className="h-3.5 w-3.5" />
       +{state.count} opportunities {state.label} on MadeVisa
     </div>
@@ -104,7 +104,7 @@ export function BackButton({ onClick, label = 'Back' }: { onClick: () => void; l
   return (
     <button
       onClick={onClick}
-      className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-ink-200 dark:border-ink-700 px-3 py-1.5 text-sm font-medium text-ink-600 dark:text-ink-300 transition hover:border-ink-300 dark:hover:border-ink-600 hover:bg-ink-50 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-ink-50"
+      className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-ink-200 px-3 py-1.5 text-sm font-medium text-ink-600 transition hover:border-ink-300 hover:bg-ink-50 hover:text-ink-900"
     >
       <ArrowLeft className="h-4 w-4" />
       {label}
@@ -117,7 +117,7 @@ export function GoogleButton({ onClick, loading, label }: { onClick: () => void;
     <button
       onClick={onClick}
       disabled={loading}
-      className="flex w-full items-center justify-center gap-3 rounded-xl border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-3 text-sm font-semibold text-ink-700 dark:text-ink-200 shadow-soft transition hover:border-ink-300 dark:hover:border-ink-600 hover:shadow-soft-lg disabled:opacity-50"
+      className="flex w-full items-center justify-center gap-3 rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm font-semibold text-ink-700 shadow-soft transition hover:border-ink-300 hover:shadow-soft-lg disabled:opacity-50"
     >
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
       {label}
@@ -150,7 +150,7 @@ export function Input({ label, type = 'text', value, onChange, placeholder, requ
 
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-ink-600 dark:text-ink-300">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-ink-600">{label}</span>
       <div className="relative">
         <input
           type={isPassword && revealed ? 'text' : type}
@@ -159,7 +159,7 @@ export function Input({ label, type = 'text', value, onChange, placeholder, requ
           placeholder={placeholder}
           required={required}
           autoComplete={autoComplete}
-          className={`w-full rounded-xl border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3.5 py-3 text-sm text-ink-800 dark:text-ink-100 outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100 dark:focus:ring-brand-900 ${isPassword ? 'pr-11' : ''}`}
+          className={`w-full rounded-xl border border-ink-200 bg-white px-3.5 py-3 text-sm text-ink-800 outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100 ${isPassword ? 'pr-11' : ''}`}
         />
         {isPassword && (
           <button
@@ -167,7 +167,7 @@ export function Input({ label, type = 'text', value, onChange, placeholder, requ
             onClick={() => setRevealed((v) => !v)}
             tabIndex={-1}
             aria-label={revealed ? 'Hide password' : 'Show password'}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 transition hover:text-ink-700 dark:hover:text-ink-200"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 transition hover:text-ink-700"
           >
             {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -193,16 +193,16 @@ export function PrimaryButton({ children, onClick, loading, disabled, className 
 export function Divider({ label }: { label: string }) {
   return (
     <div className="my-5 flex items-center gap-3">
-      <div className="h-px flex-1 bg-ink-200 dark:bg-ink-700" />
+      <div className="h-px flex-1 bg-ink-200" />
       <span className="text-xs font-medium text-ink-400">{label}</span>
-      <div className="h-px flex-1 bg-ink-200 dark:bg-ink-700" />
+      <div className="h-px flex-1 bg-ink-200" />
     </div>
   );
 }
 
 export function ErrorBanner({ message }: { message: string | null }) {
   if (!message) return null;
-  return <div className="rounded-xl bg-red-50 dark:bg-red-900/30 px-4 py-3 text-sm font-medium text-red-700 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-800">{message}</div>;
+  return <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700 ring-1 ring-red-200">{message}</div>;
 }
 
 export function useAuthForm() {

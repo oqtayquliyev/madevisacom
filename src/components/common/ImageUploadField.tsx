@@ -28,15 +28,15 @@ export function ImageUploadField({
 
   return (
     <div>
-      <label className="mb-1.5 block text-xs font-semibold text-ink-500 dark:text-ink-400">{label}</label>
+      <label className="mb-1.5 block text-xs font-semibold text-ink-500">{label}</label>
 
       {value ? (
         <div className="flex items-center gap-3">
-          <img src={value} alt="" className="h-16 w-16 rounded-lg border border-ink-200 dark:border-ink-700 object-cover" />
+          <img src={value} alt="" className="h-16 w-16 rounded-lg border border-ink-200 object-cover" />
           <button
             type="button"
             onClick={() => onChange('')}
-            className="flex items-center gap-1 text-xs font-semibold text-ink-500 dark:text-ink-400 hover:text-rose-600 dark:hover:text-rose-400"
+            className="flex items-center gap-1 text-xs font-semibold text-ink-500 hover:text-rose-600"
           >
             <X className="h-3.5 w-3.5" />
             Remove
@@ -47,7 +47,7 @@ export function ImageUploadField({
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="flex h-24 w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-ink-200 dark:border-ink-700 text-ink-400 hover:border-brand-300 dark:hover:border-brand-700 hover:text-brand-600 dark:hover:text-brand-400 disabled:opacity-60"
+          className="flex h-24 w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-ink-200 text-ink-400 hover:border-brand-300 hover:text-brand-600 disabled:opacity-60"
         >
           {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
           <span className="text-xs font-medium">{uploading ? 'Uploading…' : 'Click to upload an image'}</span>
@@ -66,7 +66,7 @@ export function ImageUploadField({
         }}
       />
 
-      {error && <p className="mt-1.5 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
+      {error && <p className="mt-1.5 text-xs font-medium text-rose-600">{error}</p>}
     </div>
   );
 }

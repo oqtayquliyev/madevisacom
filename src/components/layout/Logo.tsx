@@ -24,33 +24,22 @@ type LogoProps = {
  * host is ever unreachable (offline preview, ad blockers, etc.).
  */
 export function Logo({ variant = 'header', className = '', style }: LogoProps) {
+  const src = variant === 'footer' ? LOGO_FOOTER : LOGO_MAIN;
   const sizeClass = variant === 'footer' ? 'h-8' : 'h-6';
 
-  const onError = (event: React.SyntheticEvent<HTMLImageElement>) => {
-    const target = event.currentTarget;
-    target.style.display = 'none';
-    const fallback = target.parentElement?.querySelector<HTMLElement>('[data-logo-fallback]');
-    if (fallback) fallback.style.display = 'inline-flex';
-  };
-
-  if (variant === 'footer') {
-    return <img src={LOGO_FOOTER} alt="MadeVisa" className={`${sizeClass} w-auto object-contain ${className}`} style={style} onError={onError} />;
-  }
-
-  // Header logo has dark lettering; in dark mode swap to the white-lettered
-  // footer artwork at the same size so it stays readable.
   return (
-    <>
-      <img src={LOGO_MAIN} alt="MadeVisa" className={`${sizeClass} w-auto object-contain dark:hidden ${className}`} style={style} onError={onError} />
-      <img
-        src={LOGO_FOOTER}
-        alt="MadeVisa"
-        aria-hidden="true"
-        className={`${sizeClass} hidden w-auto object-contain dark:inline-block ${className}`}
-        style={style}
-        onError={onError}
-      />
-    </>
+    <img
+      src={src}
+      alt="MadeVisa"
+      className={`${sizeClass} w-auto object-contain ${className}`}
+      style={style}
+      onError={(event) => {
+        const target = event.currentTarget;
+        target.style.display = 'none';
+        const fallback = target.nextElementSibling as HTMLElement | null;
+        if (fallback) fallback.style.display = 'inline-flex';
+      }}
+    />
   );
 }
 
@@ -73,10 +62,9 @@ export function BrandMark({
     >
       <Logo variant={variant} />
       <span
-        data-logo-fallback
         style={{ display: 'none' }}
         className={`items-center text-lg font-bold tracking-tight ${
-          isFooter ? 'text-white' : 'text-ink-950 dark:text-ink-50'
+          isFooter ? 'text-white' : 'text-ink-950'
         }`}
       >
         madevisa<span className="text-brand-500">.</span>

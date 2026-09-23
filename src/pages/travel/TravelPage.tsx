@@ -174,7 +174,7 @@ export function TravelPage({ go, onAuth }: TravelPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950 text-ink-900 dark:text-ink-50">
+    <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="travel" />
 
       {/* HERO / SEARCH — booking.com style */}
@@ -192,7 +192,7 @@ export function TravelPage({ go, onAuth }: TravelPageProps) {
           </div>
 
           {/* SEARCH CARD */}
-          <div className="mt-1 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-3 shadow-xl sm:p-4">
+          <div className="mt-1 border border-ink-200 bg-white p-3 shadow-xl sm:p-4">
             {tab === 'stays' ? (
               <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:items-end">
                 <TextField label="Destination" icon={MapPin} value={destination} onChange={setDestination} />
@@ -209,12 +209,12 @@ export function TravelPage({ go, onAuth }: TravelPageProps) {
                   <TripTypeButton active={tripType === 'roundtrip'} onClick={() => setTripType('roundtrip')} label="Round trip" />
                   <TripTypeButton active={tripType === 'oneway'} onClick={() => setTripType('oneway')} label="One way" />
 
-                  <div className="ml-auto flex items-center gap-2 text-xs font-medium text-ink-500 dark:text-ink-400">
+                  <div className="ml-auto flex items-center gap-2 text-xs font-medium text-ink-500">
                     <Users className="h-3.5 w-3.5" />
                     <select
                       value={adults}
                       onChange={(e) => setAdults(Number(e.target.value))}
-                      className="rounded-md border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-2 py-1 text-xs font-semibold text-ink-800 dark:text-ink-100 outline-none"
+                      className="rounded-md border border-ink-200 bg-white px-2 py-1 text-xs font-semibold text-ink-800 outline-none"
                     >
                       {Array.from({ length: 9 }, (_, i) => i + 1).map((n) => (
                         <option key={n} value={n}>
@@ -232,7 +232,7 @@ export function TravelPage({ go, onAuth }: TravelPageProps) {
                     type="button"
                     onClick={swapAirports}
                     aria-label="Swap origin and destination"
-                    className="mx-auto hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-ink-200 dark:border-ink-700 text-ink-500 dark:text-ink-400 hover:bg-ink-50 dark:hover:bg-ink-800 lg:flex"
+                    className="mx-auto hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-ink-200 text-ink-500 hover:bg-ink-50 lg:flex"
                   >
                     <ArrowLeftRight className="h-4 w-4" />
                   </button>
@@ -257,8 +257,8 @@ export function TravelPage({ go, onAuth }: TravelPageProps) {
               </div>
             )}
 
-            <div className="mt-3 flex items-start gap-2 border-t border-ink-100 dark:border-ink-800 pt-3 text-xs text-ink-500 dark:text-ink-400">
-              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <div className="mt-3 flex items-start gap-2 border-t border-ink-100 pt-3 text-xs text-ink-500">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
               {tab === 'flights' ? (
                 <span>
                   You'll be taken to our flight search partner, Aviasales, to see live prices and complete
@@ -276,36 +276,36 @@ export function TravelPage({ go, onAuth }: TravelPageProps) {
       <main className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
         {tab === 'stays' ? (
           <>
-            <h2 className="text-xl font-bold text-ink-950 dark:text-ink-50">
+            <h2 className="text-xl font-bold text-ink-950">
               {stayResults.length} stays near {destination.split(',')[0]}
             </h2>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {stayResults.map((stay) => (
-                <article key={stay.id} className="flex flex-col overflow-hidden border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-soft transition hover:-translate-y-0.5 hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-soft-lg">
+                <article key={stay.id} className="flex flex-col overflow-hidden border border-ink-200 bg-white shadow-soft transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg">
                   <div className="h-36 w-full overflow-hidden">
                     <img src={stay.image} alt="" className="h-full w-full object-cover" />
                   </div>
                   <div className="flex flex-1 flex-col p-4">
-                    <h3 className="text-sm font-bold text-ink-900 dark:text-ink-50">{stay.name}</h3>
-                    <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-500 dark:text-ink-400">
+                    <h3 className="text-sm font-bold text-ink-900">{stay.name}</h3>
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-500">
                       <MapPin className="h-3 w-3" />
                       {stay.city}
                     </p>
-                    <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-ink-700 dark:text-ink-200">
+                    <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-ink-700">
                       <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                       {stay.rating}
                       <span className="font-normal text-ink-400">({stay.reviews})</span>
                     </p>
-                    <span className="mt-2 inline-flex w-fit items-center gap-1 rounded-md bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                    <span className="mt-2 inline-flex w-fit items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
                       <Tag className="h-3 w-3" />
                       {stay.tag}
                     </span>
-                    <div className="mt-auto flex items-end justify-between border-t border-ink-100 dark:border-ink-800 pt-3">
+                    <div className="mt-auto flex items-end justify-between border-t border-ink-100 pt-3">
                       <div>
                         <p className="text-[11px] text-ink-400">Per night</p>
-                        <p className="text-lg font-bold text-ink-950 dark:text-ink-50">€{stay.price}</p>
+                        <p className="text-lg font-bold text-ink-950">€{stay.price}</p>
                       </div>
-                      <button className="rounded-lg border border-brand-200 dark:border-brand-800 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30">
+                      <button className="rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
                         View
                       </button>
                     </div>
@@ -320,21 +320,21 @@ export function TravelPage({ go, onAuth }: TravelPageProps) {
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-bold text-ink-950 dark:text-ink-50">
+              <h2 className="text-xl font-bold text-ink-950">
                 Popular routes from {originAirport.city}
               </h2>
               <a
                 href={searchUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
+                className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700"
               >
                 See live results on Aviasales
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </div>
 
-            <div className="mt-6 flex flex-col divide-y divide-ink-100 dark:divide-ink-800 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900">
+            <div className="mt-6 flex flex-col divide-y divide-ink-100 border border-ink-200 bg-white">
               {popularRoutes.map((flight) => {
                 const routeUrl = buildFlightSearchUrl({
                   origin: flight.from,
@@ -346,23 +346,23 @@ export function TravelPage({ go, onAuth }: TravelPageProps) {
                 const toAirport = airports.find((a) => a.code === flight.to);
 
                 return (
-                  <div key={flight.id} className="flex flex-col gap-3 p-4 transition hover:bg-ink-50/50 dark:hover:bg-ink-800/50 sm:flex-row sm:items-center sm:justify-between">
+                  <div key={flight.id} className="flex flex-col gap-3 p-4 transition hover:bg-ink-50/50 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-4">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-ink-50 dark:bg-ink-800 text-ink-500 dark:text-ink-400">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500">
                         <Plane className="h-4 w-4" />
                       </span>
                       <div>
-                        <p className="flex items-center gap-1.5 text-sm font-bold text-ink-900 dark:text-ink-50">
+                        <p className="flex items-center gap-1.5 text-sm font-bold text-ink-900">
                           {toAirport && <CircleFlag countryCode={toAirport.countryCode} label={toAirport.country} size={16} />}
                           {flight.from} → {flight.to}
                         </p>
-                        <p className="text-xs text-ink-500 dark:text-ink-400">
+                        <p className="text-xs text-ink-500">
                           {flight.duration} · {flight.stops} · {flight.airline}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 sm:justify-end">
-                      <p className="text-sm font-semibold text-ink-700 dark:text-ink-200">{flight.priceHint}</p>
+                      <p className="text-sm font-semibold text-ink-700">{flight.priceHint}</p>
                       <a
                         href={routeUrl}
                         target="_blank"
@@ -378,7 +378,7 @@ export function TravelPage({ go, onAuth }: TravelPageProps) {
               })}
             </div>
 
-            <div className="mt-4 flex items-start gap-2 rounded-lg bg-ink-50 dark:bg-ink-800 px-4 py-3 text-xs text-ink-500 dark:text-ink-400">
+            <div className="mt-4 flex items-start gap-2 rounded-lg bg-ink-50 px-4 py-3 text-xs text-ink-500">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-400" />
               <span>
                 "Search" opens live results on Aviasales with your dates and passenger count carried over. Prices
@@ -387,11 +387,11 @@ export function TravelPage({ go, onAuth }: TravelPageProps) {
             </div>
 
             {!affiliateConfig.isConfigured && (
-              <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 px-4 py-3 text-xs text-amber-800 dark:text-amber-300">
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
                   Using a demo affiliate marker — bookings won't be credited to you yet. Set{' '}
-                  <code className="rounded bg-amber-100 dark:bg-amber-900/50 px-1 py-0.5">VITE_TRAVELPAYOUTS_MARKER</code> in your
+                  <code className="rounded bg-amber-100 px-1 py-0.5">VITE_TRAVELPAYOUTS_MARKER</code> in your
                   environment once you have a Travelpayouts account. See OPPORTUNITIES.md for setup steps.
                 </span>
               </div>
@@ -427,7 +427,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={`flex items-center gap-2 rounded-t-lg border border-b-0 px-5 py-2.5 text-sm font-semibold transition ${
-        active ? 'border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 text-ink-900 dark:text-ink-50' : 'border-transparent text-white/70 hover:text-white'
+        active ? 'border-ink-200 bg-white text-ink-900' : 'border-transparent text-white/70 hover:text-white'
       }`}
     >
       <Icon className="h-4 w-4" />
@@ -442,7 +442,7 @@ function TripTypeButton({ active, onClick, label }: { active: boolean; onClick: 
       type="button"
       onClick={onClick}
       className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-        active ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300' : 'border-ink-200 dark:border-ink-700 text-ink-500 dark:text-ink-400 hover:border-brand-300 dark:hover:border-brand-700'
+        active ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-200 text-ink-500 hover:border-brand-300'
       }`}
     >
       {label}
@@ -465,14 +465,14 @@ function TextField({
 }) {
   return (
     <div>
-      <label className="mb-1.5 block text-xs font-semibold text-ink-500 dark:text-ink-400">{label}</label>
-      <div className="flex h-12 items-center gap-2 rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3">
+      <label className="mb-1.5 block text-xs font-semibold text-ink-500">{label}</label>
+      <div className="flex h-12 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3">
         <Icon className="h-4 w-4 shrink-0 text-ink-400" />
         <input
           value={value}
           readOnly={readOnly}
           onChange={(e) => onChange(e.target.value)}
-          className="h-full w-full min-w-0 bg-transparent text-sm font-medium text-ink-900 dark:text-ink-50 outline-none placeholder:text-ink-400"
+          className="h-full w-full min-w-0 bg-transparent text-sm font-medium text-ink-900 outline-none placeholder:text-ink-400"
         />
       </div>
     </div>
@@ -492,15 +492,15 @@ function DateField({
 }) {
   return (
     <div>
-      <label className="mb-1.5 block text-xs font-semibold text-ink-500 dark:text-ink-400">{label}</label>
-      <div className="flex h-12 items-center gap-2 rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3">
+      <label className="mb-1.5 block text-xs font-semibold text-ink-500">{label}</label>
+      <div className="flex h-12 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3">
         <CalendarDays className="h-4 w-4 shrink-0 text-ink-400" />
         <input
           type="date"
           value={value}
           min={min}
           onChange={(e) => onChange(e.target.value)}
-          className="h-full w-full min-w-0 bg-transparent text-sm font-medium text-ink-900 dark:text-ink-50 outline-none"
+          className="h-full w-full min-w-0 bg-transparent text-sm font-medium text-ink-900 outline-none"
         />
       </div>
     </div>
@@ -531,15 +531,15 @@ function AirportSelect({
 
   return (
     <div className="relative min-w-0">
-      <label className="mb-1.5 block text-xs font-semibold text-ink-500 dark:text-ink-400">{label}</label>
+      <label className="mb-1.5 block text-xs font-semibold text-ink-500">{label}</label>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-12 w-full items-center gap-2 rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 text-left hover:border-brand-300 dark:hover:border-brand-700"
+        className="flex h-12 w-full items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 text-left hover:border-brand-300"
       >
         <CircleFlag countryCode={value.countryCode} label={value.country} size={20} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-ink-900 dark:text-ink-50">{value.city}</span>
+          <span className="block truncate text-sm font-semibold text-ink-900">{value.city}</span>
           <span className="block text-[11px] text-ink-400">{value.code}</span>
         </span>
         <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${open ? 'rotate-180' : ''}`} />
@@ -548,13 +548,13 @@ function AirportSelect({
       {open && (
         <>
           <button type="button" aria-label="close" onClick={() => setOpen(false)} className="fixed inset-0 z-30" />
-          <div className="absolute left-0 right-0 top-full z-40 mt-1 w-72 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-2 shadow-xl">
+          <div className="absolute left-0 right-0 top-full z-40 mt-1 w-72 border border-ink-200 bg-white p-2 shadow-xl">
             <input
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search city, airport or code"
-              className="mb-1 h-9 w-full rounded-md border border-ink-200 dark:border-ink-700 px-3 text-sm outline-none focus:border-brand-500"
+              className="mb-1 h-9 w-full rounded-md border border-ink-200 px-3 text-sm outline-none focus:border-brand-500"
             />
             <div className="max-h-64 overflow-y-auto">
               {filtered.map((airport) => (
@@ -566,18 +566,18 @@ function AirportSelect({
                     setOpen(false);
                     setQuery('');
                   }}
-                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-ink-50 dark:hover:bg-ink-800 ${
-                    airport.code === value.code ? 'bg-brand-50 dark:bg-brand-900/30' : ''
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-ink-50 ${
+                    airport.code === value.code ? 'bg-brand-50' : ''
                   }`}
                 >
                   <CircleFlag countryCode={airport.countryCode} label={airport.country} size={20} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-ink-800 dark:text-ink-100">
+                    <span className="block truncate text-sm font-medium text-ink-800">
                       {airport.city}, {airport.country}
                     </span>
                     <span className="block text-[11px] text-ink-400">{airport.code}</span>
                   </span>
-                  {airport.code === value.code && <CheckCircle2 className="h-4 w-4 text-brand-600 dark:text-brand-400" />}
+                  {airport.code === value.code && <CheckCircle2 className="h-4 w-4 text-brand-600" />}
                 </button>
               ))}
               {filtered.length === 0 && (

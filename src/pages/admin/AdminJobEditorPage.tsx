@@ -63,12 +63,12 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950 text-ink-900 dark:text-ink-50">
+      <div className="min-h-screen bg-[#f8fafc] text-ink-900">
         <LandingHeader go={go} onAuth={onAuth} active="home" />
         <main className="mx-auto max-w-lg px-5 py-24 text-center sm:px-8">
           <ShieldAlert className="mx-auto h-10 w-10 text-ink-300" />
-          <h1 className="mt-4 text-xl font-bold text-ink-900 dark:text-ink-50">Admins only</h1>
-          <p className="mt-2 text-sm text-ink-500 dark:text-ink-400">You don't have access to this page.</p>
+          <h1 className="mt-4 text-xl font-bold text-ink-900">Admins only</h1>
+          <p className="mt-2 text-sm text-ink-500">You don't have access to this page.</p>
           <button onClick={() => go('home')} className="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
             Back to MadeVisa
           </button>
@@ -80,7 +80,7 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
 
   if (job === undefined) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950">
+      <div className="min-h-screen bg-[#f8fafc]">
         <LandingHeader go={go} onAuth={onAuth} active="home" />
         <div className="grid h-96 place-items-center">
           <Loader2 className="h-6 w-6 animate-spin text-ink-300" />
@@ -91,11 +91,11 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
 
   if (!job) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950">
+      <div className="min-h-screen bg-[#f8fafc]">
         <LandingHeader go={go} onAuth={onAuth} active="home" />
         <div className="mx-auto max-w-lg px-5 py-24 text-center">
-          <h1 className="text-xl font-bold text-ink-900 dark:text-ink-50">Job not found</h1>
-          <p className="mt-2 text-sm text-ink-500 dark:text-ink-400">It may have been deleted.</p>
+          <h1 className="text-xl font-bold text-ink-900">Job not found</h1>
+          <p className="mt-2 text-sm text-ink-500">It may have been deleted.</p>
           <button onClick={() => window.close()} className="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
             Close this tab
           </button>
@@ -138,46 +138,46 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950 text-ink-900 dark:text-ink-50">
+    <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="home" />
 
       <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <button onClick={() => window.close()} className="flex items-center gap-1.5 text-xs font-semibold text-ink-500 dark:text-ink-400 hover:text-ink-800 dark:hover:text-ink-100">
+          <button onClick={() => window.close()} className="flex items-center gap-1.5 text-xs font-semibold text-ink-500 hover:text-ink-800">
             <ArrowLeft className="h-3.5 w-3.5" />
             Close
           </button>
           <div className="flex flex-wrap items-center gap-2">
-            {savedAt && <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Saved.</span>}
+            {savedAt && <span className="text-xs font-medium text-emerald-700">Saved.</span>}
             {job.status === 'published' && (
               <a
                 href={jobPath({ id: `sponsored-${job.id}`, title: job.title, company: job.publisher?.name ?? '' })}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-1.5 text-xs font-semibold text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800"
+                className="flex items-center gap-1 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
                 View public page
               </a>
             )}
-            <button onClick={remove} className="flex items-center gap-1 rounded-lg border border-rose-200 dark:border-rose-800 px-3 py-1.5 text-xs font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30">
+            <button onClick={remove} className="flex items-center gap-1 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50">
               <Trash2 className="h-3.5 w-3.5" />
               Delete
             </button>
           </div>
         </div>
 
-        <div className="mt-5 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6 sm:p-8">
+        <div className="mt-5 border border-ink-200 bg-white p-6 sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="font-slab text-xl font-bold tracking-tight text-ink-950 dark:text-ink-50">Edit job</h1>
+            <h1 className="font-slab text-xl font-bold tracking-tight text-ink-950">Edit job</h1>
             <StatusBadge status={job.status} />
           </div>
-          <p className="mt-1 text-xs text-ink-500 dark:text-ink-400">
+          <p className="mt-1 text-xs text-ink-500">
             {job.publisher?.name ?? 'Unknown publisher'}
             {job.official_url && (
               <>
                 {' · '}
-                <a href={job.official_url} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline">
+                <a href={job.official_url} target="_blank" rel="noopener noreferrer" className="text-brand-600 underline">
                   Original source
                 </a>
               </>
@@ -219,7 +219,7 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
                   <select
                     value={job.country_id ?? ''}
                     onChange={(e) => set('country_id', e.target.value || null)}
-                    className="h-9 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+                    className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
                   >
                     <option value="">Not set (shows as "Various")</option>
                     {countries.map((c) => (
@@ -231,7 +231,7 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
                   <TextInput value={job.city ?? ''} onChange={(v) => set('city', v || null)} />
                 </Field>
               </div>
-              <label className="mt-1 flex items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
+              <label className="mt-1 flex items-center gap-2 text-sm text-ink-700">
                 <input type="checkbox" checked={job.remote} onChange={(e) => set('remote', e.target.checked)} />
                 Remote
               </label>
@@ -240,7 +240,7 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
                   type="date"
                   value={job.source_posted_at ? job.source_posted_at.slice(0, 10) : ''}
                   onChange={(e) => set('source_posted_at', e.target.value ? new Date(e.target.value).toISOString() : null)}
-                  className="h-9 w-full max-w-[200px] rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+                  className="h-9 w-full max-w-[200px] rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
                 />
               </Field>
             </Section>
@@ -274,7 +274,7 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
             </Section>
 
             <Section title="Eligibility & requirements">
-              <label className="flex items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
+              <label className="flex items-center gap-2 text-sm text-ink-700">
                 <input type="checkbox" checked={job.visa_sponsorship} onChange={(e) => set('visa_sponsorship', e.target.checked)} />
                 Visa sponsorship offered
               </label>
@@ -294,7 +294,7 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
                   type="date"
                   value={job.application_deadline ? job.application_deadline.slice(0, 10) : ''}
                   onChange={(e) => set('application_deadline', e.target.value || null)}
-                  className="h-9 w-full max-w-[200px] rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+                  className="h-9 w-full max-w-[200px] rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
                 />
               </Field>
               <Field label="Requirements">
@@ -315,7 +315,7 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
             </Section>
 
             <Section title="Admin only">
-              <label className="flex items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
+              <label className="flex items-center gap-2 text-sm text-ink-700">
                 <input type="checkbox" checked={job.source_verified} onChange={(e) => set('source_verified', e.target.checked)} />
                 Source verified
               </label>
@@ -330,9 +330,9 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
             </Section>
           </div>
 
-          {error && <p className="mt-4 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
+          {error && <p className="mt-4 text-xs font-medium text-rose-600">{error}</p>}
 
-          <div className="mt-8 flex flex-wrap items-center gap-2 border-t border-ink-100 dark:border-ink-800 pt-6">
+          <div className="mt-8 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-6">
             <button onClick={() => save()} disabled={saving} className="rounded-lg bg-ink-900 px-4 py-2 text-xs font-semibold text-white hover:bg-ink-800 disabled:opacity-50">
               {saving ? 'Saving…' : 'Save changes'}
             </button>
@@ -340,7 +340,7 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
               Save & publish
             </button>
             {job.status !== 'rejected' && (
-              <button onClick={() => save('rejected')} disabled={saving} className="rounded-lg border border-rose-200 dark:border-rose-800 px-4 py-2 text-xs font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 disabled:opacity-50">
+              <button onClick={() => save('rejected')} disabled={saving} className="rounded-lg border border-rose-200 px-4 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
                 Reject
               </button>
             )}
@@ -365,7 +365,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1 block text-[11px] font-semibold text-ink-500 dark:text-ink-400">{label}</label>
+      <label className="mb-1 block text-[11px] font-semibold text-ink-500">{label}</label>
       {children}
     </div>
   );
@@ -376,7 +376,7 @@ function TextInput({ value, onChange }: { value: string; onChange: (v: string) =
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-9 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+      className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
     />
   );
 }
@@ -387,7 +387,7 @@ function TextArea({ value, onChange }: { value: string; onChange: (v: string) =>
       value={value}
       onChange={(e) => onChange(e.target.value)}
       rows={3}
-      className="w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 py-1.5 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+      className="w-full rounded-md border border-ink-200 px-2 py-1.5 text-sm text-ink-900 outline-none focus:border-brand-500"
     />
   );
 }
@@ -398,14 +398,14 @@ function NumberInput({ value, onChange }: { value: number | null; onChange: (v: 
       type="number"
       value={value ?? ''}
       onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-      className="h-9 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
+      className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
     />
   );
 }
 
 function Select<T extends string>({ value, onChange, options, labels }: { value: T; onChange: (v: T) => void; options: readonly T[]; labels?: Record<string, string> }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value as T)} className="h-9 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500">
+    <select value={value} onChange={(e) => onChange(e.target.value as T)} className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500">
       {options.map((o) => (
         <option key={o} value={o}>{labels?.[o] ?? o}</option>
       ))}
@@ -415,5 +415,5 @@ function Select<T extends string>({ value, onChange, options, labels }: { value:
 
 function StatusBadge({ status }: { status: string }) {
   const found = LISTING_STATUSES.find((s) => s.value === status);
-  return <span className="rounded-full bg-ink-100 dark:bg-ink-800 px-2.5 py-1 text-[11px] font-semibold text-ink-600 dark:text-ink-300">{found?.label ?? status}</span>;
+  return <span className="rounded-full bg-ink-100 px-2.5 py-1 text-[11px] font-semibold text-ink-600">{found?.label ?? status}</span>;
 }

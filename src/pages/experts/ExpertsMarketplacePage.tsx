@@ -90,27 +90,27 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
   }, [employers, search]);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950 text-ink-900 dark:text-ink-50">
+    <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="agencies" />
 
-      <section className="border-b border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-5 py-14 sm:px-8 sm:py-20">
+      <section className="border-b border-ink-200 bg-white px-5 py-14 sm:px-8 sm:py-20">
         <div className="mx-auto max-w-7xl">
-          <p className="text-sm font-semibold text-brand-600 dark:text-brand-400">The visa &amp; relocation marketplace</p>
-          <h1 className="mt-3 max-w-2xl text-4xl font-bold tracking-[-0.03em] text-ink-950 dark:text-ink-50 sm:text-5xl">
+          <p className="text-sm font-semibold text-brand-600">The visa &amp; relocation marketplace</p>
+          <h1 className="mt-3 max-w-2xl text-4xl font-bold tracking-[-0.03em] text-ink-950 sm:text-5xl">
             Agencies &amp; Experts.
           </h1>
-          <p className="mt-4 max-w-xl text-base leading-7 text-ink-500 dark:text-ink-400">
+          <p className="mt-4 max-w-xl text-base leading-7 text-ink-500">
             Independent visa specialists, verified agencies, and sponsored employers looking to hire — all reviewed
             before they're listed here.
           </p>
 
-          <div className="mt-8 flex h-12 max-w-md items-center gap-2 rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3">
+          <div className="mt-8 flex h-12 max-w-md items-center gap-2 rounded-lg border border-ink-200 bg-white px-3">
             <Search className="h-4 w-4 shrink-0 text-ink-400" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, destination or location"
-              className="h-full w-full bg-transparent text-sm font-medium text-ink-900 dark:text-ink-50 outline-none placeholder:text-ink-400"
+              className="h-full w-full bg-transparent text-sm font-medium text-ink-900 outline-none placeholder:text-ink-400"
             />
           </div>
 
@@ -139,26 +139,26 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredExperts.map((expert) => (
-                    <article key={expert.id} className="flex flex-col border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4 shadow-soft transition hover:-translate-y-0.5 hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-soft-lg">
+                    <article key={expert.id} className="flex flex-col border border-ink-200 bg-white p-4 shadow-soft transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg">
                       <div className="flex items-center gap-3">
                         {expert.logo_url ? (
                           <img src={expert.logo_url} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover" />
                         ) : (
-                          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
+                          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-600">
                             <UserRound className="h-5 w-5" />
                           </span>
                         )}
                         <div className="min-w-0">
-                          <h3 className="truncate text-sm font-bold text-ink-900 dark:text-ink-50">{expert.name}</h3>
+                          <h3 className="truncate text-sm font-bold text-ink-900">{expert.name}</h3>
                           {expert.country && (
-                            <p className="flex items-center gap-1 truncate text-xs text-ink-500 dark:text-ink-400">
+                            <p className="flex items-center gap-1 truncate text-xs text-ink-500">
                               <CircleFlag countryCode={expert.country.iso_code} label={expert.country.name} size={12} />
                               {expert.country.name}
                             </p>
                           )}
                         </div>
                       </div>
-                      {expert.description && <p className="mt-3 flex-1 text-xs leading-5 text-ink-500 dark:text-ink-400">{expert.description}</p>}
+                      {expert.description && <p className="mt-3 flex-1 text-xs leading-5 text-ink-500">{expert.description}</p>}
                       <div className="mt-4 flex items-center gap-2">
                         <SaveButton
                           kind="expert"
@@ -174,7 +174,7 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
                             href={expert.website}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-brand-200 dark:border-brand-800 py-2 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30"
+                            className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-brand-200 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50"
                           >
                             Visit website
                             <ArrowRight className="h-3.5 w-3.5" />
@@ -196,7 +196,7 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredAgencies.map((agency) => (
-                    <div key={agency.id} className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-soft">
+                    <div key={agency.id} className="border border-ink-200 bg-white p-5 shadow-soft">
                       <div className="flex items-center gap-3">
                         {agency.logo_url ? (
                           <img src={agency.logo_url} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
@@ -206,16 +206,16 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
                           </span>
                         )}
                         <div className="min-w-0">
-                          <h3 className="truncate font-semibold text-ink-900 dark:text-ink-50">{agency.name}</h3>
+                          <h3 className="truncate font-semibold text-ink-900">{agency.name}</h3>
                           {(agency.city || agency.country) && (
-                            <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-ink-500 dark:text-ink-400">
+                            <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-ink-500">
                               <MapPin className="h-3 w-3" />
                               {[agency.city, agency.country].filter(Boolean).join(', ')}
                             </p>
                           )}
                         </div>
                       </div>
-                      {agency.description && <p className="mt-4 text-xs leading-5 text-ink-500 dark:text-ink-400">{agency.description}</p>}
+                      {agency.description && <p className="mt-4 text-xs leading-5 text-ink-500">{agency.description}</p>}
                       <div className="mt-4 flex items-center gap-2">
                         <SaveButton
                           kind="agency"
@@ -231,7 +231,7 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
                             href={agency.website}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400"
+                            className="flex items-center gap-1 text-xs font-semibold text-brand-600"
                           >
                             Visit website
                             <ArrowRight className="h-3.5 w-3.5" />
@@ -253,19 +253,19 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredEmployers.map((employer) => (
-                    <div key={employer.name} className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-soft">
+                    <div key={employer.name} className="border border-ink-200 bg-white p-5 shadow-soft">
                       <div className="flex items-center gap-3">
-                        <span className="grid h-10 w-10 place-items-center rounded-lg bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
+                        <span className="grid h-10 w-10 place-items-center rounded-lg bg-brand-50 text-brand-600">
                           <Building2 className="h-4 w-4" />
                         </span>
-                        <h3 className="font-semibold text-ink-900 dark:text-ink-50">{employer.name}</h3>
+                        <h3 className="font-semibold text-ink-900">{employer.name}</h3>
                       </div>
-                      <div className="mt-4 flex items-center gap-1.5 text-xs text-ink-500 dark:text-ink-400">
+                      <div className="mt-4 flex items-center gap-1.5 text-xs text-ink-500">
                         <Users className="h-3.5 w-3.5 text-ink-400" />
                         {employer.roles} open role{employer.roles === 1 ? '' : 's'}
                         {employer.countries.size > 0 && ` · ${Array.from(employer.countries).join(', ')}`}
                       </div>
-                      <button onClick={() => go('jobs')} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-brand-200 dark:border-brand-800 py-2 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30">
+                      <button onClick={() => go('jobs')} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-brand-200 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50">
                         View open roles
                         <ArrowRight className="h-3.5 w-3.5" />
                       </button>
@@ -289,7 +289,7 @@ function TabButton({ active, onClick, icon: Icon, label }: { active: boolean; on
       type="button"
       onClick={onClick}
       className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-        active ? 'border-brand-600 bg-brand-600 text-white' : 'border-ink-200 dark:border-ink-700 text-ink-600 dark:text-ink-300 hover:border-brand-300 dark:hover:border-brand-700'
+        active ? 'border-brand-600 bg-brand-600 text-white' : 'border-ink-200 text-ink-600 hover:border-brand-300'
       }`}
     >
       <Icon className="h-4 w-4" />
@@ -300,10 +300,10 @@ function TabButton({ active, onClick, icon: Icon, label }: { active: boolean; on
 
 function EmptyState({ label, detail }: { label: string; detail: string }) {
   return (
-    <div className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-6 py-16 text-center">
+    <div className="border border-ink-200 bg-white px-6 py-16 text-center">
       <Search className="mx-auto h-8 w-8 text-ink-300" />
-      <h3 className="mt-4 text-lg font-bold text-ink-900 dark:text-ink-50">{label}</h3>
-      <p className="mx-auto mt-2 max-w-sm text-sm text-ink-500 dark:text-ink-400">{detail}</p>
+      <h3 className="mt-4 text-lg font-bold text-ink-900">{label}</h3>
+      <p className="mx-auto mt-2 max-w-sm text-sm text-ink-500">{detail}</p>
     </div>
   );
 }
@@ -339,7 +339,7 @@ function SaveButton({
         setSaved(!saved);
       }}
       className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-        saved ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'border-ink-200 dark:border-ink-700 text-ink-500 dark:text-ink-400 hover:bg-ink-50 dark:hover:bg-ink-800'
+        saved ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-ink-200 text-ink-500 hover:bg-ink-50'
       }`}
     >
       {saved ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}

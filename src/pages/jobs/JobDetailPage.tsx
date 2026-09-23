@@ -113,7 +113,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
   if (job === undefined) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950">
+      <div className="min-h-screen bg-[#f8fafc]">
         <LandingHeader go={go} onAuth={onAuth} active="jobs" />
         <div className="grid h-96 place-items-center">
           <Loader2 className="h-6 w-6 animate-spin text-ink-300" />
@@ -124,11 +124,11 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
   if (!job) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950">
+      <div className="min-h-screen bg-[#f8fafc]">
         <LandingHeader go={go} onAuth={onAuth} active="jobs" />
         <div className="mx-auto max-w-lg px-5 py-24 text-center">
-          <h1 className="text-xl font-bold text-ink-900 dark:text-ink-50">Job not found</h1>
-          <p className="mt-2 text-sm text-ink-500 dark:text-ink-400">It may have been removed or isn't published yet.</p>
+          <h1 className="text-xl font-bold text-ink-900">Job not found</h1>
+          <p className="mt-2 text-sm text-ink-500">It may have been removed or isn't published yet.</p>
           <button onClick={() => go('jobs')} className="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
             Browse jobs
           </button>
@@ -141,7 +141,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const SponsorIcon = job.publisherOrgType === 'government' ? Landmark : job.publisherOrgType === 'expert' ? UserRound : Building2;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950 text-ink-900 dark:text-ink-50">
+    <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
 
       <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
@@ -158,29 +158,29 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             if (window.history.length > 1) window.history.back();
             else go('jobs');
           }}
-          className="flex items-center gap-1.5 text-xs font-semibold text-ink-500 dark:text-ink-400 hover:text-ink-800 dark:hover:text-ink-100"
+          className="flex items-center gap-1.5 text-xs font-semibold text-ink-500 hover:text-ink-800"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           All jobs
         </button>
 
-        <div className="mt-5 overflow-hidden border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900">
-          <div className="flex items-center gap-4 border-b border-ink-100 dark:border-ink-800 bg-ink-50/60 dark:bg-ink-800/60 px-6 py-6 sm:px-8 sm:py-8">
+        <div className="mt-5 overflow-hidden border border-ink-200 bg-white">
+          <div className="flex items-center gap-4 border-b border-ink-100 bg-ink-50/60 px-6 py-6 sm:px-8 sm:py-8">
             {job.imageUrl ? (
-              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-ink-200 dark:border-ink-700 bg-white p-2.5 shadow-sm sm:h-24 sm:w-24">
+              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-ink-200 bg-white p-2.5 shadow-sm sm:h-24 sm:w-24">
                 <img src={job.imageUrl} alt={`${job.company} logo`} className="h-full w-full object-contain" />
               </div>
             ) : (
-              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-ink-200 dark:border-ink-700 bg-gradient-to-br from-brand-50 dark:from-brand-900/30 to-indigo-50 dark:to-indigo-900/30 sm:h-24 sm:w-24">
+              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-ink-200 bg-gradient-to-br from-brand-50 to-indigo-50 sm:h-24 sm:w-24">
                 {job.publisherOrgType ? <SponsorIcon className="h-8 w-8 text-brand-300" /> : <CompanyLogo name={job.company} size={48} />}
               </div>
             )}
             <div className="min-w-0">
-              <p className="flex items-center gap-1.5 truncate text-base font-bold text-ink-900 dark:text-ink-50 sm:text-lg">
+              <p className="flex items-center gap-1.5 truncate text-base font-bold text-ink-900 sm:text-lg">
                 {job.publisherOrgType && <SponsorIcon className="h-4 w-4 shrink-0 text-ink-400" />}
                 {job.company}
               </p>
-              {job.sourceType === 'company_submitted' && <p className="text-xs text-ink-500 dark:text-ink-400">Posted by {job.company}</p>}
+              {job.sourceType === 'company_submitted' && <p className="text-xs text-ink-500">Posted by {job.company}</p>}
             </div>
           </div>
 
@@ -192,18 +192,18 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                   different, or the same word (e.g. "Full time") shows up
                   twice side by side. */}
               {job.category && job.category !== job.type && (
-                <span className="rounded-full bg-brand-50 dark:bg-brand-900/30 px-2.5 py-1 text-[11px] font-semibold text-brand-700 dark:text-brand-300">{job.category}</span>
+                <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">{job.category}</span>
               )}
-              <span className="rounded-full bg-ink-100 dark:bg-ink-800 px-2.5 py-1 text-[11px] font-semibold text-ink-600 dark:text-ink-300">{job.type}</span>
-              {job.remote && <span className="rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">Remote</span>}
-              {job.visaSponsorship && <span className="rounded-full bg-sky-50 dark:bg-sky-900/30 px-2.5 py-1 text-[11px] font-semibold text-sky-700 dark:text-sky-300">Visa sponsorship</span>}
+              <span className="rounded-full bg-ink-100 px-2.5 py-1 text-[11px] font-semibold text-ink-600">{job.type}</span>
+              {job.remote && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Remote</span>}
+              {job.visaSponsorship && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700">Visa sponsorship</span>}
               <MultiCountryBadge officeNames={job.additionalLocations} />
               <EligibilityBadge result={eligibility} />
             </div>
 
-            <h1 className="mt-3 font-slab text-2xl font-bold tracking-tight text-ink-950 dark:text-ink-50 sm:text-3xl">{job.title}</h1>
+            <h1 className="mt-3 font-slab text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">{job.title}</h1>
 
-            <div className="mt-3 text-sm text-ink-500 dark:text-ink-400">
+            <div className="mt-3 text-sm text-ink-500">
               <div className="flex items-center gap-1.5">
                 <CircleFlag countryCode={job.countryCode} label={job.country} size={16} />
                 {job.city ? `${job.city}, ${job.country}` : job.country}
@@ -216,7 +216,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
             {job.description && (
               <div
-                className="prose-job mt-5 text-sm leading-6 text-ink-600 dark:text-ink-300 [&_h2]:mt-5 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-ink-950 dark:[&_h2]:text-ink-50 [&_h2]:first:mt-0 [&_h3]:mt-4 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-ink-900 dark:[&_h3]:text-ink-50 [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-1 [&_strong]:font-bold [&_strong]:text-ink-800 dark:[&_strong]:text-ink-100 [&_a]:text-brand-600 dark:[&_a]:text-brand-400 [&_a]:underline"
+                className="prose-job mt-5 text-sm leading-6 text-ink-600 [&_h2]:mt-5 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-ink-950 [&_h2]:first:mt-0 [&_h3]:mt-4 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-ink-900 [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-1 [&_strong]:font-bold [&_strong]:text-ink-800 [&_a]:text-brand-600 [&_a]:underline"
                 dangerouslySetInnerHTML={{ __html: sanitizeJobHtml(job.description) }}
               />
             )}
@@ -228,16 +228,16 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             </div>
 
             {job.requirements && (
-              <div className="mt-6 rounded-lg bg-ink-50 dark:bg-ink-800 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">Requirements &amp; limits</p>
-                <p className="mt-1.5 text-sm leading-6 text-ink-700 dark:text-ink-200">{job.requirements}</p>
+              <div className="mt-6 rounded-lg bg-ink-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Requirements &amp; limits</p>
+                <p className="mt-1.5 text-sm leading-6 text-ink-700">{job.requirements}</p>
               </div>
             )}
 
             {job.benefits && (
-              <div className="mt-4 rounded-lg bg-emerald-50/60 dark:bg-emerald-900/30 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Benefits</p>
-                <p className="mt-1.5 text-sm leading-6 text-ink-700 dark:text-ink-200">{job.benefits}</p>
+              <div className="mt-4 rounded-lg bg-emerald-50/60 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Benefits</p>
+                <p className="mt-1.5 text-sm leading-6 text-ink-700">{job.benefits}</p>
               </div>
             )}
 
@@ -252,9 +252,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               </a>
               <button
                 onClick={share}
-                className="flex items-center gap-2 rounded-lg border border-ink-200 dark:border-ink-700 px-4 py-3.5 text-sm font-semibold text-ink-700 dark:text-ink-200 hover:bg-ink-50 dark:hover:bg-ink-800"
+                className="flex items-center gap-2 rounded-lg border border-ink-200 px-4 py-3.5 text-sm font-semibold text-ink-700 hover:bg-ink-50"
               >
-                {copied ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <Share2 className="h-4 w-4" />}
+                {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
                 {copied ? 'Link copied' : 'Share'}
               </button>
             </div>
@@ -275,11 +275,11 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
 function InfoRow({ icon: Icon, label, value }: { icon: typeof Briefcase; label: string; value: string }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-lg bg-ink-50 dark:bg-ink-800 p-3">
+    <div className="flex items-start gap-2.5 rounded-lg bg-ink-50 p-3">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
       <div>
         <p className="text-[11px] text-ink-400">{label}</p>
-        <p className="text-sm font-semibold text-ink-800 dark:text-ink-100">{value}</p>
+        <p className="text-sm font-semibold text-ink-800">{value}</p>
       </div>
     </div>
   );

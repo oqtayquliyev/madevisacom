@@ -35,10 +35,10 @@ const orgIcon: Record<OrgType, typeof Building2> = {
 };
 
 const windowCopy = {
-  open: { label: 'Applications open', className: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' },
-  upcoming: { label: 'Opens soon', className: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' },
-  closed: { label: 'Applications closed', className: 'bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400' },
-  rolling: { label: 'Rolling applications', className: 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300' },
+  open: { label: 'Applications open', className: 'bg-emerald-50 text-emerald-700' },
+  upcoming: { label: 'Opens soon', className: 'bg-amber-50 text-amber-700' },
+  closed: { label: 'Applications closed', className: 'bg-ink-100 text-ink-500' },
+  rolling: { label: 'Rolling applications', className: 'bg-brand-50 text-brand-700' },
 };
 
 export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
@@ -80,7 +80,7 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
 
   if (program === undefined) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950">
+      <div className="min-h-screen bg-[#f8fafc]">
         <LandingHeader go={go} onAuth={onAuth} active="programs" />
         <div className="grid h-96 place-items-center">
           <Loader2 className="h-6 w-6 animate-spin text-ink-300" />
@@ -91,11 +91,11 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
 
   if (!program) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950">
+      <div className="min-h-screen bg-[#f8fafc]">
         <LandingHeader go={go} onAuth={onAuth} active="programs" />
         <div className="mx-auto max-w-lg px-5 py-24 text-center">
-          <h1 className="text-xl font-bold text-ink-900 dark:text-ink-50">Program not found</h1>
-          <p className="mt-2 text-sm text-ink-500 dark:text-ink-400">It may have been removed or isn't published yet.</p>
+          <h1 className="text-xl font-bold text-ink-900">Program not found</h1>
+          <p className="mt-2 text-sm text-ink-500">It may have been removed or isn't published yet.</p>
           <button onClick={() => go('sponsored-programs')} className="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
             Browse programs
           </button>
@@ -109,20 +109,20 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
   const windowStatus = windowCopy[getApplicationWindowStatus(program)];
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950 text-ink-900 dark:text-ink-50">
+    <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="programs" />
 
       <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
-        <button onClick={() => go('sponsored-programs')} className="flex items-center gap-1.5 text-xs font-semibold text-ink-500 dark:text-ink-400 hover:text-ink-800 dark:hover:text-ink-100">
+        <button onClick={() => go('sponsored-programs')} className="flex items-center gap-1.5 text-xs font-semibold text-ink-500 hover:text-ink-800">
           <ArrowLeft className="h-3.5 w-3.5" />
           All programs
         </button>
 
-        <div className="mt-5 overflow-hidden border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900">
+        <div className="mt-5 overflow-hidden border border-ink-200 bg-white">
           {program.image_url ? (
-            <img src={program.image_url} alt="" className="aspect-square w-full max-w-md mx-auto object-contain bg-ink-50 dark:bg-ink-800" />
+            <img src={program.image_url} alt="" className="aspect-square w-full max-w-md mx-auto object-contain bg-ink-50" />
           ) : (
-            <div className="grid h-40 w-full place-items-center bg-gradient-to-br from-brand-50 dark:from-brand-900/30 to-indigo-50 dark:to-indigo-900/30">
+            <div className="grid h-40 w-full place-items-center bg-gradient-to-br from-brand-50 to-indigo-50">
               <Icon className="h-10 w-10 text-brand-300" />
             </div>
           )}
@@ -134,9 +134,9 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
               <EligibilityBadge result={eligibility} />
             </div>
 
-            <h1 className="mt-3 font-slab text-2xl font-bold tracking-tight text-ink-950 dark:text-ink-50 sm:text-3xl">{program.title}</h1>
+            <h1 className="mt-3 font-slab text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">{program.title}</h1>
 
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-ink-500 dark:text-ink-400">
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-ink-500">
               <span className="flex items-center gap-1.5">
                 <Icon className="h-4 w-4 text-ink-400" />
                 {program.publisher?.name}
@@ -149,7 +149,7 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
               )}
             </div>
 
-            {program.description && <p className="mt-5 text-sm leading-6 text-ink-600 dark:text-ink-300">{program.description}</p>}
+            {program.description && <p className="mt-5 text-sm leading-6 text-ink-600">{program.description}</p>}
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               {formatCost(program) && (
@@ -174,23 +174,23 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
             </div>
 
             {program.eligibility_notes && (
-              <div className="mt-6 rounded-lg bg-ink-50 dark:bg-ink-800 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">Eligibility</p>
-                <p className="mt-1.5 text-sm leading-6 text-ink-700 dark:text-ink-200">{program.eligibility_notes}</p>
+              <div className="mt-6 rounded-lg bg-ink-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Eligibility</p>
+                <p className="mt-1.5 text-sm leading-6 text-ink-700">{program.eligibility_notes}</p>
               </div>
             )}
 
             {program.requirements && (
-              <div className="mt-4 rounded-lg bg-ink-50 dark:bg-ink-800 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">Requirements &amp; limits</p>
-                <p className="mt-1.5 text-sm leading-6 text-ink-700 dark:text-ink-200">{program.requirements}</p>
+              <div className="mt-4 rounded-lg bg-ink-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Requirements &amp; limits</p>
+                <p className="mt-1.5 text-sm leading-6 text-ink-700">{program.requirements}</p>
               </div>
             )}
 
             {program.benefits && (
-              <div className="mt-4 rounded-lg bg-emerald-50/60 dark:bg-emerald-900/30 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Benefits</p>
-                <p className="mt-1.5 text-sm leading-6 text-ink-700 dark:text-ink-200">{program.benefits}</p>
+              <div className="mt-4 rounded-lg bg-emerald-50/60 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Benefits</p>
+                <p className="mt-1.5 text-sm leading-6 text-ink-700">{program.benefits}</p>
               </div>
             )}
 
@@ -205,9 +205,9 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
               </a>
               <button
                 onClick={share}
-                className="flex items-center gap-2 rounded-lg border border-ink-200 dark:border-ink-700 px-4 py-3.5 text-sm font-semibold text-ink-700 dark:text-ink-200 hover:bg-ink-50 dark:hover:bg-ink-800"
+                className="flex items-center gap-2 rounded-lg border border-ink-200 px-4 py-3.5 text-sm font-semibold text-ink-700 hover:bg-ink-50"
               >
-                {copied ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <Share2 className="h-4 w-4" />}
+                {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
                 {copied ? 'Link copied' : 'Share'}
               </button>
             </div>
@@ -222,11 +222,11 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
 
 function InfoRow({ icon: Icon, label, value }: { icon: typeof Banknote; label: string; value: string }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-lg bg-ink-50 dark:bg-ink-800 p-3">
+    <div className="flex items-start gap-2.5 rounded-lg bg-ink-50 p-3">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
       <div>
         <p className="text-[11px] text-ink-400">{label}</p>
-        <p className="text-sm font-semibold text-ink-800 dark:text-ink-100">{value}</p>
+        <p className="text-sm font-semibold text-ink-800">{value}</p>
       </div>
     </div>
   );
