@@ -1172,8 +1172,15 @@ serve(async (req) => {
     }
     // --- End SSRF guard ---
 
-    // Quick peek to decide the strategy.
-    const probeRes = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+    // Quick peek to decide the strategy. Explicitly asks for JSON first —
+    // some sites (Booking.com among them) do content negotiation on the
+    // Accept header and serve plain HTML by default, which would make
+    // this probe see something different from what the JSON-specific
+    // strategies below actually request, causing detection to miss
+    // entirely and fall through to the wrong strategy.
+    const probeRes = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json, text/html;q=0.9, */*;q=0.8" },
+    });
     if (!probeRes.ok) {
       return new Response(JSON.stringify({ ok: false, error: `Could not reach that URL (HTTP ${probeRes.status}).` }), {
         status: 200,
