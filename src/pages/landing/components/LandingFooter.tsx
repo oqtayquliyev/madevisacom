@@ -31,7 +31,6 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
     links: [
       { label: 'About', href: '/about' },
       { label: 'Contact', href: '/contact' },
-      { label: 'How it works', href: '#how-it-works' },
       { label: 'For agencies', view: 'agency-profile' },
       { label: 'For advertisers', href: '/advertising-policy' },
     ],
@@ -60,8 +59,8 @@ export function LandingFooter({ go, onAuth }: LandingFooterProps) {
             <BrandMark variant="footer" onClick={() => go('home')} />
 
             <p className="mt-4 max-w-xs text-sm leading-6 text-ink-300">
-              The visa, jobs and relocation marketplace. Compare pathways, verified
-              experts and opportunities abroad in one place.
+              The all-in-one opportunity library. Jobs, programs, study options,
+              visas, travel and verified experts, at home or abroad, in one place.
             </p>
 
             <div className="mt-5 flex items-center gap-3 text-ink-400">

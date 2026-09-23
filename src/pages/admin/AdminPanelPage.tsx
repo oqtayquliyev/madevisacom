@@ -1685,6 +1685,18 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
   const totalPages = Math.max(1, Math.ceil(filtered.length / ADMIN_PAGE_SIZE));
   const pageJobs = filtered.slice(page * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE + ADMIN_PAGE_SIZE);
   const allOnPageSelected = pageJobs.length > 0 && pageJobs.every((j) => selectedIds.has(j.id));
+  // Every job matching the current search + status filter, across ALL
+  // pages — not just the 10 visible ones.
+  const allFilteredSelected = filtered.length > 0 && filtered.every((j) => selectedIds.has(j.id));
+
+  const toggleAllFiltered = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) filtered.forEach((j) => next.delete(j.id));
+      else filtered.forEach((j) => next.add(j.id));
+      return next;
+    });
+  };
 
   const toggle = (id: string) => {
     setSelectedIds((prev) => {
@@ -1805,10 +1817,18 @@ function ManagedJobsSection({ jobs, onChange }: { jobs: AdminSponsoredJob[]; onC
       {bulkMessage && <p className="mx-2 mb-2 text-xs font-medium text-emerald-700">{bulkMessage}</p>}
 
       {pageJobs.length > 0 && (
-        <label className="flex items-center gap-2 border-y border-ink-100 bg-ink-50 px-3 py-2 text-xs font-semibold text-ink-600">
-          <input type="checkbox" checked={allOnPageSelected} onChange={toggleAllOnPage} />
-          Select all on this page ({pageJobs.length})
-        </label>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-y border-ink-100 bg-ink-50 px-3 py-2 text-xs font-semibold text-ink-600">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={allOnPageSelected} onChange={toggleAllOnPage} />
+            Select all on this page ({pageJobs.length})
+          </label>
+          {filtered.length > pageJobs.length && (
+            <label className="flex items-center gap-2 text-brand-700">
+              <input type="checkbox" checked={allFilteredSelected} onChange={toggleAllFiltered} />
+              Select all {filtered.length.toLocaleString()} {filtered.length === jobs.length ? 'jobs (all pages)' : 'matching this filter (all pages)'}
+            </label>
+          )}
+        </div>
       )}
       <div className="divide-y divide-ink-100">
         {pageJobs.length === 0 ? (

@@ -508,18 +508,19 @@ export function LandingHero({
 
           <div className="flex items-center gap-2 text-sm font-medium text-white/70">
             <Sparkles className="h-4 w-4" />
-            Your journey starts here
+            All-in-one opportunity library
           </div>
 
           <div className="mt-5 max-w-4xl">
 
             <h1 className="text-4xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
-              Find your path to a new life abroad.
+              Find your path with MadeVisa.
             </h1>
 
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">
-              Tell us what you want to do and we will
-              help you find the right way to get there.
+              MadeVisa brings together jobs, programs, study options, sponsorships and visas that are usually
+              scattered across company career pages, job sites and official sources. Discover opportunities you
+              may not find on LinkedIn or traditional job boards, at home or abroad.
             </p>
 
           </div>

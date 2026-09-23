@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { jobPath } from '@/lib/jobUrl';
 import { ArrowLeft, ExternalLink, Loader2, ShieldAlert, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSeo } from '@/lib/seo';
@@ -150,7 +151,7 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
             {savedAt && <span className="text-xs font-medium text-emerald-700">Saved.</span>}
             {job.status === 'published' && (
               <a
-                href={`/jobs/sponsored-${job.id}`}
+                href={jobPath({ id: `sponsored-${job.id}`, title: job.title, company: job.publisher?.name ?? '' })}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50"

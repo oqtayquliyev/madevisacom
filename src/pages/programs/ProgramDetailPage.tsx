@@ -51,9 +51,11 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
   }, [id]);
 
   useSeo({
-    title: program ? program.title : 'Program',
+    title: program ? (program.publisher?.name ? `${program.title} by ${program.publisher.name}` : program.title) : 'Program',
+    // Descriptions are stored as HTML — strip tags so the meta
+    // description doesn't show raw markup in search results.
     description: program?.description
-      ? program.description.slice(0, 155)
+      ? program.description.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 155)
       : 'View this sponsored program on MadeVisa, including eligibility, requirements and how to apply.',
     path: `/programs/${id}`,
     // Not-yet-loaded or removed programs shouldn't get indexed under this URL.

@@ -123,6 +123,15 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Job detail pages use readable public URLs built by jobPath()
+  // (/jobs/<company>/<title>-<shortId>), so this pushes a full path.
+  const goToPath = (nextPath: string) => {
+    window.history.pushState({}, '', nextPath);
+    setPath(nextPath);
+    setView('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const goToAuth = (page: AuthPage) => {
     setAuthPage(page);
 
@@ -176,7 +185,7 @@ export default function App() {
   }
 
   if (path === '/jobs') {
-    return <JobsPage go={go} onAuth={goToAuth} goToJob={(id) => goToDetail('jobs', id)} />;
+    return <JobsPage go={go} onAuth={goToAuth} goToJob={goToPath} />;
   }
 
   if (path === '/programs') {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { jobPath } from '@/lib/jobUrl';
 import {
   AlertTriangle,
   ArrowRight,
@@ -921,7 +922,7 @@ function RecentlyViewedSection({ items, onBrowse }: { items: ViewedJobSnapshot[]
         {items.map((item) => (
           <a
             key={item.id}
-            href={`/jobs/${item.id}`}
+            href={jobPath({ id: item.id, title: item.title, company: item.organization })}
             className="flex items-start justify-between gap-3 border border-ink-200 bg-white p-4 transition hover:border-brand-300"
           >
             <div className="min-w-0">

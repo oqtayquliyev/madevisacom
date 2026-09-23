@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { jobPath } from '@/lib/jobUrl';
 import {
   Briefcase,
   GraduationCap,
@@ -241,7 +242,7 @@ export function LocationMatchSection({
             opportunities in <span className="text-brand-600">{destinationCountry.name}</span>
           </>
         ) : (
-          'opportunities abroad'
+          'opportunities worldwide'
         )}
       </h2>
       {visibleItems && visibleItems.length > 0 && (
@@ -249,7 +250,7 @@ export function LocationMatchSection({
           <a href={`/jobs${countryParam}`} className="font-bold text-ink-900 underline decoration-2 underline-offset-2 hover:text-brand-700">
             {visibleItems.length.toLocaleString()}
           </a>{' '}
-          opportunities {destinationCountry ? <>in <span className="font-bold text-brand-600">{destinationCountry.name}</span> and abroad</> : 'abroad'}
+          opportunities {destinationCountry ? <>in <span className="font-bold text-brand-600">{destinationCountry.name}</span> and abroad</> : 'worldwide'}
         </p>
       )}
 
@@ -333,7 +334,7 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const Icon = iconFor(item.category, item.kind);
-  const href = item.kind === 'job' ? `/jobs/${item.id}` : `/programs/${item.id}`;
+  const href = item.kind === 'job' ? jobPath({ id: item.id, title: item.title, company: item.org }) : `/programs/${item.id}`;
 
   const est = estimateJourneyCostBreakdown({
     originCountryCode: originCode,

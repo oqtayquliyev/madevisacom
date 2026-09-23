@@ -117,6 +117,12 @@ export function formatSalary(job: {
   salary_period?: SalaryPeriod;
   compensation_text?: string | null;
 }): string | null {
+  // Some importer runs stored a JS object into compensation_text, which
+  // then rendered literally as "[object Object]" on cards. Treat that as
+  // "no salary text" rather than showing it.
+  if (job.compensation_text && job.compensation_text.trim() === '[object Object]') {
+    job = { ...job, compensation_text: null };
+  }
   switch (job.salary_status) {
     case 'volunteer':
       return 'Volunteer / unpaid';

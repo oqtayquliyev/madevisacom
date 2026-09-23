@@ -26,11 +26,13 @@ import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
+import { jobPath } from '@/lib/jobUrl';
 
 type JobsPageProps = {
   go: (view: View) => void;
   onAuth?: (page: 'login' | 'register') => void;
-  goToJob?: (id: string) => void;
+  /** Receives the job's public path (see jobPath in src/lib/jobUrl.ts). */
+  goToJob?: (path: string) => void;
 };
 
 const DATE_POSTED_OPTIONS = ['Any time', 'Past 24 hours', 'Past week', 'Past month'] as const;
@@ -138,7 +140,7 @@ function DateTag({ job }: { job: Job }) {
 
 function SourceLabel({ job }: { job: Job }) {
   if (job.sourceType === 'company_submitted') {
-    return <span className="text-[11px] font-semibold text-emerald-700">Posted by company</span>;
+    return <span className="text-[11px] font-semibold text-emerald-700">Posted by {job.company}</span>;
   }
   if (job.sourceType === 'live_feed') {
     return <span className="text-[11px] text-ink-400">Source: {job.source} · live listing</span>;
@@ -244,18 +246,23 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
     );
   }
 
+  // A real <a href> (not a div) so search engines can discover and crawl
+  // every job page from the list. Plain clicks still navigate in-app;
+  // Ctrl/Cmd/middle-click open a new tab like any normal link.
+  const href = jobPath(job);
   return (
-    <div
-      role="link"
-      tabIndex={0}
-      onClick={() => { markJobViewed(job.id, { id: job.id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url }); goToJob?.(job.id); }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') { markJobViewed(job.id, { id: job.id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url }); goToJob?.(job.id); }
+    <a
+      href={href}
+      onClick={(e) => {
+        markJobViewed(job.id, { id: job.id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url });
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0 || !goToJob) return;
+        e.preventDefault();
+        goToJob(href);
       }}
       className={`${cardClass} cursor-pointer`}
     >
       {inner}
-    </div>
+    </a>
   );
 }
 
@@ -339,9 +346,9 @@ function TextField({ label, value, onChange, placeholder }: { label: string; val
 
 export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   useSeo({
-    title: 'Jobs Abroad — Visa Sponsorship & International Careers',
+    title: 'Jobs Beyond LinkedIn: Company Career Pages & Jobs Abroad',
     description:
-      'Browse international job listings with visa sponsorship, work permits, and relocation support, filtered to what you can actually apply for.',
+      'Discover jobs beyond traditional job boards. MadeVisa collects international jobs and global opportunities from company career pages and other sources, at home or abroad.',
     path: '/jobs',
   });
 
@@ -574,8 +581,10 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
 
       <section className="border-b border-ink-200 bg-white">
         <div className="mx-auto max-w-5xl px-5 py-8 sm:px-8 sm:py-12">
-          <h1 className="font-slab text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">Find jobs abroad.</h1>
-          <p className="mt-2 text-sm text-ink-500 sm:text-base">Real vacancies from companies' own career pages, in one place.</p>
+          <h1 className="font-slab text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">Discover jobs beyond traditional job boards.</h1>
+          <p className="mt-2 text-sm text-ink-500 sm:text-base">
+            We collect roles from company career pages and multiple sources, so you can find opportunities you may not see on LinkedIn or other job sites.
+          </p>
 
           <div className="mt-6 flex flex-col gap-2 sm:flex-row">
             <div className="flex h-12 flex-1 items-center gap-3 rounded-md border border-ink-300 bg-white px-3.5">

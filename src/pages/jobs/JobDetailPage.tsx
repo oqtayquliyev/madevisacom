@@ -3,7 +3,8 @@ import { ArrowLeft, Briefcase, Building2, Calendar, Check, Landmark, Loader2, Sh
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
-import { fetchSponsoredJobById, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { fetchSponsoredJobById, fetchSponsoredJobByShortId, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
+import { jobPath, parseJobPath } from '@/lib/jobUrl';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
 import { EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -24,26 +25,74 @@ type JobDetailPageProps = {
 export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const { profile } = usePersonalization();
   const [job, setJob] = useState<Job | null | undefined>(undefined);
+  const [raw, setRaw] = useState<SponsoredJob | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (id.startsWith('sponsored-')) {
-      const realId = id.replace('sponsored-', '');
-      fetchSponsoredJobById(realId).then((j) => setJob(j ? sponsoredJobToBoardJob(j) : null));
-    } else {
-      setJob(curatedJobs.find((j) => j.id === id) ?? null);
+    let cancelled = false;
+    setJob(undefined);
+    setRaw(null);
+
+    const parsed = parseJobPath(id);
+    const load: Promise<SponsoredJob | null> | null =
+      parsed.kind === 'legacy'
+        ? fetchSponsoredJobById(parsed.uuid)
+        : parsed.kind === 'slug'
+          ? fetchSponsoredJobByShortId(parsed.shortId, parsed.titleSlug)
+          : null;
+
+    if (!load) {
+      setJob(curatedJobs.find((j) => j.id === (parsed.kind === 'other' ? parsed.id : id)) ?? null);
+      return;
     }
+
+    load.then((j) => {
+      if (cancelled) return;
+      const board = j ? sponsoredJobToBoardJob(j) : null;
+      setRaw(j);
+      setJob(board);
+      // Old /jobs/sponsored-<uuid> links (and links whose title has since
+      // been edited) are swapped to the current public URL in place, so
+      // shared/bookmarked links keep working without a reload.
+      if (board) {
+        const canonical = jobPath(board);
+        if (window.location.pathname !== canonical) {
+          window.history.replaceState(window.history.state, '', canonical + window.location.search + window.location.hash);
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
+  const canonicalPath = job ? jobPath(job) : `/jobs/${id}`;
+  const location = job ? locationLabel(job) : '';
+
   useSeo({
-    title: job ? `${job.title} at ${job.company}` : 'Job',
-    description: job
-      ? `${job.title} at ${job.company} in ${job.country}${job.remote ? ' (remote-friendly)' : ''}. View requirements and apply.`
-      : 'View this job listing on MadeVisa, including requirements and how to apply.',
-    path: `/jobs/${id}`,
+    // useSeo appends " | MadeVisa" → "Title at Company, Location | MadeVisa"
+    title: job ? `${job.title} at ${job.company}${location ? `, ${location}` : ''}` : 'Job',
+    description: job ? jobMetaDescription(job, location) : 'View this job listing on MadeVisa, including requirements and how to apply.',
+    path: canonicalPath,
     noindex: job === null,
     ogImage: job?.imageUrl ?? undefined,
   });
+
+  // JobPosting structured data — individual job pages only (never the
+  // /jobs list), built strictly from fields the job actually has.
+  useEffect(() => {
+    if (!job || !raw) return;
+    const data = buildJobPostingJsonLd(job, raw, canonicalPath);
+    if (!data) return;
+    const script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.id = 'jobposting-jsonld';
+    script.text = JSON.stringify(data).replace(/</g, '\\u003c');
+    document.getElementById('jobposting-jsonld')?.remove();
+    document.head.appendChild(script);
+    return () => script.remove();
+  }, [job, raw, canonicalPath]);
 
   const share = async () => {
     const url = window.location.href;
@@ -117,7 +166,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
           <div className="flex items-center gap-4 border-b border-ink-100 bg-ink-50/60 px-6 py-6 sm:px-8 sm:py-8">
             {job.imageUrl ? (
               <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-ink-200 bg-white p-2.5 shadow-sm sm:h-24 sm:w-24">
-                <img src={job.imageUrl} alt="" className="h-full w-full object-contain" />
+                <img src={job.imageUrl} alt={`${job.company} logo`} className="h-full w-full object-contain" />
               </div>
             ) : (
               <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-ink-200 bg-gradient-to-br from-brand-50 to-indigo-50 sm:h-24 sm:w-24">
@@ -129,7 +178,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                 {job.publisherOrgType && <SponsorIcon className="h-4 w-4 shrink-0 text-ink-400" />}
                 {job.company}
               </p>
-              {job.publisherOrgType && <p className="text-xs text-ink-500">Verified sponsor</p>}
+              {job.sourceType === 'company_submitted' && <p className="text-xs text-ink-500">Posted by {job.company}</p>}
             </div>
           </div>
 
@@ -207,6 +256,12 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                 {copied ? 'Link copied' : 'Share'}
               </button>
             </div>
+
+            {job.sourceType === 'company_careers' && (
+              <p className="mt-4 text-xs leading-5 text-ink-400">
+                Added by MadeVisa from the company&apos;s public careers page. Availability may change on the original source.
+              </p>
+            )}
           </div>
         </div>
       </main>
@@ -226,4 +281,110 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Briefcase; label: 
       </div>
     </div>
   );
+}
+
+/** "City, Country", "Remote · Country" or just the country — only from real job data. */
+function locationLabel(job: Job): string {
+  const country = job.country && job.country !== 'Various' ? job.country : '';
+  if (job.remote) return country ? `Remote, ${country}` : 'Remote';
+  if (job.city && job.city !== job.country) return country ? `${job.city}, ${country}` : job.city;
+  return country;
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&[a-z#0-9]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Unique per job: title, company, location, type/salary when known, then the start of the real description. */
+function jobMetaDescription(job: Job, location: string): string {
+  const facts = [job.type, job.salary].filter(Boolean).join(' · ');
+  let text = `${job.title} at ${job.company}${location ? ` in ${location}` : ''}.${facts ? ` ${facts}.` : ''}`;
+  const body = job.description ? stripHtml(job.description) : '';
+  if (body) text += ` ${body}`;
+  else text += ' See requirements and apply on MadeVisa.';
+  if (text.length <= 160) return text;
+  return `${text.slice(0, 157).replace(/\s+\S*$/, '')}…`;
+}
+
+const EMPLOYMENT_TYPE_MAP: Record<string, string> = {
+  'full time': 'FULL_TIME',
+  'full-time': 'FULL_TIME',
+  'part time': 'PART_TIME',
+  'part-time': 'PART_TIME',
+  internship: 'INTERN',
+  'seasonal work': 'TEMPORARY',
+  temporary: 'TEMPORARY',
+  'contract / freelance': 'CONTRACTOR',
+  contract: 'CONTRACTOR',
+  volunteer: 'VOLUNTEER',
+};
+
+const SALARY_UNIT_MAP: Record<string, string> = { hour: 'HOUR', day: 'DAY', week: 'WEEK', month: 'MONTH', year: 'YEAR' };
+
+/**
+ * Google JobPosting markup from the job's real data only. Returns null
+ * when the required basics (title, description, company, a date) aren't
+ * there, rather than filling gaps with guesses.
+ */
+function buildJobPostingJsonLd(job: Job, raw: SponsoredJob, path: string): Record<string, unknown> | null {
+  const company = raw.publisher?.name;
+  const datePosted = raw.source_posted_at ?? raw.approved_at;
+  if (!company || !job.description || !datePosted) return null;
+
+  const data: Record<string, unknown> = {
+    '@context': 'https://schema.org/',
+    '@type': 'JobPosting',
+    title: raw.title,
+    description: sanitizeJobHtml(job.description),
+    datePosted,
+    url: `https://madevisa.com${path}`,
+    identifier: { '@type': 'PropertyValue', name: company, value: raw.id },
+    hiringOrganization: {
+      '@type': 'Organization',
+      name: company,
+      ...(raw.image_url ? { logo: raw.image_url } : {}),
+    },
+    directApply: false,
+  };
+
+  const validThrough = raw.application_deadline ?? raw.expires_at;
+  if (validThrough) data.validThrough = validThrough;
+
+  const employmentType = EMPLOYMENT_TYPE_MAP[(raw.employment_type ?? '').trim().toLowerCase()];
+  if (employmentType) data.employmentType = employmentType;
+
+  const iso = raw.country?.iso_code;
+  if (raw.remote) {
+    data.jobLocationType = 'TELECOMMUTE';
+    if (iso) data.applicantLocationRequirements = { '@type': 'Country', name: raw.country?.name };
+  }
+  if (iso && (!raw.remote || raw.city)) {
+    data.jobLocation = {
+      '@type': 'Place',
+      address: {
+        '@type': 'PostalAddress',
+        ...(raw.city ? { addressLocality: raw.city } : {}),
+        addressCountry: iso,
+      },
+    };
+  }
+
+  if (raw.salary_status === 'disclosed' && (raw.salary_min != null || raw.salary_max != null)) {
+    const value: Record<string, unknown> = { '@type': 'QuantitativeValue', unitText: SALARY_UNIT_MAP[raw.salary_period] ?? 'YEAR' };
+    if (raw.salary_min != null && raw.salary_max != null && raw.salary_min !== raw.salary_max) {
+      value.minValue = raw.salary_min;
+      value.maxValue = raw.salary_max;
+    } else {
+      value.value = raw.salary_min ?? raw.salary_max;
+    }
+    data.baseSalary = { '@type': 'MonetaryAmount', currency: raw.salary_currency || 'USD', value };
+  }
+
+  return data;
 }

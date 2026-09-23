@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { slugify } from '@/lib/jobUrl';
 import { PUBLISHING_CONTACT_EMAIL, type OrgType } from '@/lib/programs';
 import type { EligibilityCriteria } from '@/lib/personalization';
 import { formatSalary, type ListingStatus, type SalaryStatus, type SalaryPeriod } from '@/lib/listingCategories';
@@ -184,6 +185,33 @@ export async function fetchSponsoredJobById(id: string): Promise<SponsoredJob | 
     return null;
   }
   return data as unknown as SponsoredJob | null;
+}
+
+/**
+ * Finds a published sponsored job from the short id in its public URL
+ * (/jobs/<company>/<title>-<shortId>, see src/lib/jobUrl.ts). The short
+ * id is the UUID's first 8 hex characters, so this is a UUID range query.
+ * In the rare case two jobs share a prefix, the title slug picks the
+ * right one.
+ */
+export async function fetchSponsoredJobByShortId(shortId: string, titleSlug?: string): Promise<SponsoredJob | null> {
+  if (!/^[0-9a-f]{8}$/i.test(shortId)) return null;
+  const prefix = shortId.toLowerCase();
+  const { data, error } = await supabase
+    .from('sponsored_jobs')
+    .select(columns)
+    .eq('status', 'published')
+    .gte('id', `${prefix}-0000-0000-0000-000000000000`)
+    .lte('id', `${prefix}-ffff-ffff-ffff-ffffffffffff`)
+    .limit(10);
+
+  if (error) {
+    console.error('fetchSponsoredJobByShortId failed', error);
+    return null;
+  }
+  const rows = (data ?? []) as unknown as SponsoredJob[];
+  if (rows.length <= 1 || !titleSlug) return rows[0] ?? null;
+  return rows.find((r) => slugify(r.title) === titleSlug) ?? rows[0];
 }
 
 /**
