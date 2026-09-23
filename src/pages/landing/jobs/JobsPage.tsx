@@ -66,6 +66,32 @@ function withinDateWindow(iso: string | null | undefined, window: DatePostedOpti
   return days <= 31;
 }
 
+/** Round-robins a list across `company` so that, when hundreds of jobs
+ *  come from a handful of companies (a big ATS import batch), scrolling
+ *  through the list alternates between companies instead of running
+ *  through one company's entire batch before the next company ever
+ *  appears. Preserves each company's own relative order — this only
+ *  reorders which company gets the next slot, not each company's
+ *  internal ordering (already applied by the caller, e.g. newest-first). */
+function interleaveByCompany(jobs: Job[]): Job[] {
+  const byCompany = new Map<string, Job[]>();
+  for (const job of jobs) {
+    const list = byCompany.get(job.company);
+    if (list) list.push(job);
+    else byCompany.set(job.company, [job]);
+  }
+  const queues = Array.from(byCompany.values());
+  const result: Job[] = [];
+  let round = 0;
+  while (result.length < jobs.length) {
+    for (const q of queues) {
+      if (round < q.length) result.push(q[round]);
+    }
+    round++;
+  }
+  return result;
+}
+
 function JobLogo({ job, size = 48 }: { job: Job; size?: number }) {
   const [failed, setFailed] = useState(false);
   return (
@@ -433,14 +459,23 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       );
     });
 
+    // Diversify by company instead of returning `matched` in whatever
+    // order the underlying fetches produced it (grouped by import
+    // batch, so one company's hundreds of listings run together before
+    // the next company appears at all — confusing when scrolling
+    // through hundreds of jobs from what will eventually be hundreds
+    // of companies). "newest" sorts each company's own jobs newest
+    // first, then round-robins across companies; "relevant" round-
+    // robins in the existing order without re-sorting within a company.
     if (sortBy === 'newest') {
-      return [...matched].sort((a, b) => {
+      const sorted = [...matched].sort((a, b) => {
         const da = a.postedDate ? new Date(a.postedDate).getTime() : 0;
         const db = b.postedDate ? new Date(b.postedDate).getTime() : 0;
         return db - da;
       });
+      return interleaveByCompany(sorted);
     }
-    return matched;
+    return interleaveByCompany(matched);
   }, [allJobs, search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy]);
 
   const visibleJobs = filteredJobs.slice(0, visibleCount);
