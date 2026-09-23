@@ -1,133 +1,105 @@
 import { useState } from 'react';
-import { CheckCircle2, ChevronDown, Sparkles, UserRound, X } from 'lucide-react';
-import { nationalities } from '@/data';
+import { CheckCircle2, ChevronDown, Globe2, Sparkles } from 'lucide-react';
 import { usePersonalization } from '@/lib/personalization';
 import type { EligibilityResult } from '@/lib/personalization';
+import { allCountries } from '@/data/allCountries';
+import { CircleFlag } from '@/components/common/CircleFlag';
 
 /**
- * Inline "tell us about you" bar shown at the top of the Jobs and
- * Programs boards. Everything is stored locally (see lib/personalization)
- * so it works for signed-out visitors, and every listing card below can
- * immediately compute a fit badge from it.
+ * Compact "who are you" row shown above the search bar on the Jobs,
+ * Programs and Study pages. Citizenship and current location are
+ * pre-filled from the visitor's detected country (see
+ * lib/personalization) and can be changed with a flag dropdown.
+ * Everything stays on this device; listing cards use it to compute
+ * the fit badge.
  */
 export function PersonalizationBar() {
-  const { profile, updateProfile, isComplete, clear } = usePersonalization();
-  const [expanded, setExpanded] = useState(!isComplete);
+  const { profile, updateProfile } = usePersonalization();
 
   return (
-    <div className="border border-brand-200 bg-brand-50/60">
+    <div
+      className="flex flex-wrap items-center gap-x-2 gap-y-2 text-xs font-medium text-ink-500"
+      title="Kept on this device only. Used to show whether each listing fits you."
+    >
+      <span className="flex items-center gap-1.5">
+        <Sparkles className="h-3.5 w-3.5 text-brand-600" />
+        Showing what fits you:
+      </span>
+      <span className="flex items-center gap-1.5">
+        Citizen of
+        <CountryPicker code={profile.citizenship} onSelect={(code) => updateProfile({ citizenship: code })} />
+      </span>
+      <span className="flex items-center gap-1.5">
+        based in
+        <CountryPicker code={profile.currentLocation} onSelect={(code) => updateProfile({ currentLocation: code })} />
+      </span>
+    </div>
+  );
+}
+
+function CountryPicker({ code, onSelect }: { code: string | null; onSelect: (code: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const country = allCountries.find((c) => c.code === code);
+  const filtered = allCountries.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
+
+  const close = () => {
+    setOpen(false);
+    setSearch('');
+  };
+
+  return (
+    <span className="relative inline-block">
       <button
         type="button"
-        onClick={() => setExpanded((value) => !value)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left sm:px-5"
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-8 items-center gap-1.5 rounded-full border border-ink-200 bg-white pl-1.5 pr-2.5 text-xs font-semibold text-ink-800 transition hover:border-brand-300"
       >
-        <div className="flex items-center gap-2.5">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-600 text-white">
-            <UserRound className="h-4 w-4" />
+        {country ? (
+          <CircleFlag countryCode={country.code} label={country.name} size={20} />
+        ) : (
+          <span className="grid h-5 w-5 place-items-center rounded-full bg-ink-100 text-ink-400">
+            <Globe2 className="h-3 w-3" />
           </span>
-          <div>
-            <p className="text-sm font-bold text-ink-900">
-              {isComplete ? 'Showing results personalized for you' : 'See what you actually qualify for'}
-            </p>
-            <p className="text-xs text-ink-500">
-              {isComplete
-                ? `${labelFor(profile.citizenship)} citizen · based in ${labelFor(profile.currentLocation)} · age ${profile.age}`
-                : 'Add your citizenship, current location and age — takes 10 seconds'}
-            </p>
-          </div>
-        </div>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${expanded ? 'rotate-180' : ''}`} />
+        )}
+        {country?.name ?? 'Select'}
+        <ChevronDown className={`h-3.5 w-3.5 text-ink-400 transition ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {expanded && (
-        <div className="border-t border-brand-100 bg-white px-4 py-4 sm:px-5">
-          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_120px_auto] sm:items-end">
-            <Field label="Citizenship">
-              <select
-                value={profile.citizenship ?? ''}
-                onChange={(event) => updateProfile({ citizenship: event.target.value || null })}
-                className="h-11 w-full appearance-none rounded-lg border border-ink-200 bg-white px-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-              >
-                <option value="">Select</option>
-                {nationalities.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.flag} {c.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Currently based in">
-              <select
-                value={profile.currentLocation ?? ''}
-                onChange={(event) => updateProfile({ currentLocation: event.target.value || null })}
-                className="h-11 w-full appearance-none rounded-lg border border-ink-200 bg-white px-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-              >
-                <option value="">Select</option>
-                {nationalities.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.flag} {c.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Age">
-              <input
-                type="number"
-                min={16}
-                max={90}
-                value={profile.age ?? ''}
-                onChange={(event) =>
-                  updateProfile({ age: event.target.value ? Number(event.target.value) : null })
-                }
-                placeholder="e.g. 28"
-                className="h-11 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-              />
-            </Field>
-
-            <div className="flex items-center gap-2">
-              {isComplete && (
+      {open && (
+        <>
+          <button type="button" aria-label="Close" onClick={close} className="fixed inset-0 z-30 cursor-default" />
+          <div className="absolute left-0 top-full z-40 mt-2 w-64 rounded-md border border-ink-200 bg-white p-2 shadow-xl">
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search countries…"
+              className="mb-1 h-9 w-full rounded-md border border-ink-200 px-2 text-sm font-normal text-ink-900 outline-none focus:border-brand-500"
+            />
+            <div className="max-h-64 overflow-auto">
+              {filtered.map((c) => (
                 <button
+                  key={c.code}
                   type="button"
-                  onClick={clear}
-                  className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-ink-200 px-3 text-xs font-semibold text-ink-500 hover:bg-ink-50"
+                  onClick={() => {
+                    onSelect(c.code);
+                    close();
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
                 >
-                  <X className="h-3.5 w-3.5" />
-                  Reset
+                  <CircleFlag countryCode={c.code} label={c.name} size={20} />
+                  <span className="flex-1 truncate">{c.name}</span>
+                  {c.code === code && <CheckCircle2 className="h-4 w-4 text-brand-600" />}
                 </button>
-              )}
-              {isComplete && (
-                <span className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Saved
-                </span>
-              )}
+              ))}
+              {filtered.length === 0 && <p className="px-2 py-3 text-xs text-ink-400">No matching country</p>}
             </div>
           </div>
-
-          <p className="mt-3 flex items-center gap-1.5 text-[11px] text-ink-400">
-            <Sparkles className="h-3.5 w-3.5 text-brand-500" />
-            Kept on this device only — used to flag whether each listing fits you.
-          </p>
-        </div>
+        </>
       )}
-    </div>
+    </span>
   );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="mb-1.5 block text-xs font-semibold text-ink-500">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function labelFor(code: string | null) {
-  if (!code) return '—';
-  return nationalities.find((c) => c.code === code)?.name ?? code;
 }
 
 const statusStyles: Record<EligibilityResult['status'], string> = {

@@ -26,6 +26,7 @@ import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
+import { PersonalizationBar } from '@/components/opportunities/PersonalizationBar';
 import { jobPath } from '@/lib/jobUrl';
 
 type JobsPageProps = {
@@ -223,6 +224,9 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3.5">
         <DateTag job={job} />
+        {viewed && (
+          <span className="rounded border border-ink-200 bg-white px-1.5 py-[3px] text-[10px] font-bold uppercase tracking-wide text-ink-600">Viewed</span>
+        )}
         <SourceLabel job={job} />
       </div>
     </>
@@ -577,12 +581,18 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
 
       <section className="border-b border-ink-200 bg-white">
         <div className="mx-auto max-w-5xl px-5 py-8 sm:px-8 sm:py-12">
-          <h1 className="font-slab text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">Discover jobs beyond traditional job boards.</h1>
+          <h1 className="font-slab text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">
+            Discover <span className="font-extrabold text-brand-600">jobs</span> beyond traditional job boards.
+          </h1>
           <p className="mt-2 text-sm text-ink-500 sm:text-base">
             We collect roles from company career pages and multiple sources, so you can find opportunities you may not see on LinkedIn or other job sites.
           </p>
 
-          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+          <div className="mt-5">
+            <PersonalizationBar />
+          </div>
+
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <div className="flex h-12 flex-1 items-center gap-3 rounded-md border border-ink-300 bg-white px-3.5">
               <Search className="h-4.5 w-4.5 shrink-0 text-ink-400" />
               <input
@@ -707,7 +717,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
           </div>
         </div>
 
-        <div className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 sm:mx-0 sm:px-0">
+        <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setCategory('All categories')}

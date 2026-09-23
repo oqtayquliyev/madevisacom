@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { resolveCountry } from '@/lib/geolocation';
 
 /**
  * Lightweight, guest-friendly "who are you" profile used to compute
@@ -32,7 +33,9 @@ function load(): Personalization {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return empty;
     const parsed = JSON.parse(raw);
-    return { ...empty, ...parsed };
+    // Age is no longer collected; ignore any previously stored value so
+    // it can't silently affect eligibility badges.
+    return { ...empty, ...parsed, age: null };
   } catch {
     return empty;
   }
@@ -59,14 +62,33 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
     }
   }, [profile]);
 
+  // Pre-fill citizenship and "currently based in" from the visitor's
+  // detected country (same cookie/IP lookup the landing page uses).
+  // Only fills empty fields — never overrides what the visitor picked.
+  useEffect(() => {
+    if (profile.citizenship && profile.currentLocation) return;
+    let cancelled = false;
+    resolveCountry().then((code) => {
+      if (cancelled || !code) return;
+      setProfileState((current) => ({
+        ...current,
+        citizenship: current.citizenship ?? code,
+        currentLocation: current.currentLocation ?? code,
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Runs once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const setProfile = (next: Personalization) => setProfileState(next);
   const updateProfile = (patch: Partial<Personalization>) =>
     setProfileState((current) => ({ ...current, ...patch }));
   const clear = () => setProfileState(empty);
 
-  const isComplete = Boolean(
-    profile.citizenship && profile.currentLocation && profile.age
-  );
+  const isComplete = Boolean(profile.citizenship && profile.currentLocation);
 
   const value = useMemo(
     () => ({ profile, setProfile, updateProfile, isComplete, clear }),

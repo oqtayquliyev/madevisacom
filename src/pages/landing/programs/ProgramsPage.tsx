@@ -68,7 +68,7 @@ const MODE_CONFIG: Record<
     seoTitle: 'Programs: Government, Work, Training & Relocation',
     seoDescription:
       'Discover official programs from governments, companies and organizations: work, training, relocation, volunteer and immigration programs, at home or abroad.',
-    heading: 'Discover programs from official sources.',
+    heading: 'Discover {programs} from official sources.',
     subheading: 'Government schemes, work, training and relocation programs collected from official sources and verified organizations, in one place.',
     searchPlaceholder: 'Program name, field or organization',
     listTitle: 'Programs',
@@ -87,7 +87,7 @@ const MODE_CONFIG: Record<
     seoTitle: 'Study Opportunities: Scholarships, Universities & Courses',
     seoDescription:
       'Discover scholarships, university programs, language courses and exchanges from official sources, with funding and application deadlines in one place.',
-    heading: 'Discover study opportunities worldwide.',
+    heading: 'Discover {study opportunities} worldwide.',
     subheading: 'Scholarships, university programs, language courses and exchanges from official sources, with funding and deadlines in one place.',
     searchPlaceholder: 'Scholarship, university, course or field',
     listTitle: 'Study opportunities',
@@ -359,6 +359,24 @@ function SelectField({ label, value, options, onChange }: { label: string; value
   );
 }
 
+/** Renders "Discover {keyword} ..." with the {keyword} part in bold MadeVisa blue. */
+function HighlightedHeading({ text }: { text: string }) {
+  const parts = text.split(/(\{[^}]+\})/);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.startsWith('{') ? (
+          <span key={i} className="font-extrabold text-brand-600">
+            {part.slice(1, -1)}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
 type ProgramsPageProps = {
   go: (view: View) => void;
   onAuth?: (page: 'login' | 'register') => void;
@@ -510,10 +528,16 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
 
       <section className="border-b border-ink-200 bg-white">
         <div className="mx-auto max-w-5xl px-5 py-8 sm:px-8 sm:py-12">
-          <h1 className="font-slab text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">{config.heading}</h1>
+          <h1 className="font-slab text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">
+            <HighlightedHeading text={config.heading} />
+          </h1>
           <p className="mt-2 text-sm text-ink-500 sm:text-base">{config.subheading}</p>
 
-          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+          <div className="mt-5">
+            <PersonalizationBar />
+          </div>
+
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <div className="flex h-12 flex-1 items-center gap-3 rounded-md border border-ink-300 bg-white px-3.5">
               <Search className="h-4.5 w-4.5 shrink-0 text-ink-400" />
               <input
@@ -626,7 +650,7 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
           </div>
         </div>
 
-        <div className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 sm:mx-0 sm:px-0">
+        <div className="mt-4 flex flex-wrap gap-2">
           {[allTypes, ...config.categories].map((c) => (
             <button
               key={c}
@@ -659,10 +683,6 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
             </button>
           </div>
         )}
-
-        <div className="mt-5">
-          <PersonalizationBar />
-        </div>
 
         {loading ? (
           <div className="mt-6 grid gap-4 lg:grid-cols-2">

@@ -477,10 +477,15 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
     <div className="relative h-[360px]">
       <a
         href={href}
-        className={`group flex h-full flex-col rounded-lg border p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg ${
+        className={`group relative flex h-full flex-col rounded-lg border p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg ${
           viewed ? 'border-ink-200 bg-ink-100/70 opacity-75 grayscale-[40%] hover:opacity-100' : 'border-ink-900/20 bg-white'
         }`}
       >
+        {viewed && (
+          <span className="absolute right-3 top-3 rounded border border-ink-200 bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-600">
+            Viewed
+          </span>
+        )}
         {hasImage ? (
           <img
             src={item.imageUrl!}
