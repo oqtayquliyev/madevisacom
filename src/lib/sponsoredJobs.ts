@@ -10,6 +10,8 @@ export type SponsoredJob = {
   description: string | null;
   category: string;
   employment_type: string;
+  /** Real job function/department (Design, Engineering, ...) — separate from category/employment_type above, which mean employment type in this app. See the matching comment in src/lib/admin.ts. */
+  job_function: string | null;
   remote: boolean;
   country_id: string | null;
   city: string | null;
@@ -51,7 +53,7 @@ export type SponsoredJob = {
 };
 
 const columns =
-  'id, publisher_id, title, description, category, employment_type, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, created_at, approved_at, expires_at, source_posted_at, additional_locations, publisher:program_publishers(id, name, org_type, logo_url, owner_id), country:countries(id, name, iso_code)';
+  'id, publisher_id, title, description, category, employment_type, job_function, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, created_at, approved_at, expires_at, source_posted_at, additional_locations, publisher:program_publishers(id, name, org_type, logo_url, owner_id), country:countries(id, name, iso_code)';
 
 export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
   return {
@@ -143,7 +145,12 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     salary: formatSalary(job) ?? undefined,
     type: job.employment_type,
     remote: job.remote,
-    category: job.category,
+    // Public-facing `category` means job function (Design, Engineering,
+    // ...) — job_function when the source gave us one, otherwise left
+    // blank (matches "All categories" only) rather than falling back to
+    // the employment-type value, which would just reintroduce the same
+    // mix-up this was built to fix.
+    category: job.job_function ?? '',
     // A publisher with a real owner_id is a verified company account
     // that posted this itself; owner_id: null is exactly how
     // findOrCreateImportedPublisher (the admin ATS-import path) creates

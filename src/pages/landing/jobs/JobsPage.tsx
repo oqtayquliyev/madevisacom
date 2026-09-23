@@ -37,6 +37,33 @@ const PAGE_SIZE = 12;
 
 const DISCOVERY_CATEGORIES = ['Technology', 'Design', 'Engineering', 'Healthcare', 'Finance', 'Marketing', 'Business', 'Education'];
 
+// Real source category text ("Legal & Public Affairs", "IT Services",
+// "Product") will rarely exact-match one of the fixed discovery
+// buckets above — companies phrase departments however they like. This
+// classifies by keyword instead of exact equality, so the tabs actually
+// catch real jobs rather than only ones whose source happened to use
+// our exact wording. A category can match more than one bucket (e.g.
+// "Software Engineer" is both Technology and Engineering) or none —
+// "none" jobs still show up under "All categories".
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  Technology: ['engineer', 'software', 'developer', 'it ', ' it', 'data', 'security', 'devops', 'technology', 'infrastructure', 'qa', 'quality assurance'],
+  Design: ['design', 'ux', 'ui'],
+  Engineering: ['engineer', 'engineering', 'manufacturing', 'r&d', 'r & d'],
+  Healthcare: ['health', 'medical', 'clinical', 'pharma', 'nursing'],
+  Finance: ['finance', 'financial', 'accounting', 'tax'],
+  Marketing: ['marketing', 'communications', 'brand', 'pr'],
+  Business: ['business', 'sales', 'commercial', 'strategy', 'operations', 'legal', 'compliance', 'hr', 'human resources', 'procurement', 'supply chain', 'product'],
+  Education: ['education', 'training', 'learning', 'academic'],
+};
+
+function matchesDiscoveryCategory(rawCategory: string, bucket: string): boolean {
+  if (!rawCategory) return false;
+  const s = ` ${rawCategory.toLowerCase()} `;
+  const keywords = CATEGORY_KEYWORDS[bucket];
+  if (!keywords) return s.includes(bucket.toLowerCase());
+  return keywords.some((k) => s.includes(k));
+}
+
 function formatDateTag(iso: string | null | undefined): { label: 'NEW' | 'ADDED'; dateText: string } | null {
   if (!iso) return null;
   const d = new Date(iso);
@@ -160,6 +187,7 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
           <Briefcase className="h-3.5 w-3.5 text-ink-400" />
           {job.type}
         </span>
+        {job.category && <span>{job.category}</span>}
         {job.remote && <span className="font-semibold text-emerald-700">Remote</span>}
       </div>
 
@@ -383,7 +411,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
         job.city.toLowerCase().includes(normalizedSearch);
 
       const matchesCountry = country === 'All countries' || job.country === country;
-      const matchesCategory = category === 'All categories' || job.category === category;
+      const matchesCategory = category === 'All categories' || matchesDiscoveryCategory(job.category, category);
       const matchesType = jobType === 'All types' || job.type === jobType;
       const matchesRemote = !remoteOnly || job.remote;
       const matchesCity = !normalizedCity || job.city.toLowerCase().includes(normalizedCity);

@@ -126,7 +126,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                   show both badges when they actually say something
                   different, or the same word (e.g. "Full time") shows up
                   twice side by side. */}
-              {job.category !== job.type && (
+              {job.category && job.category !== job.type && (
                 <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">{job.category}</span>
               )}
               <span className="rounded-full bg-ink-100 px-2.5 py-1 text-[11px] font-semibold text-ink-600">{job.type}</span>

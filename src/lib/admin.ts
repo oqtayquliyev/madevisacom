@@ -12,7 +12,6 @@ export type PendingPublisher = {
   contact_email: string;
   verification_status: string;
   created_at: string;
-  logo_url?: string | null;
   country?: { name: string; iso_code: string } | null;
 };
 
@@ -49,7 +48,7 @@ export type PendingAgency = {
 };
 
 const publisherColumns =
-  'id, org_type, name, website, contact_email, verification_status, created_at, logo_url, country:countries(name, iso_code)';
+  'id, org_type, name, website, contact_email, verification_status, created_at, country:countries(name, iso_code)';
 const programColumns =
   'id, title, category, status, created_at, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const sponsoredJobColumns =
@@ -213,6 +212,13 @@ export type AdminSponsoredJob = {
   description: string | null;
   category: string;
   employment_type: string;
+  /** The job's actual function/department (Design, Engineering, Legal &
+   * Public Affairs, ...) — separate from `category`/`employment_type`
+   * above, which have always meant employment type in this app (see
+   * JOB_CATEGORIES). Free text, not constrained to a fixed list, since
+   * source sites phrase this a hundred different ways; null when the
+   * source didn't expose one. */
+  job_function: string | null;
   remote: boolean;
   status: ListingStatus;
   created_at: string;
@@ -256,7 +262,7 @@ export type AdminSponsoredJob = {
 const adminProgramColumns =
   'id, title, description, category, status, created_at, approved_at, expires_at, country_id, city, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, official_url, application_url, image_url, spots_available, citizenship_any, citizenship_allowed, min_age, max_age, applications_open_at, applications_close_at, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const adminSponsoredJobColumns =
-  'id, title, description, category, employment_type, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, description, category, employment_type, job_function, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 
 export async function fetchAllPrograms(): Promise<AdminProgram[]> {
   const { data, error } = await supabase
@@ -325,46 +331,21 @@ export async function deleteSponsoredJob(id: string): Promise<{ ok: boolean; err
   return { ok: true };
 }
 
-// Same reasoning as the chunked insert in importJobsAsPending: a huge
-// .in('id', [...]) filter gets serialized into the request's query
-// string, and a batch large enough (642 UUIDs here, ~24KB+ of just IDs)
-// exceeds what Supabase/PostgREST will accept in a single request,
-// failing the whole call with a generic "Bad Request" — this is what
-// left the Stripe batch stuck and undeletable.
-// 200 IDs per chunk was still large enough to occasionally trip a
-// request-size limit somewhere in the stack (Supabase/PostgREST/CDN) —
-// `.in('id', chunk)` embeds every UUID directly in the request URL's
-// query string, and 200 UUIDs (~37 chars each with the separator) is
-// ~7,400 characters just for the ID list, on top of everything else in
-// the URL. That's what a bare "Bad Request" with no specific Postgres
-// error message usually means here. 50 keeps every request comfortably
-// under any realistic limit.
-const BULK_OP_CHUNK_SIZE = 50;
-
 export async function bulkDeleteJobs(ids: string[]): Promise<{ ok: boolean; error?: string }> {
-  for (let i = 0; i < ids.length; i += BULK_OP_CHUNK_SIZE) {
-    const chunk = ids.slice(i, i + BULK_OP_CHUNK_SIZE);
-    const { error } = await supabase.from('sponsored_jobs').delete().in('id', chunk);
-    if (error) return { ok: false, error: error.message };
-  }
+  const { error } = await supabase.from('sponsored_jobs').delete().in('id', ids);
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 
 export async function bulkDeletePrograms(ids: string[]): Promise<{ ok: boolean; error?: string }> {
-  for (let i = 0; i < ids.length; i += BULK_OP_CHUNK_SIZE) {
-    const chunk = ids.slice(i, i + BULK_OP_CHUNK_SIZE);
-    const { error } = await supabase.from('programs').delete().in('id', chunk);
-    if (error) return { ok: false, error: error.message };
-  }
+  const { error } = await supabase.from('programs').delete().in('id', ids);
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 
 export async function bulkSetProgramStatus(ids: string[], status: ListingStatus): Promise<{ ok: boolean; error?: string }> {
-  for (let i = 0; i < ids.length; i += BULK_OP_CHUNK_SIZE) {
-    const chunk = ids.slice(i, i + BULK_OP_CHUNK_SIZE);
-    const { error } = await supabase.from('programs').update({ status }).in('id', chunk);
-    if (error) return { ok: false, error: error.message };
-  }
+  const { error } = await supabase.from('programs').update({ status }).in('id', ids);
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 
@@ -535,13 +516,19 @@ export async function importJobsAsPending(
   }[]
 ): Promise<{ ok: boolean; imported: number; error?: string }> {
   const rows = jobs.map((j) => {
-    const jobCategory = normalizeJobCategory(j.employmentTypeRaw ?? j.category);
+    // Employment type comes ONLY from employmentTypeRaw now — j.category
+    // is a job-function value (Design, Engineering, ...), not an
+    // employment type, and feeding it into this normalizer is exactly
+    // the bug that was silently turning every real department into
+    // "Other". job_function stores the real value, untouched, below.
+    const jobCategory = normalizeJobCategory(j.employmentTypeRaw);
     return {
       publisher_id: publisherId,
       title: j.title,
       description: j.description,
       category: jobCategory,
       employment_type: jobCategory,
+      job_function: j.category ?? null,
       remote: j.remote ?? false,
       country_id: resolveCountryId(j.additionalLocations, j.locationText, countries),
       city: deriveCity(j.additionalLocations?.[0] ?? j.locationText),
@@ -579,20 +566,14 @@ export async function importJobsAsPending(
 }
 
 export async function bulkSetJobStatus(ids: string[], status: ListingStatus): Promise<{ ok: boolean; error?: string }> {
-  for (let i = 0; i < ids.length; i += BULK_OP_CHUNK_SIZE) {
-    const chunk = ids.slice(i, i + BULK_OP_CHUNK_SIZE);
-    const { error } = await supabase.from('sponsored_jobs').update({ status }).in('id', chunk);
-    if (error) return { ok: false, error: error.message };
-  }
+  const { error } = await supabase.from('sponsored_jobs').update({ status }).in('id', ids);
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 
 export async function bulkSetJobImage(ids: string[], imageUrl: string): Promise<{ ok: boolean; error?: string }> {
-  for (let i = 0; i < ids.length; i += BULK_OP_CHUNK_SIZE) {
-    const chunk = ids.slice(i, i + BULK_OP_CHUNK_SIZE);
-    const { error } = await supabase.from('sponsored_jobs').update({ image_url: imageUrl }).in('id', chunk);
-    if (error) return { ok: false, error: error.message };
-  }
+  const { error } = await supabase.from('sponsored_jobs').update({ image_url: imageUrl }).in('id', ids);
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 

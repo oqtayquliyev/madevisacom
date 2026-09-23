@@ -38,15 +38,46 @@ export async function fetchGreenhouseJobs(boardToken: string): Promise<{ ok: boo
       return { ok: false, jobs: [], error: `Greenhouse returned ${res.status} — check the board token.` };
     }
     const data = await res.json();
-    const jobs: FetchedJob[] = (data.jobs ?? []).map((j: Record<string, unknown>) => ({
-      externalId: String(j.id),
-      title: String(j.title ?? 'Untitled role'),
-      locationText: String((j.location as { name?: string } | undefined)?.name ?? ''),
-      offices: ((j.offices as { name?: string }[] | undefined) ?? []).map((o) => o.name ?? '').filter(Boolean),
-      descriptionHtml: String(j.content ?? ''),
-      url: String(j.absolute_url ?? ''),
-      updatedAt: String(j.updated_at ?? ''),
-    }));
+    const jobs: FetchedJob[] = (data.jobs ?? []).map((j: Record<string, unknown>) => {
+      const offices = ((j.offices as { name?: string }[] | undefined) ?? []).map((o) => o.name ?? '').filter(Boolean);
+      const locationText = String((j.location as { name?: string } | undefined)?.name ?? '');
+      const metadata = (j.metadata as { name?: string; value?: unknown }[] | undefined) ?? [];
+      const metaValue = (pattern: RegExp): string | null => {
+        const field = metadata.find((m) => m.name && pattern.test(m.name));
+        return field?.value != null && field.value !== '' ? String(field.value) : null;
+      };
+
+      return {
+        externalId: String(j.id),
+        title: String(j.title ?? 'Untitled role'),
+        locationText,
+        offices,
+        descriptionHtml: String(j.content ?? ''),
+        url: String(j.absolute_url ?? ''),
+        updatedAt: String(j.updated_at ?? ''),
+        // Greenhouse's real job-function signal — e.g. Stripe's own
+        // page shows this exact value as "Team: Design". Distinct from
+        // employmentTypeRaw below; see job_function vs category/
+        // employment_type in src/lib/admin.ts for why they're kept
+        // separate rather than colliding on one field.
+        category: ((j.departments as { name?: string }[] | undefined) ?? [])[0]?.name ?? null,
+        // Not a standard Greenhouse field — only present when a company
+        // configured a custom posting field with a matching name, so
+        // this is best-effort and frequently null, same as the Phenom
+        // strategies' equivalent lookups.
+        employmentTypeRaw: metaValue(/employment.?type|job.?type/i),
+        // Greenhouse's public API has no "originally posted" date, only
+        // "last updated" — the closest real signal available, and
+        // better than showing nothing.
+        postedAt: j.updated_at ? String(j.updated_at) : null,
+        // A "Remote" entry among a job's offices is Greenhouse's own
+        // way of marking a role as remote-eligible (as distinct from
+        // its physical office locations) — more reliable than pattern-
+        // matching the primary location name alone.
+        remote: [locationText, ...offices].some((s) => /\bremote\b/i.test(s)) || null,
+        salaryText: metaValue(/salary|pay.?range|compensation/i),
+      };
+    });
     return { ok: true, jobs };
   } catch (err) {
     return { ok: false, jobs: [], error: err instanceof Error ? err.message : 'Fetch failed.' };

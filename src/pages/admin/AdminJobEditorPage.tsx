@@ -189,7 +189,7 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
                 <TextInput value={job.title} onChange={(v) => set('title', v)} />
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Category / employment type">
+                <Field label="Employment type">
                   <Select
                     value={job.category as JobCategory}
                     onChange={(v) => {
@@ -198,6 +198,9 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
                     }}
                     options={JOB_CATEGORIES}
                   />
+                </Field>
+                <Field label="Job function / department (shown publicly, used for category filtering)">
+                  <TextInput value={job.job_function ?? ''} onChange={(v) => set('job_function', v || null)} />
                 </Field>
                 <Field label="Status">
                   <Select value={job.status} onChange={(v) => set('status', v as ListingStatus)} options={LISTING_STATUSES.map((s) => s.value)} labels={Object.fromEntries(LISTING_STATUSES.map((s) => [s.value, s.label]))} />
