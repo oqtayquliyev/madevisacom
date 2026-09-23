@@ -175,6 +175,39 @@ function FlagSwitcher({
   );
 }
 
+/**
+ * Picks up to `count` items for the landing page's small preview
+ * section, sorted by recency but with at most one per company/org —
+ * otherwise a single company's bulk import (Roche, Booking.com, etc.,
+ * all landing with nearly the same timestamp) fills every slot with
+ * itself, which defeats the point of a "here's what's out there"
+ * preview. Tops up with the next-most-recent items regardless of
+ * company only if there aren't enough distinct ones to fill `count`.
+ */
+function pickDiverseByCompany(items: MatchItem[], count: number): MatchItem[] {
+  const sorted = [...items].sort((a, b) => {
+    const da = new Date(a.postedDate ?? a.createdAt).getTime();
+    const db = new Date(b.postedDate ?? b.createdAt).getTime();
+    return db - da;
+  });
+
+  const seenOrgs = new Set<string>();
+  const picked: MatchItem[] = [];
+  for (const item of sorted) {
+    if (seenOrgs.has(item.org)) continue;
+    seenOrgs.add(item.org);
+    picked.push(item);
+    if (picked.length >= count) return picked;
+  }
+
+  for (const item of sorted) {
+    if (picked.includes(item)) continue;
+    picked.push(item);
+    if (picked.length >= count) break;
+  }
+  return picked;
+}
+
 export function LocationMatchSection({
   items,
   originCode,
@@ -190,7 +223,7 @@ export function LocationMatchSection({
 
   const destinationCountry = allCountries.find((c) => c.code === destinationCode);
   const visibleItems = items?.filter((item) => !destinationCode || item.countryCode === destinationCode) ?? null;
-  const shownItems = visibleItems?.slice(0, 4) ?? null;
+  const shownItems = visibleItems ? pickDiverseByCompany(visibleItems, 4) : null;
   const countryParam = destinationCountry ? `?country=${encodeURIComponent(destinationCountry.name)}` : '';
 
   return (
@@ -202,8 +235,23 @@ export function LocationMatchSection({
       </div>
 
       <h2 className="mt-3 text-xl font-bold tracking-tight text-ink-950 sm:text-2xl">
-        From {originName ?? 'your country'} to {destinationCountry?.name ?? 'opportunities abroad'}
+        From <span className="text-brand-600">{originName ?? 'your country'}</span> to{' '}
+        {destinationCountry ? (
+          <>
+            opportunities in <span className="text-brand-600">{destinationCountry.name}</span>
+          </>
+        ) : (
+          'opportunities abroad'
+        )}
       </h2>
+      {visibleItems && visibleItems.length > 0 && (
+        <p className="mt-1 text-sm text-ink-500">
+          <a href={`/jobs${countryParam}`} className="font-bold text-ink-900 underline decoration-2 underline-offset-2 hover:text-brand-700">
+            {visibleItems.length.toLocaleString()}
+          </a>{' '}
+          opportunities {destinationCountry ? <>in <span className="font-bold text-brand-600">{destinationCountry.name}</span> and abroad</> : 'abroad'}
+        </p>
+      )}
 
       {shownItems === null ? (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">

@@ -690,7 +690,7 @@ export function LandingHero({
 
       {/* POST A JOB / PROGRAM CTA */}
 
-      <section className="mx-auto max-w-6xl px-5 pt-10 sm:px-8">
+      <section className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:pb-16">
         <div className="overflow-hidden rounded-xl border border-brand-200 bg-gradient-to-br from-brand-50 via-white to-white shadow-soft-lg">
           <div className="grid gap-8 p-6 sm:p-10 lg:grid-cols-[1.2fr_1fr] lg:items-center">
 

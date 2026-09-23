@@ -115,7 +115,10 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
           <div className="relative">
             <button
               type="button"
-              onClick={() => setOpenProfile((v) => !v)}
+              onClick={() => {
+                setOpenProfile((v) => !v);
+                setOpenMenu(false); // opening the profile menu closes the hamburger nav — otherwise both overlap on mobile
+              }}
               aria-label="Account menu"
               className={`grid place-items-center rounded-full transition ${
                 profile
@@ -210,7 +213,10 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
           </div>
 
           <button
-            onClick={() => setOpenMenu(!openMenu)}
+            onClick={() => {
+              setOpenMenu(!openMenu);
+              setOpenProfile(false); // opening the hamburger nav closes the profile menu — otherwise both overlap on mobile
+            }}
             className="grid h-9 w-9 place-items-center rounded-lg border border-ink-200 md:hidden"
             aria-label="Toggle navigation"
           >

@@ -19,7 +19,6 @@ export function LandingPage({ go, onAuth }: LandingProps) {
   return <OriginCountryProvider><div className="min-h-screen bg-[#f8fafc] text-ink-900">
     <LandingHeader go={go} onAuth={onAuth} active="home" />
     <CountrySwitcher />
-    <style>{'.landing-main > section:first-child { display: none; }'}</style>
     <LandingHero go={go} onAuth={onAuth} />
     <main className="landing-main">
       <section id="how-it-works" className="border-y border-ink-200 bg-white px-5 py-14 sm:px-8 sm:py-16"><div className="mx-auto max-w-7xl"><div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-brand-600">A better way to apply</p><h2 className="mt-2 max-w-sm text-3xl font-bold tracking-tight text-ink-950">From discover to move, in one place.</h2></div><div className="grid gap-5 sm:grid-cols-3"><Step number="01" icon={Search} title="Discover & compare" detail="Official programs, sponsored jobs and visa pathways matched to you." /><Step number="02" icon={BadgeCheck} title="Get expert help" detail="Verified agencies and independent experts, when you want a hand." /><Step number="03" icon={MessageCircle} title="Apply & move" detail="Track requirements, book travel and follow your application through." /></div></div></div></section>
