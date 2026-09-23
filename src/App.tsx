@@ -381,7 +381,7 @@ function renderPublicView(
       );
 
     case 'jobs':
-      return <JobsPage go={go} />;
+      return <JobsPage go={go} onAuth={goToAuth} goToJob={(id) => goToDetail('jobs', id)} />;
 
     case 'programs':
       return <ProgramsPage go={go} />;

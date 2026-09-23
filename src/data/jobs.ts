@@ -34,6 +34,12 @@ export type Job = {
   imageUrl?: string | null;
   /** Original posting date on the source career site (ISO string), when known — distinct from `published`. Null/undefined renders as "Not specified" rather than being silently hidden. */
   postedDate?: string | null;
+  experienceLevel?: string | null;
+  /** Where this listing actually came from, for the "Added by MadeVisa" vs "Posted by company" distinction — never inferred/guessed, only set where the source is genuinely known:
+   *  - 'company_submitted': a verified company account (a real owner_id on the publisher) posted this directly.
+   *  - 'company_careers': imported by MadeVisa staff from a company's own public careers page (see supabase/functions/import-ats-jobs) — no publisher owner account behind it.
+   *  - 'live_feed': pulled in real time from a public job-board API (Arbeitnow) — not a MadeVisa import of one specific company's page, and not company-submitted either. */
+  sourceType?: 'company_submitted' | 'company_careers' | 'live_feed';
 };
 
 export const countries = [
@@ -81,9 +87,11 @@ export const categories = [
   'Technology',
   'Design',
   'Engineering',
-  'Business',
   'Healthcare',
+  'Finance',
   'Marketing',
+  'Business',
+  'Education',
 ];
 
 export const jobTypes = [

@@ -46,12 +46,12 @@ export type SponsoredJob = {
   expires_at: string | null;
   source_posted_at: string | null;
   additional_locations: string[] | null;
-  publisher?: { id: string; name: string; org_type: OrgType; logo_url: string | null };
+  publisher?: { id: string; name: string; org_type: OrgType; logo_url: string | null; owner_id: string | null };
   country?: { id: string; name: string; iso_code: string };
 };
 
 const columns =
-  'id, publisher_id, title, description, category, employment_type, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, created_at, approved_at, expires_at, source_posted_at, additional_locations, publisher:program_publishers(id, name, org_type, logo_url), country:countries(id, name, iso_code)';
+  'id, publisher_id, title, description, category, employment_type, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, created_at, approved_at, expires_at, source_posted_at, additional_locations, publisher:program_publishers(id, name, org_type, logo_url, owner_id), country:countries(id, name, iso_code)';
 
 export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
   return {
@@ -134,13 +134,23 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     company: job.publisher?.name ?? 'Verified sponsor',
     country: job.country?.name ?? 'Various',
     countryCode: job.country?.iso_code ?? '',
-    city: job.remote ? 'Remote' : (job.country?.name ?? ''),
+    // Was falling back to the country name for every non-remote job,
+    // which meant the city shown was never actually a city — this app's
+    // own `city` field on the row was just never read. Falls back to
+    // the country name only when there's genuinely no city on file, so
+    // "somewhere in Germany" still reads better than a blank string.
+    city: job.remote ? 'Remote' : job.city ?? job.country?.name ?? '',
     salary: formatSalary(job) ?? undefined,
     type: job.employment_type,
     remote: job.remote,
     category: job.category,
-    source: 'Sponsored',
-    published: 'Sponsored listing',
+    // A publisher with a real owner_id is a verified company account
+    // that posted this itself; owner_id: null is exactly how
+    // findOrCreateImportedPublisher (the admin ATS-import path) creates
+    // publishers (see src/lib/admin.ts) — so this is a real signal, not
+    // a guess, for which of the two the job actually is.
+    source: job.publisher?.name ?? 'Verified sponsor',
+    published: job.publisher?.owner_id ? 'Posted by company' : 'Added by MadeVisa',
     url: job.official_url ?? '#',
     verified: true,
     eligibility: toEligibilityCriteria(job),
@@ -153,6 +163,8 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     spotsAvailable: job.spots_available,
     imageUrl: job.image_url,
     postedDate: job.source_posted_at,
+    experienceLevel: job.experience_level,
+    sourceType: job.publisher?.owner_id ? 'company_submitted' : 'company_careers',
   };
 }
 

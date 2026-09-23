@@ -101,6 +101,8 @@ function normalize(raw: ArbeitnowJob): Job {
     category: raw.tags?.[0] ?? 'General',
     source: 'Arbeitnow (live)',
     published: timeAgo(raw.created_at),
+    postedDate: new Date(raw.created_at * 1000).toISOString(),
+    sourceType: 'live_feed',
     url: raw.url,
     verified: false,
     eligibility: { citizenship: 'any', minAge: 18, currentLocation: 'any' },
