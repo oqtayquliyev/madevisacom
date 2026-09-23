@@ -242,7 +242,14 @@ export function LocationMatchSection({
       {shownItems === null ? (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-[360px] animate-pulse rounded-lg bg-ink-100" />
+            <div key={i} className="h-[360px] rounded-lg border border-ink-900/10 bg-white p-5">
+              <div className="h-9 w-9 rounded-lg skeleton-shimmer" />
+              <div className="mt-3 h-3 w-2/3 rounded skeleton-shimmer" />
+              <div className="mt-2 h-4 w-full rounded skeleton-shimmer" />
+              <div className="mt-1 h-4 w-4/5 rounded skeleton-shimmer" />
+              <div className="mt-4 h-3 w-1/2 rounded skeleton-shimmer" />
+              <div className="mt-6 h-24 w-full rounded skeleton-shimmer" />
+            </div>
           ))}
         </div>
       ) : shownItems.length === 0 ? (

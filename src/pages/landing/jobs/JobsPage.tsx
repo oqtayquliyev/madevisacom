@@ -263,14 +263,14 @@ function JobCardSkeleton() {
   return (
     <div className="rounded-lg border border-ink-200 bg-white p-5 sm:p-6">
       <div className="flex items-start gap-3.5">
-        <div className="h-[52px] w-[52px] shrink-0 animate-pulse rounded-lg bg-ink-100" />
+        <div className="h-[52px] w-[52px] shrink-0 rounded-lg skeleton-shimmer" />
         <div className="min-w-0 flex-1 space-y-2 pt-1">
-          <div className="h-3 w-1/3 animate-pulse rounded bg-ink-100" />
-          <div className="h-4 w-2/3 animate-pulse rounded bg-ink-100" />
+          <div className="h-3 w-1/3 rounded skeleton-shimmer" />
+          <div className="h-4 w-2/3 rounded skeleton-shimmer" />
         </div>
       </div>
-      <div className="mt-4 h-3 w-1/2 animate-pulse rounded bg-ink-100" />
-      <div className="mt-5 h-3 w-1/3 animate-pulse rounded bg-ink-100" />
+      <div className="mt-4 h-3 w-1/2 rounded skeleton-shimmer" />
+      <div className="mt-5 h-3 w-1/3 rounded skeleton-shimmer" />
     </div>
   );
 }
@@ -394,10 +394,26 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   }, []);
 
   const allJobs = useMemo(() => [...sponsoredJobs, ...liveJobs], [liveJobs, sponsoredJobs]);
-  const loading = loadingLive && loadingSponsored && allJobs.length === 0;
+  // OR, not AND: sponsored jobs and the live feed are two independent
+  // fetches that resolve at different times (sponsored now paginates
+  // past Supabase's 1000-row cap, so it can genuinely take longer than
+  // the live feed). With AND, as soon as the faster one finished while
+  // the other was still in flight, `loading` flipped to false too
+  // early — showing "No jobs found" for a moment before the slower
+  // fetch's results actually arrived. Staying "loading" until BOTH are
+  // done (or something has already arrived to show) fixes that flash.
+  const loading = (loadingLive || loadingSponsored) && allJobs.length === 0;
 
   const cityOptions = useMemo(() => Array.from(new Set(allJobs.map((j) => j.city).filter(Boolean))).sort(), [allJobs]);
   const companyOptions = useMemo(() => Array.from(new Set(allJobs.map((j) => j.company).filter(Boolean))).sort(), [allJobs]);
+  // Unlike cityOptions/companyOptions above, this used to come from the
+  // small hardcoded `countries` list (the same one behind the pill
+  // row) rather than the actual job data — so as soon as jobs existed
+  // in a country outside that curated set (India, Singapore, etc. —
+  // already true today), there was no way to filter by them even
+  // though their jobs were right there on the page. Deriving it from
+  // allJobs, same as the other two, fixes that.
+  const jobCountryOptions = useMemo(() => Array.from(new Set(allJobs.map((j) => j.country).filter(Boolean))).sort(), [allJobs]);
   const experienceLevelOptions = useMemo(
     () => Array.from(new Set(allJobs.map((j) => j.experienceLevel).filter((v): v is string => Boolean(v)))).sort(),
     [allJobs]
@@ -498,7 +514,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     }, 300);
   };
 
-  const countryOptions = ['All countries', ...countries.map((c) => c.name)];
+  const countryOptions = ['All countries', ...jobCountryOptions];
   // The full `countries` list will keep growing as more destinations
   // get added; capping the pill row to a fixed top 8 (with the rest
   // reachable via the "Filters" dropdown, which already lists all of
