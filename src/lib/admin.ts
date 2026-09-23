@@ -68,19 +68,32 @@ const agencyColumns = 'id, name, email, country, city, website, verification_sta
 const SUPABASE_PAGE_SIZE = 1000;
 
 async function fetchAllRows<T>(
-  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+  buildQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null; count?: number | null }> }
 ): Promise<T[]> {
-  const rows: T[] = [];
-  let from = 0;
-  for (;;) {
-    const { data, error } = await page(from, from + SUPABASE_PAGE_SIZE - 1);
-    if (error) throw new Error(error.message);
-    const chunk = data ?? [];
-    rows.push(...chunk);
-    if (chunk.length < SUPABASE_PAGE_SIZE) break;
-    from += SUPABASE_PAGE_SIZE;
+  // First page also asks for the exact total row count, so every page
+  // after it can be fired in parallel instead of one-at-a-time — with
+  // thousands of rows (this admin panel now routinely has 5000+ pending
+  // jobs alone), that's the difference between several sequential
+  // round-trips and roughly one round-trip's worth of wait, however
+  // many pages it actually takes. `buildQuery` is called fresh for each
+  // page (not reused) since a Supabase query builder is single-use.
+  const first = await buildQuery().range(0, SUPABASE_PAGE_SIZE - 1);
+  if (first.error) throw new Error(first.error.message);
+  const firstPage = first.data ?? [];
+  const total = first.count ?? firstPage.length;
+
+  if (total <= SUPABASE_PAGE_SIZE) return firstPage;
+
+  const pageStarts: number[] = [];
+  for (let from = SUPABASE_PAGE_SIZE; from < total; from += SUPABASE_PAGE_SIZE) pageStarts.push(from);
+
+  const restResults = await Promise.all(pageStarts.map((from) => buildQuery().range(from, from + SUPABASE_PAGE_SIZE - 1)));
+  const rest: T[] = [];
+  for (const r of restResults) {
+    if (r.error) throw new Error(r.error.message);
+    rest.push(...(r.data ?? []));
   }
-  return rows;
+  return [...firstPage, ...rest];
 }
 
 export async function fetchPendingPublishers(): Promise<PendingPublisher[]> {
@@ -124,13 +137,14 @@ export async function fetchPendingPrograms(): Promise<PendingProgram[]> {
 
 export async function fetchPendingSponsoredJobs(): Promise<PendingSponsoredJob[]> {
   try {
-    return await fetchAllRows<PendingSponsoredJob>((from, to) =>
+    return await fetchAllRows<PendingSponsoredJob>(() =>
       supabase
         .from('sponsored_jobs')
-        .select(sponsoredJobColumns)
+        .select(sponsoredJobColumns, { count: 'exact' })
         .eq('status', 'pending')
-        .order('created_at', { ascending: true })
-        .range(from, to) as unknown as PromiseLike<{ data: PendingSponsoredJob[] | null; error: { message: string } | null }>
+        .order('created_at', { ascending: true }) as unknown as {
+        range: (from: number, to: number) => PromiseLike<{ data: PendingSponsoredJob[] | null; error: { message: string } | null; count?: number | null }>;
+      }
     );
   } catch (error) {
     console.error('fetchPendingSponsoredJobs failed', error);
@@ -266,6 +280,17 @@ const adminProgramColumns =
 const adminSponsoredJobColumns =
   'id, title, description, category, employment_type, job_function, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 
+// Same fields as adminSponsoredJobColumns minus description/benefits/
+// requirements/admin_notes/needs_info_message — for the "All sponsored
+// jobs" summary list, which shows title/company/status/date, not full
+// job bodies. "Preview & edit" opens the editor in a new tab
+// (window.open(`/admin/jobs/${id}`)), which does its own fresh
+// full-column fetch by id — so nothing here relies on the list row
+// already carrying the full text. Same reasoning, same fix as the
+// public site's list vs. detail split in src/lib/sponsoredJobs.ts.
+const adminSponsoredJobListColumns =
+  'id, title, category, employment_type, job_function, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+
 export async function fetchAllPrograms(): Promise<AdminProgram[]> {
   const { data, error } = await supabase
     .from('programs')
@@ -280,12 +305,13 @@ export async function fetchAllPrograms(): Promise<AdminProgram[]> {
 
 export async function fetchAllSponsoredJobs(): Promise<AdminSponsoredJob[]> {
   try {
-    return await fetchAllRows<AdminSponsoredJob>((from, to) =>
+    return await fetchAllRows<AdminSponsoredJob>(() =>
       supabase
         .from('sponsored_jobs')
-        .select(adminSponsoredJobColumns)
-        .order('created_at', { ascending: false })
-        .range(from, to) as unknown as PromiseLike<{ data: AdminSponsoredJob[] | null; error: { message: string } | null }>
+        .select(adminSponsoredJobListColumns, { count: 'exact' })
+        .order('created_at', { ascending: false }) as unknown as {
+        range: (from: number, to: number) => PromiseLike<{ data: AdminSponsoredJob[] | null; error: { message: string } | null; count?: number | null }>;
+      }
     );
   } catch (error) {
     console.error('fetchAllSponsoredJobs failed', error);
@@ -627,12 +653,13 @@ export async function setPublisherLogoForAllJobs(publisherId: string, imageUrl: 
 export async function backfillJobFunctions(): Promise<{ ok: boolean; updated: number; skipped: number; error?: string }> {
   let rows: { id: string; title: string }[];
   try {
-    rows = await fetchAllRows<{ id: string; title: string }>((from, to) =>
+    rows = await fetchAllRows<{ id: string; title: string }>(() =>
       supabase
         .from('sponsored_jobs')
-        .select('id, title')
-        .is('job_function', null)
-        .range(from, to) as unknown as PromiseLike<{ data: { id: string; title: string }[] | null; error: { message: string } | null }>
+        .select('id, title', { count: 'exact' })
+        .is('job_function', null) as unknown as {
+        range: (from: number, to: number) => PromiseLike<{ data: { id: string; title: string }[] | null; error: { message: string } | null; count?: number | null }>;
+      }
     );
   } catch (error) {
     return { ok: false, updated: 0, skipped: 0, error: error instanceof Error ? error.message : 'Fetch failed.' };

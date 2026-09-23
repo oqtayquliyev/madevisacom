@@ -175,7 +175,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
 
             <ImportFromAtsSection countries={countries} onImported={loadAll} />
 
-            <BulkGreenhouseImportSection countries={countries} onImported={loadAll} />
+            <BulkGreenhouseImportSection countries={countries} allJobs={allJobs} onImported={loadAll} />
 
             <ImportFromCareersUrlSection countries={countries} onImported={loadAll} />
 
@@ -597,14 +597,14 @@ function BackfillJobFunctionsSection({ onChange }: { onChange: () => void }) {
  * Pending sponsored jobs, never touches what's already published.
  * `done` just controls the little badge below, not what's selectable.
  */
-const GREENHOUSE_COMPANIES: { name: string; legalName: string; token: string; done?: boolean }[] = [
-  { name: 'Stripe', legalName: 'Stripe, Inc.', token: 'stripe', done: true },
-  { name: 'Figma', legalName: 'Figma, Inc.', token: 'figma', done: true },
-  { name: 'Coinbase', legalName: 'Coinbase, Inc.', token: 'coinbase', done: true },
-  { name: 'Cloudflare', legalName: 'Cloudflare, Inc.', token: 'cloudflare', done: true },
-  { name: 'Datadog', legalName: 'Datadog, Inc.', token: 'datadog', done: true },
-  { name: 'Reddit', legalName: 'Reddit, Inc.', token: 'reddit', done: true },
-  { name: 'Twilio', legalName: 'Twilio Inc.', token: 'twilio', done: true },
+const GREENHOUSE_COMPANIES: { name: string; legalName: string; token: string }[] = [
+  { name: 'Stripe', legalName: 'Stripe, Inc.', token: 'stripe' },
+  { name: 'Figma', legalName: 'Figma, Inc.', token: 'figma' },
+  { name: 'Coinbase', legalName: 'Coinbase, Inc.', token: 'coinbase' },
+  { name: 'Cloudflare', legalName: 'Cloudflare, Inc.', token: 'cloudflare' },
+  { name: 'Datadog', legalName: 'Datadog, Inc.', token: 'datadog' },
+  { name: 'Reddit', legalName: 'Reddit, Inc.', token: 'reddit' },
+  { name: 'Twilio', legalName: 'Twilio Inc.', token: 'twilio' },
   { name: 'Gusto', legalName: 'Gusto, Inc.', token: 'gusto' },
   { name: 'Intercom', legalName: 'Intercom, Inc.', token: 'intercom' },
   { name: 'Contentful', legalName: 'Contentful, Inc.', token: 'contentful' },
@@ -672,7 +672,34 @@ const GREENHOUSE_COMPANIES: { name: string; legalName: string; token: string; do
 
 type BulkImportRowStatus = 'idle' | 'fetching' | 'importing' | 'done' | 'error' | 'skipped';
 
-function BulkGreenhouseImportSection({ countries, onImported }: { countries: CountryOption[]; onImported: () => void }) {
+function BulkGreenhouseImportSection({
+  countries,
+  allJobs,
+  onImported,
+}: {
+  countries: CountryOption[];
+  allJobs: AdminSponsoredJob[];
+  onImported: () => void;
+}) {
+  // Real counts from the actual data, not a hardcoded guess — matches
+  // every job's publisher name (any status: pending, published, or
+  // otherwise) against each company's short name or legal name, since
+  // a publisher may have been created under either depending on how it
+  // was first imported. This is what makes "Already imported" honest
+  // for every company here, not just the handful originally hardcoded.
+  const jobCountsByPublisherName = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const job of allJobs) {
+      const name = job.publisher?.name?.trim().toLowerCase();
+      if (!name) continue;
+      map.set(name, (map.get(name) ?? 0) + 1);
+    }
+    return map;
+  }, [allJobs]);
+
+  const countFor = (c: (typeof GREENHOUSE_COMPANIES)[number]) =>
+    jobCountsByPublisherName.get(c.name.trim().toLowerCase()) ?? jobCountsByPublisherName.get(c.legalName.trim().toLowerCase()) ?? 0;
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [running, setRunning] = useState(false);
   const [statuses, setStatuses] = useState<Record<string, { status: BulkImportRowStatus; note?: string }>>({});
@@ -815,9 +842,17 @@ function BulkGreenhouseImportSection({ countries, onImported }: { countries: Cou
                   <span className="min-w-0 flex-1 truncate font-semibold text-ink-900">{c.name}</span>
                   <span className="hidden shrink-0 truncate text-ink-400 sm:block sm:w-56">{c.legalName}</span>
                   <code className="shrink-0 rounded bg-ink-50 px-1.5 py-0.5 text-[10px] text-ink-500">{c.token}</code>
-                  {c.done && !rowStatus && (
-                    <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Previously imported</span>
-                  )}
+                  {(() => {
+                    const existingCount = countFor(c);
+                    return (
+                      existingCount > 0 &&
+                      !rowStatus && (
+                        <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          Already imported ({existingCount} job{existingCount === 1 ? '' : 's'})
+                        </span>
+                      )
+                    );
+                  })()}
                   {rowStatus && (
                     <span
                       className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
@@ -1804,6 +1839,8 @@ function GroupedPendingJobsSection({ jobs, onChange }: { jobs: PendingSponsoredJ
   const [openCompanies, setOpenCompanies] = useState<Set<string>>(new Set());
   const [busyGroup, setBusyGroup] = useState<string | null>(null);
   const [groupMessage, setGroupMessage] = useState<string | null>(null);
+  const [groupsPage, setGroupsPage] = useState(1);
+  const GROUPS_PER_PAGE = 15;
 
   const query = search.trim().toLowerCase();
   const isSearching = query.length > 0;
@@ -1829,6 +1866,16 @@ function GroupedPendingJobsSection({ jobs, onChange }: { jobs: PendingSponsoredJ
     // came here to review) — ties broken alphabetically.
     return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
   }, [filtered]);
+
+  // Back to page 1 whenever the search changes the set of groups —
+  // otherwise a filter that narrows things down could leave the view
+  // stranded on a now-nonexistent page.
+  useEffect(() => {
+    setGroupsPage(1);
+  }, [query]);
+
+  const totalGroupPages = Math.max(1, Math.ceil(groups.length / GROUPS_PER_PAGE));
+  const pagedGroups = groups.slice((groupsPage - 1) * GROUPS_PER_PAGE, groupsPage * GROUPS_PER_PAGE);
 
   const toggleCompany = (name: string) => {
     setOpenCompanies((prev) => {
@@ -1892,22 +1939,31 @@ function GroupedPendingJobsSection({ jobs, onChange }: { jobs: PendingSponsoredJ
         {groups.length === 0 ? (
           <p className="p-4 text-xs text-ink-400">{jobs.length === 0 ? 'Nothing here.' : 'No matches.'}</p>
         ) : (
-          <div className="divide-y divide-ink-100">
-            {groups.map(([company, companyJobs]) => (
-              <CompanyPendingJobsGroup
-                key={company}
-                company={company}
-                publisherId={companyJobs[0]?.publisher?.id ?? null}
-                jobs={companyJobs}
-                open={isSearching || openCompanies.has(company)}
-                onToggle={() => toggleCompany(company)}
-                onApproveAll={() => approveAllInGroup(company, companyJobs)}
-                onDeleteAll={() => deleteAllInGroup(company, companyJobs)}
-                busy={busyGroup === company}
-                onChange={onChange}
-              />
-            ))}
-          </div>
+          <>
+            {!isSearching && groups.length > GROUPS_PER_PAGE && (
+              <p className="px-3 pt-2 text-[11px] text-ink-400">
+                {groups.length} companies — showing {(groupsPage - 1) * GROUPS_PER_PAGE + 1}–
+                {Math.min(groupsPage * GROUPS_PER_PAGE, groups.length)}
+              </p>
+            )}
+            <div className="divide-y divide-ink-100">
+              {pagedGroups.map(([company, companyJobs]) => (
+                <CompanyPendingJobsGroup
+                  key={company}
+                  company={company}
+                  publisherId={companyJobs[0]?.publisher?.id ?? null}
+                  jobs={companyJobs}
+                  open={isSearching || openCompanies.has(company)}
+                  onToggle={() => toggleCompany(company)}
+                  onApproveAll={() => approveAllInGroup(company, companyJobs)}
+                  onDeleteAll={() => deleteAllInGroup(company, companyJobs)}
+                  busy={busyGroup === company}
+                  onChange={onChange}
+                />
+              ))}
+            </div>
+            {!isSearching && <Pager page={groupsPage} totalPages={totalGroupPages} onChange={setGroupsPage} />}
+          </>
         )}
       </div>
     </section>
