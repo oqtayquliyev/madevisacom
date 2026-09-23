@@ -175,6 +175,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
 
             <ImportFromAtsSection countries={countries} onImported={loadAll} />
 
+            <BulkGreenhouseImportSection countries={countries} onImported={loadAll} />
+
             <ImportFromCareersUrlSection countries={countries} onImported={loadAll} />
 
             <PaginatedSection
@@ -581,6 +583,274 @@ function BackfillJobFunctionsSection({ onChange }: { onChange: () => void }) {
         </button>
         {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
         {result && <p className="mt-3 text-xs font-medium text-emerald-700">{result}</p>}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Every company we've identified as being on Greenhouse, with the
+ * board token to pull from. Kept as one flat list rather than only
+ * the "still to fetch" ones so it doubles as a way to re-run an
+ * already-imported company later (e.g. weekly, to pick up new
+ * postings) — fetching is always safe to repeat; it only ever adds to
+ * Pending sponsored jobs, never touches what's already published.
+ * `done` just controls the little badge below, not what's selectable.
+ */
+const GREENHOUSE_COMPANIES: { name: string; legalName: string; token: string; done?: boolean }[] = [
+  { name: 'Stripe', legalName: 'Stripe, Inc.', token: 'stripe', done: true },
+  { name: 'Figma', legalName: 'Figma, Inc.', token: 'figma', done: true },
+  { name: 'Coinbase', legalName: 'Coinbase, Inc.', token: 'coinbase', done: true },
+  { name: 'Cloudflare', legalName: 'Cloudflare, Inc.', token: 'cloudflare', done: true },
+  { name: 'Datadog', legalName: 'Datadog, Inc.', token: 'datadog', done: true },
+  { name: 'Reddit', legalName: 'Reddit, Inc.', token: 'reddit', done: true },
+  { name: 'Twilio', legalName: 'Twilio Inc.', token: 'twilio', done: true },
+  { name: 'Gusto', legalName: 'Gusto, Inc.', token: 'gusto' },
+  { name: 'Intercom', legalName: 'Intercom, Inc.', token: 'intercom' },
+  { name: 'Contentful', legalName: 'Contentful, Inc.', token: 'contentful' },
+  { name: 'Brex', legalName: 'Brex Inc.', token: 'brex' },
+  { name: 'Ramp', legalName: 'Ramp Business Corporation', token: 'ramp' },
+  { name: 'Vanta', legalName: 'Vanta Inc.', token: 'vanta' },
+  { name: 'Rippling', legalName: 'Rippling, Inc.', token: 'rippling' },
+  { name: 'Lattice', legalName: 'Lattice, Inc.', token: 'lattice' },
+  { name: 'Airtable', legalName: 'Airtable, Inc.', token: 'airtable' },
+  { name: 'Miro', legalName: 'Miro, Inc.', token: 'miro' },
+  { name: 'Webflow', legalName: 'Webflow, Inc.', token: 'webflow' },
+  { name: 'Asana', legalName: 'Asana, Inc.', token: 'asana' },
+  { name: 'Dropbox', legalName: 'Dropbox, Inc.', token: 'dropbox' },
+  { name: 'Canva', legalName: 'Canva Pty Ltd', token: 'canva' },
+  { name: 'Duolingo', legalName: 'Duolingo, Inc.', token: 'duolingo' },
+  { name: 'GitLab', legalName: 'GitLab Inc.', token: 'gitlab' },
+  { name: 'Okta', legalName: 'Okta, Inc.', token: 'okta' },
+  { name: 'Robinhood', legalName: 'Robinhood Markets, Inc.', token: 'robinhood' },
+  { name: 'Affirm', legalName: 'Affirm Holdings, Inc.', token: 'affirm' },
+  { name: 'Plaid', legalName: 'Plaid Inc.', token: 'plaid' },
+  { name: 'Mercury', legalName: 'Mercury Technologies, Inc.', token: 'mercury' },
+  { name: 'Deel', legalName: 'Deel, Inc.', token: 'deel' },
+  { name: 'Personio', legalName: 'Personio SE & Co. KG', token: 'personio' },
+  { name: 'Celonis', legalName: 'Celonis SE', token: 'celonis' },
+  { name: 'Mollie', legalName: 'Mollie B.V.', token: 'mollie' },
+  { name: 'SumUp', legalName: 'SumUp Limited', token: 'sumup' },
+  { name: 'Mambu', legalName: 'Mambu GmbH', token: 'mambu' },
+  { name: 'Typeform', legalName: 'Typeform S.L.', token: 'typeform' },
+  { name: 'Pleo', legalName: 'Pleo Technologies A/S', token: 'pleo' },
+  { name: 'Synthesia', legalName: 'Synthesia Limited', token: 'synthesia' },
+  { name: 'Hugging Face', legalName: 'Hugging Face, Inc.', token: 'huggingface' },
+  { name: 'Scale AI', legalName: 'Scale AI, Inc.', token: 'scaleai' },
+  { name: 'Vercel', legalName: 'Vercel Inc.', token: 'vercel' },
+  { name: 'Supabase', legalName: 'Supabase Inc.', token: 'supabase' },
+  { name: 'MongoDB', legalName: 'MongoDB, Inc.', token: 'mongodb' },
+  { name: 'Elastic', legalName: 'Elastic N.V.', token: 'elastic' },
+  { name: 'HashiCorp', legalName: 'HashiCorp, Inc.', token: 'hashicorp' },
+  { name: 'Snowflake', legalName: 'Snowflake Inc.', token: 'snowflake' },
+  { name: 'Databricks', legalName: 'Databricks, Inc.', token: 'databricks' },
+  { name: 'HubSpot', legalName: 'HubSpot, Inc.', token: 'hubspot' },
+  { name: 'Zendesk', legalName: 'Zendesk, Inc.', token: 'zendesk' },
+  { name: 'Squarespace', legalName: 'Squarespace, Inc.', token: 'squarespace' },
+  { name: 'Grammarly', legalName: 'Grammarly, Inc.', token: 'grammarly' },
+  { name: 'DoorDash', legalName: 'DoorDash, Inc.', token: 'doordash' },
+  { name: 'Instacart', legalName: 'Maplebear Inc.', token: 'instacart' },
+  { name: 'Lyft', legalName: 'Lyft, Inc.', token: 'lyft' },
+  { name: 'Uber', legalName: 'Uber Technologies, Inc.', token: 'uber' },
+  { name: 'Pinterest', legalName: 'Pinterest, Inc.', token: 'pinterest' },
+  { name: 'Discord', legalName: 'Discord Inc.', token: 'discord' },
+  { name: 'Chime', legalName: 'Chime Financial, Inc.', token: 'chime' },
+  { name: 'Block', legalName: 'Block, Inc.', token: 'block' },
+  { name: 'Wise', legalName: 'Wise plc', token: 'wise' },
+  { name: 'Airwallex', legalName: 'Airwallex (Hong Kong) Limited', token: 'airwallex' },
+  { name: 'Checkout.com', legalName: 'Checkout Ltd', token: 'checkout' },
+  { name: 'N26', legalName: 'N26 SE', token: 'n26' },
+  { name: 'Klarna', legalName: 'Klarna Bank AB', token: 'klarna' },
+  { name: 'Wolt', legalName: 'Wolt Enterprises Oy', token: 'wolt' },
+  { name: 'Delivery Hero', legalName: 'Delivery Hero SE', token: 'deliveryhero' },
+  { name: 'Zalando', legalName: 'Zalando SE', token: 'zalando' },
+  { name: 'HelloFresh', legalName: 'HelloFresh SE', token: 'hellofresh' },
+  { name: 'GetYourGuide', legalName: 'GetYourGuide Deutschland GmbH', token: 'getyourguide' },
+  { name: 'Procore', legalName: 'Procore Technologies, Inc.', token: 'procore' },
+  { name: 'GuidePoint Security', legalName: 'GuidePoint Security LLC', token: 'guidepointsecurity' },
+];
+
+type BulkImportRowStatus = 'idle' | 'fetching' | 'importing' | 'done' | 'error' | 'skipped';
+
+function BulkGreenhouseImportSection({ countries, onImported }: { countries: CountryOption[]; onImported: () => void }) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [running, setRunning] = useState(false);
+  const [statuses, setStatuses] = useState<Record<string, { status: BulkImportRowStatus; note?: string }>>({});
+  const [search, setSearch] = useState('');
+  const [finalSummary, setFinalSummary] = useState<string | null>(null);
+
+  const filtered = GREENHOUSE_COMPANIES.filter(
+    (c) => !search.trim() || c.name.toLowerCase().includes(search.trim().toLowerCase()) || c.token.includes(search.trim().toLowerCase())
+  );
+
+  const toggle = (token: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(token)) next.delete(token);
+      else next.add(token);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelected(new Set(GREENHOUSE_COMPANIES.map((c) => c.token)));
+  const selectNone = () => setSelected(new Set());
+  const selectFiltered = () => setSelected(new Set(filtered.map((c) => c.token)));
+
+  const runImport = async () => {
+    const queue = GREENHOUSE_COMPANIES.filter((c) => selected.has(c.token));
+    if (queue.length === 0) return;
+
+    setRunning(true);
+    setStatuses(Object.fromEntries(queue.map((c) => [c.token, { status: 'idle' as const }])));
+    setFinalSummary(null);
+
+    let successCount = 0;
+    let totalJobsAdded = 0;
+
+    for (const company of queue) {
+      setStatuses((prev) => ({ ...prev, [company.token]: { status: 'fetching' } }));
+
+      const res = await fetchGreenhouseJobs(company.token);
+      if (!res.ok) {
+        setStatuses((prev) => ({ ...prev, [company.token]: { status: 'error', note: res.error ?? 'Fetch failed.' } }));
+        continue;
+      }
+      if (res.jobs.length === 0) {
+        setStatuses((prev) => ({ ...prev, [company.token]: { status: 'skipped', note: 'Zero jobs returned — check the token.' } }));
+        continue;
+      }
+
+      setStatuses((prev) => ({ ...prev, [company.token]: { status: 'importing' } }));
+      const publisherResult = await findOrCreateImportedPublisher(company.name);
+      if (!publisherResult.ok || !publisherResult.id) {
+        setStatuses((prev) => ({ ...prev, [company.token]: { status: 'error', note: publisherResult.error ?? 'Could not set up publisher.' } }));
+        continue;
+      }
+
+      const importResult = await importJobsAsPending(
+        publisherResult.id,
+        countries,
+        res.jobs.map((j) => ({
+          title: j.title,
+          description: sanitizeJobHtml(j.descriptionHtml),
+          officialUrl: j.url,
+          additionalLocations: j.offices,
+          locationText: j.locationText,
+          category: j.category,
+          employmentTypeRaw: j.employmentTypeRaw,
+          postedAt: j.postedAt,
+          remote: j.remote,
+          salaryText: j.salaryText,
+        }))
+      );
+
+      if (importResult.ok) {
+        successCount++;
+        totalJobsAdded += importResult.imported;
+        setStatuses((prev) => ({ ...prev, [company.token]: { status: 'done', note: `Added ${importResult.imported} job${importResult.imported === 1 ? '' : 's'}.` } }));
+      } else {
+        setStatuses((prev) => ({ ...prev, [company.token]: { status: 'error', note: importResult.error ?? 'Import failed.' } }));
+      }
+
+      // Small stagger between companies — the same courtesy the careers-
+      // page importer already extends per-request, here per-company.
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+
+    setRunning(false);
+    setFinalSummary(
+      `Done — ${successCount}/${queue.length} compan${successCount === 1 ? 'y' : 'ies'} succeeded, ${totalJobsAdded} job${totalJobsAdded === 1 ? '' : 's'} added to pending.`
+    );
+    if (totalJobsAdded > 0) onImported();
+  };
+
+  const doneCount = Object.values(statuses).filter((s) => s.status === 'done' || s.status === 'error' || s.status === 'skipped').length;
+  const queueSize = Object.keys(statuses).length;
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Bulk import from Greenhouse</h2>
+      <div className="mt-3 border border-ink-200 bg-white p-4">
+        <p className="text-xs text-ink-500">
+          Pick any number of companies below and fetch them all in one go — each runs through the exact same
+          Greenhouse import as the single-company tool above, straight into <strong>Pending sponsored jobs</strong>.
+          Safe to re-run on a company you've already imported (e.g. weekly, to pick up new postings) — it only ever
+          adds to pending, never touches what's already published.
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter by name…"
+            className="h-8 w-48 rounded-md border border-ink-200 px-2 text-xs text-ink-900 outline-none focus:border-brand-500"
+          />
+          <button onClick={selectAll} disabled={running} className="rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-600 hover:bg-ink-50 disabled:opacity-50">
+            Select all ({GREENHOUSE_COMPANIES.length})
+          </button>
+          {search.trim() && (
+            <button onClick={selectFiltered} disabled={running} className="rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-600 hover:bg-ink-50 disabled:opacity-50">
+              Select filtered ({filtered.length})
+            </button>
+          )}
+          <button onClick={selectNone} disabled={running} className="rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-600 hover:bg-ink-50 disabled:opacity-50">
+            Select none
+          </button>
+          <span className="text-[11px] text-ink-400">{selected.size} selected</span>
+        </div>
+
+        <div className="mt-3 max-h-80 overflow-y-auto rounded-lg border border-ink-100">
+          <div className="divide-y divide-ink-100">
+            {filtered.map((c) => {
+              const rowStatus = statuses[c.token];
+              return (
+                <label key={c.token} className="flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-ink-50">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(c.token)}
+                    onChange={() => toggle(c.token)}
+                    disabled={running}
+                    className="h-3.5 w-3.5 shrink-0 rounded border-ink-300"
+                  />
+                  <span className="min-w-0 flex-1 truncate font-semibold text-ink-900">{c.name}</span>
+                  <span className="hidden shrink-0 truncate text-ink-400 sm:block sm:w-56">{c.legalName}</span>
+                  <code className="shrink-0 rounded bg-ink-50 px-1.5 py-0.5 text-[10px] text-ink-500">{c.token}</code>
+                  {c.done && !rowStatus && (
+                    <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Previously imported</span>
+                  )}
+                  {rowStatus && (
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        rowStatus.status === 'done'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : rowStatus.status === 'error'
+                          ? 'bg-rose-50 text-rose-700'
+                          : rowStatus.status === 'skipped'
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'bg-brand-50 text-brand-700'
+                      }`}
+                    >
+                      {rowStatus.status === 'fetching'
+                        ? 'Fetching…'
+                        : rowStatus.status === 'importing'
+                        ? 'Adding…'
+                        : rowStatus.note ?? rowStatus.status}
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        <button
+          onClick={runImport}
+          disabled={running || selected.size === 0}
+          className="mt-3 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+        >
+          {running ? `Importing… (${doneCount}/${queueSize})` : `Fetch & add ${selected.size || ''} selected`}
+        </button>
+        {finalSummary && <p className="mt-2 text-xs font-medium text-ink-600">{finalSummary}</p>}
       </div>
     </section>
   );
