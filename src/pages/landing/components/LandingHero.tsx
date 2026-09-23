@@ -483,7 +483,7 @@ export function LandingHero({
   };
 
   const handleFindOptions = () => {
-    const targetView = activeJourney === 'study' || activeJourney === 'programs' ? 'programs' : 'jobs';
+    const targetView = activeJourney === 'study' ? 'study' : activeJourney === 'programs' ? 'programs' : 'jobs';
     const params = new URLSearchParams({ country: toCountry.name });
 
     window.history.pushState(

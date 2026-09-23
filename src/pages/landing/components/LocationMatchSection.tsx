@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { jobPath } from '@/lib/jobUrl';
+import { isJobViewed } from '@/lib/viewedJobs';
 import {
   Briefcase,
   GraduationCap,
@@ -457,6 +458,7 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const Icon = iconFor(item.category, item.kind);
+  const viewed = item.kind === 'job' && isJobViewed(item.id);
   const href = item.kind === 'job' ? jobPath({ id: item.id, title: item.title, company: item.org }) : `/programs/${item.id}`;
 
   const est = estimateJourneyCostBreakdown({
@@ -473,7 +475,12 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
 
   return (
     <div className="relative h-[360px]">
-      <a href={href} className="group flex h-full flex-col rounded-lg border border-ink-900/20 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg">
+      <a
+        href={href}
+        className={`group flex h-full flex-col rounded-lg border p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg ${
+          viewed ? 'border-ink-200 bg-ink-100/70 opacity-75 grayscale-[40%] hover:opacity-100' : 'border-ink-900/20 bg-white'
+        }`}
+      >
         {hasImage ? (
           <img
             src={item.imageUrl!}

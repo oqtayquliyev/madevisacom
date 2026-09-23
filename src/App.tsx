@@ -44,6 +44,7 @@ const pathForView: Partial<Record<View, string>> = {
   home: '/',
   jobs: '/jobs',
   programs: '/programs',
+  study: '/study',
   'sponsored-programs': '/sponsored-programs',
   'submit-program': '/submit-program',
   travel: '/travel',
@@ -190,6 +191,10 @@ export default function App() {
 
   if (path === '/programs') {
     return <ProgramsPage go={go} onAuth={goToAuth} goToProgram={(id) => goToDetail('programs', id)} />;
+  }
+
+  if (path === '/study') {
+    return <ProgramsPage mode="study" go={go} onAuth={goToAuth} goToProgram={(id) => goToDetail('programs', id)} />;
   }
 
   if (path === '/sponsored-programs') {

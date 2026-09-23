@@ -197,13 +197,6 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
 
   const inner = (
     <>
-      {/* Absolutely positioned so it never affects the card's height —
-          overlaid on top of existing content rather than adding a row. */}
-      {viewed && (
-        <span className="absolute right-3 top-3 rounded-full bg-ink-900/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-          Viewed
-        </span>
-      )}
       <div className="flex items-start gap-3.5">
         <JobLogo job={job} size={52} />
         <div className="min-w-0 flex-1">
@@ -235,8 +228,11 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
     </>
   );
 
-  const cardClass =
-    'group relative block rounded-lg border border-ink-900/15 bg-white p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg sm:p-6';
+  // Already-viewed jobs turn grey (muted background + softened content)
+  // so it's easy to spot what you haven't opened yet.
+  const cardClass = `group relative block rounded-lg border p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg sm:p-6 ${
+    viewed ? 'border-ink-200 bg-ink-100/70 opacity-75 grayscale-[40%] hover:opacity-100' : 'border-ink-900/15 bg-white'
+  }`;
 
   if (isExternal) {
     return (

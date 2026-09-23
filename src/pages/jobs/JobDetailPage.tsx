@@ -5,6 +5,7 @@ import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { fetchSponsoredJobById, fetchSponsoredJobByShortId, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { jobPath, parseJobPath } from '@/lib/jobUrl';
+import { markJobViewed } from '@/lib/viewedJobs';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
 import { EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -55,6 +56,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       // been edited) are swapped to the current public URL in place, so
       // shared/bookmarked links keep working without a reload.
       if (board) {
+        markJobViewed(board.id, { id: board.id, title: board.title, organization: board.company, country: board.country, countryCode: board.countryCode, url: board.url });
         const canonical = jobPath(board);
         if (window.location.pathname !== canonical) {
           window.history.replaceState(window.history.state, '', canonical + window.location.search + window.location.hash);

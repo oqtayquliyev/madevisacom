@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  BookOpen,
   Briefcase,
   GraduationCap,
   LayoutDashboard,
@@ -29,6 +30,7 @@ type LandingHeaderProps = {
 const primaryLinks: { view: View; label: string; icon: typeof Briefcase }[] = [
   { view: 'jobs', label: 'Jobs', icon: Briefcase },
   { view: 'programs', label: 'Programs', icon: GraduationCap },
+  { view: 'study', label: 'Study', icon: BookOpen },
 ];
 
 export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {

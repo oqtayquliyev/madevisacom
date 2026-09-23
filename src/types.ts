@@ -71,6 +71,7 @@ export type View =
   | 'planner'
   | 'jobs'
   | 'programs'
+  | 'study'
   | 'sponsored-programs'
   | 'submit-program'
   | 'profile'
