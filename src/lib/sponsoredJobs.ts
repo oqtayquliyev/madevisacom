@@ -55,18 +55,6 @@ export type SponsoredJob = {
 const columns =
   'id, publisher_id, title, description, category, employment_type, job_function, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, created_at, approved_at, expires_at, source_posted_at, additional_locations, publisher:program_publishers(id, name, org_type, logo_url, owner_id), country:countries(id, name, iso_code)';
 
-// Same as `columns` above minus description/benefits/requirements (each
-// can be 5-20KB of HTML per job — real imported listings routinely are)
-// and the admin-only fields, none of which any board/list card actually
-// renders (confirmed against sponsoredJobToBoardJob's consumers — the
-// job detail page is the only place that needs the full text, and it
-// still fetches with the complete `columns` above via
-// fetchSponsoredJobById). For a catalog of hundreds to thousands of
-// jobs, this is the difference between transferring and JSON-parsing a
-// few hundred KB total vs. tens of MB just to render a list of titles.
-const LIST_COLUMNS =
-  'id, publisher_id, title, category, employment_type, job_function, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, created_at, approved_at, expires_at, source_posted_at, additional_locations, publisher:program_publishers(id, name, org_type, logo_url, owner_id), country:countries(id, name, iso_code)';
-
 export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
   return {
     citizenship: job.citizenship_any ? 'any' : job.citizenship_allowed ?? [],
@@ -86,61 +74,30 @@ export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
 // standard way to pull every row past that default cap.
 const SUPABASE_MAX_ROWS_PER_REQUEST = 1000;
 
-// Shared across every caller in the same tab (landing page's 4-job
-// section and the full Jobs page both call this) so navigating between
-// them within a short window is instant instead of re-fetching and
-// re-parsing the whole catalog again. Short TTL rather than "forever"
-// so a newly published or imported job still shows up within a minute
-// without needing any manual cache-busting wired through the app.
-let publishedJobsCache: { data: SponsoredJob[]; fetchedAt: number } | null = null;
-const PUBLISHED_JOBS_CACHE_TTL_MS = 60_000;
-
 export async function fetchPublishedSponsoredJobs(): Promise<SponsoredJob[]> {
-  if (publishedJobsCache && Date.now() - publishedJobsCache.fetchedAt < PUBLISHED_JOBS_CACHE_TTL_MS) {
-    return publishedJobsCache.data;
-  }
+  const all: SponsoredJob[] = [];
+  let from = 0;
 
-  const baseQuery = () =>
-    supabase
+  while (true) {
+    const { data, error } = await supabase
       .from('sponsored_jobs')
-      .select(LIST_COLUMNS, { count: 'exact' })
+      .select(columns)
       .eq('status', 'published')
       .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(from, from + SUPABASE_MAX_ROWS_PER_REQUEST - 1);
 
-  const first = await baseQuery().range(0, SUPABASE_MAX_ROWS_PER_REQUEST - 1);
-  if (first.error) {
-    console.error('fetchPublishedSponsoredJobs failed', first.error);
-    return publishedJobsCache?.data ?? [];
+    if (error) {
+      console.error('fetchPublishedSponsoredJobs failed', error);
+      return all; // return whatever pages already succeeded rather than discarding them
+    }
+
+    const page = (data ?? []) as unknown as SponsoredJob[];
+    all.push(...page);
+    if (page.length < SUPABASE_MAX_ROWS_PER_REQUEST) break; // last page
+    from += SUPABASE_MAX_ROWS_PER_REQUEST;
   }
 
-  const firstPage = (first.data ?? []) as unknown as SponsoredJob[];
-  const total = first.count ?? firstPage.length;
-
-  // Past row 1000, fire every remaining page in parallel instead of
-  // one-at-a-time — with a few thousand jobs (increasingly the norm as
-  // more companies get bulk-imported) this turns what used to be several
-  // sequential round-trips into roughly one round-trip's worth of wait,
-  // regardless of how many pages it actually takes.
-  let all = firstPage;
-  if (total > SUPABASE_MAX_ROWS_PER_REQUEST) {
-    const pageStarts: number[] = [];
-    for (let from = SUPABASE_MAX_ROWS_PER_REQUEST; from < total; from += SUPABASE_MAX_ROWS_PER_REQUEST) {
-      pageStarts.push(from);
-    }
-    const restResults = await Promise.all(pageStarts.map((from) => baseQuery().range(from, from + SUPABASE_MAX_ROWS_PER_REQUEST - 1)));
-    const rest: SponsoredJob[] = [];
-    for (const r of restResults) {
-      if (r.error) {
-        console.error('fetchPublishedSponsoredJobs page failed', r.error);
-        continue; // one bad page shouldn't discard everything else that succeeded
-      }
-      rest.push(...((r.data ?? []) as unknown as SponsoredJob[]));
-    }
-    all = [...firstPage, ...rest];
-  }
-
-  publishedJobsCache = { data: all, fetchedAt: Date.now() };
   return all;
 }
 
