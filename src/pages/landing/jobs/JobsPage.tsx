@@ -5,6 +5,8 @@ import {
   BookmarkCheck,
   Briefcase,
   ChevronDown,
+  Clock,
+  Flame,
   Globe2,
   Loader2,
   Search,
@@ -37,7 +39,7 @@ type SortOption = 'newest' | 'relevant';
 
 const PAGE_SIZE = 12;
 
-function formatDateTag(iso: string | null | undefined): { text: string; isNew: boolean } | null {
+function formatDateTag(iso: string | null | undefined): { text: string; tier: 'today' | 'yesterday' | 'older' } | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
@@ -45,12 +47,12 @@ function formatDateTag(iso: string | null | undefined): { text: string; isNew: b
   const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / (1000 * 60 * 60 * 24));
 
-  if (diffDays <= 0) return { text: 'Added today', isNew: true };
-  if (diffDays === 1) return { text: 'Added yesterday', isNew: true };
+  if (diffDays <= 0) return { text: 'Added today', tier: 'today' };
+  if (diffDays === 1) return { text: 'Added yesterday', tier: 'yesterday' };
 
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return { text: `${dd}/${mm}/${d.getFullYear()}`, isNew: false };
+  return { text: `${dd}/${mm}/${d.getFullYear()}`, tier: 'older' };
 }
 
 function withinDateWindow(iso: string | null | undefined, window: DatePostedOption): boolean {
@@ -83,12 +85,25 @@ function JobLogo({ job, size = 48 }: { job: Job; size?: number }) {
 function DateTag({ job }: { job: Job }) {
   const tag = formatDateTag(job.postedDate);
   if (!tag) return null;
+
+  if (tag.tier === 'today') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded bg-orange-600 px-1.5 py-[3px] text-[10px] font-bold tracking-wide text-white">
+        <Flame className="h-3 w-3" strokeWidth={2.5} />
+        {tag.text}
+      </span>
+    );
+  }
+  if (tag.tier === 'yesterday') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded bg-emerald-600 px-1.5 py-[3px] text-[10px] font-bold tracking-wide text-white">
+        {tag.text}
+      </span>
+    );
+  }
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded px-1.5 py-[3px] text-[10px] font-bold tracking-wide text-white ${
-        tag.isNew ? 'bg-emerald-600' : 'bg-ink-800'
-      }`}
-    >
+    <span className="inline-flex items-center gap-1 rounded bg-ink-100 px-1.5 py-[3px] text-[10px] font-semibold tracking-wide text-ink-600">
+      <Clock className="h-3 w-3" />
       {tag.text}
     </span>
   );
@@ -104,8 +119,8 @@ function SourceLabel({ job }: { job: Job }) {
   return (
     <span className="flex items-center gap-1 text-[11px] text-ink-400">
       Source: {job.company} careers ·
-      <Logo variant="footer" className="h-3 w-auto opacity-70" />
-      Added by MadeVisa
+      <Logo variant="footer" className="h-2 w-auto opacity-70" />
+      Added by madevisa
     </span>
   );
 }
@@ -395,7 +410,8 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
         job.city.toLowerCase().includes(normalizedSearch);
 
       const matchesCountry = country === 'All countries' || job.country === country;
-      const matchesCategory = category === 'All categories' || matchesDiscoveryCategory(job.category, category);
+      const matchesCategory =
+        category === 'All categories' || matchesDiscoveryCategory(job.category, category) || matchesDiscoveryCategory(job.title, category);
       const matchesType = jobType === 'All types' || job.type === jobType;
       const matchesRemote = !remoteOnly || job.remote;
       const matchesCity = !normalizedCity || job.city.toLowerCase().includes(normalizedCity);
@@ -451,6 +467,20 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     Number(salaryOnly) +
     Number(experienceLevel !== 'All levels') +
     Number(datePosted !== 'Any time');
+
+  // Chip list for the "active filters" row under the category strip —
+  // each one clears just that one filter, not everything (clearAllFilters below still does that for the "Clear all" button).
+  const activeFilters: { key: string; label: string; onClear: () => void }[] = [
+    country !== 'All countries' ? { key: 'country', label: country, onClear: () => setCountry('All countries') } : null,
+    category !== 'All categories' ? { key: 'category', label: category, onClear: () => setCategory('All categories') } : null,
+    jobType !== 'All types' ? { key: 'type', label: jobType, onClear: () => setJobType('All types') } : null,
+    remoteOnly ? { key: 'remote', label: 'Remote only', onClear: () => setRemoteOnly(false) } : null,
+    city ? { key: 'city', label: `City: ${city}`, onClear: () => setCity('') } : null,
+    company ? { key: 'company', label: `Company: ${company}`, onClear: () => setCompany('') } : null,
+    salaryOnly ? { key: 'salary', label: 'Salary listed', onClear: () => setSalaryOnly(false) } : null,
+    experienceLevel !== 'All levels' ? { key: 'level', label: experienceLevel, onClear: () => setExperienceLevel('All levels') } : null,
+    datePosted !== 'Any time' ? { key: 'posted', label: datePosted, onClear: () => setDatePosted('Any time') } : null,
+  ].filter((f): f is { key: string; label: string; onClear: () => void } => f !== null);
 
   const clearAllFilters = () => {
     setCountry('All countries');
@@ -621,6 +651,25 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
             </button>
           ))}
         </div>
+
+        {activeFilters.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {activeFilters.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={f.onClear}
+                className="flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 py-1 pl-3 pr-2 text-xs font-semibold text-brand-700 hover:bg-brand-100"
+              >
+                {f.label}
+                <X className="h-3 w-3" />
+              </button>
+            ))}
+            <button type="button" onClick={clearAllFilters} className="text-xs font-semibold text-ink-400 hover:text-ink-600">
+              Clear all
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
