@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 const LOGO_MAIN =
   'https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789479857/madevisa-logo-header_fqdylj.svg';
 const LOGO_FOOTER =
@@ -6,6 +8,14 @@ const LOGO_FOOTER =
 type LogoProps = {
   variant?: 'header' | 'footer';
   className?: string;
+  /** Inline style, applied last so it reliably overrides the variant's
+   * default size class — a className height override doesn't reliably
+   * win here, since Tailwind's compiled stylesheet order (not the order
+   * classes appear in the `class` attribute) decides which same-
+   * category utility wins, and that's not something a caller can
+   * control. Inline styles always beat classes on specificity, so this
+   * is the one way to guarantee a custom size actually applies. */
+  style?: CSSProperties;
 };
 
 /**
@@ -13,7 +23,7 @@ type LogoProps = {
  * SVGs, with a plain-text fallback baked in via onError in case the asset
  * host is ever unreachable (offline preview, ad blockers, etc.).
  */
-export function Logo({ variant = 'header', className = '' }: LogoProps) {
+export function Logo({ variant = 'header', className = '', style }: LogoProps) {
   const src = variant === 'footer' ? LOGO_FOOTER : LOGO_MAIN;
   const sizeClass = variant === 'footer' ? 'h-8' : 'h-6';
 
@@ -22,6 +32,7 @@ export function Logo({ variant = 'header', className = '' }: LogoProps) {
       src={src}
       alt="MadeVisa"
       className={`${sizeClass} w-auto object-contain ${className}`}
+      style={style}
       onError={(event) => {
         const target = event.currentTarget;
         target.style.display = 'none';
