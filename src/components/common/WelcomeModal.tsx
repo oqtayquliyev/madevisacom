@@ -37,7 +37,7 @@ export function WelcomeModal({ go }: WelcomeModalProps) {
         </button>
 
         <div className="mx-auto flex h-20 w-20 items-center justify-center">
-          <TravelerAvatar seed={profile.id} size={80} className="border-2 border-white shadow-soft" />
+          <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={80} className="border-2 border-white shadow-soft" />
         </div>
 
         <div className="mt-3 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wide text-brand-600">

@@ -66,7 +66,7 @@ function DashboardPageInner({ go, onAuth }: DashboardPageProps) {
       <main className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            {profile && <TravelerAvatar seed={profile.id} size={56} />}
+            {profile && <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={56} />}
             <div>
               <p className="text-sm text-ink-500">Welcome back{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}</p>
               <h1 className="text-2xl font-bold tracking-tight text-ink-950">Your dashboard</h1>

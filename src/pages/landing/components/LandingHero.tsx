@@ -9,7 +9,6 @@ import {
   ChevronRight,
   DollarSign,
   GraduationCap,
-  Heart,
   Megaphone,
   Plane,
   Search,
@@ -50,12 +49,7 @@ const journeys: {
 }[] = [
   {
     id: 'relocation',
-    label: 'Relocation',
-    icon: Plane,
-  },
-  {
-    id: 'work',
-    label: 'Work',
+    label: 'Jobs',
     icon: Briefcase,
   },
   {
@@ -67,11 +61,6 @@ const journeys: {
     id: 'programs',
     label: 'Programs',
     icon: Building2,
-  },
-  {
-    id: 'family',
-    label: 'Family',
-    icon: Heart,
   },
 ];
 
@@ -153,12 +142,8 @@ const journeyDescriptions: Record<Journey, string> = {
   study: 'Find study options that fit your goals and budget.',
   programs: 'Find programs and training opportunities abroad.',
   family: 'Find pathways for moving with your family.',
-  relocation: 'Find realistic options for your move abroad.',
+  relocation: 'Find real job vacancies abroad.',
 };
-
-const destinationCountries = countries.filter(
-  (country) => country.code !== 'CA'
-);
 
 function PortalCountryPicker({
   label,
@@ -262,7 +247,7 @@ const journeyCostLabels: Record<Journey, string> = {
   study: 'Study journey',
   programs: 'Program journey',
   family: 'Family journey',
-  relocation: 'Relocation journey',
+  relocation: 'Jobs journey',
 };
 
 /**
@@ -807,104 +792,6 @@ export function LandingHero({
           </div>
         </>
       )}
-
-      {/* DESTINATIONS */}
-
-      <section className="mx-auto max-w-6xl px-5 pb-20 pt-16 sm:px-8">
-
-        <div className="flex items-end justify-between">
-
-          <div>
-
-            <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-              Destinations
-            </p>
-
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">
-              Popular destinations
-            </h2>
-
-            <p className="mt-2 max-w-xl text-sm text-ink-500">
-              Canada is our first source market. More
-              destinations and source countries are coming soon.
-            </p>
-
-          </div>
-
-          <button
-            type="button"
-            onClick={() => go('explore')}
-            className="hidden items-center gap-2 text-sm font-semibold text-brand-600 sm:flex"
-          >
-            View all countries
-            <ArrowRight className="h-4 w-4" />
-          </button>
-
-        </div>
-
-        <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
-
-          {destinationCountries
-            .slice(0, 8)
-            .map((country) => {
-
-              const selected =
-                toCountry.code ===
-                country.code;
-
-              return (
-                <button
-                  key={country.code}
-                  type="button"
-                  onClick={() => {
-                    setToCountry(country);
-
-                    window.scrollTo({
-                      top: 0,
-                      behavior: 'smooth',
-                    });
-                  }}
-                  className={`group relative h-40 overflow-hidden text-left transition sm:h-48 ${
-                    selected
-                      ? 'ring-2 ring-brand-600 ring-offset-2'
-                      : ''
-                  }`}
-                >
-
-                  <img
-                    src={country.image}
-                    alt=""
-                    className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                  />
-
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/5" />
-
-                  <div className="absolute inset-x-0 bottom-0 p-4">
-
-                    <div className="flex items-center gap-2">
-
-                      <CircleFlag countryCode={country.code} label={country.name} size={24} />
-
-                      <span className="text-sm font-bold text-white">
-                        {country.name}
-                      </span>
-
-                    </div>
-
-                    <div className="mt-2 flex items-center gap-1.5 text-xs text-white/75">
-                      Explore options
-                      <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" />
-                    </div>
-
-                  </div>
-
-                </button>
-              );
-            })}
-
-        </div>
-
-      </section>
 
     </main>
   );

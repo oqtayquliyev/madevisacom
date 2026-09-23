@@ -118,9 +118,8 @@ function SourceLabel({ job }: { job: Job }) {
   }
   return (
     <span className="flex items-center gap-1 text-[11px] text-ink-400">
-      Source: {job.company} careers ·
+      Source: {job.company} careers · Added by madevisa
       <Logo variant="header" style={{ height: '1em', width: 'auto' }} />
-      Added by madevisa
     </span>
   );
 }

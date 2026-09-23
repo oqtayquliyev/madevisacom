@@ -1,16 +1,12 @@
 import { useState } from 'react';
 import {
   Briefcase,
-  Building2,
-  ChevronDown,
   GraduationCap,
   LayoutDashboard,
   LogIn,
   LogOut,
-  Luggage,
   MapPin,
   Menu,
-  Plane,
   ShieldCheck,
   User,
   UserPlus,
@@ -31,19 +27,13 @@ type LandingHeaderProps = {
 };
 
 const primaryLinks: { view: View; label: string; icon: typeof Briefcase }[] = [
-  { view: 'programs', label: 'Programs', icon: GraduationCap },
   { view: 'jobs', label: 'Jobs', icon: Briefcase },
-];
-
-const travelLinks: { label: string; description: string; icon: typeof Plane; view: View }[] = [
-  { label: 'Stays', description: 'Hotels, apartments & rooms', icon: Building2, view: 'travel' },
-  { label: 'Flights', description: 'Compare fares for your route', icon: Plane, view: 'travel' },
+  { view: 'programs', label: 'Programs', icon: GraduationCap },
 ];
 
 export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
   const { profile, signOut } = useAuth();
   const [openMenu, setOpenMenu] = useState(false);
-  const [openTravel, setOpenTravel] = useState(false);
   const [openProfile, setOpenProfile] = useState(false);
 
   const linkClass = (view: View) =>
@@ -73,56 +63,13 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             );
           })}
 
-          <div
-            className="relative"
-            onMouseEnter={() => setOpenTravel(true)}
-            onMouseLeave={() => setOpenTravel(false)}
-          >
-            <button
-              type="button"
-              onClick={() => go('travel')}
-              className={`flex items-center gap-1 rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
-                active === 'travel' ? 'bg-brand-50 text-brand-700' : 'text-ink-600 hover:bg-ink-50'
-              }`}
-            >
-              <Luggage className="h-3.5 w-3.5" />
-              Flights &amp; Stays
-              <ChevronDown className={`h-3.5 w-3.5 transition ${openTravel ? 'rotate-180' : ''}`} />
-            </button>
-
-            <div
-              className={`${
-                openTravel ? 'md:block' : 'md:hidden'
-              } static mt-1 flex flex-col gap-1 border border-ink-100 bg-white p-2 shadow-xl md:absolute md:left-0 md:top-full md:w-64 md:border`}
-            >
-              {travelLinks.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.label}
-                    onClick={() => { go(item.view); setOpenMenu(false); setOpenTravel(false); }}
-                    className="flex items-start gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-ink-50"
-                  >
-                    <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <span>
-                      <span className="block text-sm font-semibold text-ink-900">{item.label}</span>
-                      <span className="block text-xs text-ink-500">{item.description}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           <a
             href="/experts"
             onClick={(event) => handleNavClick(event, () => { go('experts'); setOpenMenu(false); })}
             className={linkClass('experts')}
           >
             <Users className="h-3.5 w-3.5" />
-            Agencies &amp; Experts
+            Community
           </a>
 
           <a
@@ -176,7 +123,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                   : 'h-9 w-9 border border-ink-200 bg-ink-50 text-ink-500 hover:border-brand-300 hover:text-brand-600'
               }`}
             >
-              {profile ? <TravelerAvatar seed={profile.id} size={36} /> : <User className="h-4 w-4" />}
+              {profile ? <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={36} /> : <User className="h-4 w-4" />}
             </button>
 
             {openProfile && (
@@ -184,7 +131,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                 <button type="button" aria-label="close" onClick={() => setOpenProfile(false)} className="fixed inset-0 z-30" />
                 <div className="absolute right-0 top-full z-40 mt-2 w-56 border border-ink-200 bg-white p-1.5 shadow-xl">
                   <div className="flex items-center gap-3 px-3 py-2">
-                    {profile && <TravelerAvatar seed={profile.id} size={32} />}
+                    {profile && <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={32} />}
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">
                         {profile ? 'Account' : 'Guest'}

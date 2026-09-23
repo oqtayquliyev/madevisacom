@@ -1,31 +1,47 @@
-const BACKGROUND_COLORS = 'b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf,c9f2c7';
+import { User } from 'lucide-react';
 
 type TravelerAvatarProps = {
-  /** Stable per-user seed — usually the profile id or email */
+  /** Stable per-user seed — usually the profile id or email. Kept for
+   * backwards compatibility with existing callers, but no longer drives
+   * an illustration — see below. */
   seed: string;
+  /** The user's actual uploaded photo (profile.avatar_url). When set,
+   * this is what renders — a real photo always wins over any fallback. */
+  avatarUrl?: string | null;
   size?: number;
   className?: string;
 };
 
 /**
- * Illustrated, colorful avatar generated from DiceBear's free HTTP API
- * (https://api.dicebear.com — no key, MIT licensed). The same seed
- * always renders the same avatar, so a signed-in user's picture stays
- * consistent across sessions without ever needing an upload.
+ * A user's real photo when they have one (avatarUrl), or a plain
+ * classic profile icon otherwise. Previously this always generated a
+ * colorful illustrated avatar from DiceBear regardless of whether the
+ * person had actually uploaded a real photo — avatar_url has existed on
+ * the profile this whole time (see src/lib/auth.tsx) but was never
+ * checked here, so a real upload was silently ignored everywhere this
+ * component was used outside of ProfilePage (which did its own manual
+ * avatar_url check around this component rather than through it).
  */
-export function TravelerAvatar({ seed, size = 36, className = '' }: TravelerAvatarProps) {
-  const src = `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(
-    seed
-  )}&backgroundColor=${BACKGROUND_COLORS}`;
+export function TravelerAvatar({ avatarUrl, size = 36, className = '' }: TravelerAvatarProps) {
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt=""
+        width={size}
+        height={size}
+        style={{ width: size, height: size }}
+        className={`shrink-0 rounded-full border border-ink-100 object-cover ${className}`}
+      />
+    );
+  }
 
   return (
-    <img
-      src={src}
-      alt=""
-      width={size}
-      height={size}
+    <span
       style={{ width: size, height: size }}
-      className={`shrink-0 rounded-full border border-ink-100 bg-ink-50 object-cover ${className}`}
-    />
+      className={`grid shrink-0 place-items-center rounded-full border border-ink-200 bg-ink-100 text-ink-400 ${className}`}
+    >
+      <User style={{ width: size * 0.55, height: size * 0.55 }} />
+    </span>
   );
 }

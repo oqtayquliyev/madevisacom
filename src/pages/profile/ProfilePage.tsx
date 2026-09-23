@@ -341,11 +341,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div className="-mt-12 flex items-end gap-4 sm:-mt-14">
                 <div className="rounded-full bg-white p-1 shadow-md">
-                  {profile.avatar_url ? (
-                    <img src={profile.avatar_url} alt="" className="h-24 w-24 rounded-full object-cover sm:h-28 sm:w-28" />
-                  ) : (
-                    <TravelerAvatar seed={profile.id} size={96} />
-                  )}
+                  <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={96} />
                 </div>
               </div>
 
@@ -650,11 +646,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             <div className="border border-ink-200 bg-white p-6">
               <h2 className="text-sm font-bold text-ink-900">Profile photo</h2>
               <div className="mt-4 flex items-center gap-4">
-                {profile.avatar_url ? (
-                  <img src={profile.avatar_url} alt="" className="h-16 w-16 rounded-full object-cover" />
-                ) : (
-                  <TravelerAvatar seed={profile.id} size={64} />
-                )}
+                <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={64} />
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
