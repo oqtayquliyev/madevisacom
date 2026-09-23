@@ -71,10 +71,10 @@ type CountryOption = { id: string; name: string; flag_emoji: string | null; iso_
 type Tab = 'overview' | 'journey' | 'saved' | 'partner' | 'settings';
 
 const inputClass =
-  'h-11 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
+  'h-11 w-full rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 text-sm font-medium text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900';
 const textareaClass =
-  'w-full rounded-lg border border-ink-200 bg-white p-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
-const labelClass = 'mb-1.5 block text-xs font-semibold text-ink-500';
+  'w-full rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-3 text-sm font-medium text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900';
+const labelClass = 'mb-1.5 block text-xs font-semibold text-ink-500 dark:text-ink-400';
 
 const orgTypeLabel: Record<OrgType, string> = {
   agency: 'Agency',
@@ -91,10 +91,10 @@ const orgTypeIcon: Record<OrgType, typeof Building2> = {
 };
 
 const statusCopy: Record<ProgramPublisher['verification_status'], { label: string; className: string }> = {
-  pending: { label: 'Pending review', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  verified: { label: 'Verified', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  rejected: { label: 'Not approved', className: 'bg-rose-50 text-rose-700 border-rose-200' },
-  suspended: { label: 'Suspended', className: 'bg-ink-100 text-ink-500 border-ink-200' },
+  pending: { label: 'Pending review', className: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' },
+  verified: { label: 'Verified', className: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
+  rejected: { label: 'Not approved', className: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800' },
+  suspended: { label: 'Suspended', className: 'bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400 border-ink-200 dark:border-ink-700' },
 };
 
 export function ProfilePage({ go, onAuth }: ProfilePageProps) {
@@ -207,8 +207,8 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
 
   if (!profile) {
     return (
-      <div className="grid min-h-screen place-items-center bg-[#f8fafc]">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+      <div className="grid min-h-screen place-items-center bg-[#f8fafc] dark:bg-ink-950">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600 dark:text-brand-400" />
       </div>
     );
   }
@@ -339,19 +339,19 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
     : 'Looking for opportunities abroad';
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-ink-900">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950 text-ink-900 dark:text-ink-50">
       <LandingHeader go={go} onAuth={onAuth} active="home" />
 
       <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
         {/* HEADER */}
-        <div className="overflow-hidden rounded-lg border border-ink-200 bg-white">
+        <div className="overflow-hidden rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900">
           {/* Cover banner */}
           <div className="h-28 bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-700 sm:h-36" />
 
           <div className="px-6 pb-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div className="-mt-12 flex items-end gap-4 sm:-mt-14">
-                <div className="rounded-full bg-white p-1 shadow-md">
+                <div className="rounded-full bg-white dark:bg-ink-900 p-1 shadow-md">
                   <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={96} />
                 </div>
               </div>
@@ -379,9 +379,9 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-bold tracking-tight text-ink-950">{profile.full_name || 'Your profile'}</h1>
+                  <h1 className="text-2xl font-bold tracking-tight text-ink-950 dark:text-ink-50">{profile.full_name || 'Your profile'}</h1>
                   {isEmailConfirmed && (
-                    <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
                       <CheckCircle2 className="h-3 w-3" />
                       Verified
                     </span>
@@ -392,12 +392,12 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
                     </span>
                   )}
                 </div>
-                <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-brand-700">
+                <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-brand-700 dark:text-brand-300">
                   <Shield className="h-4 w-4" />
                   {availabilityLine}
                 </p>
 
-                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-ink-600">
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-ink-600 dark:text-ink-300">
                   <span className="flex items-center gap-1.5">
                     <MapPin className="h-4 w-4 text-ink-400" />
                     {profileCountry?.name ?? 'Add your location'}
@@ -412,12 +412,12 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
               <div className="flex flex-col items-end gap-2">
                 <button
                   onClick={() => setTab('settings')}
-                  className="rounded-lg border border-ink-200 px-4 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50"
+                  className="rounded-lg border border-ink-200 dark:border-ink-700 px-4 py-2 text-xs font-semibold text-ink-700 dark:text-ink-200 hover:bg-ink-50 dark:hover:bg-ink-800"
                 >
                   Edit profile
                 </button>
                 <div className="flex items-center gap-2 text-[11px] text-ink-400">
-                  <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ink-100">
+                  <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ink-100 dark:bg-ink-800">
                     <div className="h-full rounded-full bg-brand-500" style={{ width: `${completionPct}%` }} />
                   </div>
                   {completionPct}% complete
@@ -426,27 +426,27 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             </div>
 
             {/* Soft info card */}
-            <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 rounded-lg bg-ink-50 px-4 py-3 text-xs text-ink-600">
-              <span><span className="font-semibold text-ink-800">Education:</span> {profile.education || '—'}</span>
-              <span><span className="font-semibold text-ink-800">Specialization:</span> {profile.specialization || '—'}</span>
-              <span><span className="font-semibold text-ink-800">Languages:</span> {profile.languages?.length ? profile.languages.join(', ') : '—'}</span>
+            <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 rounded-lg bg-ink-50 dark:bg-ink-800 px-4 py-3 text-xs text-ink-600 dark:text-ink-300">
+              <span><span className="font-semibold text-ink-800 dark:text-ink-100">Education:</span> {profile.education || '—'}</span>
+              <span><span className="font-semibold text-ink-800 dark:text-ink-100">Specialization:</span> {profile.specialization || '—'}</span>
+              <span><span className="font-semibold text-ink-800 dark:text-ink-100">Languages:</span> {profile.languages?.length ? profile.languages.join(', ') : '—'}</span>
             </div>
           </div>
         </div>
 
         {!isEmailConfirmed && (
-          <div className="mt-4 flex items-start gap-3 border border-amber-200 bg-amber-50 p-4">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <div className="mt-4 flex items-start gap-3 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 p-4">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="flex-1">
-              <p className="text-sm font-bold text-amber-900">Email not confirmed</p>
-              <p className="mt-1 text-xs leading-5 text-amber-700">
+              <p className="text-sm font-bold text-amber-900 dark:text-amber-300">Email not confirmed</p>
+              <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">
                 We sent a confirmation link to {profile.email}. Some features may be limited until you confirm it.
               </p>
               <button
                 type="button"
                 onClick={handleResendConfirmation}
                 disabled={resending}
-                className="mt-2 text-xs font-semibold text-amber-800 underline hover:text-amber-900 disabled:opacity-50"
+                className="mt-2 text-xs font-semibold text-amber-800 dark:text-amber-300 underline hover:text-amber-900 dark:hover:text-amber-300 disabled:opacity-50"
               >
                 {resent ? 'Sent — check your inbox' : resending ? 'Sending…' : 'Resend confirmation email'}
               </button>
@@ -455,7 +455,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         )}
 
         {/* TABS */}
-        <div className="mt-6 flex flex-wrap gap-2 border-b border-ink-200 pb-3">
+        <div className="mt-6 flex flex-wrap gap-2 border-b border-ink-200 dark:border-ink-700 pb-3">
           <TabButton active={tab === 'overview'} onClick={() => setTab('overview')} icon={Sparkles} label="Overview" />
           <TabButton active={tab === 'journey'} onClick={() => setTab('journey')} icon={Compass} label="My journey" />
           <TabButton
@@ -509,18 +509,18 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
 
         {/* JOURNEY */}
         {tab === 'journey' && (
-          <section className="mt-6 border border-ink-200 bg-white p-6">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-600">
+          <section className="mt-6 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-600 dark:text-brand-400">
               <Compass className="h-4 w-4" />
               Your journey
             </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2 rounded-lg bg-ink-50 px-3 py-2">
+              <div className="flex items-center gap-2 rounded-lg bg-ink-50 dark:bg-ink-800 px-3 py-2">
                 <MapPin className="h-4 w-4 text-ink-400" />
-                <span className="text-xs text-ink-500">Currently in</span>
+                <span className="text-xs text-ink-500 dark:text-ink-400">Currently in</span>
                 {originCode ? (
-                  <span className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-ink-900 dark:text-ink-50">
                     <CircleFlagInline countryCode={originCode} />
                     {originName}
                   </span>
@@ -536,7 +536,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
                     {journeyDestinations.map((d) => (
                       <span
                         key={d.countryCode}
-                        className="flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700"
+                        className="flex items-center gap-1.5 rounded-lg bg-brand-50 dark:bg-brand-900/30 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-300"
                       >
                         <CircleFlagInline countryCode={d.countryCode} />
                         {d.country}
@@ -552,14 +552,14 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
               <p className="mt-3 text-xs text-ink-400">Save a job, program or destination and it'll show up here.</p>
             )}
 
-            <div className="mt-6 border-t border-ink-100 pt-5">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Your path</p>
+            <div className="mt-6 border-t border-ink-100 dark:border-ink-800 pt-5">
+              <p className="text-xs font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">Your path</p>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                 {['Discover', 'Compare', 'Choose', 'Apply', 'Prepare', 'Move'].map((stage, i) => (
                   <div key={stage} className="flex items-center gap-2">
                     <span
                       className={`rounded-full px-3 py-1.5 font-semibold ${
-                        i === 0 ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-400'
+                        i === 0 ? 'bg-brand-600 text-white' : 'bg-ink-50 dark:bg-ink-800 text-ink-400'
                       }`}
                     >
                       {stage}
@@ -626,9 +626,9 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
               onRemove={handleRemove}
             />
 
-            <div className="border border-ink-200 bg-white p-5">
-              <h3 className="text-sm font-bold text-ink-900">Applications</h3>
-              <p className="mt-2 text-xs leading-5 text-ink-500">
+            <div className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5">
+              <h3 className="text-sm font-bold text-ink-900 dark:text-ink-50">Applications</h3>
+              <p className="mt-2 text-xs leading-5 text-ink-500 dark:text-ink-400">
                 No applications yet. This will track the real status of visa/job/program applications you submit
                 through MadeVisa — coming soon.
               </p>
@@ -655,8 +655,8 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {/* SETTINGS */}
         {tab === 'settings' && (
           <div className="mt-6 space-y-6">
-            <div className="border border-ink-200 bg-white p-6">
-              <h2 className="text-sm font-bold text-ink-900">Profile photo</h2>
+            <div className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6">
+              <h2 className="text-sm font-bold text-ink-900 dark:text-ink-50">Profile photo</h2>
               <div className="mt-4 flex items-center gap-4">
                 <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={64} />
                 <div className="flex items-center gap-2">
@@ -664,7 +664,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
                     type="button"
                     onClick={() => avatarInputRef.current?.click()}
                     disabled={avatarUploading}
-                    className="flex items-center gap-1.5 rounded-lg border border-ink-200 px-3 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-2 text-xs font-semibold text-ink-700 dark:text-ink-200 hover:bg-ink-50 dark:hover:bg-ink-800 disabled:opacity-50"
                   >
                     {avatarUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
                     {profile.avatar_url ? 'Replace' : 'Upload'}
@@ -674,7 +674,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
                       type="button"
                       onClick={handleRemoveAvatar}
                       disabled={avatarUploading}
-                      className="flex items-center gap-1.5 rounded-lg border border-ink-200 px-3 py-2 text-xs font-semibold text-ink-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                      className="flex items-center gap-1.5 rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-2 text-xs font-semibold text-ink-500 dark:text-ink-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-600 dark:hover:text-rose-400 disabled:opacity-50"
                     >
                       <X className="h-3.5 w-3.5" />
                       Remove
@@ -693,25 +693,25 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
                   }}
                 />
               </div>
-              {avatarError && <p className="mt-2 text-xs font-medium text-rose-600">{avatarError}</p>}
+              {avatarError && <p className="mt-2 text-xs font-medium text-rose-600 dark:text-rose-400">{avatarError}</p>}
               <p className="mt-2 text-[11px] text-ink-400">JPEG, PNG or WebP. Max 5MB.</p>
             </div>
 
             <UsernameCard profile={profile} onSaved={refreshProfile} />
 
-            <div className="border border-ink-200 bg-white p-6">
-              <h2 className="text-sm font-bold text-ink-900">Personal information</h2>
-              <p className="mt-1 text-xs text-ink-500">
+            <div className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6">
+              <h2 className="text-sm font-bold text-ink-900 dark:text-ink-50">Personal information</h2>
+              <p className="mt-1 text-xs text-ink-500 dark:text-ink-400">
                 {profile.username ? 'Your name and photo are visible on your public profile link above. The rest stays private.' : 'None of this is shown publicly unless you set up a profile link above.'}
               </p>
 
               <div className="mt-5 space-y-4">
                 <div>
                   <label className={labelClass}>Email</label>
-                  <div className="flex h-11 items-center gap-2 rounded-lg border border-ink-100 bg-ink-50 px-3 text-sm text-ink-500">
+                  <div className="flex h-11 items-center gap-2 rounded-lg border border-ink-100 dark:border-ink-800 bg-ink-50 dark:bg-ink-800 px-3 text-sm text-ink-500 dark:text-ink-400">
                     <Mail className="h-4 w-4 text-ink-400" />
                     {profile.email}
-                    {isEmailConfirmed && <CheckCircle2 className="ml-auto h-4 w-4 text-emerald-600" />}
+                    {isEmailConfirmed && <CheckCircle2 className="ml-auto h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
                   </div>
                 </div>
 
@@ -791,7 +791,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
                 </div>
               </div>
 
-              {error && <p className="mt-3 text-xs font-medium text-rose-600">{error}</p>}
+              {error && <p className="mt-3 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
 
               <div className="mt-6 flex items-center gap-3">
                 <button
@@ -804,7 +804,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
                   Save changes
                 </button>
                 {saved && (
-                  <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                     <CheckCircle2 className="h-4 w-4" />
                     Saved
                   </span>
@@ -812,26 +812,26 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
               </div>
             </div>
 
-            <div className="border border-ink-200 bg-white p-6">
-              <h2 className="text-sm font-bold text-ink-900">Account</h2>
+            <div className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6">
+              <h2 className="text-sm font-bold text-ink-900 dark:text-ink-50">Account</h2>
               <div className="mt-4 space-y-3">
                 <button
                   onClick={handleExportData}
-                  className="flex items-center gap-2 text-sm font-medium text-ink-700 hover:text-brand-600"
+                  className="flex items-center gap-2 text-sm font-medium text-ink-700 dark:text-ink-200 hover:text-brand-600 dark:hover:text-brand-400"
                 >
                   <Download className="h-4 w-4" />
                   Export my data
                 </button>
                 <button
                   onClick={() => supabase.auth.signOut()}
-                  className="flex items-center gap-2 text-sm font-medium text-ink-700 hover:text-brand-600"
+                  className="flex items-center gap-2 text-sm font-medium text-ink-700 dark:text-ink-200 hover:text-brand-600 dark:hover:text-brand-400"
                 >
                   <ArrowRight className="h-4 w-4" />
                   Sign out
                 </button>
                 <button
                   onClick={() => setDeleteOpen(true)}
-                  className="flex items-center gap-2 text-sm font-medium text-rose-600 hover:text-rose-700"
+                  className="flex items-center gap-2 text-sm font-medium text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300"
                 >
                   <Trash2 className="h-4 w-4" />
                   Delete my account
@@ -865,7 +865,7 @@ function TabButton({ active, onClick, icon: Icon, label }: { active: boolean; on
       type="button"
       onClick={onClick}
       className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition ${
-        active ? 'bg-ink-900 text-white' : 'text-ink-500 hover:bg-ink-100'
+        active ? 'bg-ink-900 text-white dark:bg-ink-600' : 'text-ink-500 dark:text-ink-400 hover:bg-ink-100 dark:hover:bg-ink-800'
       }`}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -890,13 +890,13 @@ function SummaryCard({
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-start border border-ink-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg"
+      className="flex flex-col items-start border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 text-left transition hover:-translate-y-0.5 hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-soft-lg"
     >
-      <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-50 text-brand-600">
+      <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
         <Icon className="h-4 w-4" />
       </span>
-      <p className="mt-3 text-xs font-semibold text-ink-500">{title}</p>
-      <p className="mt-0.5 text-lg font-bold text-ink-950">{value}</p>
+      <p className="mt-3 text-xs font-semibold text-ink-500 dark:text-ink-400">{title}</p>
+      <p className="mt-0.5 text-lg font-bold text-ink-950 dark:text-ink-50">{value}</p>
       <p className="mt-1 text-xs text-ink-400">{detail}</p>
     </button>
   );
@@ -913,7 +913,7 @@ function RecentlyViewedSection({ items, onBrowse }: { items: ViewedJobSnapshot[]
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-ink-400" />
-          <h2 className="text-lg font-bold text-ink-950">Recently viewed</h2>
+          <h2 className="text-lg font-bold text-ink-950 dark:text-ink-50">Recently viewed</h2>
           <span className="text-xs text-ink-400">({items.length})</span>
         </div>
         <span className="text-xs text-ink-400">Clears after 48 hours</span>
@@ -923,7 +923,7 @@ function RecentlyViewedSection({ items, onBrowse }: { items: ViewedJobSnapshot[]
           <a
             key={item.id}
             href={jobPath({ id: item.id, title: item.title, company: item.organization })}
-            className="flex items-start justify-between gap-3 border border-ink-200 bg-white p-4 transition hover:border-brand-300"
+            className="flex items-start justify-between gap-3 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4 transition hover:border-brand-300 dark:hover:border-brand-700"
           >
             <div className="min-w-0">
               {item.countryCode && (
@@ -932,8 +932,8 @@ function RecentlyViewedSection({ items, onBrowse }: { items: ViewedJobSnapshot[]
                   {item.country}
                 </div>
               )}
-              <h3 className="mt-1 truncate text-sm font-bold text-ink-900">{item.title}</h3>
-              <p className="truncate text-xs text-ink-500">{item.organization}</p>
+              <h3 className="mt-1 truncate text-sm font-bold text-ink-900 dark:text-ink-50">{item.title}</h3>
+              <p className="truncate text-xs text-ink-500 dark:text-ink-400">{item.organization}</p>
             </div>
           </a>
         ))}
@@ -964,17 +964,17 @@ function SavedSection({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Icon className="h-4 w-4 text-ink-400" />
-          <h2 className="text-lg font-bold text-ink-950">{title}</h2>
+          <h2 className="text-lg font-bold text-ink-950 dark:text-ink-50">{title}</h2>
           <span className="text-xs text-ink-400">({items.length})</span>
         </div>
-        <button onClick={onBrowse} className="text-xs font-semibold text-brand-600 hover:text-brand-700">
+        <button onClick={onBrowse} className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
           {cta}
         </button>
       </div>
 
       {items.length === 0 ? (
-        <div className="mt-4 flex flex-col items-center gap-3 border border-dashed border-ink-200 bg-white px-6 py-10 text-center">
-          <p className="text-sm text-ink-500">{emptyLabel}</p>
+        <div className="mt-4 flex flex-col items-center gap-3 border border-dashed border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-6 py-10 text-center">
+          <p className="text-sm text-ink-500 dark:text-ink-400">{emptyLabel}</p>
           <button onClick={onBrowse} className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700">
             {cta}
           </button>
@@ -982,7 +982,7 @@ function SavedSection({
       ) : (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {items.map((item) => (
-            <div key={item.id} className="flex items-start justify-between gap-3 border border-ink-200 bg-white p-4">
+            <div key={item.id} className="flex items-start justify-between gap-3 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4">
               <div className="min-w-0">
                 {item.countryCode && (
                   <div className="flex items-center gap-1.5 text-xs text-ink-400">
@@ -990,14 +990,14 @@ function SavedSection({
                     {item.country}
                   </div>
                 )}
-                <h3 className="mt-1 truncate text-sm font-bold text-ink-900">{item.title}</h3>
-                <p className="truncate text-xs text-ink-500">{item.organization}</p>
+                <h3 className="mt-1 truncate text-sm font-bold text-ink-900 dark:text-ink-50">{item.title}</h3>
+                <p className="truncate text-xs text-ink-500 dark:text-ink-400">{item.organization}</p>
                 {item.url && (
                   <a
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
                   >
                     View original
                     <ExternalLink className="h-3 w-3" />
@@ -1007,7 +1007,7 @@ function SavedSection({
               <button
                 onClick={() => onRemove(item)}
                 aria-label="Remove"
-                className="shrink-0 rounded-lg p-1.5 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
+                className="shrink-0 rounded-lg p-1.5 text-ink-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-600 dark:hover:text-rose-400"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -1057,32 +1057,32 @@ function PartnerSection({
     const Icon = orgTypeIcon[publisher.org_type];
     const status = statusCopy[publisher.verification_status];
     return (
-      <div className="mt-6 border border-ink-200 bg-white p-6">
-        <h2 className="text-sm font-bold text-ink-900">Partner workspace</h2>
-        <div className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-ink-50 p-4">
+      <div className="mt-6 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6">
+        <h2 className="text-sm font-bold text-ink-900 dark:text-ink-50">Partner workspace</h2>
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-ink-50 dark:bg-ink-800 p-4">
           <div className="flex items-center gap-3">
             {publisher.logo_url ? (
               <img src={publisher.logo_url} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
             ) : (
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-white text-ink-500">
+              <span className="grid h-10 w-10 place-items-center rounded-lg bg-white dark:bg-ink-900 text-ink-500 dark:text-ink-400">
                 <Icon className="h-4 w-4" />
               </span>
             )}
             <div>
-              <p className="text-sm font-semibold text-ink-900">{publisher.name}</p>
-              <p className="text-xs text-ink-500">{orgTypeLabel[publisher.org_type]}</p>
+              <p className="text-sm font-semibold text-ink-900 dark:text-ink-50">{publisher.name}</p>
+              <p className="text-xs text-ink-500 dark:text-ink-400">{orgTypeLabel[publisher.org_type]}</p>
             </div>
           </div>
           <span className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${status.className}`}>{status.label}</span>
         </div>
         {publisher.verification_status === 'pending' && (
-          <p className="mt-3 text-xs text-ink-500">
+          <p className="mt-3 text-xs text-ink-500 dark:text-ink-400">
             We'll email you once this is reviewed. Questions — {PUBLISHING_CONTACT_EMAIL}.
           </p>
         )}
         {publisher.verification_status === 'verified' && (
           <>
-            <p className="mt-3 text-xs text-ink-500">
+            <p className="mt-3 text-xs text-ink-500 dark:text-ink-400">
               Use the "Post a job" and "Post a program" buttons at the top of your profile to submit a new listing.
             </p>
             <MyListingsSection publisherId={publisher.id} />
@@ -1090,7 +1090,7 @@ function PartnerSection({
         )}
         {canReapply && (
           <div className="mt-4">
-            <p className="text-xs text-ink-500">
+            <p className="text-xs text-ink-500 dark:text-ink-400">
               {publisher.verification_status === 'suspended'
                 ? "This partner account was suspended, but you're welcome to send another request."
                 : "This request wasn't approved, but you're welcome to try again."}
@@ -1142,7 +1142,7 @@ function PartnerSection({
   return (
     <div className="mt-6">
       {!resubmitting && !applying && (
-        <div className="mb-6 border border-ink-200 bg-gradient-to-br from-ink-950 to-ink-800 p-8 text-white">
+        <div className="mb-6 border border-ink-200 dark:border-ink-700 bg-gradient-to-br from-ink-950 to-ink-800 p-8 text-white">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-brand-300">
             <Users2 className="h-4 w-4" />
             Become a MadeVisa Partner
@@ -1151,10 +1151,10 @@ function PartnerSection({
         </div>
       )}
 
-      <div className="border border-ink-200 bg-white p-6">
-        <h2 className="text-sm font-bold text-ink-900">{resubmitting ? 'Send another request' : 'Choose your partner type'}</h2>
+      <div className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6">
+        <h2 className="text-sm font-bold text-ink-900 dark:text-ink-50">{resubmitting ? 'Send another request' : 'Choose your partner type'}</h2>
         {!resubmitting && (
-          <p className="mt-1 text-xs text-ink-500">
+          <p className="mt-1 text-xs text-ink-500 dark:text-ink-400">
             Reviewed before anything goes public. Questions — {PUBLISHING_CONTACT_EMAIL}.
           </p>
         )}
@@ -1168,7 +1168,7 @@ function PartnerSection({
             {resubmitting && (
               <button
                 onClick={() => setResubmitting(false)}
-                className="col-span-full text-center text-xs font-semibold text-ink-500 hover:text-ink-800"
+                className="col-span-full text-center text-xs font-semibold text-ink-500 dark:text-ink-400 hover:text-ink-800 dark:hover:text-ink-100"
               >
                 Cancel
               </button>
@@ -1201,7 +1201,7 @@ function PartnerSection({
                 label={applying === 'expert' ? 'Your photo (optional)' : 'Official logo (optional)'}
               />
             )}
-            {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
+            {error && <p className="text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
             <div className="flex items-center gap-2">
               <button
                 onClick={submit}
@@ -1213,7 +1213,7 @@ function PartnerSection({
               </button>
               <button
                 onClick={() => { setApplying(null); setResubmitting(false); }}
-                className="text-xs font-semibold text-ink-500 hover:text-ink-800"
+                className="text-xs font-semibold text-ink-500 dark:text-ink-400 hover:text-ink-800 dark:hover:text-ink-100"
               >
                 Back
               </button>
@@ -1251,9 +1251,9 @@ function MyListingsSection({ publisherId }: { publisherId: string }) {
   if (total === 0) return null;
 
   return (
-    <div className="mt-4 border-t border-ink-100 pt-4">
-      <p className="text-xs font-bold uppercase tracking-wide text-ink-500">My listings ({total})</p>
-      <div className="mt-2 divide-y divide-ink-100 rounded-lg border border-ink-200 bg-white">
+    <div className="mt-4 border-t border-ink-100 dark:border-ink-800 pt-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">My listings ({total})</p>
+      <div className="mt-2 divide-y divide-ink-100 dark:divide-ink-800 rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900">
         {jobs.map((j) => (
           <MyJobListingRow key={j.id} job={j} onChange={load} />
         ))}
@@ -1289,23 +1289,23 @@ function MyProgramListingRow({ program, onChange }: { program: SponsoredProgram;
     <div className="p-3">
       {editing ? (
         <div className="space-y-1.5">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-8 w-full rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500" />
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" rows={2} className="w-full rounded-md border border-ink-200 px-2 py-1.5 text-xs text-ink-700 outline-none focus:border-brand-500" />
-          <input value={fundingText} onChange={(e) => setFundingText(e.target.value)} placeholder="Funding / stipend" className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
-          <input value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} placeholder="Official URL" className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-8 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm font-semibold text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500" />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" rows={2} className="w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 py-1.5 text-xs text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500" />
+          <input value={fundingText} onChange={(e) => setFundingText(e.target.value)} placeholder="Funding / stipend" className="h-8 w-full max-w-xs rounded-md border border-ink-200 dark:border-ink-700 px-2 text-xs text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500" />
+          <input value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} placeholder="Official URL" className="h-8 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-xs text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500" />
           <p className="text-[11px] text-ink-400">Saving sends this back for admin review before it's live again.</p>
           <div className="flex items-center gap-2">
-            <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
-            <button onClick={() => setEditing(false)} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
+            <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Save</button>
+            <button onClick={() => setEditing(false)} className="text-xs text-ink-400 hover:text-ink-700 dark:hover:text-ink-200">Cancel</button>
           </div>
         </div>
       ) : (
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-ink-900">{program.title}</p>
-            <p className="text-xs text-ink-500">Program · {program.status}</p>
+            <p className="truncate text-sm font-semibold text-ink-900 dark:text-ink-50">{program.title}</p>
+            <p className="text-xs text-ink-500 dark:text-ink-400">Program · {program.status}</p>
           </div>
-          <button onClick={() => setEditing(true)} className="flex shrink-0 items-center gap-1 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50">
+          <button onClick={() => setEditing(true)} className="flex shrink-0 items-center gap-1 rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-1.5 text-xs font-semibold text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800">
             <Pencil className="h-3.5 w-3.5" />
             Edit
           </button>
@@ -1339,23 +1339,23 @@ function MyJobListingRow({ job, onChange }: { job: SponsoredJob; onChange: () =>
     <div className="p-3">
       {editing ? (
         <div className="space-y-1.5">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-8 w-full rounded-md border border-ink-200 px-2 text-sm font-semibold text-ink-900 outline-none focus:border-brand-500" />
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" rows={2} className="w-full rounded-md border border-ink-200 px-2 py-1.5 text-xs text-ink-700 outline-none focus:border-brand-500" />
-          <input value={compensationText} onChange={(e) => setCompensationText(e.target.value)} placeholder="Salary" className="h-8 w-full max-w-xs rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
-          <input value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} placeholder="Official URL" className="h-8 w-full rounded-md border border-ink-200 px-2 text-xs text-ink-700 outline-none focus:border-brand-500" />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-8 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-sm font-semibold text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500" />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" rows={2} className="w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 py-1.5 text-xs text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500" />
+          <input value={compensationText} onChange={(e) => setCompensationText(e.target.value)} placeholder="Salary" className="h-8 w-full max-w-xs rounded-md border border-ink-200 dark:border-ink-700 px-2 text-xs text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500" />
+          <input value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} placeholder="Official URL" className="h-8 w-full rounded-md border border-ink-200 dark:border-ink-700 px-2 text-xs text-ink-700 dark:text-ink-200 outline-none focus:border-brand-500" />
           <p className="text-[11px] text-ink-400">Saving sends this back for admin review before it's live again.</p>
           <div className="flex items-center gap-2">
-            <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Save</button>
-            <button onClick={() => setEditing(false)} className="text-xs text-ink-400 hover:text-ink-700">Cancel</button>
+            <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Save</button>
+            <button onClick={() => setEditing(false)} className="text-xs text-ink-400 hover:text-ink-700 dark:hover:text-ink-200">Cancel</button>
           </div>
         </div>
       ) : (
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-ink-900">{job.title}</p>
-            <p className="text-xs text-ink-500">Job · {job.status}</p>
+            <p className="truncate text-sm font-semibold text-ink-900 dark:text-ink-50">{job.title}</p>
+            <p className="text-xs text-ink-500 dark:text-ink-400">Job · {job.status}</p>
           </div>
-          <button onClick={() => setEditing(true)} className="flex shrink-0 items-center gap-1 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50">
+          <button onClick={() => setEditing(true)} className="flex shrink-0 items-center gap-1 rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-1.5 text-xs font-semibold text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800">
             <Pencil className="h-3.5 w-3.5" />
             Edit
           </button>
@@ -1409,30 +1409,30 @@ function UsernameCard({ profile, onSaved }: { profile: Profile; onSaved: () => v
   };
 
   return (
-    <div className="border border-ink-200 bg-white p-6">
-      <h2 className="flex items-center gap-1.5 text-sm font-bold text-ink-900">
+    <div className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6">
+      <h2 className="flex items-center gap-1.5 text-sm font-bold text-ink-900 dark:text-ink-50">
         <Link2 className="h-4 w-4 text-ink-400" />
         Shareable profile link
       </h2>
-      <p className="mt-1 text-xs text-ink-500">
+      <p className="mt-1 text-xs text-ink-500 dark:text-ink-400">
         A public link showing your name, photo, and — if you're a verified partner — your organization.
       </p>
 
       {!editing ? (
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <code className="flex-1 truncate rounded-lg bg-ink-50 px-3 py-2 text-sm font-medium text-ink-800">{shareUrl}</code>
+          <code className="flex-1 truncate rounded-lg bg-ink-50 dark:bg-ink-800 px-3 py-2 text-sm font-medium text-ink-800 dark:text-ink-100">{shareUrl}</code>
           <button
             type="button"
             onClick={copyLink}
-            className="flex items-center gap-1.5 rounded-lg border border-ink-200 px-3 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50"
+            className="flex items-center gap-1.5 rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-2 text-xs font-semibold text-ink-700 dark:text-ink-200 hover:bg-ink-50 dark:hover:bg-ink-800"
           >
-            {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? 'Copied' : 'Copy'}
           </button>
           <button
             type="button"
             onClick={() => { setEditing(true); setValue(profile.username ?? ''); }}
-            className="rounded-lg border border-ink-200 px-3 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50"
+            className="rounded-lg border border-ink-200 dark:border-ink-700 px-3 py-2 text-xs font-semibold text-ink-700 dark:text-ink-200 hover:bg-ink-50 dark:hover:bg-ink-800"
           >
             Change
           </button>
@@ -1445,16 +1445,16 @@ function UsernameCard({ profile, onSaved }: { profile: Profile; onSaved: () => v
               value={value}
               onChange={(e) => setValue(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
               placeholder="your-name"
-              className="h-10 flex-1 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500"
+              className="h-10 flex-1 rounded-lg border border-ink-200 dark:border-ink-700 px-3 text-sm font-medium text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
             />
           </div>
           <div className="mt-1.5 text-xs">
             {checking && <span className="text-ink-400">Checking availability…</span>}
-            {!checking && available === true && value.length >= 3 && <span className="font-medium text-emerald-600">Available</span>}
-            {!checking && available === false && <span className="font-medium text-rose-600">Already taken</span>}
+            {!checking && available === true && value.length >= 3 && <span className="font-medium text-emerald-600 dark:text-emerald-400">Available</span>}
+            {!checking && available === false && <span className="font-medium text-rose-600 dark:text-rose-400">Already taken</span>}
             {!checking && value.length > 0 && value.length < 3 && <span className="text-ink-400">At least 3 characters</span>}
           </div>
-          {error && <p className="mt-1 text-xs font-medium text-rose-600">{error}</p>}
+          {error && <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
           <div className="mt-3 flex items-center gap-2">
             <button
               type="button"
@@ -1465,7 +1465,7 @@ function UsernameCard({ profile, onSaved }: { profile: Profile; onSaved: () => v
               {saving ? 'Saving…' : 'Save'}
             </button>
             {profile.username && (
-              <button type="button" onClick={() => setEditing(false)} className="text-xs text-ink-500 hover:text-ink-700">
+              <button type="button" onClick={() => setEditing(false)} className="text-xs text-ink-500 dark:text-ink-400 hover:text-ink-700 dark:hover:text-ink-200">
                 Cancel
               </button>
             )}
@@ -1481,14 +1481,14 @@ function PartnerTypeCard({ type, onClick, title, detail }: { type: OrgType; onCl
   return (
     <button
       onClick={onClick}
-      className="flex items-start gap-3 rounded-lg border border-ink-200 p-4 text-left transition hover:border-brand-300 hover:bg-brand-50/40"
+      className="flex items-start gap-3 rounded-lg border border-ink-200 dark:border-ink-700 p-4 text-left transition hover:border-brand-300 dark:hover:border-brand-700 hover:bg-brand-50/40 dark:hover:bg-brand-900/30"
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
         <Icon className="h-5 w-5" />
       </span>
       <div>
-        <p className="text-sm font-bold text-ink-900">{title}</p>
-        <p className="mt-0.5 text-xs leading-5 text-ink-500">{detail}</p>
+        <p className="text-sm font-bold text-ink-900 dark:text-ink-50">{title}</p>
+        <p className="mt-0.5 text-xs leading-5 text-ink-500 dark:text-ink-400">{detail}</p>
       </div>
     </button>
   );
@@ -1516,14 +1516,14 @@ function DeleteAccountDialog({ onClose, hasPublisher }: { onClose: () => void; h
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-        <div className="flex items-center gap-2 text-rose-600">
+      <div className="w-full max-w-md rounded-xl bg-white dark:bg-ink-900 p-6 shadow-2xl">
+        <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
           <Trash2 className="h-5 w-5" />
           <h2 className="text-base font-bold">Delete your account</h2>
         </div>
 
-        <p className="mt-4 text-xs leading-5 text-ink-600">This permanently deletes your account. Here's what happens:</p>
-        <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-500">
+        <p className="mt-4 text-xs leading-5 text-ink-600 dark:text-ink-300">This permanently deletes your account. Here's what happens:</p>
+        <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-500 dark:text-ink-400">
           <li>• Your profile and login are deleted immediately and can't be recovered.</li>
           <li>• Saved jobs/programs on this device are cleared.</li>
           <li>• There's no application history to delete yet — that feature isn't built.</li>
@@ -1535,17 +1535,17 @@ function DeleteAccountDialog({ onClose, hasPublisher }: { onClose: () => void; h
           )}
         </ul>
 
-        <label className="mt-4 block text-xs font-semibold text-ink-500">
+        <label className="mt-4 block text-xs font-semibold text-ink-500 dark:text-ink-400">
           Type DELETE to confirm
         </label>
         <input
           value={confirmText}
           onChange={(e) => setConfirmText(e.target.value)}
-          className="mt-1.5 h-11 w-full rounded-lg border border-ink-200 px-3 text-sm font-medium outline-none focus:border-rose-400"
+          className="mt-1.5 h-11 w-full rounded-lg border border-ink-200 dark:border-ink-700 px-3 text-sm font-medium outline-none focus:border-rose-400"
           placeholder="DELETE"
         />
 
-        {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
+        {error && <p className="mt-2 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
 
         <div className="mt-5 flex items-center gap-2">
           <button
@@ -1556,7 +1556,7 @@ function DeleteAccountDialog({ onClose, hasPublisher }: { onClose: () => void; h
             {deleting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Permanently delete
           </button>
-          <button onClick={onClose} className="text-xs font-semibold text-ink-500 hover:text-ink-800">
+          <button onClick={onClose} className="text-xs font-semibold text-ink-500 dark:text-ink-400 hover:text-ink-800 dark:hover:text-ink-100">
             Cancel
           </button>
         </div>

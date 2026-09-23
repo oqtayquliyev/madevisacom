@@ -83,11 +83,11 @@ export function AdminApprovalsPage({ profile, go }: AdminApprovalsPageProps) {
 
   if (!isAdmin) {
     return (
-      <div className="grid min-h-screen place-items-center bg-[#f8fafc] px-5 text-center">
+      <div className="grid min-h-screen place-items-center bg-[#f8fafc] dark:bg-ink-950 px-5 text-center">
         <div>
           <ShieldAlert className="mx-auto h-10 w-10 text-rose-500" />
-          <p className="mt-3 text-sm font-semibold text-ink-900">You don't have access to this page.</p>
-          <button onClick={() => go('home')} className="mt-3 text-sm font-medium text-brand-600 underline">
+          <p className="mt-3 text-sm font-semibold text-ink-900 dark:text-ink-50">You don't have access to this page.</p>
+          <button onClick={() => go('home')} className="mt-3 text-sm font-medium text-brand-600 dark:text-brand-400 underline">
             Back to home
           </button>
         </div>
@@ -176,24 +176,24 @@ export function AdminApprovalsPage({ profile, go }: AdminApprovalsPageProps) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#f7f9fc]">
-      <header className="border-b border-ink-100 bg-white px-6 py-4">
+    <div className="min-h-screen bg-[#f7f9fc] dark:bg-ink-950">
+      <header className="border-b border-ink-100 dark:border-ink-800 bg-white dark:bg-ink-900 px-6 py-4">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
-          <h1 className="text-lg font-bold text-ink-950">Admin · Approvals</h1>
-          <button onClick={() => go('home')} className="text-sm font-medium text-ink-500 hover:text-ink-900">
+          <h1 className="text-lg font-bold text-ink-950 dark:text-ink-50">Admin · Approvals</h1>
+          <button onClick={() => go('home')} className="text-sm font-medium text-ink-500 dark:text-ink-400 hover:text-ink-900 dark:hover:text-ink-50">
             Back to app
           </button>
         </div>
       </header>
 
       <main className="mx-auto max-w-4xl px-6 py-8">
-        <div className="flex gap-2 border-b border-ink-200">
+        <div className="flex gap-2 border-b border-ink-200 dark:border-ink-700">
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-semibold ${
-                tab === t.id ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-400 hover:text-ink-700'
+                tab === t.id ? 'border-brand-600 text-brand-700 dark:text-brand-300' : 'border-transparent text-ink-400 hover:text-ink-700 dark:hover:text-ink-200'
               }`}
             >
               <t.icon className="h-4 w-4" /> {t.label}
@@ -204,7 +204,7 @@ export function AdminApprovalsPage({ profile, go }: AdminApprovalsPageProps) {
         <div className="mt-6 space-y-4">
           {loading && (
             <div className="grid place-items-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
+              <Loader2 className="h-6 w-6 animate-spin text-brand-600 dark:text-brand-400" />
             </div>
           )}
 
@@ -214,18 +214,18 @@ export function AdminApprovalsPage({ profile, go }: AdminApprovalsPageProps) {
 
           {!loading &&
             rows.map((row) => (
-              <div key={row.id} className="rounded-xl border border-ink-200 bg-white p-5">
+              <div key={row.id} className="rounded-xl border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="flex items-center gap-2 text-sm font-bold text-ink-900">
-                      {tab === 'organizations' && (row.role === 'government' ? <Landmark className="h-4 w-4 text-brand-600" /> : <Building2 className="h-4 w-4 text-brand-600" />)}
-                      {tab === 'experts' && <Sparkles className="h-4 w-4 text-violet-600" />}
-                      {tab === 'role-requests' && (row.requested_role === 'government' ? <Landmark className="h-4 w-4 text-brand-600" /> : <Building2 className="h-4 w-4 text-brand-600" />)}
+                    <p className="flex items-center gap-2 text-sm font-bold text-ink-900 dark:text-ink-50">
+                      {tab === 'organizations' && (row.role === 'government' ? <Landmark className="h-4 w-4 text-brand-600 dark:text-brand-400" /> : <Building2 className="h-4 w-4 text-brand-600 dark:text-brand-400" />)}
+                      {tab === 'experts' && <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" />}
+                      {tab === 'role-requests' && (row.requested_role === 'government' ? <Landmark className="h-4 w-4 text-brand-600 dark:text-brand-400" /> : <Building2 className="h-4 w-4 text-brand-600 dark:text-brand-400" />)}
                       {tab === 'organizations' && (row.role === 'government' ? row.institution_name : row.company_name)}
                       {tab === 'experts' && (row.full_name || row.email)}
                       {tab === 'role-requests' && row.requested_role_org_name}
                     </p>
-                    <p className="mt-1 text-xs text-ink-500">
+                    <p className="mt-1 text-xs text-ink-500 dark:text-ink-400">
                       {row.full_name} · {row.email}
                       {row.city ? ` · ${row.city}` : ''}
                       {row.country ? `, ${row.country}` : ''}
@@ -243,13 +243,13 @@ export function AdminApprovalsPage({ profile, go }: AdminApprovalsPageProps) {
                         href={row.website || row.requested_role_website || '#'}
                         target="_blank"
                         rel="noreferrer"
-                        className="mt-1 inline-block text-xs font-medium text-brand-600 underline"
+                        className="mt-1 inline-block text-xs font-medium text-brand-600 dark:text-brand-400 underline"
                       >
                         {row.website || row.requested_role_website}
                       </a>
                     )}
                   </div>
-                  <span className="flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200">
+                  <span className="flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-50 dark:bg-amber-900/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300 ring-1 ring-amber-200 dark:ring-amber-800">
                     <Clock className="h-3 w-3" /> Pending
                   </span>
                 </div>
@@ -260,7 +260,7 @@ export function AdminApprovalsPage({ profile, go }: AdminApprovalsPageProps) {
                       value={reasonText}
                       onChange={(e) => setReasonText(e.target.value)}
                       placeholder="Reason for rejection (shown to the applicant)"
-                      className="h-20 w-full rounded-lg border border-ink-200 p-2.5 text-sm outline-none focus:border-brand-400"
+                      className="h-20 w-full rounded-lg border border-ink-200 dark:border-ink-700 p-2.5 text-sm outline-none focus:border-brand-400"
                     />
                     <div className="flex gap-2">
                       <button
@@ -276,7 +276,7 @@ export function AdminApprovalsPage({ profile, go }: AdminApprovalsPageProps) {
                       </button>
                       <button
                         onClick={() => { setReasonFor(null); setReasonText(''); }}
-                        className="text-xs font-medium text-ink-500 hover:text-ink-900"
+                        className="text-xs font-medium text-ink-500 dark:text-ink-400 hover:text-ink-900 dark:hover:text-ink-50"
                       >
                         Cancel
                       </button>
@@ -298,7 +298,7 @@ export function AdminApprovalsPage({ profile, go }: AdminApprovalsPageProps) {
                     </button>
                     <button
                       onClick={() => setReasonFor(row.id)}
-                      className="flex items-center gap-1.5 rounded-lg border border-rose-200 px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                      className="flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-800 px-4 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30"
                     >
                       <XCircle className="h-3.5 w-3.5" /> Reject
                     </button>

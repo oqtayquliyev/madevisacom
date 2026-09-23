@@ -28,18 +28,18 @@ export function TripCostEstimator({ go }: { go?: (view: View) => void }) {
   );
 
   return (
-    <section className="border-y border-ink-200 bg-white px-5 py-14 sm:px-8 sm:py-20">
+    <section className="border-y border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-5 py-14 sm:px-8 sm:py-20">
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-brand-600">Budget in seconds</p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-brand-600 dark:text-brand-400">Budget in seconds</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink-950 dark:text-ink-50 sm:text-3xl">
               What should this trip cost?
             </h2>
-            <p className="mt-2 max-w-xl text-sm text-ink-500">
+            <p className="mt-2 max-w-xl text-sm text-ink-500 dark:text-ink-400">
               Flights (cheapest fares, next 30 days), accommodation and visa fees, estimated automatically for{' '}
               {countryName ? (
-                <span className="inline-flex items-center gap-1 font-semibold text-ink-700">
+                <span className="inline-flex items-center gap-1 font-semibold text-ink-700 dark:text-ink-200">
                   <CircleFlag countryCode={countryCode} label={countryName} size={14} />
                   {countryName}
                 </span>
@@ -51,19 +51,19 @@ export function TripCostEstimator({ go }: { go?: (view: View) => void }) {
           </div>
         </div>
 
-        <div className="mt-7 grid gap-6 border border-ink-200 bg-white p-5 shadow-soft sm:p-6 lg:grid-cols-[1fr_1.1fr]">
+        <div className="mt-7 grid gap-6 border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-soft sm:p-6 lg:grid-cols-[1fr_1.1fr]">
           {/* CONTROLS */}
           <div className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-ink-500">Destination</label>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-500 dark:text-ink-400">Destination</label>
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setOpenDestination((v) => !v)}
-                  className="flex h-12 w-full items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 text-left hover:border-brand-300"
+                  className="flex h-12 w-full items-center gap-2 rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 text-left hover:border-brand-300 dark:hover:border-brand-700"
                 >
                   <CircleFlag countryCode={destination.countryCode} label={destination.countryName} size={22} />
-                  <span className="flex-1 text-sm font-semibold text-ink-900">{destination.countryName}</span>
+                  <span className="flex-1 text-sm font-semibold text-ink-900 dark:text-ink-50">{destination.countryName}</span>
                   <ChevronDown className={`h-4 w-4 text-ink-400 transition ${openDestination ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -75,7 +75,7 @@ export function TripCostEstimator({ go }: { go?: (view: View) => void }) {
                       onClick={() => setOpenDestination(false)}
                       className="fixed inset-0 z-30"
                     />
-                    <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-64 overflow-y-auto border border-ink-200 bg-white p-1 shadow-xl">
+                    <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-64 overflow-y-auto border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-1 shadow-xl">
                       {destinationCosts.map((option) => (
                         <button
                           key={option.countryCode}
@@ -84,12 +84,12 @@ export function TripCostEstimator({ go }: { go?: (view: View) => void }) {
                             setDestination(option);
                             setOpenDestination(false);
                           }}
-                          className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-ink-50 ${
-                            option.countryCode === destination.countryCode ? 'bg-brand-50' : ''
+                          className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-ink-50 dark:hover:bg-ink-800 ${
+                            option.countryCode === destination.countryCode ? 'bg-brand-50 dark:bg-brand-900/30' : ''
                           }`}
                         >
                           <CircleFlag countryCode={option.countryCode} label={option.countryName} size={20} />
-                          <span className="text-sm font-medium text-ink-800">{option.countryName}</span>
+                          <span className="text-sm font-medium text-ink-800 dark:text-ink-100">{option.countryName}</span>
                         </button>
                       ))}
                     </div>
@@ -100,7 +100,7 @@ export function TripCostEstimator({ go }: { go?: (view: View) => void }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-ink-500">
+                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-ink-500 dark:text-ink-400">
                   <CalendarDays className="h-3.5 w-3.5" />
                   Nights
                 </label>
@@ -110,12 +110,12 @@ export function TripCostEstimator({ go }: { go?: (view: View) => void }) {
                   max={60}
                   value={nights}
                   onChange={(e) => setNights(Math.max(1, Number(e.target.value) || 1))}
-                  className="h-11 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500"
+                  className="h-11 w-full rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 text-sm font-medium text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-ink-500">
+                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-ink-500 dark:text-ink-400">
                   <Users className="h-3.5 w-3.5" />
                   Travelers
                 </label>
@@ -125,12 +125,12 @@ export function TripCostEstimator({ go }: { go?: (view: View) => void }) {
                   max={9}
                   value={travelers}
                   onChange={(e) => setTravelers(Math.max(1, Number(e.target.value) || 1))}
-                  className="h-11 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500"
+                  className="h-11 w-full rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 text-sm font-medium text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500"
                 />
               </div>
             </div>
 
-            <div className="flex items-start gap-2 rounded-lg bg-ink-50 px-3 py-2.5 text-[11px] leading-4 text-ink-500">
+            <div className="flex items-start gap-2 rounded-lg bg-ink-50 dark:bg-ink-800 px-3 py-2.5 text-[11px] leading-4 text-ink-500 dark:text-ink-400">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-400" />
               Estimates only, based on typical regional fares and published visa fees — not a live quote. Confirm
               exact costs before booking or applying.
@@ -138,10 +138,10 @@ export function TripCostEstimator({ go }: { go?: (view: View) => void }) {
           </div>
 
           {/* BREAKDOWN */}
-          <div className="border-t border-ink-100 pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          <div className="border-t border-ink-100 dark:border-ink-800 pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
             <div className="flex items-baseline justify-between">
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Estimated total</p>
-              <p className="text-2xl font-bold tracking-tight text-ink-950">
+              <p className="text-2xl font-bold tracking-tight text-ink-950 dark:text-ink-50">
                 {formatUSD(estimate.totalLowUSD)} – {formatUSD(estimate.totalHighUSD)}
               </p>
             </div>
@@ -176,7 +176,7 @@ export function TripCostEstimator({ go }: { go?: (view: View) => void }) {
               <button
                 type="button"
                 onClick={() => go?.('agencies')}
-                className="flex items-center gap-1.5 rounded-lg border border-ink-200 px-4 py-2.5 text-xs font-semibold text-ink-700 hover:bg-ink-50"
+                className="flex items-center gap-1.5 rounded-lg border border-ink-200 dark:border-ink-700 px-4 py-2.5 text-xs font-semibold text-ink-700 dark:text-ink-200 hover:bg-ink-50 dark:hover:bg-ink-800"
               >
                 Get a visa quote
               </button>
@@ -191,11 +191,11 @@ export function TripCostEstimator({ go }: { go?: (view: View) => void }) {
 function CostRow({ icon: Icon, label, value }: { icon: typeof Plane; label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3 text-sm">
-      <span className="flex items-center gap-2 text-ink-600">
+      <span className="flex items-center gap-2 text-ink-600 dark:text-ink-300">
         <Icon className="h-4 w-4 shrink-0 text-ink-400" />
         {label}
       </span>
-      <span className="shrink-0 font-semibold text-ink-900">{value}</span>
+      <span className="shrink-0 font-semibold text-ink-900 dark:text-ink-50">{value}</span>
     </div>
   );
 }

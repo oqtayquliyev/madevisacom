@@ -58,7 +58,7 @@ export function ResetPasswordPage({
     return (
       <AuthCard title="Password updated" subtitle="You can now sign in with your new password." onHome={onHome}>
         <div className="flex flex-col items-center gap-3 py-2 text-center">
-          <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+          <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
           <PrimaryButton onClick={onSwitchToLogin}>Go to sign in</PrimaryButton>
         </div>
       </AuthCard>

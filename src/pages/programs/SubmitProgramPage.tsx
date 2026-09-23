@@ -25,8 +25,8 @@ type SubmitProgramPageProps = {
 };
 
 const inputClass =
-  'h-11 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
-const labelClass = 'mb-1.5 block text-xs font-semibold text-ink-500';
+  'h-11 w-full rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 text-sm font-medium text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900';
+const labelClass = 'mb-1.5 block text-xs font-semibold text-ink-500 dark:text-ink-400';
 
 const orgTypeOptions: { type: OrgType; label: string; icon: typeof Building2 }[] = [
   { type: 'government', label: 'Government', icon: Landmark },
@@ -59,18 +59,18 @@ export function SubmitProgramPage({ go, onAuth }: SubmitProgramPageProps) {
   }, [user]);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-ink-900">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950 text-ink-900 dark:text-ink-50">
       <LandingHeader go={go} onAuth={onAuth} active="programs" />
 
       <main className="mx-auto max-w-2xl px-5 py-14 sm:px-8">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-brand-600">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-brand-600 dark:text-brand-400">
           <Megaphone className="h-4 w-4" />
           Publish a listing
         </div>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-ink-950">Reach eligible travelers directly.</h1>
-        <p className="mt-2 text-sm leading-6 text-ink-500">
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-ink-950 dark:text-ink-50">Reach eligible travelers directly.</h1>
+        <p className="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400">
           Submissions are reviewed before going live. Questions about publishing or pricing — reach us at{' '}
-          <a href={`mailto:${PUBLISHING_CONTACT_EMAIL}`} className="font-semibold text-brand-600">
+          <a href={`mailto:${PUBLISHING_CONTACT_EMAIL}`} className="font-semibold text-brand-600 dark:text-brand-400">
             {PUBLISHING_CONTACT_EMAIL}
           </a>
           .
@@ -78,15 +78,15 @@ export function SubmitProgramPage({ go, onAuth }: SubmitProgramPageProps) {
 
         <div className="mt-8">
           {authLoading || checkingPublisher ? (
-            <div className="flex items-center gap-2 text-sm text-ink-500">
+            <div className="flex items-center gap-2 text-sm text-ink-500 dark:text-ink-400">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading…
             </div>
           ) : !user ? (
-            <div className="border border-ink-200 bg-white p-6 text-center">
-              <p className="text-sm text-ink-600">Sign in or create an account to submit a listing.</p>
+            <div className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6 text-center">
+              <p className="text-sm text-ink-600 dark:text-ink-300">Sign in or create an account to submit a listing.</p>
               <div className="mt-4 flex justify-center gap-2">
-                <button onClick={() => onAuth?.('login')} className="rounded-lg border border-ink-200 px-4 py-2 text-sm font-semibold text-ink-700 hover:bg-ink-50">
+                <button onClick={() => onAuth?.('login')} className="rounded-lg border border-ink-200 dark:border-ink-700 px-4 py-2 text-sm font-semibold text-ink-700 dark:text-ink-200 hover:bg-ink-50 dark:hover:bg-ink-800">
                   Sign in
                 </button>
                 <button onClick={() => onAuth?.('register')} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
@@ -102,11 +102,11 @@ export function SubmitProgramPage({ go, onAuth }: SubmitProgramPageProps) {
               onCreated={setPublisher}
             />
           ) : publisher.verification_status !== 'verified' ? (
-            <div className="border border-amber-200 bg-amber-50 p-6 text-center">
-              <p className="text-sm font-semibold text-amber-900">
+            <div className="border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 p-6 text-center">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">
                 {publisher.verification_status === 'pending' ? 'Your account is pending review' : 'Your account is not currently approved'}
               </p>
-              <p className="mt-1 text-xs text-amber-700">
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
                 You'll be able to submit listings once {publisher.name} is verified. Questions — {PUBLISHING_CONTACT_EMAIL}.
               </p>
             </div>
@@ -117,7 +117,7 @@ export function SubmitProgramPage({ go, onAuth }: SubmitProgramPageProps) {
                   type="button"
                   onClick={() => setListingType('program')}
                   className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold ${
-                    listingType === 'program' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-200 text-ink-500'
+                    listingType === 'program' ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300' : 'border-ink-200 dark:border-ink-700 text-ink-500 dark:text-ink-400'
                   }`}
                 >
                   <GraduationCap className="h-4 w-4" />
@@ -127,7 +127,7 @@ export function SubmitProgramPage({ go, onAuth }: SubmitProgramPageProps) {
                   type="button"
                   onClick={() => setListingType('job')}
                   className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold ${
-                    listingType === 'job' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-200 text-ink-500'
+                    listingType === 'job' ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300' : 'border-ink-200 dark:border-ink-700 text-ink-500 dark:text-ink-400'
                   }`}
                 >
                   <Briefcase className="h-4 w-4" />
@@ -182,8 +182,8 @@ function CreatePublisherForm({
   };
 
   return (
-    <div className="border border-ink-200 bg-white p-6">
-      <h2 className="text-sm font-bold text-ink-900">First, tell us about your organization</h2>
+    <div className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6">
+      <h2 className="text-sm font-bold text-ink-900 dark:text-ink-50">First, tell us about your organization</h2>
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {orgTypeOptions.map(({ type, label, icon: Icon }) => (
@@ -192,7 +192,7 @@ function CreatePublisherForm({
             type="button"
             onClick={() => setOrgType(type)}
             className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border px-3 py-3 text-xs font-semibold ${
-              orgType === type ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-200 text-ink-500'
+              orgType === type ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300' : 'border-ink-200 dark:border-ink-700 text-ink-500 dark:text-ink-400'
             }`}
           >
             <Icon className="h-4 w-4" />
@@ -222,7 +222,7 @@ function CreatePublisherForm({
         <ImageUploadField userId={userId} value={logoUrl} onChange={setLogoUrl} label="Official logo (optional)" />
       </div>
 
-      {error && <p className="mt-3 text-xs font-medium text-rose-600">{error}</p>}
+      {error && <p className="mt-3 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
 
       <button
         type="button"
@@ -265,7 +265,7 @@ function CharLimitedTextarea({
     <div>
       <div className="mb-1.5 flex items-center justify-between">
         <label className={labelClass.replace('mb-1.5 ', '')}>{label}</label>
-        <span className={`text-[11px] font-medium ${remaining < 0 ? 'text-rose-600' : 'text-ink-400'}`}>
+        <span className={`text-[11px] font-medium ${remaining < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-ink-400'}`}>
           {remaining < 0 ? `${Math.abs(remaining)} over limit` : `${remaining} characters left`}
         </span>
       </div>
@@ -274,7 +274,7 @@ function CharLimitedTextarea({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={rows}
-        className="w-full rounded-lg border border-ink-200 bg-white p-3 text-sm font-medium leading-6 text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        className="w-full rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-3 text-sm font-medium leading-6 text-ink-900 dark:text-ink-50 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900"
       />
     </div>
   );
@@ -293,13 +293,13 @@ function SubmitProgramForm({ publisher, countries }: { publisher: ProgramPublish
 
   if (submitted) {
     return (
-      <div className="border border-emerald-200 bg-emerald-50 p-6 text-center">
-        <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600" />
-        <h3 className="mt-3 text-sm font-bold text-emerald-900">Submitted for review</h3>
-        <p className="mt-1 text-xs text-emerald-700">
+      <div className="border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 p-6 text-center">
+        <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+        <h3 className="mt-3 text-sm font-bold text-emerald-900 dark:text-emerald-300">Submitted for review</h3>
+        <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
           We review every submission within 24 hours. Our team will follow up at {publisher.contact_email} if we need anything else before it goes live.
         </p>
-        <button type="button" onClick={() => setSubmitted(false)} className="mt-4 text-xs font-semibold text-emerald-700 underline">
+        <button type="button" onClick={() => setSubmitted(false)} className="mt-4 text-xs font-semibold text-emerald-700 dark:text-emerald-300 underline">
           Submit another program
         </button>
       </div>
@@ -336,9 +336,9 @@ function SubmitProgramForm({ publisher, countries }: { publisher: ProgramPublish
   };
 
   return (
-    <div className="border border-ink-200 bg-white p-6">
-      <div className="flex items-center gap-2 text-xs font-semibold text-ink-500">
-        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+    <div className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6">
+      <div className="flex items-center gap-2 text-xs font-semibold text-ink-500 dark:text-ink-400">
+        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
         Publishing as {publisher.name} ({publisher.org_type})
       </div>
       <p className="mt-2 text-xs text-ink-400">
@@ -392,7 +392,7 @@ function SubmitProgramForm({ publisher, countries }: { publisher: ProgramPublish
         </div>
       </div>
 
-      {error && <p className="mt-3 text-xs font-medium text-rose-600">{error}</p>}
+      {error && <p className="mt-3 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
 
       <button
         type="button"
@@ -421,13 +421,13 @@ function SubmitJobForm({ publisher, countries }: { publisher: ProgramPublisher; 
 
   if (submitted) {
     return (
-      <div className="border border-emerald-200 bg-emerald-50 p-6 text-center">
-        <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600" />
-        <h3 className="mt-3 text-sm font-bold text-emerald-900">Submitted for review</h3>
-        <p className="mt-1 text-xs text-emerald-700">
+      <div className="border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 p-6 text-center">
+        <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+        <h3 className="mt-3 text-sm font-bold text-emerald-900 dark:text-emerald-300">Submitted for review</h3>
+        <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
           We review every submission within 24 hours. Our team will follow up at {publisher.contact_email} if we need anything else before it goes live.
         </p>
-        <button type="button" onClick={() => setSubmitted(false)} className="mt-4 text-xs font-semibold text-emerald-700 underline">
+        <button type="button" onClick={() => setSubmitted(false)} className="mt-4 text-xs font-semibold text-emerald-700 dark:text-emerald-300 underline">
           Submit another job
         </button>
       </div>
@@ -466,9 +466,9 @@ function SubmitJobForm({ publisher, countries }: { publisher: ProgramPublisher; 
   };
 
   return (
-    <div className="border border-ink-200 bg-white p-6">
-      <div className="flex items-center gap-2 text-xs font-semibold text-ink-500">
-        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+    <div className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6">
+      <div className="flex items-center gap-2 text-xs font-semibold text-ink-500 dark:text-ink-400">
+        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
         Publishing as {publisher.name} ({publisher.org_type})
       </div>
       <p className="mt-2 text-xs text-ink-400">
@@ -506,7 +506,7 @@ function SubmitJobForm({ publisher, countries }: { publisher: ProgramPublisher; 
             <label className={labelClass}>City (optional)</label>
             <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Leave blank if not applicable" className={inputClass} />
           </div>
-          <label className="flex shrink-0 items-center gap-2 pt-5 text-sm font-medium text-ink-700">
+          <label className="flex shrink-0 items-center gap-2 pt-5 text-sm font-medium text-ink-700 dark:text-ink-200">
             <input type="checkbox" checked={remote} onChange={(e) => setRemote(e.target.checked)} />
             Remote-friendly
           </label>
@@ -528,7 +528,7 @@ function SubmitJobForm({ publisher, countries }: { publisher: ProgramPublisher; 
         </div>
       </div>
 
-      {error && <p className="mt-3 text-xs font-medium text-rose-600">{error}</p>}
+      {error && <p className="mt-3 text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>}
 
       <button
         type="button"

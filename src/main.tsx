@@ -5,6 +5,9 @@ import { AuthProvider } from '@/lib/auth';
 import { PersonalizationProvider } from '@/lib/personalization';
 import { Analytics } from '@vercel/analytics/react';
 import './index.css';
+import { initTheme } from '@/lib/theme';
+
+initTheme();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

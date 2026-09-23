@@ -36,16 +36,16 @@ export function OfficialPartnersPage({ go, onAuth }: OfficialPartnersPageProps) 
   }, [category, search]);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-ink-900">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-ink-950 text-ink-900 dark:text-ink-50">
       <LandingHeader go={go} onAuth={onAuth} active="destinations" />
 
-      <section className="border-b border-ink-200 bg-white px-5 py-14 sm:px-8 sm:py-20">
+      <section className="border-b border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-5 py-14 sm:px-8 sm:py-20">
         <div className="mx-auto max-w-7xl">
-          <p className="text-sm font-semibold text-brand-600">Official institutions</p>
-          <h1 className="mt-3 max-w-2xl text-4xl font-bold tracking-[-0.03em] text-ink-950 sm:text-5xl">
+          <p className="text-sm font-semibold text-brand-600 dark:text-brand-400">Official institutions</p>
+          <h1 className="mt-3 max-w-2xl text-4xl font-bold tracking-[-0.03em] text-ink-950 dark:text-ink-50 sm:text-5xl">
             Official opportunities from around the world.
           </h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-ink-500">
+          <p className="mt-4 max-w-2xl text-base leading-7 text-ink-500 dark:text-ink-400">
             Discover immigration pathways, talent programs, jobs, education, investment and other opportunities
             published by official institutions.
           </p>
@@ -54,13 +54,13 @@ export function OfficialPartnersPage({ go, onAuth }: OfficialPartnersPageProps) 
             and this listing is free with no promotional arrangement.
           </p>
 
-          <div className="mt-8 flex h-12 max-w-md items-center gap-2 rounded-lg border border-ink-200 bg-white px-3">
+          <div className="mt-8 flex h-12 max-w-md items-center gap-2 rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3">
             <Search className="h-4 w-4 shrink-0 text-ink-400" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search institutions — Canada, Germany, Scholarships…"
-              className="h-full w-full bg-transparent text-sm font-medium text-ink-900 outline-none placeholder:text-ink-400"
+              className="h-full w-full bg-transparent text-sm font-medium text-ink-900 dark:text-ink-50 outline-none placeholder:text-ink-400"
             />
           </div>
 
@@ -80,10 +80,10 @@ export function OfficialPartnersPage({ go, onAuth }: OfficialPartnersPageProps) 
 
       <main className="mx-auto max-w-7xl px-5 py-12 sm:px-8">
         {filtered.length === 0 ? (
-          <div className="border border-ink-200 bg-white px-6 py-16 text-center">
+          <div className="border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-6 py-16 text-center">
             <Search className="mx-auto h-8 w-8 text-ink-300" />
-            <h3 className="mt-4 text-lg font-bold text-ink-900">No institutions found</h3>
-            <p className="mt-2 text-sm text-ink-500">Try a different search or filter.</p>
+            <h3 className="mt-4 text-lg font-bold text-ink-900 dark:text-ink-50">No institutions found</h3>
+            <p className="mt-2 text-sm text-ink-500 dark:text-ink-400">Try a different search or filter.</p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -105,7 +105,7 @@ function FilterButton({ active, onClick, label }: { active: boolean; onClick: ()
       type="button"
       onClick={onClick}
       className={`rounded-full border px-4 py-2 text-xs font-semibold transition ${
-        active ? 'border-brand-600 bg-brand-600 text-white' : 'border-ink-200 text-ink-600 hover:border-brand-300'
+        active ? 'border-brand-600 bg-brand-600 text-white' : 'border-ink-200 dark:border-ink-700 text-ink-600 dark:text-ink-300 hover:border-brand-300 dark:hover:border-brand-700'
       }`}
     >
       {label}
@@ -121,7 +121,7 @@ function PartnerCard({ partner }: { partner: (typeof officialPartners)[number] }
       href={partner.officialWebsite}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex flex-col border border-ink-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg"
+      className="group flex flex-col border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 transition hover:-translate-y-0.5 hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-soft-lg"
     >
       <div className="flex h-14 items-center">
         {!logoFailed ? (
@@ -132,7 +132,7 @@ function PartnerCard({ partner }: { partner: (typeof officialPartners)[number] }
             onError={() => setLogoFailed(true)}
           />
         ) : (
-          <span className="flex items-center gap-2 rounded-lg bg-ink-50 px-3 py-2 text-xs font-bold text-ink-500">
+          <span className="flex items-center gap-2 rounded-lg bg-ink-50 dark:bg-ink-800 px-3 py-2 text-xs font-bold text-ink-500 dark:text-ink-400">
             <Landmark className="h-4 w-4" />
             {partner.name
               .split(' ')
@@ -144,30 +144,30 @@ function PartnerCard({ partner }: { partner: (typeof officialPartners)[number] }
         )}
       </div>
 
-      <h3 className="mt-4 text-sm font-bold leading-snug text-ink-900">{partner.name}</h3>
+      <h3 className="mt-4 text-sm font-bold leading-snug text-ink-900 dark:text-ink-50">{partner.name}</h3>
 
-      <div className="mt-2 flex items-center gap-1.5 text-xs text-ink-500">
+      <div className="mt-2 flex items-center gap-1.5 text-xs text-ink-500 dark:text-ink-400">
         <CircleFlag countryCode={partner.countryCode} label={partner.country} size={14} />
         {partner.country}
       </div>
 
-      <span className="mt-2 w-fit rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
+      <span className="mt-2 w-fit rounded-md bg-brand-50 dark:bg-brand-900/30 px-2 py-0.5 text-[11px] font-semibold text-brand-700 dark:text-brand-300">
         {partner.category}
       </span>
 
-      <p className="mt-3 flex-1 text-xs leading-5 text-ink-500">{partner.description}</p>
+      <p className="mt-3 flex-1 text-xs leading-5 text-ink-500 dark:text-ink-400">{partner.description}</p>
 
       {partner.programs.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {partner.programs.map((program) => (
-            <span key={program} className="rounded-md bg-ink-50 px-2 py-1 text-[11px] font-medium text-ink-600">
+            <span key={program} className="rounded-md bg-ink-50 dark:bg-ink-800 px-2 py-1 text-[11px] font-medium text-ink-600 dark:text-ink-300">
               {program}
             </span>
           ))}
         </div>
       )}
 
-      <div className="mt-4 flex items-center gap-1.5 border-t border-ink-100 pt-3 text-xs font-semibold text-brand-600 group-hover:text-brand-700">
+      <div className="mt-4 flex items-center gap-1.5 border-t border-ink-100 dark:border-ink-800 pt-3 text-xs font-semibold text-brand-600 dark:text-brand-400 group-hover:text-brand-700 dark:group-hover:text-brand-300">
         Official source
         <ExternalLink className="h-3.5 w-3.5" />
       </div>

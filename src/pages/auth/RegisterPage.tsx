@@ -75,7 +75,7 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
         <div className="space-y-3">
           <button
             onClick={() => setRole('customer')}
-            className="relative flex w-full items-center gap-4 rounded-2xl border-2 border-brand-500 bg-brand-50/40 p-4 text-left shadow-soft transition hover:shadow-soft-lg"
+            className="relative flex w-full items-center gap-4 rounded-2xl border-2 border-brand-500 bg-brand-50/40 dark:bg-brand-900/30 p-4 text-left shadow-soft transition hover:shadow-soft-lg"
           >
             <span className="absolute -top-2.5 right-4 flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
               <Sparkles className="h-2.5 w-2.5" />
@@ -83,28 +83,28 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
             </span>
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-600 text-white"><UserRound className="h-6 w-6" /></span>
             <div>
-              <p className="font-semibold text-ink-900">Explore opportunities</p>
-              <p className="mt-0.5 text-sm text-ink-500">Jobs, programs, and visa paths abroad — track requirements, get agency help.</p>
+              <p className="font-semibold text-ink-900 dark:text-ink-50">Explore opportunities</p>
+              <p className="mt-0.5 text-sm text-ink-500 dark:text-ink-400">Jobs, programs, and visa paths abroad — track requirements, get agency help.</p>
             </div>
           </button>
           <button
             onClick={() => setRole('agency')}
-            className="flex w-full items-center gap-4 rounded-2xl border border-ink-200 bg-white p-4 text-left shadow-soft transition hover:border-brand-300 hover:shadow-soft-lg"
+            className="flex w-full items-center gap-4 rounded-2xl border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4 text-left shadow-soft transition hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-soft-lg"
           >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600"><Building2 className="h-6 w-6" /></span>
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400"><Building2 className="h-6 w-6" /></span>
             <div>
-              <p className="font-semibold text-ink-900">I'm an agency / company</p>
-              <p className="mt-0.5 text-sm text-ink-500">Manage customers, trips, and post sponsored jobs or programs.</p>
+              <p className="font-semibold text-ink-900 dark:text-ink-50">I'm an agency / company</p>
+              <p className="mt-0.5 text-sm text-ink-500 dark:text-ink-400">Manage customers, trips, and post sponsored jobs or programs.</p>
             </div>
           </button>
           <button
             onClick={() => setRole('government')}
-            className="flex w-full items-center gap-4 rounded-2xl border border-ink-200 bg-white p-4 text-left shadow-soft transition hover:border-brand-300 hover:shadow-soft-lg"
+            className="flex w-full items-center gap-4 rounded-2xl border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4 text-left shadow-soft transition hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-soft-lg"
           >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><Landmark className="h-6 w-6" /></span>
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"><Landmark className="h-6 w-6" /></span>
             <div>
-              <p className="font-semibold text-ink-900">I'm a government institution</p>
-              <p className="mt-0.5 text-sm text-ink-500">Promote official programs, visas and opportunities.</p>
+              <p className="font-semibold text-ink-900 dark:text-ink-50">I'm a government institution</p>
+              <p className="mt-0.5 text-sm text-ink-500 dark:text-ink-400">Promote official programs, visas and opportunities.</p>
             </div>
           </button>
           <p className="text-center text-[11px] text-ink-400">
@@ -118,12 +118,12 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
       ) : (
         <GovernmentForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
       )}
-      <div className="mt-5 text-center text-sm text-ink-500">
+      <div className="mt-5 text-center text-sm text-ink-500 dark:text-ink-400">
         Already have an account?{' '}
         <a
           href="/login"
           onClick={(event) => handleNavClick(event, onSwitchToLogin)}
-          className="font-semibold text-brand-600 hover:text-brand-700"
+          className="font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
         >
           Sign in
         </a>
@@ -217,12 +217,12 @@ function CustomerForm({
       <CountrySelect label="Country (optional)" countries={countries} value={countryId} onChange={setCountryId} />
       <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} />
 
-      <label className="flex items-center gap-2 text-sm text-ink-600">
+      <label className="flex items-center gap-2 text-sm text-ink-600 dark:text-ink-300">
         <input
           type="checkbox"
           checked={nationalitySameAsCountry}
           onChange={(e) => setNationalitySameAsCountry(e.target.checked)}
-          className="h-4 w-4 rounded border-ink-300"
+          className="h-4 w-4 rounded border-ink-300 dark:border-ink-600"
         />
         My nationality is the same as my country
       </label>
@@ -435,20 +435,20 @@ function CountrySelect({ label, countries, value, onChange }: { label: string; c
 
   return (
     <div className="relative">
-      <label className="mb-1.5 block text-sm font-medium text-ink-600">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-ink-600 dark:text-ink-300">{label}</label>
       <button
         onClick={() => setOpen(!open)}
-        className={`flex w-full items-center justify-between gap-3 rounded-xl border bg-white px-3.5 py-3 text-left shadow-soft transition ${open ? 'border-brand-400 ring-4 ring-brand-100' : 'border-ink-200 hover:border-ink-300'}`}
+        className={`flex w-full items-center justify-between gap-3 rounded-xl border bg-white dark:bg-ink-900 px-3.5 py-3 text-left shadow-soft transition ${open ? 'border-brand-400 ring-4 ring-brand-100 dark:ring-brand-900' : 'border-ink-200 dark:border-ink-700 hover:border-ink-300 dark:hover:border-ink-600'}`}
       >
         <span className="flex items-center gap-3">
           <span className="text-xl">{selected?.flag_emoji ?? '🌐'}</span>
-          <span className={`text-sm ${selected ? 'font-medium text-ink-900' : 'text-ink-400'}`}>{selected?.name ?? 'Select country'}</span>
+          <span className={`text-sm ${selected ? 'font-medium text-ink-900 dark:text-ink-50' : 'text-ink-400'}`}>{selected?.name ?? 'Select country'}</span>
         </span>
         <ChevronDown className={`h-4 w-4 text-ink-400 transition ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute inset-x-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-soft-xl">
-          <div className="flex items-center gap-2 border-b border-ink-100 p-2">
+        <div className="absolute inset-x-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-soft-xl">
+          <div className="flex items-center gap-2 border-b border-ink-100 dark:border-ink-800 p-2">
             <Search className="h-4 w-4 text-ink-400" />
             <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search countries" className="w-full bg-transparent text-sm outline-none" />
           </div>
@@ -457,11 +457,11 @@ function CountrySelect({ label, countries, value, onChange }: { label: string; c
               <button
                 key={c.id}
                 onClick={() => { onChange(c.id); setOpen(false); setQuery(''); }}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-ink-50"
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-ink-50 dark:hover:bg-ink-800"
               >
                 <span className="text-xl">{c.flag_emoji}</span>
-                <span className="font-medium text-ink-800">{c.name}</span>
-                {c.id === value && <Check className="ml-auto h-4 w-4 text-brand-600" />}
+                <span className="font-medium text-ink-800 dark:text-ink-100">{c.name}</span>
+                {c.id === value && <Check className="ml-auto h-4 w-4 text-brand-600 dark:text-brand-400" />}
               </button>
             ))}
           </div>

@@ -5,6 +5,17 @@
 
     <meta name="theme-color" content="#f7f9fc" />
 
+    <!-- Apply saved/system theme before first paint (no light flash). Keep in sync with src/lib/theme.ts -->
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem('madevisa.theme') || 'system';
+          var dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
+
     <meta property="og:site_name" content="MadeVisa" />
 
     <meta

@@ -26,12 +26,12 @@ export function WelcomeModal({ go }: WelcomeModalProps) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink-950/50 px-4">
-      <div className="relative w-full max-w-sm border border-ink-200 bg-white p-6 text-center shadow-soft-lg sm:p-8">
+      <div className="relative w-full max-w-sm border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-6 text-center shadow-soft-lg sm:p-8">
         <button
           type="button"
           onClick={clearJustSignedIn}
           aria-label="Close"
-          className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full text-ink-400 hover:bg-ink-50 hover:text-ink-700"
+          className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full text-ink-400 hover:bg-ink-50 dark:hover:bg-ink-800 hover:text-ink-700 dark:hover:text-ink-200"
         >
           <X className="h-4 w-4" />
         </button>
@@ -40,13 +40,13 @@ export function WelcomeModal({ go }: WelcomeModalProps) {
           <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={80} className="border-2 border-white shadow-soft" />
         </div>
 
-        <div className="mt-3 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wide text-brand-600">
+        <div className="mt-3 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wide text-brand-600 dark:text-brand-400">
           <PartyPopper className="h-3.5 w-3.5" />
           Welcome to MadeVisa
         </div>
 
-        <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink-950">Hey, {firstName}!</h2>
-        <p className="mt-2 text-sm leading-6 text-ink-500">
+        <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink-950 dark:text-ink-50">Hey, {firstName}!</h2>
+        <p className="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400">
           Your account is ready. Jobs, programs and visa experts are all matched to your profile from here on.
         </p>
 
@@ -61,7 +61,7 @@ export function WelcomeModal({ go }: WelcomeModalProps) {
           <button
             type="button"
             onClick={clearJustSignedIn}
-            className="rounded-lg px-5 py-2.5 text-sm font-semibold text-ink-500 hover:bg-ink-50"
+            className="rounded-lg px-5 py-2.5 text-sm font-semibold text-ink-500 dark:text-ink-400 hover:bg-ink-50 dark:hover:bg-ink-800"
           >
             Start exploring
           </button>

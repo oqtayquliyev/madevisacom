@@ -20,9 +20,9 @@ export function PhoneInput({ countryIsoCode, value, onChange, required }: PhoneI
 
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-ink-600">Phone{required ? '' : ' (optional)'}</span>
-      <div className="flex overflow-hidden rounded-xl border border-ink-200 bg-white transition focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-100">
-        <span className="flex shrink-0 items-center border-r border-ink-200 bg-ink-50 px-3 text-sm font-semibold text-ink-600">
+      <span className="mb-1.5 block text-sm font-medium text-ink-600 dark:text-ink-300">Phone{required ? '' : ' (optional)'}</span>
+      <div className="flex overflow-hidden rounded-xl border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-900 transition focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-100 dark:focus-within:ring-brand-900">
+        <span className="flex shrink-0 items-center border-r border-ink-200 dark:border-ink-700 bg-ink-50 dark:bg-ink-800 px-3 text-sm font-semibold text-ink-600 dark:text-ink-300">
           {dialCode ?? '+ ?'}
         </span>
         <input
@@ -31,7 +31,7 @@ export function PhoneInput({ countryIsoCode, value, onChange, required }: PhoneI
           onChange={(e) => onChange(e.target.value)}
           placeholder={dialCode ? '50 555 12 34' : 'Select a country first'}
           required={required}
-          className="w-full px-3.5 py-3 text-sm text-ink-800 outline-none"
+          className="w-full px-3.5 py-3 text-sm text-ink-800 dark:text-ink-100 outline-none"
         />
       </div>
       {!dialCode && (

@@ -105,7 +105,7 @@ function GlobeIllustration({ destinations }: { destinations: typeof destinationI
                       countryCode={d.countryCode}
                       label={d.countryName}
                       size={22}
-                      className="ring-2 ring-ink-950"
+                      className="ring-2 ring-ink-950 dark:ring-white/10"
                     />
                   </div>
                 </div>

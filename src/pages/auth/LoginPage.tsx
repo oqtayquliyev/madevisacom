@@ -80,7 +80,7 @@ export function LoginPage({ onSwitchToRegister, onHome }: LoginPageProps) {
     <AuthCard title="Welcome back" subtitle="Sign in to continue managing your trips." onHome={onHome} showSidePanel>
       <ErrorBanner message={error} />
       {resetSent && (
-        <div className="mb-4 flex items-start gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 ring-1 ring-emerald-200">
+        <div className="mb-4 flex items-start gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-200 dark:ring-emerald-800">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           Password reset link sent to {email}. Check your inbox.
         </div>
@@ -98,14 +98,14 @@ export function LoginPage({ onSwitchToRegister, onHome }: LoginPageProps) {
           type="button"
           onClick={handleForgotPassword}
           disabled={resetLoading || !captchaToken}
-          className="font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50"
+          className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 disabled:opacity-50"
         >
           Forgot password?
         </button>
         <a
           href="/register"
           onClick={(event) => handleNavClick(event, onSwitchToRegister)}
-          className="inline-flex items-center gap-1.5 font-medium text-ink-500 hover:text-ink-900"
+          className="inline-flex items-center gap-1.5 font-medium text-ink-500 dark:text-ink-400 hover:text-ink-900 dark:hover:text-ink-50"
         >
           <Link className="h-3.5 w-3.5" />Create account
         </a>

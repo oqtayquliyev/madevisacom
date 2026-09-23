@@ -20,18 +20,18 @@ export function AdBanner({ content }: { content: AdBannerContent }) {
       href={content.url}
       target="_blank"
       rel="noopener noreferrer sponsored"
-      className="group flex flex-col gap-4 overflow-hidden border border-amber-200 bg-amber-50/60 p-4 transition hover:border-amber-300 sm:flex-row sm:items-center lg:col-span-2"
+      className="group flex flex-col gap-4 overflow-hidden border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/30 p-4 transition hover:border-amber-300 dark:hover:border-amber-800 sm:flex-row sm:items-center lg:col-span-2"
     >
       <div className="h-28 w-full shrink-0 overflow-hidden sm:h-20 sm:w-32">
         <img src={content.image} alt="" className="h-full w-full object-cover" />
       </div>
 
       <div className="min-w-0 flex-1">
-        <span className="inline-block rounded bg-amber-200/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+        <span className="inline-block rounded bg-amber-200/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:text-amber-300">
           Sponsored
         </span>
-        <h3 className="mt-1.5 text-sm font-bold text-ink-900">{content.title}</h3>
-        <p className="mt-0.5 text-xs text-ink-500">{content.description}</p>
+        <h3 className="mt-1.5 text-sm font-bold text-ink-900 dark:text-ink-50">{content.title}</h3>
+        <p className="mt-0.5 text-xs text-ink-500 dark:text-ink-400">{content.description}</p>
         <p className="mt-1 text-[11px] font-medium text-ink-400">By {content.advertiser}</p>
       </div>
 

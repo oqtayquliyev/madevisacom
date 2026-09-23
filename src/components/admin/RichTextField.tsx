@@ -59,9 +59,9 @@ export function RichTextField({ label, value, onChange }: { label?: string; valu
 
   return (
     <div>
-      {label && <label className="mb-1 block text-[11px] font-semibold text-ink-500">{label}</label>}
-      <div className="rounded-md border border-ink-200 focus-within:border-brand-500">
-        <div className="flex flex-wrap gap-0.5 border-b border-ink-100 bg-ink-50/60 p-1">
+      {label && <label className="mb-1 block text-[11px] font-semibold text-ink-500 dark:text-ink-400">{label}</label>}
+      <div className="rounded-md border border-ink-200 dark:border-ink-700 focus-within:border-brand-500">
+        <div className="flex flex-wrap gap-0.5 border-b border-ink-100 dark:border-ink-800 bg-ink-50/60 dark:bg-ink-800/60 p-1">
           <ToolbarButton icon={Bold} label="Bold" onClick={() => exec('bold')} />
           <ToolbarButton icon={Italic} label="Italic" onClick={() => exec('italic')} />
           <ToolbarButton icon={Heading2} label="Heading" onClick={() => exec('formatBlock', '<h2>')} />
@@ -77,7 +77,7 @@ export function RichTextField({ label, value, onChange }: { label?: string; valu
           suppressContentEditableWarning
           onInput={emitChange}
           onBlur={emitChange}
-          className="prose-job min-h-[220px] max-h-[480px] overflow-y-auto p-3 text-sm leading-6 text-ink-800 outline-none [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-ink-950 [&_h2]:first:mt-0 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-ink-900 [&_p]:mt-2 [&_p]:first:mt-0 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mt-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mt-1 [&_strong]:font-bold [&_a]:text-brand-600 [&_a]:underline"
+          className="prose-job min-h-[220px] max-h-[480px] overflow-y-auto p-3 text-sm leading-6 text-ink-800 dark:text-ink-100 outline-none [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-ink-950 dark:[&_h2]:text-ink-50 [&_h2]:first:mt-0 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-ink-900 dark:[&_h3]:text-ink-50 [&_p]:mt-2 [&_p]:first:mt-0 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mt-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mt-1 [&_strong]:font-bold [&_a]:text-brand-600 dark:[&_a]:text-brand-400 [&_a]:underline"
         />
       </div>
       <p className="mt-1 text-[10px] text-ink-400">
@@ -99,7 +99,7 @@ function ToolbarButton({ icon: Icon, label, onClick }: { icon: typeof Bold; labe
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="rounded p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+      className="rounded p-1.5 text-ink-500 dark:text-ink-400 hover:bg-ink-100 dark:hover:bg-ink-800 hover:text-ink-800 dark:hover:text-ink-100"
     >
       <Icon className="h-3.5 w-3.5" />
     </button>

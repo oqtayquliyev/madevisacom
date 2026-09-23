@@ -31,7 +31,7 @@ export function TravelerAvatar({ avatarUrl, size = 36, className = '' }: Travele
         width={size}
         height={size}
         style={{ width: size, height: size }}
-        className={`shrink-0 rounded-full border border-ink-100 object-cover ${className}`}
+        className={`shrink-0 rounded-full border border-ink-100 dark:border-ink-800 object-cover ${className}`}
       />
     );
   }
@@ -39,7 +39,7 @@ export function TravelerAvatar({ avatarUrl, size = 36, className = '' }: Travele
   return (
     <span
       style={{ width: size, height: size }}
-      className={`grid shrink-0 place-items-center rounded-full border border-ink-200 bg-ink-100 text-ink-400 ${className}`}
+      className={`grid shrink-0 place-items-center rounded-full border border-ink-200 dark:border-ink-700 bg-ink-100 dark:bg-ink-800 text-ink-400 ${className}`}
     >
       <User style={{ width: size * 0.55, height: size * 0.55 }} />
     </span>
