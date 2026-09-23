@@ -332,22 +332,38 @@ export async function deleteSponsoredJob(id: string): Promise<{ ok: boolean; err
   return { ok: true };
 }
 
-export async function bulkDeleteJobs(ids: string[]): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase.from('sponsored_jobs').delete().in('id', ids);
-  if (error) return { ok: false, error: error.message };
+// `.in('id', ids)` embeds every id directly in the request URL's query
+// string (unlike a plain insert, which puts rows in the request body),
+// so a big batch here risks a URL-length limit somewhere in the stack
+// (Supabase/PostgREST/CDN) long before it risks any row-count limit —
+// a large batch (Roche-sized: 1000+) reliably fails with a bare "Bad
+// Request" and no useful detail. 50 ids per chunk keeps every request
+// comfortably under any realistic limit. Every bulk id-list operation
+// below runs through this helper rather than a single `.in()` call.
+const IN_CLAUSE_CHUNK_SIZE = 50;
+
+async function runChunkedInClause(
+  ids: string[],
+  runChunk: (chunk: string[]) => Promise<{ error: { message: string } | null }>
+): Promise<{ ok: boolean; error?: string }> {
+  for (let i = 0; i < ids.length; i += IN_CLAUSE_CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + IN_CLAUSE_CHUNK_SIZE);
+    const { error } = await runChunk(chunk);
+    if (error) return { ok: false, error: error.message };
+  }
   return { ok: true };
+}
+
+export async function bulkDeleteJobs(ids: string[]): Promise<{ ok: boolean; error?: string }> {
+  return runChunkedInClause(ids, (chunk) => supabase.from('sponsored_jobs').delete().in('id', chunk));
 }
 
 export async function bulkDeletePrograms(ids: string[]): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase.from('programs').delete().in('id', ids);
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  return runChunkedInClause(ids, (chunk) => supabase.from('programs').delete().in('id', chunk));
 }
 
 export async function bulkSetProgramStatus(ids: string[], status: ListingStatus): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase.from('programs').update({ status }).in('id', ids);
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  return runChunkedInClause(ids, (chunk) => supabase.from('programs').update({ status }).in('id', chunk));
 }
 
 export async function fetchAdmins(): Promise<AdminProfile[]> {
@@ -567,15 +583,11 @@ export async function importJobsAsPending(
 }
 
 export async function bulkSetJobStatus(ids: string[], status: ListingStatus): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase.from('sponsored_jobs').update({ status }).in('id', ids);
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  return runChunkedInClause(ids, (chunk) => supabase.from('sponsored_jobs').update({ status }).in('id', chunk));
 }
 
 export async function bulkSetJobImage(ids: string[], imageUrl: string): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase.from('sponsored_jobs').update({ image_url: imageUrl }).in('id', ids);
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  return runChunkedInClause(ids, (chunk) => supabase.from('sponsored_jobs').update({ image_url: imageUrl }).in('id', chunk));
 }
 
 /**
