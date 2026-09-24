@@ -208,7 +208,7 @@ function JobCard({
             Salary
           </p>
 
-          <p className="mt-0.5 text-sm font-bold text-ink-900">
+          <p className="mt-0.5 text-base font-bold text-ink-950">
             {job.salary}
           </p>
         </div>

@@ -225,7 +225,7 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
         {job.remote && <span className="font-semibold text-emerald-700">Remote</span>}
       </div>
 
-      {job.salary && <p className="mt-3 text-[15px] font-bold text-ink-900">{job.salary}</p>}
+      {job.salary && <p className="mt-3 font-slab text-lg font-bold leading-snug text-ink-950">{job.salary}</p>}
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3.5">
         <DateTag job={job} />

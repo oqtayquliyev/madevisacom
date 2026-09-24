@@ -502,7 +502,7 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
         <h3 className="mt-3 font-slab text-base font-bold leading-snug text-ink-950 line-clamp-2">{item.title}</h3>
 
         {salaryOrFunding ? (
-          <p className="mt-1 truncate text-sm font-extrabold text-ink-950">{salaryOrFunding}</p>
+          <p className="mt-1 truncate font-slab text-base font-bold leading-snug text-ink-950">{salaryOrFunding}</p>
         ) : (
           <p className="mt-1 truncate text-xs font-medium text-ink-500">{item.org}</p>
         )}
