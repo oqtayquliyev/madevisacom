@@ -20,6 +20,7 @@ import { estimateJourneyCostBreakdown } from '@/lib/costEstimates';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { LocationMatchSection, fetchMatchItems, countNewWithin24h, type MatchItem } from './LocationMatchSection';
+import { useSiteStats } from '@/lib/siteStats';
 import { allCountries, type CountryEntry } from '@/data/allCountries';
 import { CircleFlag } from '@/components/common/CircleFlag';
 
@@ -414,6 +415,8 @@ export function LandingHero({
   // data, same object) so the "X new" badge on the Relocation tab can
   // never disagree with what the section actually displays.
   const [matchItems, setMatchItems] = useState<MatchItem[] | null>(null);
+  const [matchItemsComplete, setMatchItemsComplete] = useState(false);
+  const siteStats = useSiteStats();
 
   useEffect(() => {
     let cancelled = false;
@@ -421,13 +424,17 @@ export function LandingHero({
       if (!cancelled) setMatchItems(items);
     };
     // Paints from the cached copy / newest page first, then the full list.
-    fetchMatchItems(show).then(show);
+    fetchMatchItems(show).then((items) => {
+      show(items);
+      if (!cancelled) setMatchItemsComplete(true);
+    });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const new24hCount = matchItems ? countNewWithin24h(matchItems) : 0;
+  // From the hourly snapshot when available (steady, same on every device).
+  const new24hCount = siteStats ? siteStats.newJobs24h : matchItems && matchItemsComplete ? countNewWithin24h(matchItems) : 0;
 
   const { user } = useAuth();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
@@ -583,6 +590,7 @@ export function LandingHero({
         {activeJourney === 'relocation' ? (
           <LocationMatchSection
             items={matchItems}
+            itemsComplete={matchItemsComplete}
             originCode={detectedCode}
             originName={detectedName}
             setOriginCountry={setCountry}

@@ -23,6 +23,7 @@ import { allCountries } from '@/data/allCountries';
 import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/costEstimates';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
+import { useSiteStats } from '@/lib/siteStats';
 import { fetchSponsoredPrograms } from '@/lib/programs';
 import { formatCost } from '@/lib/listingCategories';
 import { stripHtml } from '@/lib/atsImport';
@@ -266,11 +267,14 @@ function useCountUp(target: number | null, duration = 1400): number {
 
 export function LocationMatchSection({
   items,
+  itemsComplete = true,
   originCode,
   originName,
   setOriginCountry,
 }: {
   items: MatchItem[] | null;
+  /** False while `items` is a cached copy / first page and the full list is still loading. */
+  itemsComplete?: boolean;
   originCode: string | null;
   originName: string | null;
   setOriginCountry: (code: string) => void;
@@ -301,12 +305,17 @@ export function LocationMatchSection({
       cancelled = true;
     };
   }, []);
+  // Worldwide: the hourly snapshot (same number /jobs shows, instant, no
+  // climbing while jobs load). For one destination: counted from the list,
+  // but only once the whole list is in, so it never shows a partial number.
+  const stats = useSiteStats();
   const jobCount = useMemo(() => {
-    if (!visibleItems) return null;
+    if (!destinationCode) return stats?.publishedJobs ?? (items && itemsComplete ? items.filter((i) => i.kind === 'job').length : null);
+    if (!visibleItems || !itemsComplete) return null;
     const own = visibleItems.filter((i) => i.kind === 'job').length;
-    const live = liveJobs.filter((j) => !destinationCode || j.countryCode === destinationCode).length;
+    const live = liveJobs.filter((j) => j.countryCode === destinationCode).length;
     return own + live;
-  }, [visibleItems, liveJobs, destinationCode]);
+  }, [stats, items, itemsComplete, visibleItems, liveJobs, destinationCode]);
   const animatedCount = useCountUp(jobCount);
 
   return (
@@ -319,7 +328,7 @@ export function LocationMatchSection({
 
       <h2 className="mt-3 text-xl font-bold tracking-tight text-ink-950 sm:text-2xl">
         From <span className="text-brand-600">{originName ?? 'your country'}</span> to{' '}
-        {visibleItems ? (
+        {jobCount != null ? (
           <a
             href={`/jobs${countryParam}`}
             className="tabular-nums text-brand-700 underline decoration-2 underline-offset-4 transition hover:text-brand-800"
@@ -403,7 +412,7 @@ export function LocationMatchSection({
           {shownItems.map((item) => (
             <MatchCard key={`${item.kind}-${item.id}`} item={item} originCode={originCode} />
           ))}
-          <ExploreMoreTile countryParam={countryParam} destinationName={destinationCountry?.name} count={animatedCount} />
+          <ExploreMoreTile countryParam={countryParam} destinationName={destinationCountry?.name} count={jobCount != null ? animatedCount : null} />
         </div>
       )}
     </div>
@@ -451,7 +460,7 @@ function GrowingArrow() {
   );
 }
 
-function ExploreMoreTile({ countryParam, destinationName, count }: { countryParam: string; destinationName?: string; count: number }) {
+function ExploreMoreTile({ countryParam, destinationName, count }: { countryParam: string; destinationName?: string; count: number | null }) {
   // The whole tile is one link to the Jobs page.
   return (
     <a
@@ -462,7 +471,7 @@ function ExploreMoreTile({ countryParam, destinationName, count }: { countryPara
         <p className="flex items-center gap-1.5 text-3xl font-extrabold tracking-tight text-ink-950 tabular-nums">
           {/* Green up arrow — rises slightly on hover/tap */}
           <UpArrowIcon className="h-7 w-7 text-emerald-600 transition-transform duration-300 ease-out group-hover:-translate-y-1 group-active:-translate-y-1" />
-          {count.toLocaleString()}
+          {count != null ? count.toLocaleString() : <span className="skeleton-shimmer inline-block h-[1em] w-20 rounded-md align-[-0.1em]" aria-hidden="true" />}
         </p>
         <p className="mt-0.5 text-xs font-medium text-ink-500">
           {destinationName ? `opportunities in ${destinationName}` : 'opportunities open now'}

@@ -26,6 +26,7 @@ import { Logo } from '@/components/layout/Logo';
 import { categories, countries, jobTypes, type Job } from '@/data/jobs';
 import { DISCOVERY_CATEGORIES, displayJobCategory, isMeaningfulJobType, isStudentOrInternJob, matchesDiscoveryCategory } from '@/lib/jobCategories';
 import { moveToBack, recencyBucket, recentlyShownIds, rememberShown, visitShuffle } from '@/lib/feedRotation';
+import { useSiteStats } from '@/lib/siteStats';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
@@ -100,6 +101,36 @@ function interleaveByCompany(jobs: Job[]): Job[] {
     round++;
   }
   return result;
+}
+
+function activeFilterCountFor(f: {
+  country: string;
+  category: string;
+  jobType: string;
+  remoteOnly: boolean;
+  city: string;
+  company: string;
+  salaryOnly: boolean;
+  experienceLevel: string;
+  datePosted: string;
+  directOnly: boolean;
+  studentOnly: boolean;
+  visaOnly: boolean;
+}): number {
+  return (
+    Number(f.country !== 'All countries') +
+    Number(f.category !== 'All categories') +
+    Number(f.jobType !== 'All types') +
+    Number(f.remoteOnly) +
+    Number(Boolean(f.city)) +
+    Number(Boolean(f.company)) +
+    Number(f.salaryOnly) +
+    Number(f.experienceLevel !== 'All levels') +
+    Number(f.datePosted !== 'Any time') +
+    Number(f.directOnly) +
+    Number(f.studentOnly) +
+    Number(f.visaOnly)
+  );
 }
 
 const PLACEHOLDER_PLACE = /^(?:all|any|various|multiple(?: locations)?|n\/?a|none|-)$/i;
@@ -398,6 +429,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   const [loadingSponsored, setLoadingSponsored] = useState(true);
   // False while showing a cached copy / the first page and the full list is still loading.
   const [sponsoredComplete, setSponsoredComplete] = useState(false);
+  const siteStats = useSiteStats();
 
   useEffect(() => {
     let cancelled = false;
@@ -586,6 +618,16 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   useEffect(() => {
     if (unfiltered && !loadingSponsored) rememberShown('jobs', filteredJobs.slice(0, PAGE_SIZE).map((j) => j.id));
   }, [unfiltered, loadingSponsored, filteredJobs]);
+
+  // Headline number: with no filters, the hourly snapshot (instant and the
+  // same as the landing page). With filters, the real match count — shown
+  // once the full list is in, never a partial number that climbs.
+  const noFilters = activeFilterCountFor({ country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, directOnly, studentOnly, visaOnly }) === 0 && !search.trim();
+  const headlineCount: number | null = noFilters
+    ? siteStats?.publishedJobs ?? (sponsoredComplete ? filteredJobs.length : null)
+    : sponsoredComplete
+      ? filteredJobs.length
+      : null;
 
   const visibleJobs = filteredJobs.slice(0, visibleCount);
   const hasMore = visibleCount < filteredJobs.length;
@@ -811,12 +853,10 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
           <div>
             <h2 className="text-lg font-bold text-ink-900">Jobs in demand</h2>
             <p className="mt-0.5 flex items-center gap-1.5 text-sm text-ink-500">
-              {filteredJobs.length.toLocaleString()} opportunities
-              {!sponsoredComplete && !loading && (
-                <span className="flex items-center gap-1 text-xs text-ink-400">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  updating
-                </span>
+              {headlineCount != null ? (
+                <>{headlineCount.toLocaleString()} opportunities</>
+              ) : (
+                <span className="skeleton-shimmer inline-block h-4 w-32 rounded" aria-label="Counting opportunities" />
               )}
             </p>
           </div>
@@ -850,7 +890,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
               }`}
             >
               <GraduationCap className="h-3.5 w-3.5" />
-              Students &amp; interns ({studentCount.toLocaleString()})
+              Students &amp; interns{sponsoredComplete ? ` (${studentCount.toLocaleString()})` : ''}
             </button>
           )}
           {visaCount > 0 && (
@@ -863,7 +903,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
               }`}
             >
               <Plane className="h-3.5 w-3.5" />
-              Visa sponsorship ({visaCount.toLocaleString()})
+              Visa sponsorship{sponsoredComplete ? ` (${visaCount.toLocaleString()})` : ''}
             </button>
           )}
           {directJobs.length > 0 && (
