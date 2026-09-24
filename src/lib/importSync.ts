@@ -114,6 +114,7 @@ export function fetchedJobToImportInput(j: FetchedJob | (Omit<FetchedJob, 'updat
     postedAt: j.postedAt,
     remote: j.remote,
     salaryText: j.salaryText,
+    workArrangement: j.workArrangement ?? null,
   };
 }
 
@@ -204,6 +205,7 @@ type ExistingRow = {
   official_url: string | null;
   import_source_id: string | null;
   created_at: string;
+  work_arrangement?: string | null;
 };
 
 async function inChunks<T>(items: T[], size: number, fn: (chunk: T[]) => PromiseLike<{ error: { message: string } | null }>): Promise<string | null> {
@@ -256,17 +258,26 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
   const onlySourceForCompany = (sourceCount ?? 1) <= 1;
 
   let existing: ExistingRow[];
-  try {
-    existing = await fetchAllRows<ExistingRow>(() =>
+  // work_arrangement arrived in a later migration — fall back cleanly if it isn't there yet.
+  let hasWorkArrangement = true;
+  const loadExisting = (cols: string) =>
+    fetchAllRows<ExistingRow>(() =>
       supabase
         .from('sponsored_jobs')
-        .select('id, title, status, external_id, official_url, import_source_id, created_at', { count: 'exact' })
+        .select(cols, { count: 'exact' })
         .eq('publisher_id', source.publisher_id)
         .eq('origin', 'imported')
         .order('created_at', { ascending: true }) as unknown as {
         range: (from: number, to: number) => PromiseLike<{ data: ExistingRow[] | null; error: { message: string } | null; count?: number | null }>;
       }
     );
+  try {
+    try {
+      existing = await loadExisting('id, title, status, external_id, official_url, import_source_id, created_at, work_arrangement');
+    } catch {
+      hasWorkArrangement = false;
+      existing = await loadExisting('id, title, status, external_id, official_url, import_source_id, created_at');
+    }
   } catch (e) {
     summary.error = e instanceof Error ? e.message : 'Could not load existing jobs.';
     return finish('error');
@@ -321,7 +332,13 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
 
   // Rows that need per-row writes: legacy rows being linked to this source,
   // rows missing an external id, and all rows when refreshing content.
-  const needsOwnWrite = stillLive.filter(({ row, job }) => opts.refreshContent || row.import_source_id !== source.id || (!row.external_id && job.externalId));
+  const needsOwnWrite = stillLive.filter(
+    ({ row, job }) =>
+      opts.refreshContent ||
+      row.import_source_id !== source.id ||
+      (!row.external_id && job.externalId) ||
+      (hasWorkArrangement && !row.work_arrangement && job.workArrangement)
+  );
   const ownWriteSet = new Set(needsOwnWrite);
   const bulk = stillLive.filter((x) => !ownWriteSet.has(x));
 
@@ -340,6 +357,7 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
     const patch: Record<string, unknown> = { last_seen_at: now, import_source_id: source.id };
     if (job.externalId) patch.external_id = String(job.externalId);
     if (row.status === 'published') patch.expires_at = extendTo;
+    if (hasWorkArrangement && !row.work_arrangement && job.workArrangement) patch.work_arrangement = job.workArrangement;
     if (opts.refreshContent) {
       patch.title = job.title;
       if (job.description) patch.description = job.description;

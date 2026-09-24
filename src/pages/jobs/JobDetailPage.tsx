@@ -16,6 +16,7 @@ import { useSeo } from '@/lib/seo';
 import { sanitizeJobHtml } from '@/lib/atsImport';
 import { formatRelativeTime } from '@/lib/dates';
 import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
+import { detectJobFacts, workArrangementLabel } from '@/lib/jobFacts';
 
 type JobDetailPageProps = {
   id: string;
@@ -147,13 +148,42 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // or a link back to the original posting — never a guessed value or
   // a vague "Not specified".
   const see = <SourceLink url={hasSourceUrl ? job.url : null} />;
+  // Stored fields win; anything still missing is read from the
+  // description itself ("8–12 years of experience", "$126,000—$136,000
+  // CAD", "Work Type: Onsite", "unable to sponsor visas", ...).
+  const detected = detectJobFacts(job.description, job.title);
+  const salary = job.salary || detected.compensation;
+  const arrangement = job.workArrangement ?? detected.workArrangement ?? (job.remote ? 'remote' : null);
+  const arrangementLabel = workArrangementLabel(arrangement);
+  const employmentType = isMeaningfulJobType(job.type) ? job.type : detected.employmentType;
+  const visa = job.visaStatus ?? (job.visaSponsorship ? 'offered' : detected.visa);
   const details: { icon: typeof Briefcase; label: string; value: ReactNode }[] = [
-    { icon: Banknote, label: 'Compensation', value: job.salary || see },
-    { icon: MapPin, label: 'Remote', value: job.remote ? 'Yes' : see },
-    { icon: Briefcase, label: 'Employment type', value: isMeaningfulJobType(job.type) ? job.type : see },
-    { icon: GraduationCap, label: 'Experience level', value: job.experienceLevel || see },
-    { icon: Plane, label: 'Visa sponsorship', value: job.visaSponsorship ? 'Offered' : see },
+    { icon: Banknote, label: 'Compensation', value: salary ? <span className="font-bold text-ink-950">{salary}</span> : see },
+    {
+      icon: MapPin,
+      label: 'Remote',
+      value: arrangement === 'remote' ? 'Yes' : arrangement === 'hybrid' ? 'Hybrid' : arrangement === 'onsite' ? 'No — on-site' : see,
+    },
+    {
+      icon: Briefcase,
+      label: 'Employment type',
+      value: employmentType && arrangementLabel ? `${employmentType} · ${arrangementLabel}` : employmentType || arrangementLabel || see,
+    },
+    { icon: GraduationCap, label: 'Experience level', value: job.experienceLevel || detected.experience || see },
+    {
+      icon: Plane,
+      label: 'Visa sponsorship',
+      value: visa === 'offered' ? 'Offered' : visa === 'not_offered' ? 'Not offered' : <SourceLink url={hasSourceUrl ? job.url : null} label="Ask on source" />,
+    },
   ];
+
+  // Imported postings carry the date the company first published them.
+  // Evergreen roles can be a year old and still open — say so, rather
+  // than letting "Posted 1 year ago" read like a dead listing.
+  const isImported = job.sourceType === 'company_careers';
+  const postedAgeDays = job.postedDate ? (Date.now() - new Date(job.postedDate).getTime()) / 86_400_000 : 0;
+  const stillHiring = isImported && postedAgeDays > 30;
+  const stillHiringTitle = `Still listed on ${job.company}'s careers page${job.lastSeenAt ? ` (checked ${formatRelativeTime(job.lastSeenAt, '')})` : ''} — they're still looking.`;
   if (job.spotsAvailable != null) details.push({ icon: Users, label: 'Positions available', value: String(job.spotsAvailable) });
 
   const applyButton = (extra = '') => (
@@ -223,6 +253,12 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                   <span className="flex items-center gap-1.5">
                     <Calendar className="h-4 w-4" />
                     Posted {postedLabel}
+                    {isImported ? ` on ${job.company}` : ''}
+                  </span>
+                )}
+                {stillHiring && (
+                  <span title={stillHiringTitle} className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold text-white ring-1 ring-white/30">
+                    {job.company} is still hiring
                   </span>
                 )}
               </div>
@@ -320,7 +356,7 @@ function HeaderLogo({ job, SponsorIcon }: { job: Job; SponsorIcon: typeof Buildi
 }
 
 /** Underlined link back to the original posting, used wherever a detail isn't in our data. */
-function SourceLink({ url }: { url: string | null }) {
+function SourceLink({ url, label = 'See on source' }: { url: string | null; label?: string }) {
   if (!url) return <span className="font-medium text-ink-500">Check the original listing</span>;
   return (
     <a
@@ -329,7 +365,7 @@ function SourceLink({ url }: { url: string | null }) {
       rel="noopener noreferrer"
       className="font-semibold text-brand-700 underline decoration-brand-300 underline-offset-2 hover:decoration-brand-700"
     >
-      See on source
+      {label}
     </a>
   );
 }

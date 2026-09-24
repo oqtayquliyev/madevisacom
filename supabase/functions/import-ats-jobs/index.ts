@@ -107,6 +107,8 @@ type NormalizedJob = {
   employmentTypeRaw: string | null;
   postedAt: string | null;
   remote: boolean | null;
+  /** 'onsite' | 'hybrid' | 'remote' when the source states it (e.g. Eightfold work_location_option, Workday remoteType). */
+  workArrangement?: "onsite" | "hybrid" | "remote" | null;
   salaryText: string | null;
 };
 
@@ -260,6 +262,17 @@ function remoteOf(v: any): boolean | null {
   if (/hybrid/.test(s)) return null;
   if (/remote|telecommut|virtual|work from home|home[\s-]?based|anywhere/.test(s)) return true;
   if (/on-?site|in-?office/.test(s)) return false;
+  return null;
+}
+
+/** On-site / hybrid / remote from a source's work-type field, or null when it doesn't say. */
+function workArrangementOf(v: any): "onsite" | "hybrid" | "remote" | null {
+  if (typeof v === "boolean") return v ? "remote" : null;
+  const s = textOf(v).toLowerCase();
+  if (!s) return null;
+  if (/hybrid|flexible/.test(s)) return "hybrid";
+  if (/remote|telecommut|virtual|work from home|home[\s-]?based|anywhere/.test(s)) return "remote";
+  if (/on-?\s?site|onsite|in-?office|office|in[- ]person/.test(s)) return "onsite";
   return null;
 }
 
@@ -828,6 +841,7 @@ function jobFromObject(obj: any, base: string, pageLinks: string[] = []): Normal
     employmentTypeRaw: textOf(pick(src, K.type)) || null,
     postedAt: toIsoDate(pick(src, K.posted)),
     remote,
+    workArrangement: remoteRaw !== undefined ? workArrangementOf(remoteRaw) : null,
     salaryText: salaryOf(pick(src, K.salary)),
   };
 }
@@ -1572,6 +1586,7 @@ async function fetchWorkday(ctx: Ctx, url: string, from: number): Promise<BatchR
     employmentTypeRaw: null,
     postedAt: toIsoDate(p.postedOn),
     remote: remoteOf(p.remoteType ?? p.locationsText),
+    workArrangement: workArrangementOf(p.remoteType),
     salaryText: null,
   }));
 
@@ -1592,6 +1607,7 @@ async function fetchWorkday(ctx: Ctx, url: string, from: number): Promise<BatchR
     j.employmentTypeRaw = textOf(info.timeType) || null;
     j.postedAt = toIsoDate(info.startDate) ?? j.postedAt;
     j.remote = remoteOf(info.remoteType) ?? j.remote;
+    j.workArrangement = workArrangementOf(info.remoteType) ?? j.workArrangement;
     j.category = textOf(info.jobFamily ?? info.jobCategory) || null;
   });
 
@@ -1652,6 +1668,7 @@ async function fetchLever(ctx: Ctx, company: string, eu: boolean, from: number):
       employmentTypeRaw: textOf(c.commitment) || null,
       postedAt: toIsoDate(p.createdAt),
       remote: p.workplaceType ? remoteOf(p.workplaceType) : null,
+      workArrangement: workArrangementOf(p.workplaceType),
       salaryText: p.salaryRange ? salaryOf(p.salaryRange) : null,
     };
   });
@@ -1676,6 +1693,7 @@ async function fetchAshby(ctx: Ctx, org: string, from: number): Promise<BatchRes
       employmentTypeRaw: textOf(j.employmentType) || null,
       postedAt: toIsoDate(j.publishedAt),
       remote: typeof j.isRemote === "boolean" ? j.isRemote : null,
+      workArrangement: workArrangementOf(j.workplaceType ?? (j.isRemote ? "remote" : null)),
       salaryText: textOf(j.compensation?.compensationTierSummary ?? j.compensation?.scrapeableCompensationSalarySummary) || null,
     };
   });
@@ -1796,6 +1814,7 @@ async function fetchOracle(ctx: Ctx, url: string, from: number, st: State): Prom
       employmentTypeRaw: textOf(r.JobSchedule ?? r.JobType) || null,
       postedAt: toIsoDate(r.PostedDate),
       remote: remoteOf(r.WorkplaceType ?? r.WorkplaceTypeCode),
+      workArrangement: workArrangementOf(r.WorkplaceType ?? r.WorkplaceTypeCode),
       salaryText: null,
     };
   });

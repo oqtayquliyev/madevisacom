@@ -29,6 +29,7 @@ import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
 import { PersonalizationBar } from '@/components/opportunities/PersonalizationBar';
 import { jobPath } from '@/lib/jobUrl';
+import { experienceBucket } from '@/lib/jobFacts';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 
 type JobsPageProps = {
@@ -428,7 +429,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   // allJobs, same as the other two, fixes that.
   const jobCountryOptions = useMemo(() => Array.from(new Set(allJobs.map((j) => j.country).filter(Boolean))).sort(), [allJobs]);
   const experienceLevelOptions = useMemo(
-    () => Array.from(new Set(allJobs.map((j) => j.experienceLevel).filter((v): v is string => Boolean(v)))).sort(),
+    () => Array.from(new Set(allJobs.map((j) => experienceBucket(j.experienceLevel)).filter((v): v is string => Boolean(v)))).sort(),
     [allJobs]
   );
 
@@ -483,7 +484,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       const matchesCity = !normalizedCity || job.city.toLowerCase().includes(normalizedCity);
       const matchesCompany = !normalizedCompany || job.company.toLowerCase().includes(normalizedCompany);
       const matchesSalary = !salaryOnly || Boolean(job.salary);
-      const matchesLevel = experienceLevel === 'All levels' || job.experienceLevel === experienceLevel;
+      const matchesLevel = experienceLevel === 'All levels' || experienceBucket(job.experienceLevel) === experienceLevel;
       const matchesDate = withinDateWindow(job.postedDate, datePosted);
       const matchesDirect = !directOnly || job.sourceType === 'company_submitted';
 

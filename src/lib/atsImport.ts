@@ -17,6 +17,8 @@ export type FetchedJob = {
   postedAt?: string | null;
   remote?: boolean | null;
   salaryText?: string | null;
+  /** 'onsite' | 'hybrid' | 'remote' when the source states it. */
+  workArrangement?: 'onsite' | 'hybrid' | 'remote' | null;
 };
 
 /**

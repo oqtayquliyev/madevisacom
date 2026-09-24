@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { detectJobFacts, type WorkArrangement } from '@/lib/jobFacts';
 import type { OrgType } from '@/lib/programs';
 import type { ListingStatus, SalaryStatus, SalaryPeriod, CostStatus } from '@/lib/listingCategories';
 import { JOB_CATEGORIES, type JobCategory } from '@/lib/listingCategories';
@@ -562,6 +563,7 @@ export type ImportJobInput = {
   postedAt?: string | null;
   remote?: boolean | null;
   salaryText?: string | null;
+  workArrangement?: WorkArrangement | null;
 };
 
 /** Lowercase host, no hash/trailing slash/utm_* — so the same posting matches however its URL was written. */
@@ -583,9 +585,13 @@ export function importJobToRow(
   countries: ImportCountryLookup[],
   options: { importSourceId?: string | null; status?: 'pending' | 'published' } = {}
 ) {
-  // Employment type comes ONLY from employmentTypeRaw — j.category is a
-  // job-function value (Design, Engineering, ...), not an employment type.
-  const jobCategory = normalizeJobCategory(j.employmentTypeRaw);
+  // Employment type comes from employmentTypeRaw (or, failing that, what
+  // the description says) — j.category is a job-function value (Design,
+  // Engineering, ...), not an employment type.
+  const facts = detectJobFacts(j.description, j.title);
+  const jobCategory = normalizeJobCategory(j.employmentTypeRaw || facts.employmentType);
+  const arrangement = j.workArrangement ?? facts.workArrangement;
+  const salaryText = j.salaryText || facts.compensation;
   return {
     publisher_id: publisherId,
     title: j.title,
@@ -593,7 +599,7 @@ export function importJobToRow(
     category: jobCategory,
     employment_type: jobCategory,
     job_function: j.category ?? null,
-    remote: j.remote ?? false,
+    remote: j.remote ?? arrangement === 'remote',
     country_id: resolveCountryId(j.additionalLocations, j.locationText, countries),
     city: deriveCity(j.additionalLocations?.[0] ?? j.locationText),
     official_url: j.officialUrl,
@@ -605,8 +611,35 @@ export function importJobToRow(
     import_source_id: options.importSourceId ?? null,
     external_id: j.externalId ? String(j.externalId) : null,
     last_seen_at: new Date().toISOString(),
-    ...(j.salaryText ? { compensation_text: j.salaryText, salary_status: 'disclosed' as const } : {}),
+    experience_level: facts.experience,
+    visa_sponsorship: facts.visa === 'offered',
+    // New columns (20260925090000 migration). insertJobRows() drops them
+    // automatically if that migration hasn't been run yet.
+    work_arrangement: arrangement,
+    visa_status: facts.visa,
+    ...(salaryText ? { compensation_text: salaryText, salary_status: 'disclosed' as const } : {}),
   };
+}
+
+const OPTIONAL_NEW_COLUMNS = ['work_arrangement', 'visa_status'];
+
+/** True when PostgREST rejected a write because a column doesn't exist yet (migration not run). */
+function isMissingColumnError(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === 'PGRST204' || error.code === '42703' || /column .* (does not exist|of '.*' in the schema cache)/i.test(error.message ?? '');
+}
+
+/** Inserts rows; if the optional new columns don't exist yet, retries without them instead of failing the import. */
+async function insertJobRows(rows: Record<string, unknown>[]): Promise<{ error: { message: string } | null }> {
+  const first = await supabase.from('sponsored_jobs').insert(rows);
+  if (!isMissingColumnError(first.error)) return { error: first.error };
+  const stripped = rows.map((r) => {
+    const copy = { ...r };
+    for (const c of OPTIONAL_NEW_COLUMNS) delete copy[c];
+    return copy;
+  });
+  const second = await supabase.from('sponsored_jobs').insert(stripped);
+  return { error: second.error };
 }
 
 /**
@@ -663,7 +696,7 @@ export async function importJobsAsPending(
   let imported = 0;
   for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
     const chunk = rows.slice(i, i + INSERT_CHUNK_SIZE);
-    const { error } = await supabase.from('sponsored_jobs').insert(chunk);
+    const { error } = await insertJobRows(chunk);
     if (error) {
       return {
         ok: imported > 0,
@@ -864,4 +897,98 @@ export async function backfillJobFunctions(): Promise<{ ok: boolean; updated: nu
   }
 
   return { ok: true, updated, skipped };
+}
+
+// ---------------------------------------------------------------------------
+// Detect job details (salary, experience, work type, employment type, visa)
+// from descriptions — for jobs imported before the detectors existed.
+// Only fills fields that are empty; never overwrites what's already set.
+// ---------------------------------------------------------------------------
+
+type FactRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  compensation_text: string | null;
+  salary_status: string | null;
+  experience_level: string | null;
+  employment_type: string | null;
+  remote: boolean;
+  visa_sponsorship: boolean;
+  work_arrangement?: string | null;
+  visa_status?: string | null;
+};
+
+export async function backfillJobFacts(
+  onProgress?: (done: number, total: number) => void
+): Promise<{ ok: boolean; scanned: number; updated: number; counts: Record<string, number>; error?: string; migrationMissing?: boolean }> {
+  const counts: Record<string, number> = { compensation: 0, experience: 0, employment: 0, workType: 0, visa: 0 };
+  const baseCols = 'id, title, description, compensation_text, salary_status, experience_level, employment_type, remote, visa_sponsorship';
+  let hasNewCols = true;
+  let rows: FactRow[];
+  const load = (cols: string) =>
+    fetchAllRows<FactRow>(() =>
+      supabase.from('sponsored_jobs').select(cols, { count: 'exact' }).not('description', 'is', null).order('created_at', { ascending: true }) as unknown as {
+        range: (from: number, to: number) => PromiseLike<{ data: FactRow[] | null; error: { message: string; code?: string } | null; count?: number | null }>;
+      }
+    );
+  try {
+    rows = await load(`${baseCols}, work_arrangement, visa_status`);
+  } catch {
+    hasNewCols = false;
+    try {
+      rows = await load(baseCols);
+    } catch (e) {
+      return { ok: false, scanned: 0, updated: 0, counts, error: e instanceof Error ? e.message : 'Could not load jobs.' };
+    }
+  }
+
+  const patches: { id: string; patch: Record<string, unknown> }[] = [];
+  for (const r of rows) {
+    const f = detectJobFacts(r.description, r.title);
+    const patch: Record<string, unknown> = {};
+    const comp = (r.compensation_text ?? '').trim();
+    if ((!comp || comp === '[object Object]') && f.compensation && r.salary_status !== 'volunteer') {
+      patch.compensation_text = f.compensation;
+      patch.salary_status = 'disclosed';
+      counts.compensation++;
+    }
+    if (!r.experience_level && f.experience) {
+      patch.experience_level = f.experience;
+      counts.experience++;
+    }
+    if ((!r.employment_type || r.employment_type === 'Other') && f.employmentType) {
+      patch.employment_type = f.employmentType;
+      patch.category = f.employmentType;
+      counts.employment++;
+    }
+    if (hasNewCols && !r.work_arrangement && f.workArrangement) {
+      patch.work_arrangement = f.workArrangement;
+      counts.workType++;
+    }
+    if (!r.remote && f.workArrangement === 'remote') patch.remote = true;
+    if (hasNewCols && !r.visa_status && f.visa) {
+      patch.visa_status = f.visa;
+      counts.visa++;
+    }
+    if (!r.visa_sponsorship && f.visa === 'offered') patch.visa_sponsorship = true;
+    if (Object.keys(patch).length) patches.push({ id: r.id, patch });
+  }
+
+  let updated = 0;
+  let firstError: string | undefined;
+  let cursor = 0;
+  await Promise.all(
+    Array.from({ length: 8 }, async () => {
+      while (cursor < patches.length) {
+        const { id, patch } = patches[cursor++];
+        const { error } = await supabase.from('sponsored_jobs').update(patch).eq('id', id);
+        if (error) firstError = firstError ?? error.message;
+        else updated++;
+        if (updated % 50 === 0) onProgress?.(updated, patches.length);
+      }
+    })
+  );
+  onProgress?.(updated, patches.length);
+  return { ok: !firstError, scanned: rows.length, updated, counts, error: firstError, migrationMissing: !hasNewCols };
 }

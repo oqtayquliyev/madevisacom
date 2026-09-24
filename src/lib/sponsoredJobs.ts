@@ -51,6 +51,12 @@ export type SponsoredJob = {
   additional_locations: string[] | null;
   /** 'direct' = posted on MadeVisa by the company itself; 'imported' = pulled from its careers page; 'admin' = added by MadeVisa staff. */
   origin?: 'direct' | 'imported' | 'admin';
+  /** 'onsite' | 'hybrid' | 'remote' — 20260925090000 migration; absent before it runs. */
+  work_arrangement?: 'onsite' | 'hybrid' | 'remote' | null;
+  /** 'offered' | 'not_offered' | null (source doesn't say). */
+  visa_status?: 'offered' | 'not_offered' | null;
+  /** Last time a sync saw this job still listed on the source. */
+  last_seen_at?: string | null;
   publisher?: { id: string; name: string; org_type: OrgType; logo_url: string | null; owner_id: string | null };
   country?: { id: string; name: string; iso_code: string };
 };
@@ -173,14 +179,24 @@ export async function updateMySponsoredJob(
   return { ok: true };
 }
 
+// Detail-page extras. Selected separately with a fallback so the job page
+// keeps working even if the newest migration hasn't been run yet — a
+// missing column must never make jobs disappear again.
+const detailColumns = `${columns.replace(', publisher:', ', last_seen_at, work_arrangement, visa_status, publisher:')}`;
+
+type DetailQuery = (cols: string) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
+async function withDetailColumns(run: DetailQuery) {
+  const first = await run(detailColumns);
+  if (!first.error) return first;
+  if (/column|schema cache/i.test(first.error.message) || first.error.code === '42703') return run(columns);
+  return first;
+}
+
 /** Fetches one published sponsored job by id — for the public job detail page. */
 export async function fetchSponsoredJobById(id: string): Promise<SponsoredJob | null> {
-  const { data, error } = await supabase
-    .from('sponsored_jobs')
-    .select(columns)
-    .eq('id', id)
-    .eq('status', 'published')
-    .maybeSingle();
+  const { data, error } = await withDetailColumns((cols) =>
+    supabase.from('sponsored_jobs').select(cols).eq('id', id).eq('status', 'published').maybeSingle()
+  );
 
   if (error) {
     console.error('fetchSponsoredJobById failed', error);
@@ -199,13 +215,15 @@ export async function fetchSponsoredJobById(id: string): Promise<SponsoredJob | 
 export async function fetchSponsoredJobByShortId(shortId: string, titleSlug?: string): Promise<SponsoredJob | null> {
   if (!/^[0-9a-f]{8}$/i.test(shortId)) return null;
   const prefix = shortId.toLowerCase();
-  const { data, error } = await supabase
-    .from('sponsored_jobs')
-    .select(columns)
-    .eq('status', 'published')
-    .gte('id', `${prefix}-0000-0000-0000-000000000000`)
-    .lte('id', `${prefix}-ffff-ffff-ffff-ffffffffffff`)
-    .limit(10);
+  const { data, error } = await withDetailColumns((cols) =>
+    supabase
+      .from('sponsored_jobs')
+      .select(cols)
+      .eq('status', 'published')
+      .gte('id', `${prefix}-0000-0000-0000-000000000000`)
+      .lte('id', `${prefix}-ffff-ffff-ffff-ffffffffffff`)
+      .limit(10)
+  );
 
   if (error) {
     console.error('fetchSponsoredJobByShortId failed', error);
@@ -270,6 +288,9 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     imageUrl: job.image_url,
     postedDate: job.source_posted_at,
     experienceLevel: job.experience_level,
+    workArrangement: job.work_arrangement ?? null,
+    visaStatus: job.visa_status ?? null,
+    lastSeenAt: job.last_seen_at ?? null,
     sourceType: isDirectListing(job) ? 'company_submitted' : 'company_careers',
   };
 }

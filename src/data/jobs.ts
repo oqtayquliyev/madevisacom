@@ -35,6 +35,10 @@ export type Job = {
   /** Original posting date on the source career site (ISO string), when known — distinct from `published`. Null/undefined renders as "Not specified" rather than being silently hidden. */
   postedDate?: string | null;
   experienceLevel?: string | null;
+  workArrangement?: 'onsite' | 'hybrid' | 'remote' | null;
+  visaStatus?: 'offered' | 'not_offered' | null;
+  /** Last time a sync confirmed the job is still on the company's careers page. */
+  lastSeenAt?: string | null;
   /** Where this listing actually came from, for the "Added by MadeVisa" vs "Posted by company" distinction — never inferred/guessed, only set where the source is genuinely known:
    *  - 'company_submitted': a verified company account (a real owner_id on the publisher) posted this directly.
    *  - 'company_careers': imported by MadeVisa staff from a company's own public careers page (see supabase/functions/import-ats-jobs) — no publisher owner account behind it.

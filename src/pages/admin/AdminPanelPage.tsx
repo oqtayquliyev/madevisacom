@@ -49,6 +49,7 @@ import {
   removePublisherMember,
   type DirectRequest,
   type PublisherMember,
+  backfillJobFacts,
 } from '@/lib/admin';
 import {
   deleteImportSource,
@@ -416,6 +417,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
 
             {tab === 'imports' && (
               <>
+                <BackfillJobFactsSection onChange={loadAll} compact />
+
                 <ImportSourcesSection sources={sources} allJobs={allJobs} countries={countries} verifiedPublishers={verifiedPublishers} onChange={loadAll} />
 
                 <ImportFromCareersUrlSection countries={countries} onImported={loadAll} />
@@ -468,6 +471,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
               <>
                 <AdminAccessSection admins={admins} currentEmail={profile?.email ?? ''} onChange={loadAll} />
                 <DesktopNotificationsSection />
+                <BackfillJobFactsSection onChange={loadAll} />
                 <BackfillJobFunctionsSection onChange={loadAll} />
               </>
             )}
@@ -2910,14 +2914,14 @@ function ImportSourcesSection({
         </div>
 
         {log.length > 0 && (
-          <div className="mt-3 rounded-md bg-ink-950 px-3 py-2 font-mono text-[11px] leading-5 text-ink-100">
+          <div className="mt-3 max-h-40 overflow-y-auto rounded-md bg-ink-950 px-3 py-2 font-mono text-[11px] leading-5 text-ink-100">
             {log.map((l, i) => <div key={i}>{l}</div>)}
           </div>
         )}
 
-        <div className="mt-3 overflow-x-auto rounded-lg border border-ink-100">
+        <div className="mt-3 max-h-[480px] overflow-auto rounded-lg border border-ink-100">
           <table className="w-full min-w-[720px] text-xs">
-            <thead className="bg-ink-50 text-left text-[10px] uppercase tracking-wide text-ink-500">
+            <thead className="sticky top-0 z-[1] bg-ink-50 text-left text-[10px] uppercase tracking-wide text-ink-500 shadow-[0_1px_0_0_rgb(0_0_0/0.06)]">
               <tr>
                 <th className="px-3 py-2">Company</th>
                 <th className="px-3 py-2">Source</th>
@@ -3203,6 +3207,55 @@ function CompanyAccessSection({ publishers, members, onChange }: { publishers: P
             );
           })}
         </div>
+      </div>
+    </section>
+  );
+}
+
+// ===========================================================================
+// Detect job details from descriptions (salary, experience, work type, visa)
+// ===========================================================================
+
+function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () => void; compact?: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Detect job details from descriptions</h2>
+      <div className="mt-3 border border-ink-200 bg-white p-4 text-xs text-ink-600">
+        {!compact && (
+          <p>
+            Reads every job's description and fills in what's missing — compensation (e.g. “$126,000—$136,000 CAD”),
+            experience (“8–12 years”), employment &amp; work type (“Full time · On-site”) and visa sponsorship. Only
+            empty fields are filled; nothing you set by hand is overwritten.
+          </p>
+        )}
+        {compact && <p>New imports and syncs do this automatically. Run once to fill in jobs imported earlier.</p>}
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setResult(null);
+              const r = await backfillJobFacts((done, total) => setProgress(`Updating ${done} / ${total}…`));
+              setBusy(false);
+              setProgress(null);
+              const c = r.counts;
+              setResult(
+                (r.ok ? 'Done. ' : `Finished with an error: ${r.error}. `) +
+                  `Scanned ${r.scanned}, updated ${r.updated} — salary ${c.compensation}, experience ${c.experience}, employment type ${c.employment}, work type ${c.workType}, visa ${c.visa}.` +
+                  (r.migrationMissing ? ' (Run the 20260925090000 migration to also store work type & “visa not offered”.)' : '')
+              );
+              onChange();
+            }}
+            className="rounded-lg bg-brand-600 px-4 py-2 font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {busy ? 'Detecting…' : 'Detect job details'}
+          </button>
+          {progress && <span>{progress}</span>}
+        </div>
+        {result && <p className="mt-2 text-ink-700">{result}</p>}
       </div>
     </section>
   );
