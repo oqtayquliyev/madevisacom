@@ -396,6 +396,8 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   const [loadingLive, setLoadingLive] = useState(true);
   const [sponsoredJobs, setSponsoredJobs] = useState<Job[]>([]);
   const [loadingSponsored, setLoadingSponsored] = useState(true);
+  // False while showing a cached copy / the first page and the full list is still loading.
+  const [sponsoredComplete, setSponsoredComplete] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -418,7 +420,10 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       setLoadingSponsored(false);
     };
     // Renders the cached copy / newest page first, then the full list.
-    fetchPublishedSponsoredJobs({ onPartial: show }).then(show);
+    fetchPublishedSponsoredJobs({ onPartial: show }).then((rows) => {
+      show(rows);
+      if (!cancelled) setSponsoredComplete(true);
+    });
     return () => {
       cancelled = true;
     };
@@ -805,7 +810,15 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-ink-900">Jobs in demand</h2>
-            <p className="mt-0.5 text-sm text-ink-500">{filteredJobs.length.toLocaleString()} opportunities</p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-ink-500">
+              {filteredJobs.length.toLocaleString()} opportunities
+              {!sponsoredComplete && !loading && (
+                <span className="flex items-center gap-1 text-xs text-ink-400">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  updating
+                </span>
+              )}
+            </p>
           </div>
 
           <div className="flex items-center gap-1 rounded-md border border-ink-200 bg-white p-1">

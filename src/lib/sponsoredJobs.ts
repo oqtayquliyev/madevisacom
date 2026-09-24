@@ -110,10 +110,10 @@ const SUPABASE_MAX_ROWS_PER_REQUEST = 1000;
 
 let publishedJobsCache: { data: SponsoredJob[]; fetchedAt: number } | null = null;
 const PUBLISHED_JOBS_CACHE_TTL_MS = 60_000;
-const PERSISTED_MAX_AGE_MS = 12 * 60 * 60 * 1000; // older copies are ignored
+const PERSISTED_MAX_AGE_MS = 6 * 60 * 60 * 1000; // older copies are ignored
 const IDB_NAME = 'madevisa-cache';
 const IDB_STORE = 'kv';
-const IDB_KEY = 'publishedJobs:v1';
+const IDB_KEY = 'publishedJobs:v2'; // v1 copies could be missing jobs (see fetchPublishedFromNetwork)
 
 let inflight: Promise<SponsoredJob[]> | null = null;
 const partialListeners = new Set<(rows: SponsoredJob[]) => void>();
@@ -175,16 +175,25 @@ function stillLive(rows: SponsoredJob[]): SponsoredJob[] {
   return rows.filter((r) => !r.expires_at || r.expires_at > now);
 }
 
-async function fetchPublishedFromNetwork(onPartial: (rows: SponsoredJob[]) => void): Promise<SponsoredJob[] | null> {
-  const baseQuery = () =>
+async function fetchPublishedFromNetwork(onPartial: (rows: SponsoredJob[]) => void): Promise<{ rows: SponsoredJob[]; complete: boolean } | null> {
+  // One timestamp for every page, so all pages see the same set of
+  // unexpired jobs.
+  const asOf = nowIso();
+  const baseQuery = (withCount: boolean) =>
     supabase
       .from('sponsored_jobs')
-      .select(LIST_COLUMNS, { count: 'exact' })
+      .select(LIST_COLUMNS, withCount ? { count: 'exact' } : undefined)
       .eq('status', 'published')
-      .or(`expires_at.is.null,expires_at.gt.${nowIso()}`)
-      .order('created_at', { ascending: false });
+      .or(`expires_at.is.null,expires_at.gt.${asOf}`)
+      // `id` breaks ties: bulk imports give hundreds of jobs the same
+      // created_at, and without a unique tiebreaker the database may
+      // order them differently for each page request — so some jobs
+      // appeared on two pages and others on none, and the total came out
+      // a few hundred short (and different on every device / reload).
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false });
 
-  const first = await baseQuery().range(0, SUPABASE_MAX_ROWS_PER_REQUEST - 1);
+  const first = await baseQuery(true).range(0, SUPABASE_MAX_ROWS_PER_REQUEST - 1);
   if (first.error) {
     console.error('fetchPublishedSponsoredJobs failed', first.error);
     return null;
@@ -192,24 +201,44 @@ async function fetchPublishedFromNetwork(onPartial: (rows: SponsoredJob[]) => vo
 
   const firstPage = (first.data ?? []) as unknown as SponsoredJob[];
   const total = first.count ?? firstPage.length;
-  if (total <= SUPABASE_MAX_ROWS_PER_REQUEST) return firstPage;
+  if (firstPage.length >= total) return { rows: firstPage, complete: true };
 
-  // Show the newest 1,000 right away; the rest arrive in parallel.
+  // The project's max-rows setting may be lower than we asked for — page
+  // by what the server actually returns so no gap opens between pages.
+  const pageSize = Math.max(1, Math.min(SUPABASE_MAX_ROWS_PER_REQUEST, firstPage.length));
+
+  // Show the newest page right away; the rest follow.
   onPartial(firstPage);
   const pageStarts: number[] = [];
-  for (let from = SUPABASE_MAX_ROWS_PER_REQUEST; from < total; from += SUPABASE_MAX_ROWS_PER_REQUEST) pageStarts.push(from);
-  const restResults = await Promise.all(pageStarts.map((from) => baseQuery().range(from, from + SUPABASE_MAX_ROWS_PER_REQUEST - 1)));
-  const rest: SponsoredJob[] = [];
-  for (const r of restResults) {
-    if (r.error) {
-      console.error('fetchPublishedSponsoredJobs page failed', r.error);
-      continue; // one bad page shouldn't discard everything else that succeeded
-    }
-    rest.push(...((r.data ?? []) as unknown as SponsoredJob[]));
-  }
-  // Pages are offset-based, so a job published mid-fetch can appear twice.
+  for (let from = pageSize; from < total; from += pageSize) pageStarts.push(from);
+
+  // A few at a time (phones on slow networks time out when ~20 large
+  // requests start at once), each retried before giving up.
+  const pages: SponsoredJob[][] = new Array(pageStarts.length);
+  let failed = 0;
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(6, pageStarts.length) }, async () => {
+      while (next < pageStarts.length) {
+        const i = next++;
+        const from = pageStarts[i];
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const r = await baseQuery(false).range(from, from + pageSize - 1);
+          if (!r.error) {
+            pages[i] = (r.data ?? []) as unknown as SponsoredJob[];
+            break;
+          }
+          if (attempt === 2) {
+            console.error('fetchPublishedSponsoredJobs page failed', r.error);
+            failed++;
+          } else await new Promise((res) => setTimeout(res, 400 * (attempt + 1)));
+        }
+      }
+    })
+  );
   const seen = new Set<string>();
-  return [...firstPage, ...rest].filter((j) => (seen.has(j.id) ? false : (seen.add(j.id), true)));
+  const rows = [firstPage, ...pages.filter(Boolean)].flat().filter((j) => (seen.has(j.id) ? false : (seen.add(j.id), true)));
+  return { rows, complete: failed === 0 && rows.length >= total };
 }
 
 /**
@@ -246,10 +275,15 @@ export async function fetchPublishedSponsoredJobs(opts: { onPartial?: (rows: Spo
         // Don't replace a fuller cached list with just the first page.
         if (firstPage.length > shownCount) emit(firstPage);
       });
-      if (!fresh) return publishedJobsCache?.data ?? (persisted ? stillLive(persisted.data) : []);
-      publishedJobsCache = { data: fresh, fetchedAt: Date.now() };
-      writePersistedJobs(fresh);
-      return fresh;
+      const fallback = publishedJobsCache?.data ?? (persisted ? stillLive(persisted.data) : null);
+      if (!fresh) return fallback ?? [];
+      // An incomplete load (a page kept failing) is shown if there's
+      // nothing better, but never saved as the reference copy — otherwise
+      // the count would stay low until the next full load.
+      if (!fresh.complete) return fallback && fallback.length > fresh.rows.length ? fallback : fresh.rows;
+      publishedJobsCache = { data: fresh.rows, fetchedAt: Date.now() };
+      writePersistedJobs(fresh.rows);
+      return fresh.rows;
     })().finally(() => {
       inflight = null;
       lastPartial = null;

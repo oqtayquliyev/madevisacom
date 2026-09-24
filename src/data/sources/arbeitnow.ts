@@ -115,13 +115,28 @@ function normalize(raw: ArbeitnowJob): Job {
  * throwing) on any network/parse failure so the board still renders
  * fine with curated listings if the live fetch fails.
  */
+// One request per 10 minutes, shared by the landing page and /jobs, so
+// both count exactly the same live jobs.
+let arbeitnowCache: { at: number; promise: Promise<Job[]> } | null = null;
+const ARBEITNOW_TTL_MS = 10 * 60 * 1000;
+
 export async function fetchArbeitnowJobs(limit = 20): Promise<Job[]> {
-  try {
-    const res = await fetch(ARBEITNOW_ENDPOINT);
-    if (!res.ok) return [];
-    const body = (await res.json()) as ArbeitnowResponse;
-    return (body.data ?? []).slice(0, limit).map(normalize);
-  } catch {
-    return [];
+  if (!arbeitnowCache || Date.now() - arbeitnowCache.at > ARBEITNOW_TTL_MS) {
+    const promise = (async () => {
+      try {
+        const res = await fetch(ARBEITNOW_ENDPOINT);
+        if (!res.ok) return [];
+        const body = (await res.json()) as ArbeitnowResponse;
+        return (body.data ?? []).map(normalize);
+      } catch {
+        return [];
+      }
+    })();
+    arbeitnowCache = { at: Date.now(), promise };
+    // A failed request shouldn't be remembered for 10 minutes.
+    promise.then((jobs) => {
+      if (!jobs.length && arbeitnowCache?.promise === promise) arbeitnowCache = null;
+    });
   }
+  return (await arbeitnowCache.promise).slice(0, limit);
 }

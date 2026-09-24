@@ -22,6 +22,7 @@ import {
 import { allCountries } from '@/data/allCountries';
 import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/costEstimates';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { fetchSponsoredPrograms } from '@/lib/programs';
 import { formatCost } from '@/lib/listingCategories';
 import { stripHtml } from '@/lib/atsImport';
@@ -288,7 +289,25 @@ export function LocationMatchSection({
     if (shownItems?.length && !destinationCode) rememberShown('landing', shownItems.map((i) => i.id));
   }, [shownItems, destinationCode]);
   const countryParam = destinationCountry ? `?country=${encodeURIComponent(destinationCountry.name)}` : '';
-  const animatedCount = useCountUp(visibleItems ? visibleItems.length : null);
+
+  // The headline number is exactly what /jobs lists: MadeVisa jobs plus
+  // the same live-feed jobs (one shared request) — programs aren't jobs,
+  // so they're not in this count.
+  const [liveJobs, setLiveJobs] = useState<Job[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchArbeitnowJobs(20).then((jobs) => !cancelled && setLiveJobs(jobs));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const jobCount = useMemo(() => {
+    if (!visibleItems) return null;
+    const own = visibleItems.filter((i) => i.kind === 'job').length;
+    const live = liveJobs.filter((j) => !destinationCode || j.countryCode === destinationCode).length;
+    return own + live;
+  }, [visibleItems, liveJobs, destinationCode]);
+  const animatedCount = useCountUp(jobCount);
 
   return (
     <div className="px-6 py-8 sm:px-8">
