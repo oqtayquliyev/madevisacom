@@ -52,13 +52,15 @@ export type ImportSource = {
   last_sync_status: 'ok' | 'partial' | 'error' | null;
   last_sync_summary: SyncSummary | null;
   created_at: string;
+  /** Scheduled sync every N hours (null/0 = manual only). Added by the 20260926090000 migration. */
+  sync_interval_hours?: number | null;
   publisher?: { id: string; name: string; logo_url: string | null } | null;
 };
 
-const SOURCE_COLUMNS =
-  'id, publisher_id, kind, source_url, resolved_url, strategy, detected_platform, auto_publish, last_synced_at, last_sync_status, last_sync_summary, created_at, publisher:program_publishers(id, name, logo_url)';
+const SOURCE_COLUMNS = '*, publisher:program_publishers(id, name, logo_url)';
 
 export async function fetchImportSources(): Promise<ImportSource[]> {
+  // '*' so newer optional columns (sync_interval_hours) come through when present without breaking before the migration runs.
   const { data, error } = await supabase.from('import_sources').select(SOURCE_COLUMNS).order('created_at', { ascending: false });
   if (error) {
     console.error('fetchImportSources failed', error);
@@ -86,7 +88,10 @@ export async function registerImportSource(input: {
   return { ok: true, id: data.id };
 }
 
-export async function updateImportSource(id: string, patch: Partial<Pick<ImportSource, 'auto_publish' | 'source_url' | 'resolved_url' | 'strategy'>>) {
+export async function updateImportSource(
+  id: string,
+  patch: Partial<Pick<ImportSource, 'auto_publish' | 'source_url' | 'resolved_url' | 'strategy' | 'sync_interval_hours'>>
+) {
   const { error } = await supabase.from('import_sources').update(patch).eq('id', id);
   return error ? { ok: false, error: error.message } : { ok: true };
 }
@@ -190,6 +195,8 @@ export type SyncOptions = {
   /** Allow removing more than MAX_REMOVAL_SHARE of a company's jobs in one sync. */
   allowLargeRemoval?: boolean;
   onProgress?: (message: string) => void;
+  /** 0..1 progress of this one source's sync. */
+  onPercent?: (fraction: number) => void;
   shouldStop?: () => boolean;
 };
 
@@ -227,6 +234,8 @@ async function withConcurrency<T>(items: T[], limit: number, fn: (item: T) => Pr
 
 export async function syncImportSource(source: ImportSource, opts: SyncOptions): Promise<{ ok: boolean; summary: SyncSummary }> {
   const say = opts.onProgress ?? (() => {});
+  const pct = opts.onPercent ?? (() => {});
+  pct(0.02);
   const summary: SyncSummary = { fetched: 0, added: 0, refreshed: 0, removed: 0, duplicatesRemoved: 0, adopted: 0, removalMode: opts.removal };
   const name = source.publisher?.name ?? 'company';
 
@@ -240,7 +249,15 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
 
   // 1. Fetch everything from the source.
   say(`${name}: fetching from source…`);
-  const fetched = await fetchWholeSource(source, (n, total) => say(`${name}: fetched ${n}${total ? ` of ~${total}` : ''}…`), opts.shouldStop);
+  const fetched = await fetchWholeSource(
+    source,
+    (n, total) => {
+      say(`${name}: fetched ${n}${total ? ` of ~${total}` : ''}…`);
+      pct(total ? 0.05 + 0.55 * Math.min(1, n / total) : 0.3);
+    },
+    opts.shouldStop
+  );
+  pct(0.6);
   if (!fetched.ok) {
     summary.error = fetched.error;
     return finish('error');
@@ -329,6 +346,7 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
   const now = new Date().toISOString();
   const extendTo = new Date(Date.now() + 30 * DAY_MS).toISOString();
   say(`${name}: refreshing ${stillLive.length} live jobs…`);
+  pct(0.65);
 
   // Rows that need per-row writes: legacy rows being linked to this source,
   // rows missing an external id, and all rows when refreshing content.
@@ -370,6 +388,7 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
     else if (row.import_source_id !== source.id) summary.adopted++;
   });
   summary.refreshed = stillLive.length;
+  pct(0.8);
 
   // 6. Add new jobs.
   if (newJobs.length) {
@@ -383,6 +402,7 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
     if (!res.ok) summary.error = res.error;
   }
 
+  pct(0.9);
   // 7. Remove what the source no longer lists (+ duplicate copies).
   const toRemove = [...gone, ...duplicates];
   if (toRemove.length) {
@@ -405,6 +425,7 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
 
   const status = summary.error ? 'partial' : 'ok';
   say(`${name}: done.`);
+  pct(1);
   return finish(status, {
     ...(fetched.resolvedUrl !== undefined ? { resolved_url: fetched.resolvedUrl } : {}),
     ...(fetched.strategy !== undefined ? { strategy: fetched.strategy } : {}),
@@ -420,4 +441,105 @@ export function describeSyncSummary(s: SyncSummary | null | undefined): string {
   if (s.duplicatesRemoved) parts.push(`${s.duplicatesRemoved} duplicates cleaned`);
   if (s.adopted) parts.push(`${s.adopted} linked`);
   return parts.join(' · ');
+}
+
+// ---------------------------------------------------------------------------
+// Scheduling, linking older jobs, adding many sources at once
+// ---------------------------------------------------------------------------
+
+/** True when a scheduled source is due for its next sync. */
+export function isSourceDue(src: ImportSource, now = Date.now()): boolean {
+  const h = src.sync_interval_hours ?? 0;
+  if (!h) return false;
+  if (!src.last_synced_at) return true;
+  return now - new Date(src.last_synced_at).getTime() >= h * 3_600_000;
+}
+
+export function nextSyncAt(src: ImportSource): Date | null {
+  const h = src.sync_interval_hours ?? 0;
+  if (!h) return null;
+  if (!src.last_synced_at) return new Date();
+  return new Date(new Date(src.last_synced_at).getTime() + h * 3_600_000);
+}
+
+/**
+ * Links jobs imported before sources existed to their company's source,
+ * one quick UPDATE per company (only for companies with exactly one
+ * source, so nothing gets attached to the wrong one).
+ */
+export async function linkOlderJobs(
+  sources: ImportSource[],
+  onPercent?: (fraction: number) => void
+): Promise<{ linked: number; companies: number; error?: string }> {
+  const byPublisher = new Map<string, ImportSource[]>();
+  for (const s of sources) byPublisher.set(s.publisher_id, [...(byPublisher.get(s.publisher_id) ?? []), s]);
+  const single = [...byPublisher.values()].filter((l) => l.length === 1).map((l) => l[0]);
+  let linked = 0;
+  let companies = 0;
+  let error: string | undefined;
+  for (let i = 0; i < single.length; i++) {
+    const src = single[i];
+    const { count, error: e } = await supabase
+      .from('sponsored_jobs')
+      .update({ import_source_id: src.id }, { count: 'exact' })
+      .eq('publisher_id', src.publisher_id)
+      .eq('origin', 'imported')
+      .is('import_source_id', null);
+    if (e) error = error ?? e.message;
+    else if (count) {
+      linked += count;
+      companies++;
+    }
+    onPercent?.((i + 1) / single.length);
+  }
+  return { linked, companies, error };
+}
+
+export type ParsedSourceLine = { company: string; url: string; kind: ImportSourceKind; token: string };
+
+/**
+ * Parses a pasted list, one company per line:
+ *   Netflix, Inc. | https://jobs.netflix.com/
+ *   Stripe, stripe                      (Greenhouse token)
+ *   Figma <tab> https://boards.greenhouse.io/figma
+ */
+export function parseSourceList(text: string): { ok: ParsedSourceLine[]; bad: string[] } {
+  const ok: ParsedSourceLine[] = [];
+  const bad: string[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = line.match(/^(.+?)\s*(?:\||\t|,\s*(?=https?:\/\/|[a-z0-9_-]+$)|\s+(?=https?:\/\/))\s*(\S+)\s*$/i);
+    if (!m) {
+      bad.push(line);
+      continue;
+    }
+    const company = m[1].trim().replace(/[|,]\s*$/, '');
+    const target = m[2].trim();
+    if (/^https?:\/\//i.test(target)) {
+      let u: URL;
+      try {
+        u = new URL(target);
+      } catch {
+        bad.push(line);
+        continue;
+      }
+      if (/(^|\.)greenhouse\.io$/i.test(u.hostname)) {
+        const token = u.searchParams.get('for') ?? u.pathname.split('/').filter(Boolean).find((x) => x !== 'embed' && x !== 'job_board') ?? '';
+        if (token) {
+          ok.push({ company, url: target, kind: 'greenhouse', token: token.toLowerCase() });
+          continue;
+        }
+      }
+      ok.push({ company, url: target, kind: 'careers_url', token: '' });
+    } else if (/^[a-z0-9_-]{2,60}$/i.test(target)) {
+      ok.push({ company, url: `https://boards.greenhouse.io/${target.toLowerCase()}`, kind: 'greenhouse', token: target.toLowerCase() });
+    } else bad.push(line);
+  }
+  return { ok, bad };
+}
+
+/** Public link for a source, for showing/clicking in the admin table. */
+export function sourcePublicUrl(src: Pick<ImportSource, 'kind' | 'source_url'>): string {
+  return src.kind === 'greenhouse' ? `https://boards.greenhouse.io/${src.source_url}` : src.source_url;
 }

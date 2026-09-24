@@ -920,75 +920,91 @@ type FactRow = {
 };
 
 export async function backfillJobFacts(
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  shouldStop?: () => boolean
 ): Promise<{ ok: boolean; scanned: number; updated: number; counts: Record<string, number>; error?: string; migrationMissing?: boolean }> {
   const counts: Record<string, number> = { compensation: 0, experience: 0, employment: 0, workType: 0, visa: 0 };
   const baseCols = 'id, title, description, compensation_text, salary_status, experience_level, employment_type, remote, visa_sponsorship';
+
+  // Small keyset-paginated batches (by primary key): loading every
+  // description at once is what hit the database statement timeout.
+  const BATCH = 100;
+  const { count: total } = await supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true });
   let hasNewCols = true;
-  let rows: FactRow[];
-  const load = (cols: string) =>
-    fetchAllRows<FactRow>(() =>
-      supabase.from('sponsored_jobs').select(cols, { count: 'exact' }).not('description', 'is', null).order('created_at', { ascending: true }) as unknown as {
-        range: (from: number, to: number) => PromiseLike<{ data: FactRow[] | null; error: { message: string; code?: string } | null; count?: number | null }>;
-      }
-    );
-  try {
-    rows = await load(`${baseCols}, work_arrangement, visa_status`);
-  } catch {
-    hasNewCols = false;
-    try {
-      rows = await load(baseCols);
-    } catch (e) {
-      return { ok: false, scanned: 0, updated: 0, counts, error: e instanceof Error ? e.message : 'Could not load jobs.' };
-    }
-  }
-
-  const patches: { id: string; patch: Record<string, unknown> }[] = [];
-  for (const r of rows) {
-    const f = detectJobFacts(r.description, r.title);
-    const patch: Record<string, unknown> = {};
-    const comp = (r.compensation_text ?? '').trim();
-    if ((!comp || comp === '[object Object]') && f.compensation && r.salary_status !== 'volunteer') {
-      patch.compensation_text = f.compensation;
-      patch.salary_status = 'disclosed';
-      counts.compensation++;
-    }
-    if (!r.experience_level && f.experience) {
-      patch.experience_level = f.experience;
-      counts.experience++;
-    }
-    if ((!r.employment_type || r.employment_type === 'Other') && f.employmentType) {
-      patch.employment_type = f.employmentType;
-      patch.category = f.employmentType;
-      counts.employment++;
-    }
-    if (hasNewCols && !r.work_arrangement && f.workArrangement) {
-      patch.work_arrangement = f.workArrangement;
-      counts.workType++;
-    }
-    if (!r.remote && f.workArrangement === 'remote') patch.remote = true;
-    if (hasNewCols && !r.visa_status && f.visa) {
-      patch.visa_status = f.visa;
-      counts.visa++;
-    }
-    if (!r.visa_sponsorship && f.visa === 'offered') patch.visa_sponsorship = true;
-    if (Object.keys(patch).length) patches.push({ id: r.id, patch });
-  }
-
+  let lastId: string | null = null;
+  let scanned = 0;
   let updated = 0;
   let firstError: string | undefined;
-  let cursor = 0;
-  await Promise.all(
-    Array.from({ length: 8 }, async () => {
-      while (cursor < patches.length) {
-        const { id, patch } = patches[cursor++];
-        const { error } = await supabase.from('sponsored_jobs').update(patch).eq('id', id);
-        if (error) firstError = firstError ?? error.message;
-        else updated++;
-        if (updated % 50 === 0) onProgress?.(updated, patches.length);
+
+  const fetchBatch = async (cols: string) => {
+    let q = supabase.from('sponsored_jobs').select(cols).order('id', { ascending: true }).limit(BATCH);
+    if (lastId) q = q.gt('id', lastId);
+    return q;
+  };
+
+  for (;;) {
+    if (shouldStop?.()) break;
+    let res = await fetchBatch(hasNewCols ? `${baseCols}, work_arrangement, visa_status` : baseCols);
+    if (res.error && hasNewCols && /column|schema cache/i.test(res.error.message)) {
+      hasNewCols = false;
+      res = await fetchBatch(baseCols);
+    }
+    if (res.error) {
+      firstError = res.error.message;
+      break;
+    }
+    const rows = (res.data ?? []) as unknown as FactRow[];
+    if (rows.length === 0) break;
+    lastId = rows[rows.length - 1].id;
+    scanned += rows.length;
+
+    const patches: { id: string; patch: Record<string, unknown> }[] = [];
+    for (const r of rows) {
+      if (!r.description) continue;
+      const f = detectJobFacts(r.description, r.title);
+      const patch: Record<string, unknown> = {};
+      const comp = (r.compensation_text ?? '').trim();
+      if ((!comp || comp === '[object Object]') && f.compensation && r.salary_status !== 'volunteer') {
+        patch.compensation_text = f.compensation;
+        patch.salary_status = 'disclosed';
+        counts.compensation++;
       }
-    })
-  );
-  onProgress?.(updated, patches.length);
-  return { ok: !firstError, scanned: rows.length, updated, counts, error: firstError, migrationMissing: !hasNewCols };
+      if (!r.experience_level && f.experience) {
+        patch.experience_level = f.experience;
+        counts.experience++;
+      }
+      if ((!r.employment_type || r.employment_type === 'Other') && f.employmentType) {
+        patch.employment_type = f.employmentType;
+        patch.category = f.employmentType;
+        counts.employment++;
+      }
+      if (hasNewCols && !r.work_arrangement && f.workArrangement) {
+        patch.work_arrangement = f.workArrangement;
+        counts.workType++;
+      }
+      if (!r.remote && f.workArrangement === 'remote') patch.remote = true;
+      if (hasNewCols && !r.visa_status && f.visa) {
+        patch.visa_status = f.visa;
+        counts.visa++;
+      }
+      if (!r.visa_sponsorship && f.visa === 'offered') patch.visa_sponsorship = true;
+      if (Object.keys(patch).length) patches.push({ id: r.id, patch });
+    }
+
+    let cursor = 0;
+    await Promise.all(
+      Array.from({ length: 6 }, async () => {
+        while (cursor < patches.length) {
+          const { id, patch } = patches[cursor++];
+          const { error } = await supabase.from('sponsored_jobs').update(patch).eq('id', id);
+          if (error) firstError = firstError ?? error.message;
+          else updated++;
+        }
+      })
+    );
+    onProgress?.(scanned, total ?? scanned);
+    if (rows.length < BATCH) break;
+  }
+
+  return { ok: !firstError, scanned, updated, counts, error: firstError, migrationMissing: !hasNewCols };
 }

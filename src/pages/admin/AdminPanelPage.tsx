@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Bell, Briefcase, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Inbox, Landmark, Mail, Pencil, RefreshCw, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { ProgressBar } from '@/components/common/ProgressBar';
+import { ImportCenter } from '@/pages/admin/ImportCenter';
 import { useSeo } from '@/lib/seo';
 import {
   fetchAdmins,
@@ -52,15 +54,10 @@ import {
   backfillJobFacts,
 } from '@/lib/admin';
 import {
-  deleteImportSource,
-  describeSyncSummary,
   fetchImportSources,
   fetchedJobToImportInput,
   registerImportSource,
-  syncImportSource,
-  updateImportSource,
   type ImportSource,
-  type SyncSummary,
 } from '@/lib/importSync';
 import { ImageUploadField } from '@/components/common/ImageUploadField';
 import { fetchCountries, type CountryOption } from '@/lib/programs';
@@ -417,15 +414,22 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
 
             {tab === 'imports' && (
               <>
+                <ImportCenter
+                  sources={sources}
+                  allJobs={allJobs}
+                  publishers={verifiedPublishers}
+                  countries={countries}
+                  userId={profile?.id ?? ''}
+                  onChange={loadAll}
+                />
+
+                <AddJobsTools>
+                  <ImportFromCareersUrlSection countries={countries} onImported={loadAll} />
+                  <ImportFromAtsSection countries={countries} onImported={loadAll} />
+                  <BulkGreenhouseImportSection countries={countries} allJobs={allJobs} onImported={loadAll} />
+                </AddJobsTools>
+
                 <BackfillJobFactsSection onChange={loadAll} compact />
-
-                <ImportSourcesSection sources={sources} allJobs={allJobs} countries={countries} verifiedPublishers={verifiedPublishers} onChange={loadAll} />
-
-                <ImportFromCareersUrlSection countries={countries} onImported={loadAll} />
-
-                <ImportFromAtsSection countries={countries} onImported={loadAll} />
-
-                <BulkGreenhouseImportSection countries={countries} allJobs={allJobs} onImported={loadAll} />
               </>
             )}
 
@@ -1078,6 +1082,11 @@ function BulkGreenhouseImportSection({
         >
           {running ? `Importing… (${doneCount}/${queueSize})` : `Fetch & add ${selected.size || ''} selected`}
         </button>
+        {running && (
+          <div className="mt-3">
+            <ProgressBar value={queueSize ? doneCount / queueSize : 0} label={`Importing ${doneCount} of ${queueSize} companies`} />
+          </div>
+        )}
         {finalSummary && <p className="mt-2 text-xs font-medium text-ink-600">{finalSummary}</p>}
       </div>
     </section>
@@ -1188,6 +1197,11 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
         >
           {busy === 'fetching' ? 'Fetching…' : busy === 'importing' ? 'Adding to pending…' : 'Fetch & add to pending'}
         </button>
+        {busy && (
+          <div className="mt-3">
+            <ProgressBar value={busy === 'fetching' ? 0.35 : 0.8} label={busy === 'fetching' ? 'Fetching the Greenhouse board' : 'Adding jobs to pending'} />
+          </div>
+        )}
 
         {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
         {result && <p className="mt-3 text-xs font-medium text-emerald-700">{result}</p>}
@@ -1380,12 +1394,16 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
               Stop after this batch
             </button>
           )}
-          {progress && (
-            <span className="text-xs font-medium text-ink-500">
-              {progress.imported} imported{progress.totalHits ? ` of ~${progress.totalHits.toLocaleString()}` : ''} so far…
-            </span>
-          )}
         </div>
+        {busy && (
+          <div className="mt-3">
+            <ProgressBar
+              value={progress?.totalHits ? Math.min(1, progress.imported / progress.totalHits) : null}
+              label={busy === 'fetching' ? 'Fetching jobs from the careers page' : 'Adding jobs to pending'}
+              detail={progress ? `${progress.imported.toLocaleString()} imported${progress.totalHits ? ` of ~${progress.totalHits.toLocaleString()}` : ''} so far` : 'Detecting the platform…'}
+            />
+          </div>
+        )}
 
         {error && <p className="mt-2 whitespace-pre-line text-xs font-medium text-rose-600">{error}</p>}
         {result && <p className="mt-3 text-xs font-medium text-emerald-700">{result}</p>}
@@ -2783,283 +2801,6 @@ function DesktopNotificationsSection() {
 }
 
 // ===========================================================================
-// Import sources + one-click sync
-// ===========================================================================
-
-function ImportSourcesSection({
-  sources,
-  allJobs,
-  countries,
-  verifiedPublishers,
-  onChange,
-}: {
-  sources: ImportSource[];
-  allJobs: AdminSponsoredJob[];
-  countries: CountryOption[];
-  verifiedPublishers: PendingPublisher[];
-  onChange: () => void;
-}) {
-  const [removal, setRemoval] = useState<'delete' | 'expire'>('delete');
-  const [refreshContent, setRefreshContent] = useState(false);
-  const [allowLarge, setAllowLarge] = useState(false);
-  const [running, setRunning] = useState<string | null>(null); // source id or 'all'
-  const [log, setLog] = useState<string[]>([]);
-  const [results, setResults] = useState<Record<string, SyncSummary & { ok: boolean }>>({});
-  const [search, setSearch] = useState('');
-  const stop = useRef(false);
-
-  // Add-a-source form (for companies imported before sources were saved)
-  const [addPublisherId, setAddPublisherId] = useState('');
-  const [addUrl, setAddUrl] = useState('');
-
-  const countsBySource = useMemo(() => {
-    const m = new Map<string, { live: number; pending: number; other: number }>();
-    for (const j of allJobs) {
-      if (!j.import_source_id) continue;
-      const c = m.get(j.import_source_id) ?? { live: 0, pending: 0, other: 0 };
-      if (j.status === 'published') c.live++;
-      else if (j.status === 'pending') c.pending++;
-      else c.other++;
-      m.set(j.import_source_id, c);
-    }
-    return m;
-  }, [allJobs]);
-
-  const unlinkedImported = useMemo(() => allJobs.filter((j) => j.origin === 'imported' && !j.import_source_id).length, [allJobs]);
-
-  const say = (msg: string) => setLog((prev) => [...prev.slice(-7), msg]);
-
-  const runSync = async (list: ImportSource[], key: string) => {
-    if (list.length === 0) return;
-    stop.current = false;
-    setRunning(key);
-    setLog([]);
-    for (const src of list) {
-      if (stop.current) {
-        say('Stopped.');
-        break;
-      }
-      const res = await syncImportSource(src, {
-        countries,
-        removal,
-        refreshContent,
-        allowLargeRemoval: allowLarge,
-        onProgress: say,
-        shouldStop: () => stop.current,
-      });
-      setResults((prev) => ({ ...prev, [src.id]: { ...res.summary, ok: res.ok } }));
-      if (res.summary.error) say(`${src.publisher?.name ?? 'Source'}: ${res.summary.error}`);
-    }
-    setRunning(null);
-    onChange();
-  };
-
-  const filtered = sources.filter((s) => {
-    const q = search.trim().toLowerCase();
-    return !q || (s.publisher?.name ?? '').toLowerCase().includes(q) || s.source_url.toLowerCase().includes(q);
-  });
-
-  // Link Greenhouse companies imported before sources existed.
-  const linkableGreenhouse = useMemo(() => {
-    const have = new Set(sources.filter((s) => s.kind === 'greenhouse').map((s) => `${s.publisher_id}|${s.source_url}`));
-    const byName = new Map(verifiedPublishers.map((p) => [p.name.trim().toLowerCase(), p.id]));
-    return GREENHOUSE_COMPANIES.map((c) => ({ c, pid: byName.get(c.name.trim().toLowerCase()) ?? byName.get(c.legalName.trim().toLowerCase()) }))
-      .filter((x): x is { c: (typeof GREENHOUSE_COMPANIES)[number]; pid: string } => !!x.pid && !have.has(`${x.pid}|${x.c.token}`));
-  }, [sources, verifiedPublishers]);
-
-  return (
-    <section className="mt-8">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Import sources — sync with live careers pages</h2>
-      <div className="mt-3 border border-ink-200 bg-white p-4">
-        <p className="text-xs text-ink-500">
-          Every import is saved here. <strong>Sync</strong> re-fetches the whole source, adds new postings, keeps live ones
-          from expiring, and removes the ones the company took down. Nothing is removed if the fetch fails, returns zero
-          jobs, or is stopped midway — and a sync that would remove more than 60% of a company's jobs is held back unless
-          you allow it.
-        </p>
-
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-          <label className="flex items-center gap-1.5">
-            Jobs gone from source:
-            <select value={removal} onChange={(e) => setRemoval(e.target.value as 'delete' | 'expire')} className="h-7 rounded border border-ink-200 px-1.5">
-              <option value="delete">Delete from MadeVisa</option>
-              <option value="expire">Mark as expired (keep record)</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-1.5">
-            <input type="checkbox" checked={refreshContent} onChange={(e) => setRefreshContent(e.target.checked)} />
-            Also refresh titles &amp; descriptions (overwrites manual edits)
-          </label>
-          <label className="flex items-center gap-1.5">
-            <input type="checkbox" checked={allowLarge} onChange={(e) => setAllowLarge(e.target.checked)} />
-            Allow large removals
-          </label>
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => runSync(filtered, 'all')}
-            disabled={!!running || filtered.length === 0}
-            className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${running === 'all' ? 'animate-spin' : ''}`} />
-            {running === 'all' ? 'Syncing…' : `Sync ${search.trim() ? 'filtered' : 'all'} (${filtered.length})`}
-          </button>
-          {running && (
-            <button onClick={() => (stop.current = true)} className="rounded-lg border border-ink-200 px-3 py-2 text-xs font-semibold text-ink-600 hover:bg-ink-50">
-              Stop
-            </button>
-          )}
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter sources…" className="h-8 w-48 rounded-md border border-ink-200 px-2 text-xs outline-none focus:border-brand-500" />
-        </div>
-
-        {log.length > 0 && (
-          <div className="mt-3 max-h-40 overflow-y-auto rounded-md bg-ink-950 px-3 py-2 font-mono text-[11px] leading-5 text-ink-100">
-            {log.map((l, i) => <div key={i}>{l}</div>)}
-          </div>
-        )}
-
-        <div className="mt-3 max-h-[480px] overflow-auto rounded-lg border border-ink-100">
-          <table className="w-full min-w-[720px] text-xs">
-            <thead className="sticky top-0 z-[1] bg-ink-50 text-left text-[10px] uppercase tracking-wide text-ink-500 shadow-[0_1px_0_0_rgb(0_0_0/0.06)]">
-              <tr>
-                <th className="px-3 py-2">Company</th>
-                <th className="px-3 py-2">Source</th>
-                <th className="px-3 py-2">On MadeVisa</th>
-                <th className="px-3 py-2">Last sync</th>
-                <th className="px-3 py-2" title="New jobs found by sync go live immediately instead of to pending">Auto-publish</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-100">
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-ink-400">No saved sources yet — run an import below and it'll appear here.</td>
-                </tr>
-              )}
-              {filtered.map((src) => {
-                const counts = countsBySource.get(src.id) ?? { live: 0, pending: 0, other: 0 };
-                const latest = results[src.id] ?? src.last_sync_summary;
-                const status = results[src.id] ? (results[src.id].error ? (results[src.id].ok ? 'partial' : 'error') : 'ok') : src.last_sync_status;
-                return (
-                  <tr key={src.id} className="align-top">
-                    <td className="px-3 py-2.5 font-semibold text-ink-900">{src.publisher?.name ?? '—'}</td>
-                    <td className="max-w-[220px] px-3 py-2.5">
-                      <span className="rounded bg-ink-50 px-1.5 py-0.5 text-[10px] font-semibold text-ink-600">{src.detected_platform ?? (src.kind === 'greenhouse' ? 'Greenhouse' : 'Careers page')}</span>
-                      <p className="mt-1 truncate text-[11px] text-ink-400" title={src.source_url}>{src.source_url}</p>
-                    </td>
-                    <td className="px-3 py-2.5 text-ink-600">
-                      {counts.live} live · {counts.pending} pending{counts.other ? ` · ${counts.other} other` : ''}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className={`font-semibold ${status === 'ok' ? 'text-emerald-700' : status === 'error' ? 'text-rose-600' : status === 'partial' ? 'text-amber-700' : 'text-ink-400'}`}>
-                        {timeAgo(results[src.id] ? new Date().toISOString() : src.last_synced_at)}
-                      </span>
-                      <p className="text-[11px] text-ink-500">{describeSyncSummary(latest)}</p>
-                      {latest?.error && <p className="mt-0.5 max-w-[260px] text-[11px] text-rose-600">{latest.error}</p>}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <input
-                        type="checkbox"
-                        checked={src.auto_publish}
-                        onChange={async (e) => {
-                          const r = await updateImportSource(src.id, { auto_publish: e.target.checked });
-                          if (r.ok) onChange();
-                          else window.alert(r.error);
-                        }}
-                      />
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right">
-                      <button
-                        onClick={() => runSync([src], src.id)}
-                        disabled={!!running}
-                        className="inline-flex items-center gap-1 rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50"
-                      >
-                        <RefreshCw className={`h-3 w-3 ${running === src.id ? 'animate-spin' : ''}`} /> Sync
-                      </button>
-                      <button
-                        onClick={async () => {
-                          const alsoJobs = window.confirm(
-                            `Remove the saved source for ${src.publisher?.name ?? 'this company'}?\n\nOK = also delete its ${counts.live + counts.pending + counts.other} imported jobs\nCancel = keep the jobs (they just stop syncing)`
-                          );
-                          if (!alsoJobs && !window.confirm('Remove the source and keep its jobs?')) return;
-                          const r = await deleteImportSource(src.id, alsoJobs);
-                          if (r.ok) onChange();
-                          else window.alert(r.error);
-                        }}
-                        className="ml-1 rounded-lg p-1.5 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
-                        aria-label="Remove source"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {(unlinkedImported > 0 || linkableGreenhouse.length > 0) && (
-          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            <p>
-              <strong>{unlinkedImported}</strong> imported jobs were added before sources were saved. Save a source for
-              their company (below) and the first sync links them up — and cleans out duplicates from earlier re-imports.
-            </p>
-            {linkableGreenhouse.length > 0 && (
-              <button
-                onClick={async () => {
-                  for (const { c, pid } of linkableGreenhouse) {
-                    await registerImportSource({ publisherId: pid, kind: 'greenhouse', sourceUrl: c.token, platform: 'Greenhouse' });
-                  }
-                  onChange();
-                }}
-                className="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 font-semibold text-white hover:bg-amber-700"
-              >
-                Save sources for {linkableGreenhouse.length} Greenhouse compan{linkableGreenhouse.length === 1 ? 'y' : 'ies'} already imported
-              </button>
-            )}
-          </div>
-        )}
-
-        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
-          <select value={addPublisherId} onChange={(e) => setAddPublisherId(e.target.value)} className="h-9 rounded-md border border-ink-200 px-2 text-xs">
-            <option value="">Company…</option>
-            {verifiedPublishers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <input
-            value={addUrl}
-            onChange={(e) => setAddUrl(e.target.value)}
-            placeholder="Careers URL, or a Greenhouse board token (e.g. stripe)"
-            className="h-9 rounded-md border border-ink-200 px-2 text-xs outline-none focus:border-brand-500"
-          />
-          <button
-            disabled={!addPublisherId || !addUrl.trim()}
-            onClick={async () => {
-              const raw = addUrl.trim();
-              const isUrl = /^https?:\/\//i.test(raw);
-              const isGreenhouse = !isUrl || /greenhouse\.io/i.test(raw);
-              const token = isUrl ? new URL(raw).searchParams.get('for') ?? new URL(raw).pathname.split('/').filter(Boolean)[0] ?? raw : raw;
-              const r = await registerImportSource({
-                publisherId: addPublisherId,
-                kind: isGreenhouse ? 'greenhouse' : 'careers_url',
-                sourceUrl: isGreenhouse ? token : raw,
-              });
-              if (!r.ok) return window.alert(r.error);
-              setAddUrl('');
-              onChange();
-            }}
-            className="rounded-lg border border-ink-200 px-3 text-xs font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50"
-          >
-            Save source
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ===========================================================================
 // Company access — give an email (e.g. hr@netflix.com) rights over a company
 // ===========================================================================
 
@@ -3218,33 +2959,40 @@ function CompanyAccessSection({ publishers, members, onChange }: { publishers: P
 
 function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () => void; compact?: boolean }) {
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const stop = useRef(false);
   return (
     <section className="mt-8">
       <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Detect job details from descriptions</h2>
       <div className="mt-3 border border-ink-200 bg-white p-4 text-xs text-ink-600">
-        {!compact && (
+        {compact ? (
+          <p>New imports and syncs do this automatically. Run once to fill in jobs imported earlier (works through them 100 at a time).</p>
+        ) : (
           <p>
             Reads every job's description and fills in what's missing — compensation (e.g. “$126,000—$136,000 CAD”),
             experience (“8–12 years”), employment &amp; work type (“Full time · On-site”) and visa sponsorship. Only
             empty fields are filled; nothing you set by hand is overwritten.
           </p>
         )}
-        {compact && <p>New imports and syncs do this automatically. Run once to fill in jobs imported earlier.</p>}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <button
             disabled={busy}
             onClick={async () => {
+              stop.current = false;
               setBusy(true);
               setResult(null);
-              const r = await backfillJobFacts((done, total) => setProgress(`Updating ${done} / ${total}…`));
+              setProgress({ done: 0, total: 0 });
+              const r = await backfillJobFacts(
+                (done, total) => setProgress({ done, total }),
+                () => stop.current
+              );
               setBusy(false);
               setProgress(null);
               const c = r.counts;
               setResult(
-                (r.ok ? 'Done. ' : `Finished with an error: ${r.error}. `) +
-                  `Scanned ${r.scanned}, updated ${r.updated} — salary ${c.compensation}, experience ${c.experience}, employment type ${c.employment}, work type ${c.workType}, visa ${c.visa}.` +
+                (r.ok ? (stop.current ? 'Stopped. ' : 'Done. ') : `Finished with an error: ${r.error}. `) +
+                  `Scanned ${r.scanned.toLocaleString()}, updated ${r.updated.toLocaleString()} — salary ${c.compensation}, experience ${c.experience}, employment type ${c.employment}, work type ${c.workType}, visa ${c.visa}.` +
                   (r.migrationMissing ? ' (Run the 20260925090000 migration to also store work type & “visa not offered”.)' : '')
               );
               onChange();
@@ -3253,10 +3001,37 @@ function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () =
           >
             {busy ? 'Detecting…' : 'Detect job details'}
           </button>
-          {progress && <span>{progress}</span>}
+          {busy && (
+            <button onClick={() => (stop.current = true)} className="rounded-lg border border-ink-200 px-3 py-2 font-semibold text-ink-600 hover:bg-ink-50">
+              Stop
+            </button>
+          )}
         </div>
+        {busy && progress && (
+          <div className="mt-3">
+            <ProgressBar
+              value={progress.total ? progress.done / progress.total : null}
+              label="Reading job descriptions"
+              detail={progress.total ? `${progress.done.toLocaleString()} of ${progress.total.toLocaleString()} jobs checked` : 'Starting…'}
+            />
+          </div>
+        )}
         {result && <p className="mt-2 text-ink-700">{result}</p>}
       </div>
+    </section>
+  );
+}
+
+function AddJobsTools({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="mt-8">
+      <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-ink-500 hover:text-ink-800">
+        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        One-off import tools
+        <span className="text-[11px] font-normal normal-case tracking-normal text-ink-400">— careers URL, Greenhouse token, Greenhouse catalog (everything imported is saved as a source above)</span>
+      </button>
+      {open && <div className="-mt-4">{children}</div>}
     </section>
   );
 }
