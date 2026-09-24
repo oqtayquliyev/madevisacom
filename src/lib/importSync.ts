@@ -1,0 +1,405 @@
+// Import sources + one-click sync.
+//
+// Every Greenhouse board / careers URL an admin imports from is saved as
+// an `import_sources` row. "Sync" re-fetches that source IN FULL and then:
+//   - adds jobs that are new on the source,
+//   - refreshes jobs still live there (last_seen_at, keeps published ones
+//     from expiring, optionally re-pulls title/description),
+//   - removes jobs the source no longer lists (delete, or mark expired),
+//   - cleans up duplicates left by older re-imports.
+//
+// Safety rules — a sync never removes anything unless:
+//   - the fetch finished completely (no error, not stopped midway), and
+//   - the source returned at least one job, and
+//   - (by default) it wouldn't remove more than MAX_REMOVAL_SHARE of the
+//     company's jobs in one go, which almost always means the source broke
+//     rather than the company closing most of its roles overnight.
+
+import { supabase } from '@/lib/supabase';
+import { fetchGreenhouseJobs, fetchJobsFromCareersUrl, sanitizeJobHtml, type FetchedJob } from '@/lib/atsImport';
+import {
+  fetchAllRows,
+  importJobsAsPending,
+  normalizeJobUrl,
+  type ImportCountryLookup,
+  type ImportJobInput,
+} from '@/lib/admin';
+
+export type ImportSourceKind = 'greenhouse' | 'careers_url';
+
+export type SyncSummary = {
+  fetched: number;
+  added: number;
+  refreshed: number;
+  removed: number;
+  duplicatesRemoved: number;
+  adopted: number;
+  removalMode?: 'delete' | 'expire';
+  error?: string;
+  blockedRemovals?: number;
+};
+
+export type ImportSource = {
+  id: string;
+  publisher_id: string;
+  kind: ImportSourceKind;
+  source_url: string;
+  resolved_url: string | null;
+  strategy: string | null;
+  detected_platform: string | null;
+  auto_publish: boolean;
+  last_synced_at: string | null;
+  last_sync_status: 'ok' | 'partial' | 'error' | null;
+  last_sync_summary: SyncSummary | null;
+  created_at: string;
+  publisher?: { id: string; name: string; logo_url: string | null } | null;
+};
+
+const SOURCE_COLUMNS =
+  'id, publisher_id, kind, source_url, resolved_url, strategy, detected_platform, auto_publish, last_synced_at, last_sync_status, last_sync_summary, created_at, publisher:program_publishers(id, name, logo_url)';
+
+export async function fetchImportSources(): Promise<ImportSource[]> {
+  const { data, error } = await supabase.from('import_sources').select(SOURCE_COLUMNS).order('created_at', { ascending: false });
+  if (error) {
+    console.error('fetchImportSources failed', error);
+    return [];
+  }
+  return (data ?? []) as unknown as ImportSource[];
+}
+
+/** Saves (or refreshes) the source an import came from and returns its id. */
+export async function registerImportSource(input: {
+  publisherId: string;
+  kind: ImportSourceKind;
+  sourceUrl: string;
+  resolvedUrl?: string | null;
+  strategy?: string | null;
+  platform?: string | null;
+}): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const sourceUrl = input.kind === 'greenhouse' ? input.sourceUrl.trim().toLowerCase() : input.sourceUrl.trim();
+  const row: Record<string, unknown> = { publisher_id: input.publisherId, kind: input.kind, source_url: sourceUrl };
+  if (input.resolvedUrl !== undefined) row.resolved_url = input.resolvedUrl;
+  if (input.strategy !== undefined) row.strategy = input.strategy;
+  if (input.platform !== undefined) row.detected_platform = input.platform;
+  const { data, error } = await supabase.from('import_sources').upsert(row, { onConflict: 'publisher_id,kind,source_url' }).select('id').single();
+  if (error || !data) return { ok: false, error: error?.message ?? 'Could not save the import source.' };
+  return { ok: true, id: data.id };
+}
+
+export async function updateImportSource(id: string, patch: Partial<Pick<ImportSource, 'auto_publish' | 'source_url' | 'resolved_url' | 'strategy'>>) {
+  const { error } = await supabase.from('import_sources').update(patch).eq('id', id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/** Removes the saved source. Its jobs stay (they just stop syncing) unless `deleteJobs` is set. */
+export async function deleteImportSource(id: string, deleteJobs: boolean): Promise<{ ok: boolean; error?: string }> {
+  if (deleteJobs) {
+    const { error } = await supabase.from('sponsored_jobs').delete().eq('import_source_id', id);
+    if (error) return { ok: false, error: error.message };
+  }
+  const { error } = await supabase.from('import_sources').delete().eq('id', id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export function fetchedJobToImportInput(j: FetchedJob | (Omit<FetchedJob, 'updatedAt'> & { updatedAt?: string })): ImportJobInput {
+  return {
+    externalId: j.externalId,
+    title: j.title,
+    description: sanitizeJobHtml(j.descriptionHtml),
+    officialUrl: j.url,
+    additionalLocations: j.offices,
+    locationText: j.locationText,
+    category: j.category,
+    employmentTypeRaw: j.employmentTypeRaw,
+    postedAt: j.postedAt,
+    remote: j.remote,
+    salaryText: j.salaryText,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Fetch a whole source
+// ---------------------------------------------------------------------------
+
+type FetchAllResult =
+  | { ok: true; jobs: ImportJobInput[]; resolvedUrl?: string | null; strategy?: string | null; platform?: string | null }
+  | { ok: false; error: string; aborted?: boolean };
+
+const MAX_CAREERS_BATCHES = 400;
+
+export async function fetchWholeSource(
+  source: Pick<ImportSource, 'kind' | 'source_url' | 'resolved_url' | 'strategy'>,
+  onProgress?: (fetched: number, total: number | null) => void,
+  shouldStop?: () => boolean
+): Promise<FetchAllResult> {
+  if (source.kind === 'greenhouse') {
+    const res = await fetchGreenhouseJobs(source.source_url);
+    if (!res.ok) return { ok: false, error: res.error ?? 'Greenhouse fetch failed.' };
+    onProgress?.(res.jobs.length, res.jobs.length);
+    return { ok: true, jobs: res.jobs.map(fetchedJobToImportInput), platform: 'Greenhouse' };
+  }
+
+  const all: ImportJobInput[] = [];
+  const seen = new Set<string>();
+  let from = 0;
+  let total: number | null = null;
+  // Reuse the strategy detected last time so we skip re-crawling. If it
+  // fails (site changed), retry once from scratch with fresh detection.
+  let cont: { resolvedUrl?: string | null; strategy?: string | null } | undefined =
+    source.strategy ? { resolvedUrl: source.resolved_url, strategy: source.strategy } : undefined;
+  let retriedFresh = !cont;
+  let platform: string | null = null;
+
+  for (let batch = 0; batch < MAX_CAREERS_BATCHES; batch++) {
+    if (shouldStop?.()) return { ok: false, error: 'Stopped before the source was fully fetched — nothing was removed.', aborted: true };
+    const res = await fetchJobsFromCareersUrl(source.source_url, from, cont);
+    if (!res.ok) {
+      if (!retriedFresh && batch === 0) {
+        retriedFresh = true;
+        cont = undefined;
+        batch = -1;
+        continue;
+      }
+      return { ok: false, error: res.error };
+    }
+    if (res.strategy) cont = { resolvedUrl: res.resolvedUrl, strategy: res.strategy };
+    if (res.source) platform = res.source;
+    if (res.totalHits != null) total = res.totalHits;
+    for (const j of res.jobs) {
+      const key = j.externalId || normalizeJobUrl(j.url);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      all.push(fetchedJobToImportInput(j));
+    }
+    onProgress?.(all.length, total);
+    if (!res.nextFrom) return { ok: true, jobs: all, resolvedUrl: cont?.resolvedUrl ?? null, strategy: cont?.strategy ?? null, platform };
+    from = res.nextFrom;
+  }
+  return { ok: false, error: `Stopped after ${MAX_CAREERS_BATCHES} batches without reaching the end — nothing was removed.` };
+}
+
+// ---------------------------------------------------------------------------
+// Sync
+// ---------------------------------------------------------------------------
+
+export type SyncOptions = {
+  countries: ImportCountryLookup[];
+  removal: 'delete' | 'expire';
+  refreshContent: boolean;
+  /** Allow removing more than MAX_REMOVAL_SHARE of a company's jobs in one sync. */
+  allowLargeRemoval?: boolean;
+  onProgress?: (message: string) => void;
+  shouldStop?: () => boolean;
+};
+
+export const MAX_REMOVAL_SHARE = 0.6;
+const CHUNK = 50;
+const DAY_MS = 86_400_000;
+
+type ExistingRow = {
+  id: string;
+  title: string;
+  status: string;
+  external_id: string | null;
+  official_url: string | null;
+  import_source_id: string | null;
+  created_at: string;
+};
+
+async function inChunks<T>(items: T[], size: number, fn: (chunk: T[]) => PromiseLike<{ error: { message: string } | null }>): Promise<string | null> {
+  for (let i = 0; i < items.length; i += size) {
+    const { error } = await fn(items.slice(i, i + size));
+    if (error) return error.message;
+  }
+  return null;
+}
+
+async function withConcurrency<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
+  let cursor = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (cursor < items.length) await fn(items[cursor++]);
+    })
+  );
+}
+
+export async function syncImportSource(source: ImportSource, opts: SyncOptions): Promise<{ ok: boolean; summary: SyncSummary }> {
+  const say = opts.onProgress ?? (() => {});
+  const summary: SyncSummary = { fetched: 0, added: 0, refreshed: 0, removed: 0, duplicatesRemoved: 0, adopted: 0, removalMode: opts.removal };
+  const name = source.publisher?.name ?? 'company';
+
+  const finish = async (status: 'ok' | 'partial' | 'error', extra: Record<string, unknown> = {}) => {
+    await supabase
+      .from('import_sources')
+      .update({ last_synced_at: new Date().toISOString(), last_sync_status: status, last_sync_summary: summary, ...extra })
+      .eq('id', source.id);
+    return { ok: status !== 'error', summary };
+  };
+
+  // 1. Fetch everything from the source.
+  say(`${name}: fetching from source…`);
+  const fetched = await fetchWholeSource(source, (n, total) => say(`${name}: fetched ${n}${total ? ` of ~${total}` : ''}…`), opts.shouldStop);
+  if (!fetched.ok) {
+    summary.error = fetched.error;
+    return finish('error');
+  }
+  summary.fetched = fetched.jobs.length;
+  if (fetched.jobs.length === 0) {
+    summary.error = 'The source returned 0 jobs — skipped removals in case the source is temporarily broken.';
+    return finish('error');
+  }
+
+  // 2. Load what MadeVisa already has for this source, plus older
+  //    imports of the same company that predate saved sources.
+  say(`${name}: comparing with MadeVisa…`);
+  const { count: sourceCount } = await supabase.from('import_sources').select('id', { count: 'exact', head: true }).eq('publisher_id', source.publisher_id);
+  const onlySourceForCompany = (sourceCount ?? 1) <= 1;
+
+  let existing: ExistingRow[];
+  try {
+    existing = await fetchAllRows<ExistingRow>(() =>
+      supabase
+        .from('sponsored_jobs')
+        .select('id, title, status, external_id, official_url, import_source_id, created_at', { count: 'exact' })
+        .eq('publisher_id', source.publisher_id)
+        .eq('origin', 'imported')
+        .order('created_at', { ascending: true }) as unknown as {
+        range: (from: number, to: number) => PromiseLike<{ data: ExistingRow[] | null; error: { message: string } | null; count?: number | null }>;
+      }
+    );
+  } catch (e) {
+    summary.error = e instanceof Error ? e.message : 'Could not load existing jobs.';
+    return finish('error');
+  }
+  // Only this source's jobs, plus unlinked legacy imports of this company.
+  existing = existing.filter((r) => r.import_source_id === source.id || r.import_source_id === null);
+
+  // 3. Match.
+  const byExt = new Map<string, ImportJobInput>();
+  const byUrl = new Map<string, ImportJobInput>();
+  for (const j of fetched.jobs) {
+    if (j.externalId) byExt.set(String(j.externalId), j);
+    const u = normalizeJobUrl(j.officialUrl);
+    if (u) byUrl.set(u, j);
+  }
+
+  const claimed = new Set<ImportJobInput>();
+  const stillLive: { row: ExistingRow; job: ImportJobInput }[] = [];
+  const gone: ExistingRow[] = [];
+  const duplicates: ExistingRow[] = [];
+
+  for (const row of existing) {
+    const job = (row.external_id && byExt.get(row.external_id)) || byUrl.get(normalizeJobUrl(row.official_url));
+    if (job) {
+      if (claimed.has(job)) duplicates.push(row); // older re-imports created copies
+      else {
+        claimed.add(job);
+        stillLive.push({ row, job });
+      }
+    } else if (row.import_source_id === source.id || onlySourceForCompany) {
+      gone.push(row);
+    }
+  }
+  const newJobs = fetched.jobs.filter((j) => !claimed.has(j));
+
+  // 4. Safety check before removing anything.
+  const removalCount = gone.length + duplicates.length;
+  if (!opts.allowLargeRemoval && existing.length >= 10 && gone.length / existing.length > MAX_REMOVAL_SHARE) {
+    summary.blockedRemovals = gone.length;
+    summary.error = `Would remove ${gone.length} of ${existing.length} jobs (${Math.round((gone.length / existing.length) * 100)}%) — held back in case the source is broken. Re-run with "allow large removals" if this is real.`;
+    gone.length = 0;
+  }
+
+  // 5. Refresh live jobs.
+  if (opts.shouldStop?.()) {
+    summary.error = 'Stopped before changes were written.';
+    return finish('error');
+  }
+  const now = new Date().toISOString();
+  const extendTo = new Date(Date.now() + 30 * DAY_MS).toISOString();
+  say(`${name}: refreshing ${stillLive.length} live jobs…`);
+
+  // Rows that need per-row writes: legacy rows being linked to this source,
+  // rows missing an external id, and all rows when refreshing content.
+  const needsOwnWrite = stillLive.filter(({ row, job }) => opts.refreshContent || row.import_source_id !== source.id || (!row.external_id && job.externalId));
+  const ownWriteSet = new Set(needsOwnWrite);
+  const bulk = stillLive.filter((x) => !ownWriteSet.has(x));
+
+  let err = await inChunks(bulk.filter((x) => x.row.status === 'published').map((x) => x.row.id), CHUNK, (ids) =>
+    supabase.from('sponsored_jobs').update({ last_seen_at: now, expires_at: extendTo }).in('id', ids)
+  );
+  err = err ?? (await inChunks(bulk.filter((x) => x.row.status !== 'published').map((x) => x.row.id), CHUNK, (ids) =>
+    supabase.from('sponsored_jobs').update({ last_seen_at: now }).in('id', ids)
+  ));
+  if (err) {
+    summary.error = err;
+    return finish('error');
+  }
+
+  await withConcurrency(needsOwnWrite, 8, async ({ row, job }) => {
+    const patch: Record<string, unknown> = { last_seen_at: now, import_source_id: source.id };
+    if (job.externalId) patch.external_id = String(job.externalId);
+    if (row.status === 'published') patch.expires_at = extendTo;
+    if (opts.refreshContent) {
+      patch.title = job.title;
+      if (job.description) patch.description = job.description;
+      if (job.officialUrl) patch.official_url = job.officialUrl;
+      const posted = job.postedAt ? new Date(job.postedAt) : null;
+      if (posted && !Number.isNaN(posted.getTime())) patch.source_posted_at = posted.toISOString();
+    }
+    const { error } = await supabase.from('sponsored_jobs').update(patch).eq('id', row.id);
+    if (error) summary.error = error.message;
+    else if (row.import_source_id !== source.id) summary.adopted++;
+  });
+  summary.refreshed = stillLive.length;
+
+  // 6. Add new jobs.
+  if (newJobs.length) {
+    say(`${name}: adding ${newJobs.length} new jobs…`);
+    const res = await importJobsAsPending(source.publisher_id, opts.countries, newJobs, {
+      importSourceId: source.id,
+      status: source.auto_publish ? 'published' : 'pending',
+      skipExisting: false, // already de-duplicated above
+    });
+    summary.added = res.imported;
+    if (!res.ok) summary.error = res.error;
+  }
+
+  // 7. Remove what the source no longer lists (+ duplicate copies).
+  const toRemove = [...gone, ...duplicates];
+  if (toRemove.length) {
+    say(`${name}: removing ${removalCount - (summary.blockedRemovals ?? 0)} jobs no longer on the source…`);
+    const ids = toRemove.map((r) => r.id);
+    // Duplicates are always deleted; removed-from-source follows the chosen mode.
+    const dupIds = new Set(duplicates.map((d) => d.id));
+    const goneIds = ids.filter((id) => !dupIds.has(id));
+    const e1 = await inChunks([...dupIds], CHUNK, (chunk) => supabase.from('sponsored_jobs').delete().in('id', chunk));
+    const e2 =
+      opts.removal === 'delete'
+        ? await inChunks(goneIds, CHUNK, (chunk) => supabase.from('sponsored_jobs').delete().in('id', chunk))
+        : await inChunks(goneIds, CHUNK, (chunk) => supabase.from('sponsored_jobs').update({ status: 'expired' }).in('id', chunk));
+    if (e1 || e2) summary.error = e1 ?? e2 ?? undefined;
+    else {
+      summary.removed = goneIds.length;
+      summary.duplicatesRemoved = dupIds.size;
+    }
+  }
+
+  const status = summary.error ? 'partial' : 'ok';
+  say(`${name}: done.`);
+  return finish(status, {
+    ...(fetched.resolvedUrl !== undefined ? { resolved_url: fetched.resolvedUrl } : {}),
+    ...(fetched.strategy !== undefined ? { strategy: fetched.strategy } : {}),
+    ...(fetched.platform ? { detected_platform: fetched.platform } : {}),
+  });
+}
+
+export function describeSyncSummary(s: SyncSummary | null | undefined): string {
+  if (!s) return 'Never synced';
+  const parts = [`${s.fetched} on source`];
+  if (s.added) parts.push(`+${s.added} new`);
+  if (s.removed) parts.push(`−${s.removed} ${s.removalMode === 'expire' ? 'expired' : 'removed'}`);
+  if (s.duplicatesRemoved) parts.push(`${s.duplicatesRemoved} duplicates cleaned`);
+  if (s.adopted) parts.push(`${s.adopted} linked`);
+  return parts.join(' · ');
+}

@@ -36,3 +36,22 @@ export function classifyJobFunctionFromTitle(title: string): string | null {
   }
   return null;
 }
+
+/** Employment-type values that carry no real information (e.g. ATS imports that default to "Other") and shouldn't be shown as a chip. */
+const EMPTY_JOB_TYPES = new Set(['', 'other', 'n/a', 'na', 'unknown', 'not specified']);
+
+export function isMeaningfulJobType(type: string | null | undefined): boolean {
+  return !EMPTY_JOB_TYPES.has((type ?? '').trim().toLowerCase());
+}
+
+/**
+ * Category label to show for a job: the real department/function from
+ * the source when there is one, otherwise the /jobs discovery bucket
+ * (Technology, Design, ...) it falls under by title — the same
+ * matching the /jobs category tabs use. Null when nothing matches.
+ */
+export function displayJobCategory(job: { category?: string | null; title: string }): string | null {
+  const raw = (job.category ?? '').trim();
+  if (raw && raw.toLowerCase() !== 'other') return raw;
+  return classifyJobFunctionFromTitle(job.title);
+}

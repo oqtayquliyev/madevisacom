@@ -17,12 +17,16 @@ export type PendingPublisher = {
   country?: { name: string; iso_code: string } | null;
 };
 
+/** Where a listing came from — see the 20260924090000 migration. */
+export type ListingOrigin = 'direct' | 'imported' | 'admin';
+
 export type PendingProgram = {
   id: string;
   title: string;
   category: string;
   status: string;
   created_at: string;
+  origin?: ListingOrigin;
   publisher?: { name: string; org_type: OrgType } | null;
   country?: { name: string; iso_code: string } | null;
 };
@@ -34,6 +38,7 @@ export type PendingSponsoredJob = {
   employment_type: string;
   status: string;
   created_at: string;
+  origin?: ListingOrigin;
   publisher?: { id: string; name: string; org_type: OrgType } | null;
   country?: { name: string; iso_code: string } | null;
 };
@@ -52,9 +57,9 @@ export type PendingAgency = {
 const publisherColumns =
   'id, org_type, name, website, contact_email, verification_status, created_at, logo_url, country:countries(name, iso_code)';
 const programColumns =
-  'id, title, category, status, created_at, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, category, status, created_at, origin, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const sponsoredJobColumns =
-  'id, title, category, employment_type, status, created_at, publisher:program_publishers(id, name, org_type), country:countries(name, iso_code)';
+  'id, title, category, employment_type, status, created_at, origin, publisher:program_publishers(id, name, org_type), country:countries(name, iso_code)';
 const agencyColumns = 'id, name, email, country, city, website, verification_status, created_at';
 
 // PostgREST (what Supabase's data API runs on) caps a single response at
@@ -67,7 +72,7 @@ const agencyColumns = 'id, name, email, country, city, website, verification_sta
 // "Roche (1000)" when there are actually 1290.
 const SUPABASE_PAGE_SIZE = 1000;
 
-async function fetchAllRows<T>(
+export async function fetchAllRows<T>(
   buildQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null; count?: number | null }> }
 ): Promise<T[]> {
   // First page also asks for the exact total row count, so every page
@@ -218,6 +223,7 @@ export type AdminProgram = {
   source_verified: boolean;
   needs_info_message: string | null;
   contact_email: string;
+  origin?: ListingOrigin;
   publisher?: { name: string; org_type: OrgType } | null;
   country?: { name: string; iso_code: string } | null;
 };
@@ -271,14 +277,18 @@ export type AdminSponsoredJob = {
   source_verified: boolean;
   needs_info_message: string | null;
   contact_email: string;
+  origin?: ListingOrigin;
+  /** Set for jobs that came from a saved import source (see src/lib/importSync.ts). */
+  import_source_id?: string | null;
+  publisher_id?: string;
   publisher?: { name: string; org_type: OrgType } | null;
   country?: { name: string; iso_code: string } | null;
 };
 
 const adminProgramColumns =
-  'id, title, description, category, status, created_at, approved_at, expires_at, country_id, city, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, official_url, application_url, image_url, spots_available, citizenship_any, citizenship_allowed, min_age, max_age, applications_open_at, applications_close_at, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, description, category, status, created_at, approved_at, expires_at, country_id, city, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, official_url, application_url, image_url, spots_available, citizenship_any, citizenship_allowed, min_age, max_age, applications_open_at, applications_close_at, admin_notes, source_verified, needs_info_message, contact_email, origin, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const adminSponsoredJobColumns =
-  'id, title, description, category, employment_type, job_function, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, description, category, employment_type, job_function, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, origin, import_source_id, publisher_id, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 
 // Same fields as adminSponsoredJobColumns minus description/benefits/
 // requirements/admin_notes/needs_info_message — for the "All sponsored
@@ -289,7 +299,7 @@ const adminSponsoredJobColumns =
 // already carrying the full text. Same reasoning, same fix as the
 // public site's list vs. detail split in src/lib/sponsoredJobs.ts.
 const adminSponsoredJobListColumns =
-  'id, title, category, employment_type, job_function, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, contact_email, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, category, employment_type, job_function, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, contact_email, origin, import_source_id, publisher_id, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 
 export async function fetchAllPrograms(): Promise<AdminProgram[]> {
   const { data, error } = await supabase
@@ -539,57 +549,116 @@ function parseSourceDate(raw: string | null | undefined): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+export type ImportJobInput = {
+  /** The job's own id on the source site — what sync matches on. */
+  externalId?: string;
+  title: string;
+  description: string;
+  officialUrl: string;
+  additionalLocations?: string[];
+  locationText?: string;
+  category?: string | null;
+  employmentTypeRaw?: string | null;
+  postedAt?: string | null;
+  remote?: boolean | null;
+  salaryText?: string | null;
+};
+
+/** Lowercase host, no hash/trailing slash/utm_* — so the same posting matches however its URL was written. */
+export function normalizeJobUrl(raw: string | null | undefined): string {
+  if (!raw) return '';
+  try {
+    const u = new URL(raw);
+    u.hash = '';
+    for (const k of [...u.searchParams.keys()]) if (/^utm_/i.test(k)) u.searchParams.delete(k);
+    return `${u.protocol}//${u.host.toLowerCase()}${u.pathname.replace(/\/+$/, '')}${u.search}`;
+  } catch {
+    return raw.trim().replace(/\/+$/, '');
+  }
+}
+
+export function importJobToRow(
+  j: ImportJobInput,
+  publisherId: string,
+  countries: ImportCountryLookup[],
+  options: { importSourceId?: string | null; status?: 'pending' | 'published' } = {}
+) {
+  // Employment type comes ONLY from employmentTypeRaw — j.category is a
+  // job-function value (Design, Engineering, ...), not an employment type.
+  const jobCategory = normalizeJobCategory(j.employmentTypeRaw);
+  return {
+    publisher_id: publisherId,
+    title: j.title,
+    description: j.description,
+    category: jobCategory,
+    employment_type: jobCategory,
+    job_function: j.category ?? null,
+    remote: j.remote ?? false,
+    country_id: resolveCountryId(j.additionalLocations, j.locationText, countries),
+    city: deriveCity(j.additionalLocations?.[0] ?? j.locationText),
+    official_url: j.officialUrl,
+    additional_locations: j.additionalLocations && j.additionalLocations.length > 1 ? j.additionalLocations : null,
+    contact_email: 'hello@madevisa.com',
+    status: options.status ?? 'pending',
+    source_posted_at: parseSourceDate(j.postedAt),
+    origin: 'imported' as const,
+    import_source_id: options.importSourceId ?? null,
+    external_id: j.externalId ? String(j.externalId) : null,
+    last_seen_at: new Date().toISOString(),
+    ...(j.salaryText ? { compensation_text: j.salaryText, salary_status: 'disclosed' as const } : {}),
+  };
+}
+
+/**
+ * Inserts imported jobs. Skips jobs this company already has (same
+ * source + external id, or same job URL) so re-running an import never
+ * creates duplicates — it only adds what's genuinely new.
+ */
 export async function importJobsAsPending(
   publisherId: string,
-  /** Every country this import can auto-match against — pass the full
-   * fetchCountries() list from src/lib/programs.ts. Destination is now
-   * resolved per job from its own scraped location (see resolveCountryId
-   * above); there's nothing left for the admin to pick per batch. */
   countries: ImportCountryLookup[],
-  jobs: {
-    title: string;
-    description: string;
-    officialUrl: string;
-    additionalLocations?: string[];
-    locationText?: string;
-    category?: string | null;
-    employmentTypeRaw?: string | null;
-    postedAt?: string | null;
-    remote?: boolean | null;
-    salaryText?: string | null;
-  }[]
-): Promise<{ ok: boolean; imported: number; error?: string }> {
-  const rows = jobs.map((j) => {
-    // Employment type comes ONLY from employmentTypeRaw now — j.category
-    // is a job-function value (Design, Engineering, ...), not an
-    // employment type, and feeding it into this normalizer is exactly
-    // the bug that was silently turning every real department into
-    // "Other". job_function stores the real value, untouched, below.
-    const jobCategory = normalizeJobCategory(j.employmentTypeRaw);
-    return {
-      publisher_id: publisherId,
-      title: j.title,
-      description: j.description,
-      category: jobCategory,
-      employment_type: jobCategory,
-      job_function: j.category ?? null,
-      remote: j.remote ?? false,
-      country_id: resolveCountryId(j.additionalLocations, j.locationText, countries),
-      city: deriveCity(j.additionalLocations?.[0] ?? j.locationText),
-      official_url: j.officialUrl,
-      additional_locations: j.additionalLocations && j.additionalLocations.length > 1 ? j.additionalLocations : null,
-      contact_email: 'hello@madevisa.com',
-      status: 'pending',
-      source_posted_at: parseSourceDate(j.postedAt),
-      ...(j.salaryText ? { compensation_text: j.salaryText, salary_status: 'disclosed' as const } : {}),
-    };
-  });
+  jobs: ImportJobInput[],
+  options: { importSourceId?: string | null; status?: 'pending' | 'published'; skipExisting?: boolean } = {}
+): Promise<{ ok: boolean; imported: number; skipped: number; error?: string }> {
+  const skipExisting = options.skipExisting ?? true;
+  const seenExternal = new Set<string>();
+  const seenUrls = new Set<string>();
 
-  // Insert in chunks rather than one giant request — an ATS batch (e.g.
-  // Roche's 1000+ listings) as a single insert risks the request body/
-  // statement-timeout limits some Postgres/PostgREST setups impose.
-  // Chunking also means a failure partway through still leaves the jobs
-  // that already landed intact, instead of losing the whole batch.
+  if (skipExisting) {
+    try {
+      const existing = await fetchAllRows<{ external_id: string | null; official_url: string | null; import_source_id: string | null }>(() =>
+        supabase
+          .from('sponsored_jobs')
+          .select('external_id, official_url, import_source_id', { count: 'exact' })
+          .eq('publisher_id', publisherId) as unknown as {
+          range: (from: number, to: number) => PromiseLike<{ data: { external_id: string | null; official_url: string | null; import_source_id: string | null }[] | null; error: { message: string } | null; count?: number | null }>;
+        }
+      );
+      for (const row of existing) {
+        if (row.external_id && (!options.importSourceId || row.import_source_id === options.importSourceId)) seenExternal.add(row.external_id);
+        const u = normalizeJobUrl(row.official_url);
+        if (u) seenUrls.add(u);
+      }
+    } catch (e) {
+      return { ok: false, imported: 0, skipped: 0, error: e instanceof Error ? e.message : 'Could not check existing jobs.' };
+    }
+  }
+
+  const rows: ReturnType<typeof importJobToRow>[] = [];
+  let skipped = 0;
+  for (const j of jobs) {
+    const ext = j.externalId ? String(j.externalId) : '';
+    const url = normalizeJobUrl(j.officialUrl);
+    if ((ext && seenExternal.has(ext)) || (url && seenUrls.has(url))) {
+      skipped++;
+      continue;
+    }
+    if (ext) seenExternal.add(ext);
+    if (url) seenUrls.add(url);
+    rows.push(importJobToRow(j, publisherId, countries, options));
+  }
+
+  // Chunked: a failure partway through still keeps what already landed.
   const INSERT_CHUNK_SIZE = 250;
   let imported = 0;
   for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
@@ -599,14 +668,122 @@ export async function importJobsAsPending(
       return {
         ok: imported > 0,
         imported,
-        error: imported > 0
-          ? `Imported ${imported} before failing: ${error.message}`
-          : error.message,
+        skipped,
+        error: imported > 0 ? `Imported ${imported} before failing: ${error.message}` : error.message,
       };
     }
     imported += chunk.length;
   }
-  return { ok: true, imported };
+  return { ok: true, imported, skipped };
+}
+
+// ---------------------------------------------------------------------------
+// Requests inbox — listings submitted directly by real users/companies
+// ---------------------------------------------------------------------------
+
+export type DirectRequest = {
+  kind: 'job' | 'program';
+  id: string;
+  title: string;
+  status: ListingStatus;
+  created_at: string;
+  updated_at: string | null;
+  category: string;
+  publisher: { id: string; name: string; logo_url: string | null; contact_email: string } | null;
+  submitter: { email: string; full_name: string | null } | null;
+  country: { name: string; iso_code: string } | null;
+};
+
+const REQUEST_STATUSES = ['pending', 'under_review', 'needs_information'];
+
+export async function fetchDirectRequests(): Promise<{ jobs: DirectRequest[]; programs: DirectRequest[] }> {
+  const common = 'id, title, status, created_at, updated_at, category, publisher:program_publishers(id, name, logo_url, contact_email), country:countries(name, iso_code)';
+  const [jobs, programs] = await Promise.all([
+    supabase
+      .from('sponsored_jobs')
+      .select(`${common}, submitter:profiles!sponsored_jobs_submitted_by_fkey(email, full_name)`)
+      .eq('origin', 'direct')
+      .in('status', REQUEST_STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(500),
+    supabase
+      .from('programs')
+      .select(`${common}, submitter:profiles!programs_submitted_by_fkey(email, full_name)`)
+      .eq('origin', 'direct')
+      .in('status', REQUEST_STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(500),
+  ]);
+  if (jobs.error) console.error('fetchDirectRequests (jobs) failed', jobs.error);
+  if (programs.error) console.error('fetchDirectRequests (programs) failed', programs.error);
+  const tag = (kind: 'job' | 'program', rows: unknown[] | null) => ((rows ?? []) as Omit<DirectRequest, 'kind'>[]).map((r) => ({ ...r, kind }));
+  return { jobs: tag('job', jobs.data), programs: tag('program', programs.data) };
+}
+
+/** Cheap count query for the notification badge / polling. */
+export async function countDirectRequests(): Promise<{ jobs: number; programs: number; latest: string | null }> {
+  const [jobs, programs] = await Promise.all([
+    supabase.from('sponsored_jobs').select('created_at', { count: 'exact' }).eq('origin', 'direct').in('status', REQUEST_STATUSES).order('created_at', { ascending: false }).limit(1),
+    supabase.from('programs').select('created_at', { count: 'exact' }).eq('origin', 'direct').in('status', REQUEST_STATUSES).order('created_at', { ascending: false }).limit(1),
+  ]);
+  const latest = [jobs.data?.[0]?.created_at, programs.data?.[0]?.created_at].filter(Boolean).sort().pop() ?? null;
+  return { jobs: jobs.count ?? 0, programs: programs.count ?? 0, latest };
+}
+
+// ---------------------------------------------------------------------------
+// Company managers — emails that can manage one company's page & listings
+// ---------------------------------------------------------------------------
+
+export type PublisherMember = {
+  id: string;
+  publisher_id: string;
+  email: string;
+  can_publish: boolean;
+  created_at: string;
+  publisher?: { id: string; name: string; logo_url: string | null } | null;
+  /** Filled client-side: whether an account with this email exists yet. */
+  hasAccount?: boolean;
+};
+
+export async function fetchPublisherMembers(publisherId?: string): Promise<PublisherMember[]> {
+  let q = supabase
+    .from('publisher_members')
+    .select('id, publisher_id, email, can_publish, created_at, publisher:program_publishers(id, name, logo_url)')
+    .order('created_at', { ascending: false });
+  if (publisherId) q = q.eq('publisher_id', publisherId);
+  const { data, error } = await q;
+  if (error) {
+    console.error('fetchPublisherMembers failed', error);
+    return [];
+  }
+  const members = (data ?? []) as unknown as PublisherMember[];
+  const emails = [...new Set(members.map((m) => m.email))];
+  if (emails.length) {
+    const { data: profs } = await supabase.from('profiles').select('email').in('email', emails);
+    const known = new Set((profs ?? []).map((p: { email: string | null }) => (p.email ?? '').toLowerCase()));
+    members.forEach((m) => (m.hasAccount = known.has(m.email)));
+  }
+  return members;
+}
+
+export async function addPublisherMember(publisherId: string, email: string, canPublish: boolean): Promise<{ ok: boolean; error?: string }> {
+  const clean = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return { ok: false, error: 'Enter a valid email address.' };
+  const { data: auth } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from('publisher_members')
+    .upsert({ publisher_id: publisherId, email: clean, can_publish: canPublish, invited_by: auth.user?.id ?? null }, { onConflict: 'publisher_id,email' });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function updatePublisherMember(id: string, patch: { can_publish?: boolean }): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from('publisher_members').update(patch).eq('id', id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function removePublisherMember(id: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from('publisher_members').delete().eq('id', id);
+  return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 export async function bulkSetJobStatus(ids: string[], status: ListingStatus): Promise<{ ok: boolean; error?: string }> {

@@ -13,16 +13,17 @@ import { CircleFlag } from '@/components/common/CircleFlag';
  * Everything stays on this device; listing cards use it to compute
  * the fit badge.
  */
-export function PersonalizationBar() {
+export function PersonalizationBar({ tone = 'light' }: { tone?: 'light' | 'dark' } = {}) {
   const { profile, updateProfile } = usePersonalization();
+  const onBlue = tone === 'dark';
 
   return (
     <div
-      className="flex flex-wrap items-center gap-x-2 gap-y-2 text-xs font-medium text-ink-500"
+      className={`flex flex-wrap items-center gap-x-2 gap-y-2 text-xs font-medium ${onBlue ? 'text-white/80' : 'text-ink-500'}`}
       title="Kept on this device only. Used to show whether each listing fits you."
     >
       <span className="flex items-center gap-1.5">
-        <Sparkles className="h-3.5 w-3.5 text-brand-600" />
+        <Sparkles className={`h-3.5 w-3.5 ${onBlue ? 'text-white' : 'text-brand-600'}`} />
         Showing what fits you:
       </span>
       <span className="flex items-center gap-1.5">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Briefcase, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Landmark, Pencil, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
+import { Bell, Briefcase, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Inbox, Landmark, Mail, Pencil, RefreshCw, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSeo } from '@/lib/seo';
 import {
@@ -41,10 +41,29 @@ import {
   type PendingProgram,
   type PendingPublisher,
   type PendingSponsoredJob,
+  fetchDirectRequests,
+  countDirectRequests,
+  fetchPublisherMembers,
+  addPublisherMember,
+  updatePublisherMember,
+  removePublisherMember,
+  type DirectRequest,
+  type PublisherMember,
 } from '@/lib/admin';
+import {
+  deleteImportSource,
+  describeSyncSummary,
+  fetchImportSources,
+  fetchedJobToImportInput,
+  registerImportSource,
+  syncImportSource,
+  updateImportSource,
+  type ImportSource,
+  type SyncSummary,
+} from '@/lib/importSync';
 import { ImageUploadField } from '@/components/common/ImageUploadField';
 import { fetchCountries, type CountryOption } from '@/lib/programs';
-import { fetchGreenhouseJobs, fetchJobsFromCareersUrl, sanitizeJobHtml } from '@/lib/atsImport';
+import { fetchGreenhouseJobs, fetchJobsFromCareersUrl } from '@/lib/atsImport';
 import {
   COST_STATUSES,
   JOB_CATEGORIES,
@@ -80,6 +99,25 @@ const orgIcon: Record<OrgType, typeof Building2> = {
   expert: UserRound,
 };
 
+type AdminTab = 'inbox' | 'listings' | 'imports' | 'companies' | 'settings';
+const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Inbox }[] = [
+  { key: 'inbox', label: 'Requests', icon: Inbox },
+  { key: 'listings', label: 'Listings', icon: Briefcase },
+  { key: 'imports', label: 'Import & sync', icon: RefreshCw },
+  { key: 'companies', label: 'Companies & access', icon: Building2 },
+  { key: 'settings', label: 'Settings', icon: Settings },
+];
+const INBOX_SEEN_KEY = 'mv_admin_inbox_seen_at';
+const INBOX_POLL_MS = 60_000;
+
+function readInboxSeenAt(): string {
+  try {
+    return localStorage.getItem(INBOX_SEEN_KEY) ?? '1970-01-01T00:00:00.000Z';
+  } catch {
+    return '1970-01-01T00:00:00.000Z';
+  }
+}
+
 export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
   useSeo({ title: 'Admin panel', description: 'MadeVisa admin panel.', path: '/admin', noindex: true });
   const { profile, loading } = useAuth();
@@ -94,16 +132,29 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
   const [allPrograms, setAllPrograms] = useState<AdminProgram[]>([]);
   const [allJobs, setAllJobs] = useState<AdminSponsoredJob[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [requests, setRequests] = useState<{ jobs: DirectRequest[]; programs: DirectRequest[] }>({ jobs: [], programs: [] });
+  const [sources, setSources] = useState<ImportSource[]>([]);
+  const [members, setMembers] = useState<PublisherMember[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const hasLoadedOnce = useRef(false);
+
+  const [tab, setTabState] = useState<AdminTab>(() => {
+    const t = new URLSearchParams(window.location.search).get('tab') as AdminTab | null;
+    return t && ADMIN_TABS.some((x) => x.key === t) ? t : 'inbox';
+  });
+  const setTab = (t: AdminTab) => {
+    setTabState(t);
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', t);
+    window.history.replaceState({}, '', `/admin?${params.toString()}`);
+  };
+  const [inboxSeenAt, setInboxSeenAt] = useState(readInboxSeenAt);
 
   const isAdmin = profile?.role === 'admin';
 
   const loadAll = () => {
-    // Only blank the whole panel on the very first load — every
-    // subsequent refresh (after approving/rejecting/deleting/etc.)
-    // updates the data in place instead, so the page doesn't look
-    // like it's reloading on every click.
+    // Only blank the whole panel on the very first load — later refreshes
+    // update in place so the page doesn't look like it's reloading.
     if (!hasLoadedOnce.current) setDataLoading(true);
 
     Promise.all([
@@ -117,7 +168,10 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
       fetchAllPrograms(),
       fetchAllSponsoredJobs(),
       fetchCountries(),
-    ]).then(([pp, vp, prog, jobs, pa, va, adm, allProg, allJ, ctys]) => {
+      fetchDirectRequests(),
+      fetchImportSources(),
+      fetchPublisherMembers(),
+    ]).then(([pp, vp, prog, jobs, pa, va, adm, allProg, allJ, ctys, reqs, srcs, mems]) => {
       setPendingPublishers(pp);
       setVerifiedPublishers(vp);
       setPendingPrograms(prog);
@@ -128,8 +182,19 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
       setAllPrograms(allProg);
       setAllJobs(allJ);
       setCountries(ctys);
+      setRequests(reqs);
+      setSources(srcs);
+      setMembers(mems);
       setDataLoading(false);
       hasLoadedOnce.current = true;
+    });
+  };
+
+  const reloadRequests = () => {
+    Promise.all([fetchDirectRequests(), fetchPendingPublishers(), fetchPendingAgencies()]).then(([reqs, pp, pa]) => {
+      setRequests(reqs);
+      setPendingPublishers(pp);
+      setPendingAgencies(pa);
     });
   };
 
@@ -137,6 +202,53 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
     if (isAdmin) loadAll();
     else setDataLoading(false);
   }, [isAdmin]);
+
+  // New-request notifications: poll a cheap count query; when something
+  // newer arrives, refresh the inbox and (if allowed) show a desktop
+  // notification. The tab title also carries the unread count.
+  const latestSeenByPoll = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isAdmin) return;
+    const tick = async () => {
+      const c = await countDirectRequests();
+      if (latestSeenByPoll.current && c.latest && c.latest > latestSeenByPoll.current) {
+        reloadRequests();
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          new Notification('MadeVisa: new listing request', { body: 'A company submitted a new job or program for review.' });
+        }
+      }
+      latestSeenByPoll.current = c.latest ?? latestSeenByPoll.current;
+    };
+    tick();
+    const id = window.setInterval(tick, INBOX_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [isAdmin]);
+
+  const allRequestItems = [...requests.jobs, ...requests.programs];
+  const newRequestCount =
+    allRequestItems.filter((r) => r.created_at > inboxSeenAt).length +
+    pendingPublishers.filter((p) => p.created_at > inboxSeenAt).length +
+    pendingAgencies.filter((a) => a.created_at > inboxSeenAt).length;
+  const openRequestCount = allRequestItems.length + pendingPublishers.length + pendingAgencies.length;
+
+  useEffect(() => {
+    document.title = newRequestCount > 0 ? `(${newRequestCount}) Admin panel · MadeVisa` : 'Admin panel · MadeVisa';
+  }, [newRequestCount]);
+
+  const markInboxSeen = () => {
+    const now = new Date().toISOString();
+    try {
+      localStorage.setItem(INBOX_SEEN_KEY, now);
+    } catch {
+      /* private mode — badge just won't persist */
+    }
+    setInboxSeenAt(now);
+  };
+
+  // Pending listings that came from imports stay in "Listings"; ones real
+  // users/companies submitted live in the Requests inbox instead.
+  const importedPendingJobs = useMemo(() => pendingJobs.filter((j) => j.origin !== 'direct'), [pendingJobs]);
+  const otherPendingPrograms = useMemo(() => pendingPrograms.filter((p) => p.origin !== 'direct'), [pendingPrograms]);
 
   if (loading) return null;
 
@@ -157,126 +269,208 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
     );
   }
 
+  const tabBadge = (key: AdminTab): { count: number; hot: boolean } | null => {
+    if (key === 'inbox') return openRequestCount ? { count: openRequestCount, hot: newRequestCount > 0 } : null;
+    if (key === 'listings') return importedPendingJobs.length + otherPendingPrograms.length ? { count: importedPendingJobs.length + otherPendingPrograms.length, hot: false } : null;
+    if (key === 'imports') {
+      const failing = sources.filter((x) => x.last_sync_status === 'error').length;
+      return failing ? { count: failing, hot: true } : null;
+    }
+    return null;
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="home" />
 
       <main className="mx-auto max-w-5xl px-5 py-12 sm:px-8">
-        <h1 className="text-2xl font-bold tracking-tight text-ink-950">Admin panel</h1>
-        <p className="mt-1 text-sm text-ink-500">Approve or reject publisher accounts, listings, and agencies.</p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-ink-950">Admin panel</h1>
+            <p className="mt-1 text-sm text-ink-500">Requests, listings, imports and company access in one place.</p>
+          </div>
+          <button
+            onClick={() => setTab('inbox')}
+            className="relative flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-3 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50"
+            title="New requests since you last marked the inbox as read"
+          >
+            <Bell className="h-4 w-4" />
+            {newRequestCount > 0 ? `${newRequestCount} new` : 'No new requests'}
+            {newRequestCount > 0 && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500" />}
+          </button>
+        </div>
+
+        <nav className="sticky top-0 z-10 -mx-5 mt-6 flex gap-1 overflow-x-auto border-b border-ink-200 bg-[#f8fafc] px-5 sm:mx-0 sm:px-0">
+          {ADMIN_TABS.map(({ key, label, icon: Icon }) => {
+            const badge = tabBadge(key);
+            return (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-semibold transition ${
+                  tab === key ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-500 hover:text-ink-800'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+                {badge && (
+                  <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[10px] font-bold ${badge.hot ? 'bg-rose-500 text-white' : 'bg-ink-100 text-ink-600'}`}>
+                    {badge.count > 999 ? '999+' : badge.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
 
         {dataLoading ? (
           <p className="mt-8 text-sm text-ink-400">Loading…</p>
         ) : (
           <>
-            <AdminAccessSection admins={admins} currentEmail={profile?.email ?? ''} onChange={loadAll} />
+            {tab === 'inbox' && (
+              <>
+                <RequestsInboxSection
+                  requests={requests}
+                  seenAt={inboxSeenAt}
+                  onMarkSeen={markInboxSeen}
+                  onChange={() => {
+                    reloadRequests();
+                    loadAll();
+                  }}
+                />
 
-            <BackfillJobFunctionsSection onChange={loadAll} />
+                <PaginatedSection
+                  title="Company & government account requests"
+                  items={pendingPublishers}
+                  searchText={(p) => `${p.name} ${p.contact_email}`}
+                  renderRow={(p) => (
+                    <PublisherRow key={p.id} p={p} onChange={loadAll}>
+                      {p.created_at > inboxSeenAt && <NewPill />}
+                      <Actions
+                        onApprove={async () => { const r = await setPublisherStatus(p.id, 'verified'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
+                        onReject={async () => { const r = await setPublisherStatus(p.id, 'rejected'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
+                      />
+                    </PublisherRow>
+                  )}
+                />
 
-            <ImportFromAtsSection countries={countries} onImported={loadAll} />
+                <PaginatedSection
+                  title="Travel agency requests"
+                  items={pendingAgencies}
+                  searchText={(a) => a.name}
+                  renderRow={(a) => (
+                    <AgencyRow key={a.id} a={a} onChange={loadAll}>
+                      {a.created_at > inboxSeenAt && <NewPill />}
+                      <Actions
+                        onApprove={async () => { const r = await setAgencyStatus(a.id, 'verified'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
+                        onReject={async () => { const r = await setAgencyStatus(a.id, 'rejected'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
+                      />
+                    </AgencyRow>
+                  )}
+                />
+              </>
+            )}
 
-            <BulkGreenhouseImportSection countries={countries} allJobs={allJobs} onImported={loadAll} />
+            {tab === 'listings' && (
+              <>
+                <PaginatedSection
+                  title="Pending programs (added by MadeVisa)"
+                  items={otherPendingPrograms}
+                  searchText={(p) => `${p.title} ${p.publisher?.name ?? ''}`}
+                  renderRow={(p) => (
+                    <Row key={p.id}>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-ink-900">{p.title}</p>
+                        <p className="text-xs text-ink-500">
+                          {p.category} · {p.publisher?.name ?? 'Unknown publisher'}{p.country ? ` · ${p.country.name}` : ''}
+                        </p>
+                        <p className="text-[11px] text-ink-400">Submitted {formatDate(p.created_at)}</p>
+                      </div>
+                      <Actions
+                        onApprove={async () => { const r = await setProgramStatus(p.id, 'published'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
+                        onReject={async () => { const r = await setProgramStatus(p.id, 'rejected'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm(`Delete "${p.title}"? This can't be undone.`)) return;
+                          const result = await deleteProgram(p.id);
+                          if (result.ok) loadAll();
+                          else window.alert(result.error ?? 'Delete failed.');
+                        }}
+                        aria-label="Delete"
+                        className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </Row>
+                  )}
+                />
 
-            <ImportFromCareersUrlSection countries={countries} onImported={loadAll} />
+                <GroupedPendingJobsSection jobs={importedPendingJobs} onChange={loadAll} />
 
-            <PaginatedSection
-              title="Pending publisher accounts"
-              items={pendingPublishers}
-              searchText={(p) => `${p.name} ${p.contact_email}`}
-              renderRow={(p) => (
-                <PublisherRow key={p.id} p={p} onChange={loadAll}>
-                  <Actions
-                    onApprove={async () => { const r = await setPublisherStatus(p.id, 'verified'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
-                    onReject={async () => { const r = await setPublisherStatus(p.id, 'rejected'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
-                  />
-                </PublisherRow>
-              )}
-            />
+                <ManagedProgramsSection programs={allPrograms} onChange={loadAll} />
 
-            <PaginatedSection
-              title="Verified publisher accounts"
-              items={verifiedPublishers}
-              searchText={(p) => `${p.name} ${p.contact_email}`}
-              renderRow={(p) => (
-                <PublisherRow key={p.id} p={p} onChange={loadAll} allowLogo>
-                  <button
-                    onClick={async () => { const r = await setPublisherStatus(p.id, 'suspended'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
-                    className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
-                  >
-                    Suspend
-                  </button>
-                </PublisherRow>
-              )}
-            />
+                <ManagedJobsSection jobs={allJobs} onChange={loadAll} />
+              </>
+            )}
 
-            <PaginatedSection
-              title="Pending sponsored programs"
-              items={pendingPrograms}
-              searchText={(p) => `${p.title} ${p.publisher?.name ?? ''}`}
-              renderRow={(p) => (
-                <Row key={p.id}>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-ink-900">{p.title}</p>
-                    <p className="text-xs text-ink-500">
-                      {p.category} · {p.publisher?.name ?? 'Unknown publisher'}{p.country ? ` · ${p.country.name}` : ''}
-                    </p>
-                    <p className="text-[11px] text-ink-400">Submitted {formatDate(p.created_at)}</p>
-                  </div>
-                  <Actions
-                    onApprove={async () => { const r = await setProgramStatus(p.id, 'published'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
-                    onReject={async () => { const r = await setProgramStatus(p.id, 'rejected'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
-                  />
-                  <button
-                    onClick={async () => {
-                      if (!window.confirm(`Delete "${p.title}"? This can't be undone.`)) return;
-                      const result = await deleteProgram(p.id);
-                      if (result.ok) loadAll();
-                      else window.alert(result.error ?? 'Delete failed.');
-                    }}
-                    aria-label="Delete"
-                    className="shrink-0 rounded-lg p-2 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </Row>
-              )}
-            />
+            {tab === 'imports' && (
+              <>
+                <ImportSourcesSection sources={sources} allJobs={allJobs} countries={countries} verifiedPublishers={verifiedPublishers} onChange={loadAll} />
 
-            <GroupedPendingJobsSection jobs={pendingJobs} onChange={loadAll} />
+                <ImportFromCareersUrlSection countries={countries} onImported={loadAll} />
 
-            <ManagedProgramsSection programs={allPrograms} onChange={loadAll} />
+                <ImportFromAtsSection countries={countries} onImported={loadAll} />
 
-            <ManagedJobsSection jobs={allJobs} onChange={loadAll} />
+                <BulkGreenhouseImportSection countries={countries} allJobs={allJobs} onImported={loadAll} />
+              </>
+            )}
 
-            <PaginatedSection
-              title="Pending travel agencies"
-              items={pendingAgencies}
-              searchText={(a) => a.name}
-              renderRow={(a) => (
-                <AgencyRow key={a.id} a={a} onChange={loadAll}>
-                  <Actions
-                    onApprove={async () => { const r = await setAgencyStatus(a.id, 'verified'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
-                    onReject={async () => { const r = await setAgencyStatus(a.id, 'rejected'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
-                  />
-                </AgencyRow>
-              )}
-            />
+            {tab === 'companies' && (
+              <>
+                <CompanyAccessSection publishers={verifiedPublishers} members={members} onChange={loadAll} />
 
-            <PaginatedSection
-              title="Verified travel agencies"
-              items={verifiedAgencies}
-              searchText={(a) => a.name}
-              renderRow={(a) => (
-                <AgencyRow key={a.id} a={a} onChange={loadAll}>
-                  <button
-                    onClick={async () => { const r = await setAgencyStatus(a.id, 'pending'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
-                    className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
-                  >
-                    Revoke
-                  </button>
-                </AgencyRow>
-              )}
-            />
+                <PaginatedSection
+                  title="Verified publisher accounts"
+                  items={verifiedPublishers}
+                  searchText={(p) => `${p.name} ${p.contact_email}`}
+                  renderRow={(p) => (
+                    <PublisherRow key={p.id} p={p} onChange={loadAll} allowLogo>
+                      <button
+                        onClick={async () => { const r = await setPublisherStatus(p.id, 'suspended'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
+                        className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
+                      >
+                        Suspend
+                      </button>
+                    </PublisherRow>
+                  )}
+                />
+
+                <PaginatedSection
+                  title="Verified travel agencies"
+                  items={verifiedAgencies}
+                  searchText={(a) => a.name}
+                  renderRow={(a) => (
+                    <AgencyRow key={a.id} a={a} onChange={loadAll}>
+                      <button
+                        onClick={async () => { const r = await setAgencyStatus(a.id, 'pending'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
+                        className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
+                      >
+                        Revoke
+                      </button>
+                    </AgencyRow>
+                  )}
+                />
+              </>
+            )}
+
+            {tab === 'settings' && (
+              <>
+                <AdminAccessSection admins={admins} currentEmail={profile?.email ?? ''} onChange={loadAll} />
+                <DesktopNotificationsSection />
+                <BackfillJobFunctionsSection onChange={loadAll} />
+              </>
+            )}
           </>
         )}
       </main>
@@ -284,6 +478,10 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );
+}
+
+function NewPill() {
+  return <span className="shrink-0 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white">New</span>;
 }
 
 function PublisherRow({
@@ -754,27 +952,18 @@ function BulkGreenhouseImportSection({
         continue;
       }
 
+      const source = await registerImportSource({ publisherId: publisherResult.id, kind: 'greenhouse', sourceUrl: company.token, platform: 'Greenhouse' });
       const importResult = await importJobsAsPending(
         publisherResult.id,
         countries,
-        res.jobs.map((j) => ({
-          title: j.title,
-          description: sanitizeJobHtml(j.descriptionHtml),
-          officialUrl: j.url,
-          additionalLocations: j.offices,
-          locationText: j.locationText,
-          category: j.category,
-          employmentTypeRaw: j.employmentTypeRaw,
-          postedAt: j.postedAt,
-          remote: j.remote,
-          salaryText: j.salaryText,
-        }))
+        res.jobs.map(fetchedJobToImportInput),
+        { importSourceId: source.id ?? null }
       );
 
       if (importResult.ok) {
         successCount++;
         totalJobsAdded += importResult.imported;
-        setStatuses((prev) => ({ ...prev, [company.token]: { status: 'done', note: `Added ${importResult.imported} job${importResult.imported === 1 ? '' : 's'}.` } }));
+        setStatuses((prev) => ({ ...prev, [company.token]: { status: 'done', note: `Added ${importResult.imported} new${importResult.skipped ? `, ${importResult.skipped} already here` : ''}.` } }));
       } else {
         setStatuses((prev) => ({ ...prev, [company.token]: { status: 'error', note: importResult.error ?? 'Import failed.' } }));
       }
@@ -801,8 +990,8 @@ function BulkGreenhouseImportSection({
         <p className="text-xs text-ink-500">
           Pick any number of companies below and fetch them all in one go — each runs through the exact same
           Greenhouse import as the single-company tool above, straight into <strong>Pending sponsored jobs</strong>.
-          Safe to re-run on a company you've already imported (e.g. weekly, to pick up new postings) — it only ever
-          adds to pending, never touches what's already published.
+          Re-running only adds genuinely new postings (duplicates are skipped). To also remove jobs a company has
+          closed, use <strong>Sync</strong> in Import sources above — every import here is saved as a source automatically.
         </p>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -929,26 +1118,21 @@ function ImportFromAtsSection({ countries, onImported }: { countries: CountryOpt
       return;
     }
 
+    const source = await registerImportSource({ publisherId: publisherResult.id, kind: 'greenhouse', sourceUrl: boardToken, platform: 'Greenhouse' });
     const importResult = await importJobsAsPending(
       publisherResult.id,
       countries,
-      res.jobs.map((j) => ({
-        title: j.title,
-        description: sanitizeJobHtml(j.descriptionHtml),
-        officialUrl: j.url,
-        additionalLocations: j.offices,
-        locationText: j.locationText,
-        category: j.category,
-        employmentTypeRaw: j.employmentTypeRaw,
-        postedAt: j.postedAt,
-        remote: j.remote,
-        salaryText: j.salaryText,
-      }))
+      res.jobs.map(fetchedJobToImportInput),
+      { importSourceId: source.id ?? null }
     );
 
     setBusy(null);
     if (importResult.ok) {
-      setResult(`Added ${importResult.imported} ${company} job${importResult.imported === 1 ? '' : 's'} to Pending sponsored jobs below.`);
+      setResult(
+        `Added ${importResult.imported} ${company} job${importResult.imported === 1 ? '' : 's'} to pending` +
+          (importResult.skipped ? ` (${importResult.skipped} already on MadeVisa, skipped)` : '') +
+          '. Saved as a sync source.'
+      );
       setBoardToken('');
       setCompanyName('');
       onImported();
@@ -1056,6 +1240,8 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
     // Filled in by the first batch: where the jobs really live + how to page them.
     let cont: { resolvedUrl?: string | null; strategy?: string | null } | undefined;
     let source: string | null = null;
+    let sourceId: string | null = null;
+    let totalSkipped = 0;
 
     for (let batch = 0; batch < MAX_BATCHES; batch++) {
       if (stopRequested.current) break;
@@ -1087,21 +1273,22 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
 
       setBusy('importing');
       setProgress({ imported: totalImported, totalHits });
+      if (!sourceId) {
+        const reg = await registerImportSource({
+          publisherId: publisherResult.id,
+          kind: 'careers_url',
+          sourceUrl: careersUrl,
+          resolvedUrl: res.resolvedUrl ?? null,
+          strategy: res.strategy ?? null,
+          platform: res.source ?? null,
+        });
+        sourceId = reg.id ?? null;
+      }
       const importResult = await importJobsAsPending(
         publisherResult.id,
         countries,
-        res.jobs.map((j) => ({
-          title: j.title,
-          description: sanitizeJobHtml(j.descriptionHtml),
-          officialUrl: j.url,
-          additionalLocations: j.offices,
-          locationText: j.locationText,
-          category: j.category,
-          employmentTypeRaw: j.employmentTypeRaw,
-          postedAt: j.postedAt,
-          remote: j.remote,
-          salaryText: j.salaryText,
-        }))
+        res.jobs.map(fetchedJobToImportInput),
+        { importSourceId: sourceId }
       );
 
       if (!importResult.ok && importResult.imported === 0) {
@@ -1112,6 +1299,7 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
         return;
       }
       totalImported += importResult.imported;
+      totalSkipped += importResult.skipped;
       onImported(); // refresh the pending-jobs panel after every batch, so it visibly fills up live rather than jumping once at the very end
 
       if (!res.nextFrom) break; // source reports nothing left
@@ -1123,7 +1311,7 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
     setResult(
       stopRequested.current
         ? `Stopped early — added ${totalImported} ${company} job${totalImported === 1 ? '' : 's'} to Pending sponsored jobs below${source ? ` (via ${source})` : ''}.`
-        : `Added ${totalImported} ${company} job${totalImported === 1 ? '' : 's'} to Pending sponsored jobs below${source ? ` (via ${source})` : ''}.`
+        : `Added ${totalImported} ${company} job${totalImported === 1 ? '' : 's'} to pending${source ? ` (via ${source})` : ''}${totalSkipped ? `, skipped ${totalSkipped} already on MadeVisa` : ''}. Saved as a sync source.`
     );
     setCareersUrl('');
     setCompanyName('');
@@ -2434,5 +2622,588 @@ function Actions({ onApprove, onReject }: { onApprove: () => void; onReject: () 
         Reject
       </button>
     </div>
+  );
+}
+
+// ===========================================================================
+// Requests inbox — jobs & programs real users/companies submitted
+// ===========================================================================
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return 'never';
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 48) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
+function RequestsInboxSection({
+  requests,
+  seenAt,
+  onMarkSeen,
+  onChange,
+}: {
+  requests: { jobs: DirectRequest[]; programs: DirectRequest[] };
+  seenAt: string;
+  onMarkSeen: () => void;
+  onChange: () => void;
+}) {
+  const [filter, setFilter] = useState<'all' | 'job' | 'program'>('all');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const items = useMemo(
+    () =>
+      [...requests.jobs, ...requests.programs]
+        .filter((r) => filter === 'all' || r.kind === filter)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    [requests, filter]
+  );
+  const newCount = [...requests.jobs, ...requests.programs].filter((r) => r.created_at > seenAt).length;
+
+  const act = async (r: DirectRequest, fn: () => Promise<{ ok: boolean; error?: string }>) => {
+    setBusyId(r.id);
+    const res = await fn();
+    setBusyId(null);
+    if (!res.ok) window.alert(res.error ?? 'Failed.');
+    else onChange();
+  };
+  const setStatus = (r: DirectRequest, status: ListingStatus) => (r.kind === 'job' ? setSponsoredJobStatus(r.id, status) : setProgramStatus(r.id, status));
+
+  return (
+    <section className="mt-8">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Listing requests from companies</h2>
+        {newCount > 0 && <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white">{newCount} new</span>}
+        <div className="ml-auto flex items-center gap-1">
+          {(['all', 'job', 'program'] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${filter === f ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-200 bg-white text-ink-600'}`}
+            >
+              {f === 'all' ? `All (${requests.jobs.length + requests.programs.length})` : f === 'job' ? `Jobs (${requests.jobs.length})` : `Programs (${requests.programs.length})`}
+            </button>
+          ))}
+          <button onClick={onMarkSeen} className="ml-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-ink-600 hover:bg-ink-50">
+            Mark all as read
+          </button>
+        </div>
+      </div>
+      <p className="mt-1 text-[11px] text-ink-400">
+        Submitted on MadeVisa by real accounts (company owners and managers). Once published they show as “Directly on MadeVisa by …” and get their own section on the Jobs / Programs pages.
+      </p>
+
+      <div className="mt-3 divide-y divide-ink-100 border border-ink-200 bg-white">
+        {items.length === 0 && <p className="px-4 py-6 text-center text-sm text-ink-400">No open requests. 🎉</p>}
+        {items.map((r) => (
+          <div key={`${r.kind}-${r.id}`} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${r.created_at > seenAt ? 'bg-rose-50/40' : ''}`}>
+            {r.publisher?.logo_url ? (
+              <img src={r.publisher.logo_url} alt="" className="h-9 w-9 shrink-0 rounded border border-ink-100 object-contain p-0.5" />
+            ) : (
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded border border-ink-100 bg-ink-50">
+                {r.kind === 'job' ? <Briefcase className="h-4 w-4 text-ink-400" /> : <Landmark className="h-4 w-4 text-ink-400" />}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${r.kind === 'job' ? 'bg-sky-50 text-sky-700' : 'bg-violet-50 text-violet-700'}`}>{r.kind}</span>
+                <p className="truncate text-sm font-semibold text-ink-900">{r.title}</p>
+                {r.created_at > seenAt && <NewPill />}
+              </div>
+              <p className="text-xs text-ink-500">
+                {r.publisher?.name ?? 'Unknown company'} · {r.category}
+                {r.country ? ` · ${r.country.name}` : ''}
+              </p>
+              <p className="text-[11px] text-ink-400">
+                by {r.submitter?.email ?? r.publisher?.contact_email ?? 'unknown'} · {timeAgo(r.created_at)}
+                {r.updated_at && r.updated_at > r.created_at ? ` · edited ${timeAgo(r.updated_at)}` : ''}
+              </p>
+            </div>
+            <StatusPill status={r.status} />
+            {r.kind === 'job' && (
+              <button onClick={() => window.open(`/admin/jobs/${r.id}`, '_blank')} className="rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-600 hover:bg-ink-50">
+                Review
+              </button>
+            )}
+            <button
+              disabled={busyId === r.id}
+              onClick={() => act(r, () => setStatus(r, 'needs_information'))}
+              className="rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-600 hover:bg-amber-50 disabled:opacity-50"
+            >
+              Needs info
+            </button>
+            <Actions onApprove={() => act(r, () => setStatus(r, 'published'))} onReject={() => act(r, () => setStatus(r, 'rejected'))} />
+            <button
+              onClick={() => {
+                if (!window.confirm(`Delete "${r.title}"? This can't be undone.`)) return;
+                act(r, () => (r.kind === 'job' ? deleteSponsoredJob(r.id) : deleteProgram(r.id)));
+              }}
+              aria-label="Delete"
+              className="rounded-lg p-1.5 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function DesktopNotificationsSection() {
+  const supported = typeof Notification !== 'undefined';
+  const [perm, setPerm] = useState<string>(supported ? Notification.permission : 'unsupported');
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Request notifications</h2>
+      <div className="mt-3 border border-ink-200 bg-white p-4 text-xs text-ink-600">
+        While the admin panel is open it checks for new company requests every minute — the Requests tab badge and the
+        browser tab title show the count. Turn on desktop notifications to get a pop-up too.
+        <div className="mt-3">
+          {perm === 'granted' ? (
+            <span className="font-semibold text-emerald-700">Desktop notifications are on.</span>
+          ) : perm === 'denied' ? (
+            <span className="text-ink-500">Blocked in this browser — allow notifications for this site in browser settings.</span>
+          ) : perm === 'unsupported' ? (
+            <span className="text-ink-500">This browser doesn't support desktop notifications.</span>
+          ) : (
+            <button onClick={async () => setPerm(await Notification.requestPermission())} className="rounded-lg bg-brand-600 px-3 py-1.5 font-semibold text-white hover:bg-brand-700">
+              Enable desktop notifications
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ===========================================================================
+// Import sources + one-click sync
+// ===========================================================================
+
+function ImportSourcesSection({
+  sources,
+  allJobs,
+  countries,
+  verifiedPublishers,
+  onChange,
+}: {
+  sources: ImportSource[];
+  allJobs: AdminSponsoredJob[];
+  countries: CountryOption[];
+  verifiedPublishers: PendingPublisher[];
+  onChange: () => void;
+}) {
+  const [removal, setRemoval] = useState<'delete' | 'expire'>('delete');
+  const [refreshContent, setRefreshContent] = useState(false);
+  const [allowLarge, setAllowLarge] = useState(false);
+  const [running, setRunning] = useState<string | null>(null); // source id or 'all'
+  const [log, setLog] = useState<string[]>([]);
+  const [results, setResults] = useState<Record<string, SyncSummary & { ok: boolean }>>({});
+  const [search, setSearch] = useState('');
+  const stop = useRef(false);
+
+  // Add-a-source form (for companies imported before sources were saved)
+  const [addPublisherId, setAddPublisherId] = useState('');
+  const [addUrl, setAddUrl] = useState('');
+
+  const countsBySource = useMemo(() => {
+    const m = new Map<string, { live: number; pending: number; other: number }>();
+    for (const j of allJobs) {
+      if (!j.import_source_id) continue;
+      const c = m.get(j.import_source_id) ?? { live: 0, pending: 0, other: 0 };
+      if (j.status === 'published') c.live++;
+      else if (j.status === 'pending') c.pending++;
+      else c.other++;
+      m.set(j.import_source_id, c);
+    }
+    return m;
+  }, [allJobs]);
+
+  const unlinkedImported = useMemo(() => allJobs.filter((j) => j.origin === 'imported' && !j.import_source_id).length, [allJobs]);
+
+  const say = (msg: string) => setLog((prev) => [...prev.slice(-7), msg]);
+
+  const runSync = async (list: ImportSource[], key: string) => {
+    if (list.length === 0) return;
+    stop.current = false;
+    setRunning(key);
+    setLog([]);
+    for (const src of list) {
+      if (stop.current) {
+        say('Stopped.');
+        break;
+      }
+      const res = await syncImportSource(src, {
+        countries,
+        removal,
+        refreshContent,
+        allowLargeRemoval: allowLarge,
+        onProgress: say,
+        shouldStop: () => stop.current,
+      });
+      setResults((prev) => ({ ...prev, [src.id]: { ...res.summary, ok: res.ok } }));
+      if (res.summary.error) say(`${src.publisher?.name ?? 'Source'}: ${res.summary.error}`);
+    }
+    setRunning(null);
+    onChange();
+  };
+
+  const filtered = sources.filter((s) => {
+    const q = search.trim().toLowerCase();
+    return !q || (s.publisher?.name ?? '').toLowerCase().includes(q) || s.source_url.toLowerCase().includes(q);
+  });
+
+  // Link Greenhouse companies imported before sources existed.
+  const linkableGreenhouse = useMemo(() => {
+    const have = new Set(sources.filter((s) => s.kind === 'greenhouse').map((s) => `${s.publisher_id}|${s.source_url}`));
+    const byName = new Map(verifiedPublishers.map((p) => [p.name.trim().toLowerCase(), p.id]));
+    return GREENHOUSE_COMPANIES.map((c) => ({ c, pid: byName.get(c.name.trim().toLowerCase()) ?? byName.get(c.legalName.trim().toLowerCase()) }))
+      .filter((x): x is { c: (typeof GREENHOUSE_COMPANIES)[number]; pid: string } => !!x.pid && !have.has(`${x.pid}|${x.c.token}`));
+  }, [sources, verifiedPublishers]);
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Import sources — sync with live careers pages</h2>
+      <div className="mt-3 border border-ink-200 bg-white p-4">
+        <p className="text-xs text-ink-500">
+          Every import is saved here. <strong>Sync</strong> re-fetches the whole source, adds new postings, keeps live ones
+          from expiring, and removes the ones the company took down. Nothing is removed if the fetch fails, returns zero
+          jobs, or is stopped midway — and a sync that would remove more than 60% of a company's jobs is held back unless
+          you allow it.
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+          <label className="flex items-center gap-1.5">
+            Jobs gone from source:
+            <select value={removal} onChange={(e) => setRemoval(e.target.value as 'delete' | 'expire')} className="h-7 rounded border border-ink-200 px-1.5">
+              <option value="delete">Delete from MadeVisa</option>
+              <option value="expire">Mark as expired (keep record)</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" checked={refreshContent} onChange={(e) => setRefreshContent(e.target.checked)} />
+            Also refresh titles &amp; descriptions (overwrites manual edits)
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" checked={allowLarge} onChange={(e) => setAllowLarge(e.target.checked)} />
+            Allow large removals
+          </label>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => runSync(filtered, 'all')}
+            disabled={!!running || filtered.length === 0}
+            className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${running === 'all' ? 'animate-spin' : ''}`} />
+            {running === 'all' ? 'Syncing…' : `Sync ${search.trim() ? 'filtered' : 'all'} (${filtered.length})`}
+          </button>
+          {running && (
+            <button onClick={() => (stop.current = true)} className="rounded-lg border border-ink-200 px-3 py-2 text-xs font-semibold text-ink-600 hover:bg-ink-50">
+              Stop
+            </button>
+          )}
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter sources…" className="h-8 w-48 rounded-md border border-ink-200 px-2 text-xs outline-none focus:border-brand-500" />
+        </div>
+
+        {log.length > 0 && (
+          <div className="mt-3 rounded-md bg-ink-950 px-3 py-2 font-mono text-[11px] leading-5 text-ink-100">
+            {log.map((l, i) => <div key={i}>{l}</div>)}
+          </div>
+        )}
+
+        <div className="mt-3 overflow-x-auto rounded-lg border border-ink-100">
+          <table className="w-full min-w-[720px] text-xs">
+            <thead className="bg-ink-50 text-left text-[10px] uppercase tracking-wide text-ink-500">
+              <tr>
+                <th className="px-3 py-2">Company</th>
+                <th className="px-3 py-2">Source</th>
+                <th className="px-3 py-2">On MadeVisa</th>
+                <th className="px-3 py-2">Last sync</th>
+                <th className="px-3 py-2" title="New jobs found by sync go live immediately instead of to pending">Auto-publish</th>
+                <th className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-3 py-6 text-center text-ink-400">No saved sources yet — run an import below and it'll appear here.</td>
+                </tr>
+              )}
+              {filtered.map((src) => {
+                const counts = countsBySource.get(src.id) ?? { live: 0, pending: 0, other: 0 };
+                const latest = results[src.id] ?? src.last_sync_summary;
+                const status = results[src.id] ? (results[src.id].error ? (results[src.id].ok ? 'partial' : 'error') : 'ok') : src.last_sync_status;
+                return (
+                  <tr key={src.id} className="align-top">
+                    <td className="px-3 py-2.5 font-semibold text-ink-900">{src.publisher?.name ?? '—'}</td>
+                    <td className="max-w-[220px] px-3 py-2.5">
+                      <span className="rounded bg-ink-50 px-1.5 py-0.5 text-[10px] font-semibold text-ink-600">{src.detected_platform ?? (src.kind === 'greenhouse' ? 'Greenhouse' : 'Careers page')}</span>
+                      <p className="mt-1 truncate text-[11px] text-ink-400" title={src.source_url}>{src.source_url}</p>
+                    </td>
+                    <td className="px-3 py-2.5 text-ink-600">
+                      {counts.live} live · {counts.pending} pending{counts.other ? ` · ${counts.other} other` : ''}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={`font-semibold ${status === 'ok' ? 'text-emerald-700' : status === 'error' ? 'text-rose-600' : status === 'partial' ? 'text-amber-700' : 'text-ink-400'}`}>
+                        {timeAgo(results[src.id] ? new Date().toISOString() : src.last_synced_at)}
+                      </span>
+                      <p className="text-[11px] text-ink-500">{describeSyncSummary(latest)}</p>
+                      {latest?.error && <p className="mt-0.5 max-w-[260px] text-[11px] text-rose-600">{latest.error}</p>}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <input
+                        type="checkbox"
+                        checked={src.auto_publish}
+                        onChange={async (e) => {
+                          const r = await updateImportSource(src.id, { auto_publish: e.target.checked });
+                          if (r.ok) onChange();
+                          else window.alert(r.error);
+                        }}
+                      />
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right">
+                      <button
+                        onClick={() => runSync([src], src.id)}
+                        disabled={!!running}
+                        className="inline-flex items-center gap-1 rounded-lg border border-ink-200 px-2.5 py-1 text-[11px] font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${running === src.id ? 'animate-spin' : ''}`} /> Sync
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const alsoJobs = window.confirm(
+                            `Remove the saved source for ${src.publisher?.name ?? 'this company'}?\n\nOK = also delete its ${counts.live + counts.pending + counts.other} imported jobs\nCancel = keep the jobs (they just stop syncing)`
+                          );
+                          if (!alsoJobs && !window.confirm('Remove the source and keep its jobs?')) return;
+                          const r = await deleteImportSource(src.id, alsoJobs);
+                          if (r.ok) onChange();
+                          else window.alert(r.error);
+                        }}
+                        className="ml-1 rounded-lg p-1.5 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
+                        aria-label="Remove source"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {(unlinkedImported > 0 || linkableGreenhouse.length > 0) && (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            <p>
+              <strong>{unlinkedImported}</strong> imported jobs were added before sources were saved. Save a source for
+              their company (below) and the first sync links them up — and cleans out duplicates from earlier re-imports.
+            </p>
+            {linkableGreenhouse.length > 0 && (
+              <button
+                onClick={async () => {
+                  for (const { c, pid } of linkableGreenhouse) {
+                    await registerImportSource({ publisherId: pid, kind: 'greenhouse', sourceUrl: c.token, platform: 'Greenhouse' });
+                  }
+                  onChange();
+                }}
+                className="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 font-semibold text-white hover:bg-amber-700"
+              >
+                Save sources for {linkableGreenhouse.length} Greenhouse compan{linkableGreenhouse.length === 1 ? 'y' : 'ies'} already imported
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
+          <select value={addPublisherId} onChange={(e) => setAddPublisherId(e.target.value)} className="h-9 rounded-md border border-ink-200 px-2 text-xs">
+            <option value="">Company…</option>
+            {verifiedPublishers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <input
+            value={addUrl}
+            onChange={(e) => setAddUrl(e.target.value)}
+            placeholder="Careers URL, or a Greenhouse board token (e.g. stripe)"
+            className="h-9 rounded-md border border-ink-200 px-2 text-xs outline-none focus:border-brand-500"
+          />
+          <button
+            disabled={!addPublisherId || !addUrl.trim()}
+            onClick={async () => {
+              const raw = addUrl.trim();
+              const isUrl = /^https?:\/\//i.test(raw);
+              const isGreenhouse = !isUrl || /greenhouse\.io/i.test(raw);
+              const token = isUrl ? new URL(raw).searchParams.get('for') ?? new URL(raw).pathname.split('/').filter(Boolean)[0] ?? raw : raw;
+              const r = await registerImportSource({
+                publisherId: addPublisherId,
+                kind: isGreenhouse ? 'greenhouse' : 'careers_url',
+                sourceUrl: isGreenhouse ? token : raw,
+              });
+              if (!r.ok) return window.alert(r.error);
+              setAddUrl('');
+              onChange();
+            }}
+            className="rounded-lg border border-ink-200 px-3 text-xs font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50"
+          >
+            Save source
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ===========================================================================
+// Company access — give an email (e.g. hr@netflix.com) rights over a company
+// ===========================================================================
+
+function CompanyAccessSection({ publishers, members, onChange }: { publishers: PendingPublisher[]; members: PublisherMember[]; onChange: () => void }) {
+  const [publisherId, setPublisherId] = useState('');
+  const [publisherSearch, setPublisherSearch] = useState('');
+  const [email, setEmail] = useState('');
+  const [canPublish, setCanPublish] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
+
+  const matchingPublishers = publishers.filter((p) => !publisherSearch.trim() || p.name.toLowerCase().includes(publisherSearch.trim().toLowerCase())).slice(0, 50);
+  const selected = publishers.find((p) => p.id === publisherId);
+  const shownMembers = members.filter((m) => {
+    const q = filter.trim().toLowerCase();
+    return !q || m.email.includes(q) || (m.publisher?.name ?? '').toLowerCase().includes(q);
+  });
+
+  const inviteText = (m: { email: string; companyName: string }) =>
+    `Hi,\n\nYou now have access to manage ${m.companyName} on MadeVisa — your vacancies, programs and company page.\n\n` +
+    `Sign in (or create an account) with ${m.email} at ${window.location.origin}/company\n\n— The MadeVisa team`;
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Company managers</h2>
+      <div className="mt-3 border border-ink-200 bg-white p-4">
+        <p className="text-xs text-ink-500">
+          Give someone at a company (e.g. <code>hr@netflix.com</code>) access to manage that company on MadeVisa. They sign in
+          or sign up with that exact email (it must be confirmed) and get a <strong>Manage company</strong> page at{' '}
+          <code>/company</code>: vacancies, programs, logo/about text, and team. Enforced by the database, not just the UI.
+        </p>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div>
+            <input
+              value={selected && !publisherSearch ? selected.name : publisherSearch}
+              onChange={(e) => {
+                setPublisherSearch(e.target.value);
+                setPublisherId('');
+              }}
+              placeholder="Search company…"
+              className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm outline-none focus:border-brand-500"
+            />
+            {publisherSearch && !publisherId && (
+              <div className="mt-1 max-h-48 overflow-y-auto rounded-md border border-ink-200 bg-white shadow-sm">
+                {matchingPublishers.length === 0 && <p className="px-3 py-2 text-xs text-ink-400">No verified company with that name.</p>}
+                {matchingPublishers.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setPublisherId(p.id);
+                      setPublisherSearch('');
+                    }}
+                    className="block w-full px-3 py-1.5 text-left text-xs hover:bg-ink-50"
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="person@company.com"
+            className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm outline-none focus:border-brand-500"
+          />
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-ink-600">
+            <input type="checkbox" checked={canPublish} onChange={(e) => setCanPublish(e.target.checked)} />
+            Can publish without review (trusted)
+          </label>
+          <button
+            disabled={!publisherId || !email.trim()}
+            onClick={async () => {
+              const r = await addPublisherMember(publisherId, email, canPublish);
+              if (!r.ok) return setMsg(r.error ?? 'Failed.');
+              setMsg(`${email.trim().toLowerCase()} can now manage ${selected?.name}. Copy the invite from the list below.`);
+              setEmail('');
+              setCanPublish(false);
+              onChange();
+            }}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            Give access
+          </button>
+          {msg && <span className="text-xs text-ink-500">{msg}</span>}
+        </div>
+
+        <div className="mt-4 flex items-center gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">Who has access ({members.length})</p>
+          <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter…" className="ml-auto h-7 w-40 rounded-md border border-ink-200 px-2 text-xs outline-none focus:border-brand-500" />
+        </div>
+        <div className="mt-2 divide-y divide-ink-100 rounded-lg border border-ink-100">
+          {shownMembers.length === 0 && <p className="px-3 py-4 text-center text-xs text-ink-400">Nobody yet.</p>}
+          {shownMembers.map((m) => {
+            const companyName = m.publisher?.name ?? 'this company';
+            return (
+              <div key={m.id} className="flex flex-wrap items-center gap-3 px-3 py-2 text-xs">
+                <span className="w-40 truncate font-semibold text-ink-900">{companyName}</span>
+                <span className="min-w-0 flex-1 truncate text-ink-700">{m.email}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${m.hasAccount ? 'bg-emerald-50 text-emerald-700' : 'bg-ink-100 text-ink-500'}`}>
+                  {m.hasAccount ? 'Has account' : 'Not signed up yet'}
+                </span>
+                <label className="flex items-center gap-1 text-ink-600" title="Publishes without MadeVisa review">
+                  <input
+                    type="checkbox"
+                    checked={m.can_publish}
+                    onChange={async (e) => {
+                      const r = await updatePublisherMember(m.id, { can_publish: e.target.checked });
+                      if (r.ok) onChange();
+                      else window.alert(r.error);
+                    }}
+                  />
+                  Trusted
+                </label>
+                <button
+                  onClick={() => navigator.clipboard?.writeText(inviteText({ email: m.email, companyName }))}
+                  className="rounded p-1 text-ink-400 hover:bg-ink-50 hover:text-ink-700"
+                  title="Copy invite message"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+                <a
+                  href={`mailto:${m.email}?subject=${encodeURIComponent(`Manage ${companyName} on MadeVisa`)}&body=${encodeURIComponent(inviteText({ email: m.email, companyName }))}`}
+                  className="rounded p-1 text-ink-400 hover:bg-ink-50 hover:text-ink-700"
+                  title="Email invite"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                </a>
+                <button
+                  onClick={async () => {
+                    if (!window.confirm(`Remove ${m.email}'s access to ${companyName}?`)) return;
+                    const r = await removePublisherMember(m.id);
+                    if (r.ok) onChange();
+                    else window.alert(r.error);
+                  }}
+                  className="rounded p-1 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
+                  title="Remove access"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }

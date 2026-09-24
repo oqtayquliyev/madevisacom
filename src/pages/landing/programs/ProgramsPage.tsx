@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
+  BadgeCheck,
   Bookmark,
   BookmarkCheck,
   ChevronDown,
@@ -13,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import type { View } from '@/types';
+import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import {
   fetchSponsoredPrograms,
   getApplicationWindowStatus,
@@ -300,7 +302,12 @@ function ProgramCard({ program, goToProgram }: { program: SponsoredProgram; goTo
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3.5">
         <DateTag iso={postedAt(program)} />
-        {program.publisher?.name && <span className="text-[11px] text-ink-400">Source: {program.publisher.name}</span>}
+        {program.publisher?.name &&
+          (program.origin === 'direct' ? (
+            <DirectListingBadge company={program.publisher.name} compact />
+          ) : (
+            <span className="text-[11px] text-ink-400">Source: {program.publisher.name}</span>
+          ))}
       </div>
     </a>
   );
@@ -359,14 +366,14 @@ function SelectField({ label, value, options, onChange }: { label: string; value
   );
 }
 
-/** Renders "Discover {keyword} ..." with the {keyword} part in bold MadeVisa blue. */
+/** Renders "Discover {keyword} ..." with the {keyword} part as white text on a dark block, so it reads clearly on the blue hero. */
 function HighlightedHeading({ text }: { text: string }) {
   const parts = text.split(/(\{[^}]+\})/);
   return (
     <>
       {parts.map((part, i) =>
         part.startsWith('{') ? (
-          <span key={i} className="font-extrabold text-brand-600">
+          <span key={i} className="rounded-md bg-ink-950 px-2 font-extrabold text-white [box-decoration-break:clone] [-webkit-box-decoration-break:clone] sm:px-2.5">
             {part.slice(1, -1)}
           </span>
         ) : (
@@ -403,6 +410,7 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
   const [organization, setOrganization] = useState(initial.get('organization') ?? '');
   const [datePosted, setDatePosted] = useState<DatePostedOption>(() => (DATE_POSTED_OPTIONS as readonly string[]).includes(initial.get('posted') ?? '') ? (initial.get('posted') as DatePostedOption) : 'Any time');
   const [sortBy, setSortBy] = useState<SortOption>(initial.get('sort') === 'deadline' ? 'deadline' : 'newest');
+  const [directOnly, setDirectOnly] = useState(initial.get('direct') === '1');
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -444,13 +452,16 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
     if (organization) params.set('organization', organization);
     if (datePosted !== 'Any time') params.set('posted', datePosted);
     if (sortBy !== 'newest') params.set('sort', sortBy);
+    if (directOnly) params.set('direct', '1');
     const query = params.toString();
     window.history.replaceState({}, '', query ? `${config.path}?${query}` : config.path);
-  }, [search, country, category, status, funding, orgType, organization, datePosted, sortBy, allTypes, config.path]);
+  }, [search, country, category, status, funding, orgType, organization, datePosted, sortBy, directOnly, allTypes, config.path]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [search, country, category, status, funding, orgType, organization, datePosted, sortBy]);
+  }, [search, country, category, status, funding, orgType, organization, datePosted, sortBy, directOnly]);
+
+  const directPrograms = useMemo(() => allPrograms.filter((p) => p.origin === 'direct'), [allPrograms]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -469,6 +480,7 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
       const matchesOrgType = orgType === 'All organizations' || p.publisher?.org_type === orgType.toLowerCase();
       const matchesOrganization = !org || (p.publisher?.name ?? '').toLowerCase().includes(org);
       return (
+        (!directOnly || p.origin === 'direct') &&
         matchesSearch &&
         matchesCountry &&
         matchesCategory &&
@@ -487,7 +499,7 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
       return [...matched].sort((a, b) => key(a).localeCompare(key(b)));
     }
     return [...matched].sort((a, b) => new Date(postedAt(b)).getTime() - new Date(postedAt(a)).getTime());
-  }, [allPrograms, search, country, category, status, funding, orgType, organization, datePosted, sortBy, allTypes]);
+  }, [allPrograms, search, country, category, status, funding, orgType, organization, datePosted, sortBy, directOnly, allTypes]);
 
   const visible = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
@@ -500,6 +512,7 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
     setOrgType('All organizations');
     setOrganization('');
     setDatePosted('Any time');
+    setDirectOnly(false);
   };
 
   const activeFilters: { key: string; label: string; onClear: () => void }[] = [
@@ -510,6 +523,7 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
     orgType !== 'All organizations' && { key: 'org', label: orgType, onClear: () => setOrgType('All organizations') },
     organization && { key: 'organization', label: organization, onClear: () => setOrganization('') },
     datePosted !== 'Any time' && { key: 'posted', label: datePosted, onClear: () => setDatePosted('Any time') },
+    directOnly && { key: 'direct', label: 'Direct from organizations', onClear: () => setDirectOnly(false) },
   ].filter((f): f is { key: string; label: string; onClear: () => void } => Boolean(f));
 
   const POPULAR_COUNTRY_PILL_COUNT = 8;
@@ -526,19 +540,19 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active={mode === 'study' ? 'study' : 'programs'} />
 
-      <section className="border-b border-ink-200 bg-white">
-        <div className="mx-auto max-w-5xl px-5 py-8 sm:px-8 sm:py-12">
-          <h1 className="font-slab text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">
+      <section className="bg-brand-700 text-white">
+        <div className="mx-auto max-w-5xl px-5 py-9 sm:px-8 sm:py-14">
+          <h1 className="font-slab text-3xl font-bold leading-[1.3] tracking-tight text-white sm:text-4xl sm:leading-[1.3]">
             <HighlightedHeading text={config.heading} />
           </h1>
-          <p className="mt-2 text-sm text-ink-500 sm:text-base">{config.subheading}</p>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-white/80 sm:text-base">{config.subheading}</p>
 
           <div className="mt-5">
-            <PersonalizationBar />
+            <PersonalizationBar tone="dark" />
           </div>
 
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <div className="flex h-12 flex-1 items-center gap-3 rounded-md border border-ink-300 bg-white px-3.5">
+            <div className="flex h-12 shrink-0 items-center gap-3 rounded-md border border-white bg-white sm:flex-1 px-3.5 shadow-sm">
               <Search className="h-4.5 w-4.5 shrink-0 text-ink-400" />
               <input
                 value={search}
@@ -555,12 +569,12 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
             <button
               type="button"
               onClick={() => setShowFilters((v) => !v)}
-              className="flex h-12 items-center justify-center gap-2 rounded-md border border-ink-300 px-5 text-sm font-semibold text-ink-700 hover:bg-ink-50"
+              className="flex h-12 items-center justify-center gap-2 rounded-md border border-white/30 bg-white/10 px-5 text-sm font-semibold text-white transition hover:bg-white/20"
             >
               <SlidersHorizontal className="h-4 w-4" />
               Filters
               {activeFilters.length > 0 && (
-                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brand-600 px-1 text-[10px] text-white">{activeFilters.length}</span>
+                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[10px] text-brand-700">{activeFilters.length}</span>
               )}
             </button>
           </div>
@@ -570,7 +584,7 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
               type="button"
               onClick={() => setCountry('All countries')}
               className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-                country === 'All countries' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-200 bg-white text-ink-600 hover:border-brand-300'
+                country === 'All countries' ? 'border-white bg-white text-brand-700' : 'border-white/25 bg-white/10 text-white hover:border-white/60 hover:bg-white/15'
               }`}
             >
               <Globe2 className="h-3.5 w-3.5" />
@@ -582,7 +596,7 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
                 type="button"
                 onClick={() => setCountry(item.name)}
                 className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-                  country === item.name ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-200 bg-white text-ink-600 hover:border-brand-300'
+                  country === item.name ? 'border-white bg-white text-brand-700' : 'border-white/25 bg-white/10 text-white hover:border-white/60 hover:bg-white/15'
                 }`}
               >
                 <CircleFlag countryCode={item.code} label={item.name} size={15} />
@@ -651,6 +665,18 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
+          {directPrograms.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setDirectOnly((v) => !v)}
+              className={`flex shrink-0 items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                directOnly ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100'
+              }`}
+            >
+              <BadgeCheck className="h-3.5 w-3.5" />
+              Direct from organizations ({directPrograms.length})
+            </button>
+          )}
           {[allTypes, ...config.categories].map((c) => (
             <button
               key={c}
@@ -723,6 +749,29 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
           </div>
         ) : (
           <>
+            {!directOnly && activeFilters.length === 0 && !search && directPrograms.length > 0 && (
+              <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="flex items-center gap-1.5 text-sm font-bold text-ink-900">
+                      <BadgeCheck className="h-4 w-4 text-emerald-600" />
+                      Posted directly on MadeVisa
+                    </h3>
+                    <p className="text-xs text-ink-500">Published here by the organizations running them.</p>
+                  </div>
+                  {directPrograms.length > 2 && (
+                    <button type="button" onClick={() => setDirectOnly(true)} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800">
+                      See all {directPrograms.length} →
+                    </button>
+                  )}
+                </div>
+                <div className="mt-3 grid gap-4 lg:grid-cols-2">
+                  {directPrograms.slice(0, 2).map((program) => (
+                    <ProgramCard key={`direct-${program.id}`} program={program} goToProgram={goToProgram} />
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="mt-6 grid gap-4 lg:grid-cols-2">
               {visible.map((program) => (
                 <ProgramCard key={program.id} program={program} goToProgram={goToProgram} />

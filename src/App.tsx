@@ -23,6 +23,7 @@ import { ProgramDetailPage } from '@/pages/programs/ProgramDetailPage';
 import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
 import { AdminPanelPage } from '@/pages/admin/AdminPanelPage';
 import { AdminJobEditorPage } from '@/pages/admin/AdminJobEditorPage';
+import { CompanyManagerPage } from '@/pages/company/CompanyManagerPage';
 import { OfficialPartnersPage } from '@/pages/partners/OfficialPartnersPage';
 import { PublicProfilePage } from '@/pages/u/PublicProfilePage';
 import { LegalPage } from '@/pages/legal/LegalPage';
@@ -53,6 +54,7 @@ const pathForView: Partial<Record<View, string>> = {
   destinations: '/destinations',
   dashboard: '/dashboard',
   admin: '/admin',
+  company: '/company',
   'official-partners': '/official-partners',
 };
 
@@ -227,6 +229,13 @@ export default function App() {
 
   if (path === '/admin') {
     return <AdminPanelPage go={go} onAuth={goToAuth} />;
+  }
+
+  // Company managers (e.g. a company's HR) — self-gates: shows a sign-in
+  // prompt when logged out, and "no access yet" when the account's email
+  // hasn't been given access to any company.
+  if (path === '/company') {
+    return <CompanyManagerPage go={go} onAuth={goToAuth} />;
   }
 
   // Full-page admin job editor (opened in its own tab via window.open

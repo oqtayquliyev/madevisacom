@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import {
   Banknote,
   Building2,
@@ -64,6 +65,7 @@ function ProgramCard({ program, goToProgram }: { program: SponsoredProgram; goTo
           </span>
           <div>
             <p className="text-xs font-semibold text-ink-500">{program.publisher?.name}</p>
+            {program.origin === 'direct' && program.publisher?.name && <DirectListingBadge company={program.publisher.name} compact />}
             <p className="text-[11px] uppercase tracking-wide text-ink-400">
               {isGovernment ? 'Government' : 'Company'} · {program.category}
             </p>

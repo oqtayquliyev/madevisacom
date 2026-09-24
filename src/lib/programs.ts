@@ -5,7 +5,7 @@ import type { CostStatus, ListingStatus } from '@/lib/listingCategories';
 export const PUBLISHING_CONTACT_EMAIL = 'hello@madevisa.com';
 
 const programColumns =
-  'id, publisher_id, title, description, category, country_id, city, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, applications_open_at, applications_close_at, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, spots_available, image_url, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, created_at, approved_at, expires_at, publisher:program_publishers(id, name, org_type, logo_url, verification_status), country:countries(id, name, iso_code)';
+  'id, publisher_id, title, description, category, country_id, city, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, applications_open_at, applications_close_at, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, spots_available, image_url, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, created_at, approved_at, expires_at, origin, publisher:program_publishers(id, name, org_type, logo_url, verification_status), country:countries(id, name, iso_code)';
 
 export type OrgType = 'government' | 'company' | 'agency' | 'expert';
 
@@ -65,6 +65,8 @@ export type SponsoredProgram = {
   created_at: string;
   approved_at: string | null;
   expires_at: string | null;
+  /** 'direct' = submitted on MadeVisa by the organization itself. */
+  origin?: 'direct' | 'imported' | 'admin';
   // joined
   publisher?: Pick<ProgramPublisher, 'id' | 'name' | 'org_type' | 'logo_url' | 'verification_status'>;
   country?: Pick<CountryOption, 'id' | 'name' | 'iso_code'>;

@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
-import { ArrowLeft, Briefcase, Building2, Calendar, Check, Landmark, Loader2, Share2, UserRound, Users } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { DirectListingBadge } from '@/components/common/DirectListingBadge';
+import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Check, ChevronDown, GraduationCap, Landmark, Loader2, MapPin, Plane, Share2, UserRound, Users } from 'lucide-react';
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { fetchSponsoredJobById, fetchSponsoredJobByShortId, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { jobPath, parseJobPath } from '@/lib/jobUrl';
 import { markJobViewed } from '@/lib/viewedJobs';
-import { computeEligibility, usePersonalization } from '@/lib/personalization';
-import { EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
+import { displayJobCategory, isMeaningfulJobType } from '@/lib/jobCategories';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -24,7 +24,6 @@ type JobDetailPageProps = {
 };
 
 export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
-  const { profile } = usePersonalization();
   const [job, setJob] = useState<Job | null | undefined>(undefined);
   const [raw, setRaw] = useState<SponsoredJob | null>(null);
   const [copied, setCopied] = useState(false);
@@ -137,134 +136,166 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
     );
   }
 
-  const eligibility = computeEligibility(job.eligibility, profile, job.countryCode);
   const SponsorIcon = job.publisherOrgType === 'government' ? Landmark : job.publisherOrgType === 'expert' ? UserRound : Building2;
+  const category = displayJobCategory(job);
+  const postedLabel = job.postedDate ? formatRelativeTime(job.postedDate, '') : '';
+  const placeLabel = job.city && job.city !== job.country && job.city !== 'Remote' ? `${job.city}, ${job.country}` : job.country;
+  const hasSourceUrl = Boolean(job.url && job.url !== '#');
+  const shareLabel = copied ? 'Link copied' : 'Share';
+
+  // Every fact in the details box is either real data from the listing
+  // or a link back to the original posting — never a guessed value or
+  // a vague "Not specified".
+  const see = <SourceLink url={hasSourceUrl ? job.url : null} />;
+  const details: { icon: typeof Briefcase; label: string; value: ReactNode }[] = [
+    { icon: Banknote, label: 'Compensation', value: job.salary || see },
+    { icon: MapPin, label: 'Remote', value: job.remote ? 'Yes' : see },
+    { icon: Briefcase, label: 'Employment type', value: isMeaningfulJobType(job.type) ? job.type : see },
+    { icon: GraduationCap, label: 'Experience level', value: job.experienceLevel || see },
+    { icon: Plane, label: 'Visa sponsorship', value: job.visaSponsorship ? 'Offered' : see },
+  ];
+  if (job.spotsAvailable != null) details.push({ icon: Users, label: 'Positions available', value: String(job.spotsAvailable) });
+
+  const applyButton = (extra = '') => (
+    <a
+      href={job.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${extra}`}
+    >
+      Apply
+      <ArrowUpRight className="h-4 w-4" />
+    </a>
+  );
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
 
-      <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
-        <button
-          onClick={() => {
-            // Real browser back navigation, not go('jobs') — that pushes
-            // a bare /jobs with no query string, silently dropping
-            // whatever search/filters were active on the list. Back
-            // returns to that exact previous /jobs?... URL instead, and
-            // JobsPage already reads its filters from the URL on mount,
-            // so they come back automatically. Falls back to go('jobs')
-            // only when there's nowhere to go back to (e.g. this page
-            // was opened directly/in a new tab).
-            if (window.history.length > 1) window.history.back();
-            else go('jobs');
-          }}
-          className="flex items-center gap-1.5 text-xs font-semibold text-ink-500 hover:text-ink-800"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          All jobs
-        </button>
+      <section className="bg-brand-700 text-white">
+        <div className="mx-auto max-w-4xl px-5 pb-10 pt-6 sm:px-8 sm:pb-14 sm:pt-8">
+          <button
+            onClick={() => {
+              // Real browser back navigation, not go('jobs') — that pushes
+              // a bare /jobs with no query string, silently dropping
+              // whatever search/filters were active on the list. Back
+              // returns to that exact previous /jobs?... URL instead, and
+              // JobsPage already reads its filters from the URL on mount,
+              // so they come back automatically. Falls back to go('jobs')
+              // only when there's nowhere to go back to (e.g. this page
+              // was opened directly/in a new tab).
+              if (window.history.length > 1) window.history.back();
+              else go('jobs');
+            }}
+            className="flex items-center gap-1.5 text-xs font-semibold text-white/70 hover:text-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            All jobs
+          </button>
 
-        <div className="mt-5 overflow-hidden border border-ink-200 bg-white">
-          <div className="flex items-center gap-4 border-b border-ink-100 bg-ink-50/60 px-6 py-6 sm:px-8 sm:py-8">
-            {job.imageUrl ? (
-              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-ink-200 bg-white p-2.5 shadow-sm sm:h-24 sm:w-24">
-                <img src={job.imageUrl} alt={`${job.company} logo`} className="h-full w-full object-contain" />
-              </div>
-            ) : (
-              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-ink-200 bg-gradient-to-br from-brand-50 to-indigo-50 sm:h-24 sm:w-24">
-                {job.publisherOrgType ? <SponsorIcon className="h-8 w-8 text-brand-300" /> : <CompanyLogo name={job.company} size={48} />}
-              </div>
-            )}
+          <div className="mt-8 flex items-center gap-3 sm:mt-10">
+            <HeaderLogo job={job} SponsorIcon={SponsorIcon} />
             <div className="min-w-0">
-              <p className="flex items-center gap-1.5 truncate text-base font-bold text-ink-900 sm:text-lg">
-                {job.publisherOrgType && <SponsorIcon className="h-4 w-4 shrink-0 text-ink-400" />}
-                {job.company}
-              </p>
-              {job.sourceType === 'company_submitted' && <p className="text-xs text-ink-500">Posted by {job.company}</p>}
+              <p className="truncate text-base font-bold sm:text-lg">{job.company}</p>
+              {job.sourceType === 'company_submitted' && (
+                <div className="mt-1">
+                  <DirectListingBadge company={job.company} />
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="p-6 sm:p-8">
-            <div className="flex flex-wrap items-center gap-2">
-              {/* For sponsored/imported jobs, category and type are kept
-                  equal (see EditableJobRow / importJobsAsPending) — only
-                  show both badges when they actually say something
-                  different, or the same word (e.g. "Full time") shows up
-                  twice side by side. */}
-              {job.category && job.category !== job.type && (
-                <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">{job.category}</span>
-              )}
-              <span className="rounded-full bg-ink-100 px-2.5 py-1 text-[11px] font-semibold text-ink-600">{job.type}</span>
-              {job.remote && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Remote</span>}
-              {job.visaSponsorship && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700">Visa sponsorship</span>}
-              <MultiCountryBadge officeNames={job.additionalLocations} />
-              <EligibilityBadge result={eligibility} />
-            </div>
-
-            <h1 className="mt-3 font-slab text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">{job.title}</h1>
-
-            <div className="mt-3 text-sm text-ink-500">
-              <div className="flex items-center gap-1.5">
-                <CircleFlag countryCode={job.countryCode} label={job.country} size={16} />
-                {job.city ? `${job.city}, ${job.country}` : job.country}
-              </div>
-              <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-400">
-                <Calendar className="h-3.5 w-3.5" />
-                Posted {formatRelativeTime(job.postedDate)}
+          <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-end md:justify-between md:gap-10">
+            <div className="min-w-0">
+              <h1 className="break-words font-slab text-3xl font-bold leading-tight tracking-tight sm:text-5xl sm:leading-[1.1]">{job.title}</h1>
+              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/85">
+                {job.remote && (
+                  <span className="flex items-center gap-1.5 font-semibold text-white">
+                    <MapPin className="h-4 w-4" />
+                    Remote
+                  </span>
+                )}
+                <span className="flex items-center gap-1.5">
+                  <CircleFlag countryCode={job.countryCode} label={job.country} size={16} />
+                  {placeLabel}
+                </span>
+                {postedLabel && (
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4" />
+                    Posted {postedLabel}
+                  </span>
+                )}
               </div>
             </div>
 
-            {job.description && (
-              <div
-                className="prose-job mt-5 text-sm leading-6 text-ink-600 [&_h2]:mt-5 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-ink-950 [&_h2]:first:mt-0 [&_h3]:mt-4 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-ink-900 [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-1 [&_strong]:font-bold [&_strong]:text-ink-800 [&_a]:text-brand-600 [&_a]:underline"
-                dangerouslySetInnerHTML={{ __html: sanitizeJobHtml(job.description) }}
-              />
-            )}
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <InfoRow icon={Briefcase} label="Compensation" value={job.salary || 'Not specified'} />
-              <InfoRow icon={Users} label="Remote" value={job.remote ? 'Yes' : 'No'} />
-              {job.spotsAvailable != null && <InfoRow icon={Users} label="Positions available" value={String(job.spotsAvailable)} />}
-            </div>
-
-            {job.requirements && (
-              <div className="mt-6 rounded-lg bg-ink-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Requirements &amp; limits</p>
-                <p className="mt-1.5 text-sm leading-6 text-ink-700">{job.requirements}</p>
-              </div>
-            )}
-
-            {job.benefits && (
-              <div className="mt-4 rounded-lg bg-emerald-50/60 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Benefits</p>
-                <p className="mt-1.5 text-sm leading-6 text-ink-700">{job.benefits}</p>
-              </div>
-            )}
-
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <a
-                href={job.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-lg bg-brand-600 px-8 py-3.5 text-sm font-bold text-white shadow-soft-lg transition hover:-translate-y-0.5 hover:bg-brand-700"
-              >
-                Apply now
-              </a>
+            <div className="flex shrink-0 items-center gap-2">
+              {applyButton('flex-1 bg-white text-brand-700 shadow-sm hover:bg-brand-50 focus-visible:outline-white md:flex-none')}
               <button
                 onClick={share}
-                className="flex items-center gap-2 rounded-lg border border-ink-200 px-4 py-3.5 text-sm font-semibold text-ink-700 hover:bg-ink-50"
+                aria-label={shareLabel}
+                className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full border border-white/40 text-white transition hover:bg-white/10"
               >
-                {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
-                {copied ? 'Link copied' : 'Share'}
+                {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
               </button>
             </div>
-
-            {job.sourceType === 'company_careers' && (
-              <p className="mt-4 text-xs leading-5 text-ink-400">
-                Added by MadeVisa from the company&apos;s public careers page. Availability may change on the original source.
-              </p>
-            )}
           </div>
+        </div>
+      </section>
+
+      <main className="mx-auto max-w-4xl px-5 py-8 sm:px-8 sm:py-10">
+        <div className="border border-ink-200 bg-white p-6 sm:p-8">
+          {(category || job.visaSponsorship || (job.additionalLocations?.length ?? 0) > 1) && (
+            <div className="mb-5 flex flex-wrap items-center gap-2">
+              {category && <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">{category}</span>}
+              {job.visaSponsorship && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700">Visa sponsorship</span>}
+              <MultiCountryBadge officeNames={job.additionalLocations} />
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2 sm:grid-cols-3">
+            {details.map((d) => (
+              <InfoRow key={d.label} icon={d.icon} label={d.label} value={d.value} />
+            ))}
+          </div>
+
+          {job.description && <CollapsibleDescription html={sanitizeJobHtml(job.description)} />}
+
+          {job.requirements && (
+            <div className="mt-6 rounded-lg bg-ink-50 p-4">
+              <p className="text-xs font-bold text-ink-500">Requirements &amp; limits</p>
+              <p className="mt-1.5 text-sm leading-6 text-ink-700">{job.requirements}</p>
+            </div>
+          )}
+
+          {job.benefits && (
+            <div className="mt-4 rounded-lg bg-emerald-50/60 p-4">
+              <p className="text-xs font-bold text-emerald-700">Benefits</p>
+              <p className="mt-1.5 text-sm leading-6 text-ink-700">{job.benefits}</p>
+            </div>
+          )}
+
+          <div className="mt-8 flex flex-col gap-4 border-t border-ink-100 pt-6 md:flex-row md:items-center md:justify-between md:gap-8">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-ink-500">{job.company}</p>
+              <p className="mt-0.5 font-slab text-lg font-bold leading-snug text-ink-950">{job.title}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {applyButton('flex-1 bg-brand-600 text-white shadow-soft-lg hover:bg-brand-700 focus-visible:outline-brand-600 md:flex-none')}
+              <button
+                onClick={share}
+                aria-label={shareLabel}
+                className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full border border-ink-200 text-ink-700 transition hover:bg-ink-50"
+              >
+                {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          {job.sourceType === 'company_careers' && (
+            <p className="mt-4 text-xs leading-5 text-ink-400">
+              Added by MadeVisa from the company&apos;s public careers page. Availability may change on the original source.
+            </p>
+          )}
         </div>
       </main>
 
@@ -273,13 +304,98 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   );
 }
 
-function InfoRow({ icon: Icon, label, value }: { icon: typeof Briefcase; label: string; value: string }) {
+function HeaderLogo({ job, SponsorIcon }: { job: Job; SponsorIcon: typeof Building2 }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white p-2 shadow-sm sm:h-16 sm:w-16">
+      {job.imageUrl && !failed ? (
+        <img src={job.imageUrl} alt={`${job.company} logo`} onError={() => setFailed(true)} className="h-full w-full object-contain" />
+      ) : job.publisherOrgType ? (
+        <SponsorIcon className="h-7 w-7 text-brand-400" />
+      ) : (
+        <CompanyLogo name={job.company} size={44} />
+      )}
+    </div>
+  );
+}
+
+/** Underlined link back to the original posting, used wherever a detail isn't in our data. */
+function SourceLink({ url }: { url: string | null }) {
+  if (!url) return <span className="font-medium text-ink-500">Check the original listing</span>;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-semibold text-brand-700 underline decoration-brand-300 underline-offset-2 hover:decoration-brand-700"
+    >
+      See on source
+    </a>
+  );
+}
+
+const COLLAPSED_HEIGHT = 360;
+
+/** Long descriptions start clipped with a fade and a "Read more" toggle; short ones show in full. */
+function CollapsibleDescription({ html }: { html: string }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [isLong, setIsLong] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    // Only collapse when there's a meaningful amount hidden — clipping
+    // off two lines behind a button is more annoying than helpful.
+    const measure = () => setIsLong(el.scrollHeight > COLLAPSED_HEIGHT + 120);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [html]);
+
+  const collapsed = isLong && !expanded;
+
+  return (
+    <div ref={wrapRef} className="mt-7 scroll-mt-24">
+      <h2 className="text-base font-bold text-ink-950">About the role</h2>
+      <div className="relative mt-2">
+        <div
+          ref={contentRef}
+          id="job-description"
+          style={collapsed ? { maxHeight: COLLAPSED_HEIGHT, overflow: 'hidden' } : undefined}
+          className="prose-job text-sm leading-6 text-ink-600 [&_h2]:mt-5 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-ink-950 [&_h2]:first:mt-0 [&_h3]:mt-4 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-ink-900 [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-1 [&_strong]:font-bold [&_strong]:text-ink-800 [&_a]:break-words [&_a]:text-brand-600 [&_a]:underline"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+        {collapsed && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-white/0 via-white/80 to-white" />}
+      </div>
+      {isLong && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls="job-description"
+          onClick={() => {
+            if (expanded) wrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setExpanded((v) => !v);
+          }}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 transition hover:border-brand-300 hover:text-brand-700"
+        >
+          {expanded ? 'Show less' : 'Read more'}
+          <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function InfoRow({ icon: Icon, label, value }: { icon: typeof Briefcase; label: string; value: ReactNode }) {
   return (
     <div className="flex items-start gap-2.5 rounded-lg bg-ink-50 p-3">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
-      <div>
+      <div className="min-w-0">
         <p className="text-[11px] text-ink-400">{label}</p>
-        <p className="text-sm font-semibold text-ink-800">{value}</p>
+        <p className="break-words text-sm font-semibold text-ink-800">{value}</p>
       </div>
     </div>
   );

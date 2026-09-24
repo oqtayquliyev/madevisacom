@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   BookOpen,
+  Building2,
   Briefcase,
   GraduationCap,
   LayoutDashboard,
@@ -16,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { fetchMyManagedPublishers } from '@/lib/companyManager';
 import { handleNavClick } from '@/lib/navLink';
 import type { View } from '@/types';
 import { BrandMark } from '@/components/layout/Logo';
@@ -37,6 +39,21 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
   const { profile, signOut } = useAuth();
   const [openMenu, setOpenMenu] = useState(false);
   const [openProfile, setOpenProfile] = useState(false);
+  // Show "Manage company" only to people who actually manage one (cached per user).
+  const [managedCompanyName, setManagedCompanyName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!profile) {
+      setManagedCompanyName(null);
+      return;
+    }
+    let alive = true;
+    fetchMyManagedPublishers().then((list) => {
+      if (alive) setManagedCompanyName(list.length === 0 ? null : list.length === 1 ? list[0].name : `${list.length} companies`);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [profile?.id]);
 
   const linkClass = (view: View) =>
     `flex items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
@@ -172,6 +189,15 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                         <LayoutDashboard className="h-4 w-4 text-ink-400" />
                         Dashboard
                       </button>
+                      {managedCompanyName && (
+                        <button
+                          onClick={() => { go('company'); setOpenProfile(false); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
+                        >
+                          <Building2 className="h-4 w-4 text-ink-400" />
+                          <span className="truncate">Manage {managedCompanyName}</span>
+                        </button>
+                      )}
                       {profile.role === 'admin' && (
                         <button
                           onClick={() => { go('admin'); setOpenProfile(false); }}

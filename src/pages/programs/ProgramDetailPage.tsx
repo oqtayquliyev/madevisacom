@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import {
   ArrowLeft,
   Banknote,
@@ -141,6 +142,7 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
                 <Icon className="h-4 w-4 text-ink-400" />
                 {program.publisher?.name}
               </span>
+              {program.origin === 'direct' && program.publisher?.name && <DirectListingBadge company={program.publisher.name} />}
               {program.country && (
                 <span className="flex items-center gap-1.5">
                   <CircleFlag countryCode={program.country.iso_code} label={program.country.name} size={16} />
