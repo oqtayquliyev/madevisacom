@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ApplicationTracker } from '@/components/dashboard/ApplicationTracker';
 import { jobPath } from '@/lib/jobUrl';
 import {
   AlertTriangle,
@@ -111,7 +112,11 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   const { user, profile, refreshProfile } = useAuth();
   const { countryCode: originCode, countryName: originName } = useOriginCountry();
 
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>(() => {
+    // Deep link: /profile?tab=saved (e.g. from a company page's "report back" link)
+    const t = new URLSearchParams(window.location.search).get('tab');
+    return t === 'saved' || t === 'journey' || t === 'partner' || t === 'settings' ? t : 'overview';
+  });
   const [countries, setCountries] = useState<CountryOption[]>([]);
 
   // Personal info form state
@@ -462,7 +467,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             active={tab === 'saved'}
             onClick={() => setTab('saved')}
             icon={Briefcase}
-            label={`Saved (${applications.length})`}
+            label={`Applications & saved (${applications.length})`}
           />
           <TabButton
             active={tab === 'partner'}
@@ -579,6 +584,8 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {/* SAVED */}
         {tab === 'saved' && (
           <div className="mt-6 space-y-10">
+            {/* Applications started through MadeVisa — updating the outcome here builds company response stats */}
+            <ApplicationTracker />
             <SavedSection
               icon={Briefcase}
               title="Saved jobs"
@@ -604,7 +611,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
               items={savedAgencies}
               emptyLabel="No saved agencies yet"
               cta="Browse agencies"
-              onBrowse={() => go('agencies')}
+              onBrowse={() => go('experts')}
               onRemove={handleRemove}
             />
             <SavedSection
@@ -613,7 +620,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
               items={savedExperts}
               emptyLabel="No saved experts yet"
               cta="Browse experts"
-              onBrowse={() => go('agencies')}
+              onBrowse={() => go('experts')}
               onRemove={handleRemove}
             />
             <SavedSection
@@ -902,7 +909,7 @@ function SummaryCard({
   );
 }
 
-function RecentlyViewedSection({ items, onBrowse }: { items: ViewedJobSnapshot[]; onBrowse: () => void }) {
+function RecentlyViewedSection({ items }: { items: ViewedJobSnapshot[]; onBrowse?: () => void }) {
   // Deliberately no "empty state" card here (unlike Saved) — an empty
   // recent-views list is the normal, unremarkable case for most
   // visits, not something worth a dedicated call-to-action block.

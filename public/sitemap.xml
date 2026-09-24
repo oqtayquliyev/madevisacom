@@ -11,6 +11,11 @@
     <priority>0.9</priority>
   </url>
   <url>
+    <loc>https://madevisa.com/companies</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
     <loc>https://madevisa.com/programs</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
@@ -34,11 +39,6 @@
     <loc>https://madevisa.com/experts</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://madevisa.com/travel</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://madevisa.com/official-partners</loc>
@@ -72,11 +72,6 @@
   </url>
   <url>
     <loc>https://madevisa.com/disclaimer</loc>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://madevisa.com/affiliate-disclosure</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>

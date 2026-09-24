@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { CompaniesPage } from '@/pages/companies/CompaniesPage';
 import { CompanyProfilePage } from '@/pages/companies/CompanyProfilePage';
 import { Loader2 } from 'lucide-react';
@@ -8,14 +8,6 @@ import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { LandingPage } from '@/pages/landing/LandingPage';
-import { AgencyDashboard } from '@/pages/agency/AgencyDashboard';
-import { AgencyProfilePage } from '@/pages/agency/AgencyProfilePage';
-import { AgenciesPage } from '@/pages/agencies/AgenciesPage';
-import { CustomerDashboard } from '@/pages/customer/CustomerDashboard';
-import { TripWorkspace } from '@/pages/customer/TripWorkspace';
-import { ExplorePage } from '@/pages/explore/ExplorePage';
-import { PlannerPage } from '@/pages/planner/PlannerPage';
-import { ResultsPage } from '@/pages/results/ResultsPage';
 import { JobsPage } from '@/pages/landing/jobs/JobsPage';
 import { ProgramsPage } from '@/pages/landing/programs/ProgramsPage';
 import { SponsoredProgramsPage } from '@/pages/programs/SponsoredProgramsPage';
@@ -34,7 +26,6 @@ import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { PendingConfirmationPage } from '@/pages/auth/PendingConfirmationPage';
 import type { PendingSignup } from '@/pages/auth/RegisterPage';
-import { TravelPage } from '@/pages/travel/TravelPage';
 import type { View } from '@/types';
 
 type AuthPage = 'login' | 'register' | 'reset-password' | 'pending-confirmation';
@@ -50,7 +41,6 @@ const pathForView: Partial<Record<View, string>> = {
   study: '/study',
   'sponsored-programs': '/sponsored-programs',
   'submit-program': '/submit-program',
-  travel: '/travel',
   profile: '/profile',
   experts: '/experts',
   destinations: '/destinations',
@@ -210,10 +200,6 @@ export default function App() {
     return <SubmitProgramPage go={go} onAuth={goToAuth} />;
   }
 
-  if (path === '/travel') {
-    return <TravelPage go={go} onAuth={goToAuth} />;
-  }
-
   if (path === '/experts') {
     return <ExpertsMarketplacePage go={go} onAuth={goToAuth} />;
   }
@@ -316,195 +302,38 @@ export default function App() {
     return <ProfileMissingScreen />;
   }
 
-  const role = profile.role;
-
-  // Popup removed per request — kept as a passthrough so every call
-  // site below (withWelcome(...)) doesn't need touching.
-  const withWelcome = (node: ReactNode) => node;
-
-if (
-  view === 'home' ||
-  view === 'planner' ||
-  view === 'results' ||
-  view === 'agencies' ||
-  view === 'explore' ||
-  view === 'profile' ||
-  view === 'dashboard'
-) {
-  return withWelcome(renderPublicView(view, go));
+  // Signed-in views. The old trip-planner prototype (planner, results,
+  // My Trips, trip workspace, agency trip CRM, flights & stays) has been
+  // removed — MadeVisa is jobs, programs, study, visas and experts. Old
+  // URLs/views for it simply fall back to the home page.
+  return renderPublicView(view, go);
 }
 
-  if (
-    view === 'customer-dashboard' ||
-    view === 'trip-workspace'
-  ) {
-    if (
-      role === 'agency' ||
-      role === 'admin'
-    ) {
-      return withWelcome(renderRoleHome(role, go));
-    }
-
-    return withWelcome(renderPublicView(view, go));
-  }
-
-  if (
-    view === 'agency-dashboard' ||
-    view === 'agency-profile'
-  ) {
-    if (role === 'customer') {
-      return withWelcome(renderPublicView(
-        'customer-dashboard',
-        go
-      ));
-    }
-
-    return withWelcome(renderPublicView(view, go));
-  }
-
-  if (role === 'admin') {
-    return withWelcome(
-      <AgencyDashboard
-        view="agency-dashboard"
-        go={go}
-      />
-    );
-  }
-
-  return withWelcome(renderPublicView('home', go));
-}
-
-function renderPublicView(
-  view: View,
-  go: (view: View) => void
-) {
+function renderPublicView(view: View, go: (view: View) => void) {
   switch (view) {
-    case 'home':
-      return <LandingPage go={go} />;
-
-    case 'planner':
-      return (
-        <PlannerPage
-          view={view}
-          go={go}
-        />
-      );
-
-    case 'results':
-      return (
-        <ResultsPage
-          view={view}
-          go={go}
-        />
-      );
-
-    case 'agencies':
-      return (
-        <AgenciesPage
-          view={view}
-          go={go}
-        />
-      );
-
-    case 'explore':
-      return (
-        <ExplorePage
-          view={view}
-          go={go}
-        />
-      );
-
     case 'jobs':
-      return <JobsPage go={go} onAuth={goToAuth} goToJob={(id) => goToDetail('jobs', id)} />;
-
+      return <JobsPage go={go} />; // /jobs is normally routed by path above; this is a fallback
     case 'programs':
       return <ProgramsPage go={go} />;
-
     case 'sponsored-programs':
       return <SponsoredProgramsPage go={go} />;
-
     case 'submit-program':
       return <SubmitProgramPage go={go} />;
-
-    case 'travel':
-      return <TravelPage go={go} />;
-
+    // 'agencies' is kept as an alias: old "Find a visa expert" links land on the real experts page.
     case 'experts':
+    case 'agencies':
       return <ExpertsMarketplacePage go={go} />;
-
     case 'destinations':
       return <DestinationsPage go={go} />;
-
+    // /dashboard is a safe alias — the dashboard lives inside Profile as tabs.
     case 'profile':
-      return <ProfilePage go={go} />;
-
-    // /dashboard is kept as a safe alias — the dashboard's own
-    // functionality (journey, saved jobs/programs) now lives inside
-    // Profile as tabs, so this just renders the same unified page
-    // instead of a separate, now-redundant screen.
     case 'dashboard':
       return <ProfilePage go={go} />;
-
-    case 'customer-dashboard':
-      return (
-        <CustomerDashboard
-          view={view}
-          go={go}
-        />
-      );
-
-    case 'trip-workspace':
-      return (
-        <TripWorkspace
-          view={view}
-          go={go}
-        />
-      );
-
-    case 'agency-dashboard':
-      return (
-        <AgencyDashboard
-          view={view}
-          go={go}
-        />
-      );
-
-    case 'agency-profile':
-      return (
-        <AgencyProfilePage
-          view={view}
-          go={go}
-        />
-      );
-
     default:
       return <LandingPage go={go} />;
   }
 }
 
-function renderRoleHome(
-  role: 'customer' | 'agency' | 'admin',
-  go: (view: View) => void
-) {
-  if (
-    role === 'agency' ||
-    role === 'admin'
-  ) {
-    return (
-      <AgencyDashboard
-        view="agency-dashboard"
-        go={go}
-      />
-    );
-  }
-
-  return (
-    <CustomerDashboard
-      view="customer-dashboard"
-      go={go}
-    />
-  );
-}
 function ProfileMissingScreen() {
   const { refreshProfile, signOut } = useAuth();
   const [retrying, setRetrying] = useState(false);

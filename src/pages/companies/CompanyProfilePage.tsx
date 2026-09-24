@@ -461,7 +461,7 @@ function EmptyApplications() {
         When you apply through MadeVisa while signed in, you can report back from your dashboard whether the company responded — that's
         what builds these numbers.
       </p>
-      <a href="/dashboard" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800">
+      <a href="/profile?tab=saved" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800">
         Go to your dashboard <ArrowUpRight className="h-3.5 w-3.5" />
       </a>
     </div>

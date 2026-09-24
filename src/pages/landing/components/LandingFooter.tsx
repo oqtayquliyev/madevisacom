@@ -1,4 +1,4 @@
-import { Facebook, Instagram, Linkedin, Twitter } from 'lucide-react';
+import { Facebook, Instagram, Linkedin } from 'lucide-react';
 import type { View } from '@/types';
 import { BrandMark } from '@/components/layout/Logo';
 
@@ -7,89 +7,80 @@ type LandingFooterProps = {
   onAuth?: (page: 'login' | 'register') => void;
 };
 
+const SOCIAL = [
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/madevisa', icon: Linkedin },
+  { label: 'Instagram', href: 'https://www.instagram.com/madevisacom', icon: Instagram },
+  { label: 'Facebook', href: 'https://www.facebook.com/madevisa', icon: Facebook },
+];
+
 const columns: { title: string; links: { label: string; view?: View; href?: string }[] }[] = [
   {
-    title: 'Opportunities',
+    title: 'Explore',
     links: [
-      { label: 'Jobs abroad', view: 'jobs' },
-      { label: 'Companies', view: 'companies' },
+      { label: 'Jobs', view: 'jobs' },
       { label: 'Programs', view: 'programs' },
       { label: 'Study & scholarships', view: 'study' },
-      { label: 'Find a visa expert', view: 'agencies' },
-      { label: 'Explore destinations', view: 'explore' },
-      { label: 'Official institutions', view: 'official-partners' },
+      { label: 'Companies', view: 'companies' },
+      { label: 'Visa experts', view: 'experts' },
     ],
   },
   {
-    title: 'Travel',
-    links: [
-      { label: 'Stays', view: 'travel' },
-      { label: 'Flights', view: 'travel' },
-      { label: 'Travel packages', view: 'travel' },
-    ],
-  },
-  {
-    title: 'Company',
+    title: 'MadeVisa',
     links: [
       { label: 'About', href: '/about' },
       { label: 'Contact', href: '/contact' },
-      { label: 'For agencies', view: 'agency-profile' },
-      { label: 'For advertisers', href: '/advertising-policy' },
-    ],
-  },
-  {
-    title: 'Legal',
-    links: [
-      { label: 'Privacy Policy', href: '/privacy' },
-      { label: 'Terms of Service', href: '/terms' },
-      { label: 'Cookie Policy', href: '/cookies' },
-      { label: 'Disclaimer', href: '/disclaimer' },
-      { label: 'Affiliate Disclosure', href: '/affiliate-disclosure' },
-      { label: 'Editorial Policy', href: '/editorial-policy' },
-      { label: 'Corrections', href: '/corrections' },
-      { label: 'Verification Policy', href: '/verification-policy' },
+      { label: 'Post a listing', view: 'submit-program' },
+      { label: 'Advertise', href: 'mailto:hello@madevisa.com?subject=Advertising%20on%20MadeVisa' },
+      { label: 'Official institutions', view: 'official-partners' },
     ],
   },
 ];
 
-export function LandingFooter({ go, onAuth }: LandingFooterProps) {
+const LEGAL = [
+  { label: 'Privacy', href: '/privacy' },
+  { label: 'Terms', href: '/terms' },
+  { label: 'Cookies', href: '/cookies' },
+  { label: 'Disclaimer', href: '/disclaimer' },
+  { label: 'Advertising policy', href: '/advertising-policy' },
+  { label: 'Editorial policy', href: '/editorial-policy' },
+  { label: 'Verification', href: '/verification-policy' },
+  { label: 'Corrections', href: '/corrections' },
+];
+
+export function LandingFooter({ go }: LandingFooterProps) {
   return (
     <footer className="border-t border-ink-800 bg-ink-950 text-white">
-      <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8">
-        <div className="grid gap-10 lg:grid-cols-[1.3fr_2fr]">
+      <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12">
+        <div className="grid gap-8 sm:grid-cols-[1.4fr_1fr_1fr]">
           <div>
             <BrandMark variant="footer" onClick={() => go('home')} />
-
-            <p className="mt-4 max-w-xs text-sm leading-6 text-ink-300">
-              The all-in-one opportunity library. Jobs, programs, study options,
-              visas, travel and verified experts, at home or abroad, in one place.
-            </p>
-
-            <div className="mt-5 flex items-center gap-3 text-ink-400">
-              <a href="#" aria-label="Facebook" className="rounded-lg border border-ink-700 p-2 transition hover:border-ink-500 hover:text-white">
-                <Facebook className="h-4 w-4" />
-              </a>
-              <a href="#" aria-label="Instagram" className="rounded-lg border border-ink-700 p-2 transition hover:border-ink-500 hover:text-white">
-                <Instagram className="h-4 w-4" />
-              </a>
-              <a href="#" aria-label="Twitter" className="rounded-lg border border-ink-700 p-2 transition hover:border-ink-500 hover:text-white">
-                <Twitter className="h-4 w-4" />
-              </a>
-              <a href="#" aria-label="LinkedIn" className="rounded-lg border border-ink-700 p-2 transition hover:border-ink-500 hover:text-white">
-                <Linkedin className="h-4 w-4" />
-              </a>
+            <p className="mt-3 max-w-xs text-sm leading-6 text-ink-300">Jobs, programs, study and visas from official sources — in one place.</p>
+            <div className="mt-4 flex items-center gap-2.5">
+              {SOCIAL.map(({ label, href, icon: Icon }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`MadeVisa on ${label}`}
+                  className="rounded-lg border border-ink-700 p-2 text-ink-400 transition hover:border-ink-500 hover:text-white"
+                >
+                  <Icon className="h-4 w-4" />
+                </a>
+              ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
+          {/* Two short columns, side by side even on mobile */}
+          <div className="col-span-1 grid grid-cols-2 gap-6 sm:col-span-2">
             {columns.map((column) => (
               <div key={column.title}>
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink-400">{column.title}</p>
-                <ul className="mt-4 space-y-2.5">
+                <ul className="mt-3 space-y-2">
                   {column.links.map((link) => (
                     <li key={link.label}>
                       {link.view ? (
-                        <button onClick={() => go(link.view as View)} className="text-sm text-ink-300 transition hover:text-white">
+                        <button onClick={() => go(link.view as View)} className="text-left text-sm text-ink-300 transition hover:text-white">
                           {link.label}
                         </button>
                       ) : (
@@ -105,16 +96,15 @@ export function LandingFooter({ go, onAuth }: LandingFooterProps) {
           </div>
         </div>
 
-        <div className="mt-12 flex flex-col gap-4 border-t border-ink-800 pt-6 text-xs text-ink-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} MadeVisa. All rights reserved.</p>
-
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <a href="/privacy" className="hover:text-white">Privacy Policy</a>
-            <a href="/terms" className="hover:text-white">Terms of Service</a>
-            <button onClick={() => onAuth?.('register')} className="font-medium text-ink-300 hover:text-white">
-              List your agency
-            </button>
-          </div>
+        <div className="mt-8 flex flex-col gap-3 border-t border-ink-800 pt-5 text-xs text-ink-500 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} MadeVisa</p>
+          <nav aria-label="Legal" className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {LEGAL.map((l) => (
+              <a key={l.href} href={l.href} className="hover:text-white">
+                {l.label}
+              </a>
+            ))}
+          </nav>
         </div>
       </div>
     </footer>

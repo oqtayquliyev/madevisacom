@@ -16,7 +16,7 @@ export const legalPages: Record<string, LegalPageContent> = {
   about: {
     slug: 'about',
     title: 'About MadeVisa',
-    intro: `${ENTITY} helps people discover and plan their path to a new life abroad — official government programs, visa and immigration pathways, sponsored jobs, study opportunities, business and family programs, relocation services, flights, travel support, and trusted agencies and experts.`,
+    intro: `${ENTITY} helps people discover and plan their path to a new life abroad — official government programs, visa and immigration pathways, sponsored jobs, study opportunities, business and family programs, and trusted visa experts.`,
     sections: [
       {
         heading: 'What we do',
@@ -97,7 +97,7 @@ export const legalPages: Record<string, LegalPageContent> = {
       {
         heading: 'Third parties we rely on',
         paragraphs: [
-          'Supabase provides our authentication and database infrastructure. Google provides optional sign-in. Cloudinary and our own storage host images. Flight search links go through the Travelpayouts affiliate network — see our Affiliate Disclosure.',
+          'Supabase provides our authentication and database infrastructure. Google provides optional sign-in. Cloudinary and our own storage host images.',
         ],
       },
       {
@@ -215,30 +215,6 @@ export const legalPages: Record<string, LegalPageContent> = {
     ],
   },
 
-  'affiliate-disclosure': {
-    slug: 'affiliate-disclosure',
-    title: 'Affiliate Disclosure',
-    sections: [
-      {
-        heading: 'Flight search links',
-        paragraphs: [
-          'Flight search results on MadeVisa link out through the Travelpayouts affiliate network. If you book a flight after clicking through, MadeVisa may earn a commission at no extra cost to you.',
-        ],
-      },
-      {
-        heading: 'No influence on results',
-        paragraphs: [
-          'Affiliate relationships do not change which jobs, programs, or destinations are shown or how they are ranked for eligibility.',
-        ],
-      },
-      {
-        heading: 'Future partnerships',
-        paragraphs: [
-          `If MadeVisa enters other affiliate or referral arrangements, this page will be updated to disclose them. Questions: ${EMAIL}.`,
-        ],
-      },
-    ],
-  },
 
   'advertising-policy': {
     slug: 'advertising-policy',
@@ -347,7 +323,6 @@ export const legalPageOrder = [
   'terms',
   'cookies',
   'disclaimer',
-  'affiliate-disclosure',
   'advertising-policy',
   'editorial-policy',
   'corrections',

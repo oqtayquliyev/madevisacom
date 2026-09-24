@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { SponsoredAdsSection } from './SponsoredAdsSection';
 import { createPortal } from 'react-dom';
 import {
-  ArrowRight,
   Briefcase,
   Building2,
   CheckCircle2,
@@ -10,7 +9,6 @@ import {
   ChevronRight,
   DollarSign,
   GraduationCap,
-  Megaphone,
   Plane,
   Search,
   Sparkles,
@@ -37,13 +35,6 @@ type Journey =
   | 'family'
   | 'relocation';
 
-type Country = {
-  name: string;
-  code: string;
-  flag: string;
-  image: string;
-};
-
 const journeys: {
   id: Journey;
   label: string;
@@ -63,79 +54,6 @@ const journeys: {
     id: 'study',
     label: 'Study',
     icon: GraduationCap,
-  },
-];
-
-const countries: Country[] = [
-  {
-    name: 'Canada',
-    code: 'CA',
-    flag: 'https://flagcdn.com/w80/ca.png',
-    image:
-      'https://images.unsplash.com/photo-1517935706615-2717063c2225?auto=format&fit=crop&w=1200&q=80',
-  },
-  {
-    name: 'Germany',
-    code: 'DE',
-    flag: 'https://flagcdn.com/w80/de.png',
-    image:
-      'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1200&q=80',
-  },
-  {
-    name: 'United States',
-    code: 'US',
-    flag: 'https://flagcdn.com/w80/us.png',
-    image:
-      'https://images.unsplash.com/photo-1485871981521-5b1fd3805eee?auto=format&fit=crop&w=1200&q=80',
-  },
-  {
-    name: 'United Kingdom',
-    code: 'GB',
-    flag: 'https://flagcdn.com/w80/gb.png',
-    image:
-      'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=1200&q=80',
-  },
-  {
-    name: 'Australia',
-    code: 'AU',
-    flag: 'https://flagcdn.com/w80/au.png',
-    image:
-      'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?auto=format&fit=crop&w=1200&q=80',
-  },
-  {
-    name: 'Netherlands',
-    code: 'NL',
-    flag: 'https://flagcdn.com/w80/nl.png',
-    image:
-      'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?auto=format&fit=crop&w=1200&q=80',
-  },
-  {
-    name: 'Switzerland',
-    code: 'CH',
-    flag: 'https://flagcdn.com/w80/ch.png',
-    image:
-      'https://images.unsplash.com/photo-1527668752968-14dc70a27c95?auto=format&fit=crop&w=1200&q=80',
-  },
-  {
-    name: 'France',
-    code: 'FR',
-    flag: 'https://flagcdn.com/w80/fr.png',
-    image:
-      'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=80',
-  },
-  {
-    name: 'Ireland',
-    code: 'IE',
-    flag: 'https://flagcdn.com/w80/ie.png',
-    image:
-      'https://images.unsplash.com/photo-1590089415225-401ed6f9db8e?auto=format&fit=crop&w=1200&q=80',
-  },
-  {
-    name: 'New Zealand',
-    code: 'NZ',
-    flag: 'https://flagcdn.com/w80/nz.png',
-    image:
-      'https://images.unsplash.com/photo-1469521669194-babb45599def?auto=format&fit=crop&w=1200&q=80',
   },
 ];
 
@@ -704,82 +622,8 @@ export function LandingHero({
 
       </section>
 
-      {/* SPONSORED ADS */}
-      <SponsoredAdsSection />
-
-      {/* POST A JOB / PROGRAM CTA */}
-
-      <section className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:pb-16">
-        <div className="overflow-hidden rounded-xl border border-brand-200 bg-gradient-to-br from-brand-50 via-white to-white shadow-soft-lg">
-          <div className="grid gap-8 p-6 sm:p-10 lg:grid-cols-[1.2fr_1fr] lg:items-center">
-
-            <div>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold text-white">
-                <Megaphone className="h-3.5 w-3.5" />
-                For organizations
-              </span>
-
-              <h2 className="mt-4 text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">
-                Reach people ready to move abroad
-              </h2>
-
-              <p className="mt-3 max-w-lg text-sm leading-6 text-ink-600">
-                Companies, governments, universities, institutions, agencies and program providers use MadeVisa to
-                put real opportunities in front of people actively planning their move — reviewed and verified
-                before anything goes live.
-              </p>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => handlePostClick('submit-program')}
-                  className="flex items-center gap-2 rounded-lg bg-brand-600 px-6 py-3.5 text-base font-bold text-white shadow-sm transition hover:bg-brand-700"
-                >
-                  <Briefcase className="h-5 w-5" />
-                  Post a Job
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePostClick('submit-program')}
-                  className="flex items-center gap-2 rounded-lg bg-ink-900 px-6 py-3.5 text-base font-bold text-white shadow-sm transition hover:bg-ink-800"
-                >
-                  <GraduationCap className="h-5 w-5" />
-                  Post a Program
-                </button>
-              </div>
-
-              <p className="mt-3 text-xs font-medium text-ink-400">
-                Free to submit · Reviewed within 24 hours before publishing
-              </p>
-            </div>
-
-            <div className="rounded-lg border border-ink-100 bg-white/80 p-5">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink-400">How posting works</p>
-              <div className="mt-4 space-y-4">
-                {[
-                  { step: '1', label: 'Submit', detail: 'Share the essentials — title, category, destination.' },
-                  { step: '2', label: 'Review', detail: 'Our team verifies it and fills in the rest with you.' },
-                  { step: '3', label: 'Publish', detail: 'It goes live and reaches people planning that exact move.' },
-                ].map((s, i, arr) => (
-                  <div key={s.step} className="flex gap-3">
-                    <div className="flex flex-col items-center">
-                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-600 text-xs font-bold text-white">
-                        {s.step}
-                      </span>
-                      {i < arr.length - 1 && <span className="mt-1 h-full w-px flex-1 bg-ink-200" />}
-                    </div>
-                    <div className="pb-1">
-                      <p className="text-sm font-bold text-ink-900">{s.label}</p>
-                      <p className="text-xs text-ink-500">{s.detail}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
+      {/* FOR ORGANIZATIONS — free posting + sponsored ads, one section */}
+      <SponsoredAdsSection onPost={() => handlePostClick('submit-program')} />
 
       {showAuthPrompt && (
         <>

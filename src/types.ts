@@ -68,7 +68,6 @@ export type AgencyRequest = {
 
 export type View =
   | 'home'
-  | 'planner'
   | 'jobs'
   | 'programs'
   | 'study'
@@ -82,12 +81,6 @@ export type View =
   | 'company'
   | 'companies'
   | 'official-partners'
-  | 'travel'
-  | 'results'
-  | 'agencies'
-  | 'customer-dashboard'
-  | 'trip-workspace'
-  | 'agency-dashboard'
-  | 'agency-profile'
-  | 'explore';
+  | 'agencies';
+
   
