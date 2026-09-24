@@ -1,4 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { CompaniesPage } from '@/pages/companies/CompaniesPage';
+import { CompanyProfilePage } from '@/pages/companies/CompanyProfilePage';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -55,6 +57,7 @@ const pathForView: Partial<Record<View, string>> = {
   dashboard: '/dashboard',
   admin: '/admin',
   company: '/company',
+  companies: '/companies',
   'official-partners': '/official-partners',
 };
 
@@ -234,6 +237,14 @@ export default function App() {
   // Company managers (e.g. a company's HR) — self-gates: shows a sign-in
   // prompt when logged out, and "no access yet" when the account's email
   // hasn't been given access to any company.
+  if (path === '/companies') {
+    return <CompaniesPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (path.startsWith('/companies/')) {
+    return <CompanyProfilePage slug={path.slice('/companies/'.length)} go={go} onAuth={goToAuth} />;
+  }
+
   if (path === '/company') {
     return <CompanyManagerPage go={go} onAuth={goToAuth} />;
   }

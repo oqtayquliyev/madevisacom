@@ -319,7 +319,7 @@ export function LocationMatchSection({
   const animatedCount = useCountUp(jobCount);
 
   return (
-    <div className="px-6 py-8 sm:px-8">
+    <div className="px-4 py-5 sm:px-8 sm:py-8">
       <div className="flex flex-wrap items-center gap-2">
         <FlagSwitcher code={originCode} placeholder="Your country" onSelect={(code) => code && setOriginCountry(code)} />
         <ArrowRight className="h-4 w-4 text-ink-300" />

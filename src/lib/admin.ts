@@ -1091,3 +1091,54 @@ export async function backfillJobFacts(
 
   return { ok: !firstError, scanned, updated, counts, error: firstError, migrationMissing: !hasNewCols };
 }
+
+// ---------------------------------------------------------------------------
+// Delete all of a company's jobs / delete a company
+// ---------------------------------------------------------------------------
+
+/**
+ * Deletes every job of one company, 500 at a time (so thousands of jobs
+ * can't hit the database statement timeout). Reports progress as it goes.
+ */
+export async function deleteAllCompanyJobs(
+  publisherId: string,
+  onProgress?: (deleted: number, total: number) => void
+): Promise<{ ok: boolean; deleted: number; error?: string }> {
+  const { count: total } = await supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).eq('publisher_id', publisherId);
+  let deleted = 0;
+  for (;;) {
+    const { data, error } = await supabase.from('sponsored_jobs').select('id').eq('publisher_id', publisherId).limit(500);
+    if (error) return { ok: false, deleted, error: error.message };
+    const ids = (data ?? []).map((r: { id: string }) => r.id);
+    if (ids.length === 0) break;
+    const res = await bulkDeleteJobs(ids);
+    if (!res.ok) return { ok: false, deleted, error: res.error };
+    deleted += ids.length;
+    onProgress?.(deleted, Math.max(total ?? 0, deleted));
+  }
+  return { ok: true, deleted };
+}
+
+/**
+ * Deletes a company completely: its jobs (in batches, with progress), then
+ * the company record — which also removes its programs, import sources and
+ * manager access via ON DELETE CASCADE. It can be re-added any time
+ * afterwards (Add many companies / import tools create it fresh).
+ */
+export async function deleteCompany(
+  publisherId: string,
+  onProgress?: (deleted: number, total: number) => void
+): Promise<{ ok: boolean; jobsDeleted: number; error?: string }> {
+  const jobs = await deleteAllCompanyJobs(publisherId, onProgress);
+  if (!jobs.ok) return { ok: false, jobsDeleted: jobs.deleted, error: jobs.error };
+  const { count, error } = await supabase.from('program_publishers').delete({ count: 'exact' }).eq('id', publisherId);
+  if (error) return { ok: false, jobsDeleted: jobs.deleted, error: error.message };
+  if (!count) {
+    return {
+      ok: false,
+      jobsDeleted: jobs.deleted,
+      error: 'Jobs were deleted, but the company record could not be — run the 20260927090000_admin_delete_companies.sql migration, then try again.',
+    };
+  }
+  return { ok: true, jobsDeleted: jobs.deleted };
+}

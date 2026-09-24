@@ -12,6 +12,7 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
     title: 'Opportunities',
     links: [
       { label: 'Jobs abroad', view: 'jobs' },
+      { label: 'Companies', view: 'companies' },
       { label: 'Programs', view: 'programs' },
       { label: 'Study & scholarships', view: 'study' },
       { label: 'Find a visa expert', view: 'agencies' },

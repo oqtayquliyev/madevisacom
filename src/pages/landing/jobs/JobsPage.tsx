@@ -748,7 +748,39 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
             </button>
           </div>
 
-          <div className="-mx-5 mt-5 flex flex-wrap gap-2 px-5 pb-1 sm:mx-0 sm:px-0">
+          {/* Mobile: "All countries" + one compact dropdown instead of a wall of pills */}
+          <div className="mt-4 flex items-center gap-2 sm:hidden">
+            <button
+              type="button"
+              onClick={() => setCountry('All countries')}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold ${
+                country === 'All countries' ? 'border-white bg-white text-brand-700' : 'border-white/25 bg-white/10 text-white'
+              }`}
+            >
+              <Globe2 className="h-3.5 w-3.5" />
+              All countries
+            </button>
+            <label className="relative min-w-0 flex-1">
+              <span className="sr-only">Country</span>
+              <select
+                value={country === 'All countries' ? '' : country}
+                onChange={(e) => setCountry(e.target.value || 'All countries')}
+                className={`h-9 w-full appearance-none truncate rounded-full border py-0 pl-3.5 pr-8 text-xs font-semibold outline-none ${
+                  country !== 'All countries' ? 'border-white bg-white text-brand-700' : 'border-white/25 bg-white/10 text-white'
+                }`}
+              >
+                <option value="" className="text-ink-900">Choose a country…</option>
+                {jobCountryOptions.map((c) => (
+                  <option key={c} value={c} className="text-ink-900">
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 ${country !== 'All countries' ? 'text-brand-700' : 'text-white'}`} />
+            </label>
+          </div>
+
+          <div className="-mx-5 mt-5 hidden flex-wrap gap-2 px-5 pb-1 sm:mx-0 sm:flex sm:px-0">
             <button
               type="button"
               onClick={() => setCountry('All countries')}
@@ -927,12 +959,31 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
           >
             All categories
           </button>
+          {/* Mobile: one compact category dropdown */}
+          <label className="relative min-w-[9rem] flex-1 sm:hidden">
+            <span className="sr-only">Category</span>
+            <select
+              value={category === 'All categories' ? '' : category}
+              onChange={(e) => setCategory(e.target.value || 'All categories')}
+              className={`h-8 w-full appearance-none rounded-md py-0 pl-3 pr-7 text-xs font-semibold outline-none ${
+                category !== 'All categories' ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-600'
+              }`}
+            >
+              <option value="">Choose a category…</option>
+              {DISCOVERY_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className={`pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 ${category !== 'All categories' ? 'text-white' : 'text-ink-500'}`} />
+          </label>
           {DISCOVERY_CATEGORIES.map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => setCategory(c)}
-              className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+              className={`hidden shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition sm:inline-flex ${
                 category === c ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
               }`}
             >

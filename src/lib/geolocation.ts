@@ -1,23 +1,18 @@
 /**
- * Automatic "where is this visitor from" detection, backed by a cookie
- * so it only runs once per visitor (and remembers manual overrides).
+ * "Where is this visitor from" detection, remembered in a cookie so it
+ * only happens once per visitor (manual picks are remembered too).
  *
- * How it works:
- * 1. On first visit, we check for a `madevisa_country` cookie.
- * 2. If it's missing, we call a free, keyless IP-geolocation API
- *    (ipwho.is) to guess the visitor's country from their IP address.
- *    This needs NO browser permission prompt — unlike
- *    navigator.geolocation, which asks for precise GPS location and
- *    requires an explicit "Allow" click. IP-based detection is
- *    less precise (country-level, not street-level) but works silently
- *    and instantly, which is what "automatically, when opened" needs.
- * 3. Whatever country we land on (detected OR manually picked by the
- *    visitor later) gets written back to the cookie, so it persists
- *    across visits and page loads.
- *
- * If you later want more precision, you can offer an opt-in "Use my
- * exact location" button that calls navigator.geolocation.getCurrentPosition
- * — see the commented helper at the bottom of this file.
+ * Order:
+ * 1. `madevisa_country` cookie → use it (no prompt, no network).
+ * 2. Otherwise ASK for location permission first (the browser's own
+ *    "Allow location?" prompt). If allowed, the coordinates are turned
+ *    into a country (BigDataCloud's free, keyless client endpoint) —
+ *    only the COUNTRY CODE is kept; coordinates are never stored or sent
+ *    to MadeVisa.
+ * 3. If the visitor blocks/ignores the prompt (or the browser can't do
+ *    it), fall back to a silent IP-based guess (ipwho.is).
+ * 4. Whatever we land on is saved to the cookie for 180 days, so the
+ *    prompt never repeats. Picking a country manually overwrites it.
  */
 
 const COOKIE_NAME = 'madevisa_country';
@@ -82,29 +77,68 @@ export async function detectCountryByIp(): Promise<{ code: string; name: string 
  * 2. Otherwise detect by IP, then persist the result to the cookie.
  * Returns null only if we have no cookie AND the IP lookup failed.
  */
+const PROMPT_WAIT_MS = 12_000;
+
+/** Browser location → country code. Resolves null if denied, unsupported, ignored or failed. */
+export async function detectCountryByBrowserLocation(): Promise<{ code: string; name: string } | null> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return null;
+  try {
+    // Don't re-prompt someone who already blocked it for this site.
+    const perm = await navigator.permissions?.query({ name: 'geolocation' as PermissionName });
+    if (perm?.state === 'denied') return null;
+  } catch {
+    /* Permissions API unsupported (older Safari) — just try */
+  }
+  const position = await new Promise<GeolocationPosition | null>((resolve) => {
+    const timer = window.setTimeout(() => resolve(null), PROMPT_WAIT_MS); // prompt ignored → don't wait forever
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        window.clearTimeout(timer);
+        resolve(pos);
+      },
+      () => {
+        window.clearTimeout(timer);
+        resolve(null);
+      },
+      { enableHighAccuracy: false, timeout: PROMPT_WAIT_MS, maximumAge: 24 * 60 * 60 * 1000 }
+    );
+  });
+  if (!position) return null;
+  try {
+    const { latitude, longitude } = position.coords;
+    const res = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude.toFixed(2)}&longitude=${longitude.toFixed(2)}&localityLanguage=en`
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { countryCode?: string; countryName?: string };
+    return data.countryCode ? { code: data.countryCode.toUpperCase(), name: data.countryName ?? data.countryCode } : null;
+  } catch {
+    return null;
+  }
+}
+
+let inflight: Promise<string | null> | null = null;
+
+/**
+ * Resolves the visitor's country for this session (see the order at the
+ * top of this file). Concurrent callers share one prompt/lookup.
+ */
 export async function resolveCountry(): Promise<string | null> {
   const stored = getStoredCountry();
   if (stored) return stored;
+  if (inflight) return inflight;
 
-  const detected = await detectCountryByIp();
-  if (detected) {
-    setStoredCountry(detected.code);
-    return detected.code;
+  inflight = (async () => {
+    const detected = (await detectCountryByBrowserLocation()) ?? (await detectCountryByIp());
+    if (detected) {
+      setStoredCountry(detected.code);
+      return detected.code;
+    }
+    return null;
+  })();
+  try {
+    return await inflight;
+  } finally {
+    inflight = null;
   }
-
-  return null;
 }
-
-/*
- * Optional, more precise alternative (needs an explicit user click —
- * browsers require a user gesture and will show a permission prompt):
- *
- * export function detectByBrowserGeolocation(): Promise<GeolocationPosition> {
- *   return new Promise((resolve, reject) => {
- *     if (!navigator.geolocation) return reject(new Error('Unsupported'));
- *     navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 });
- *   });
- * }
- * // You'd then reverse-geocode the lat/lng into a country via a service
- * // like BigDataCloud's free reverse-geocode API.
- */

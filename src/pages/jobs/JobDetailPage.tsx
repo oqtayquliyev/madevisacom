@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { companyPath, recordApplication } from '@/lib/companies';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Check, ChevronDown, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Phone, Plane, Share2, UserRound, Users } from 'lucide-react';
 import type { View } from '@/types';
@@ -228,6 +229,11 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       href={job.url}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={() => {
+        // Signed-in users: remember this application so they can report the
+        // outcome later — that's what builds company response statistics.
+        if (raw?.publisher_id) recordApplication({ publisherId: raw.publisher_id, kind: 'job', listingId: raw.id, title: job.title });
+      }}
       className={`inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${extra}`}
     >
       Apply
@@ -263,7 +269,23 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
           <div className="mt-8 flex items-center gap-3 sm:mt-10">
             <HeaderLogo job={job} SponsorIcon={SponsorIcon} />
             <div className="min-w-0">
-              <p className="truncate text-base font-bold sm:text-lg">{job.company}</p>
+              {raw?.publisher_id ? (
+                <a
+                  href={companyPath({ id: raw.publisher_id, name: job.company })}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.history.pushState({}, '', companyPath({ id: raw.publisher_id, name: job.company }));
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                    window.scrollTo({ top: 0 });
+                  }}
+                  className="block truncate text-base font-bold underline decoration-white/30 underline-offset-4 hover:decoration-white sm:text-lg"
+                  title={`See ${job.company}'s hiring activity and response rate`}
+                >
+                  {job.company}
+                </a>
+              ) : (
+                <p className="truncate text-base font-bold sm:text-lg">{job.company}</p>
+              )}
               {job.sourceType === 'company_submitted' && (
                 <div className="mt-1">
                   <DirectListingBadge company={job.company} />

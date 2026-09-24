@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ApplicationTracker } from '@/components/dashboard/ApplicationTracker';
 import {
   ArrowRight,
   Briefcase,
@@ -126,6 +127,8 @@ function DashboardPageInner({ go, onAuth }: DashboardPageProps) {
             </p>
           )}
         </section>
+
+        <ApplicationTracker />
 
         {/* SAVED JOBS */}
         <section className="mt-8">

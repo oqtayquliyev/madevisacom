@@ -487,3 +487,19 @@ export async function submitSponsoredJob(input: SubmitSponsoredJobInput): Promis
   }
   return { ok: true };
 }
+
+/** All published jobs of one company (for its public company page). */
+export async function fetchPublishedJobsByPublisher(publisherId: string, limit = 500): Promise<SponsoredJob[]> {
+  const { data, error } = await supabase
+    .from('sponsored_jobs')
+    .select(LIST_COLUMNS)
+    .eq('publisher_id', publisherId)
+    .eq('status', 'published')
+    .order('approved_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error('fetchPublishedJobsByPublisher failed', error);
+    return [];
+  }
+  return (data ?? []) as unknown as SponsoredJob[];
+}

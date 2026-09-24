@@ -52,6 +52,7 @@ import {
   type DirectRequest,
   type PublisherMember,
   backfillJobFacts,
+  deleteCompany,
 } from '@/lib/admin';
 import {
   fetchImportSources,
@@ -248,6 +249,21 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
   const importedPendingJobs = useMemo(() => pendingJobs.filter((j) => j.origin !== 'direct'), [pendingJobs]);
   const otherPendingPrograms = useMemo(() => pendingPrograms.filter((p) => p.origin !== 'direct'), [pendingPrograms]);
 
+  // Jobs per company — shown on publisher rows so duplicates / empty accounts stand out.
+  const jobStatsByPublisher = useMemo(() => {
+    const m = new Map<string, { total: number; live: number; pending: number }>();
+    for (const j of allJobs) {
+      if (!j.publisher_id) continue;
+      const c = m.get(j.publisher_id) ?? { total: 0, live: 0, pending: 0 };
+      c.total++;
+      if (j.status === 'published') c.live++;
+      else if (j.status === 'pending') c.pending++;
+      m.set(j.publisher_id, c);
+    }
+    return m;
+  }, [allJobs]);
+  const [deletingCompany, setDeletingCompany] = useState<{ name: string; done: number; total: number } | null>(null);
+
   if (loading) return null;
 
   if (!isAdmin) {
@@ -437,17 +453,45 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
               <>
                 <CompanyAccessSection publishers={verifiedPublishers} members={members} onChange={loadAll} />
 
+                {deletingCompany && (
+                  <div className="mt-6 rounded-lg border border-rose-100 bg-rose-50/40 p-3">
+                    <ProgressBar
+                      value={deletingCompany.total ? deletingCompany.done / deletingCompany.total : null}
+                      label={`Deleting ${deletingCompany.name}`}
+                      detail={`${deletingCompany.done.toLocaleString()} of ${deletingCompany.total.toLocaleString()} jobs deleted`}
+                    />
+                  </div>
+                )}
+
                 <PaginatedSection
                   title="Verified publisher accounts"
                   items={verifiedPublishers}
                   searchText={(p) => `${p.name} ${p.contact_email}`}
                   renderRow={(p) => (
-                    <PublisherRow key={p.id} p={p} onChange={loadAll} allowLogo>
+                    <PublisherRow key={p.id} p={p} onChange={loadAll} allowLogo stats={jobStatsByPublisher.get(p.id) ?? { total: 0, live: 0, pending: 0 }}>
                       <button
                         onClick={async () => { const r = await setPublisherStatus(p.id, 'suspended'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
                         className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
                       >
                         Suspend
+                      </button>
+                      <button
+                        disabled={!!deletingCompany}
+                        onClick={async () => {
+                          const n = jobStatsByPublisher.get(p.id)?.total ?? 0;
+                          const typed = window.prompt(
+                            `Delete the company "${p.name}" completely — its ${n.toLocaleString()} jobs, programs, import sources and manager access?\n\nYou can add it again later.\n\nType DELETE to confirm.`
+                          );
+                          if (typed !== 'DELETE') return;
+                          setDeletingCompany({ name: p.name, done: 0, total: n });
+                          const r = await deleteCompany(p.id, (done, total) => setDeletingCompany({ name: p.name, done, total }));
+                          setDeletingCompany(null);
+                          if (!r.ok) window.alert(r.error ?? 'Delete failed.');
+                          loadAll();
+                        }}
+                        className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-40"
+                      >
+                        Delete
                       </button>
                     </PublisherRow>
                   )}
@@ -497,11 +541,14 @@ function PublisherRow({
   onChange,
   children,
   allowLogo = false,
+  stats,
 }: {
   p: PendingPublisher;
   onChange: () => void;
   children: React.ReactNode;
   allowLogo?: boolean;
+  /** Job counts for this company — shown so duplicate/empty accounts are easy to spot. */
+  stats?: { total: number; live: number; pending: number };
 }) {
   const Icon = orgIcon[p.org_type];
   const [editing, setEditing] = useState(false);
@@ -582,6 +629,11 @@ function PublisherRow({
             </p>
             <p className="text-xs text-ink-500">
               {p.org_type} · {p.contact_email}{p.country ? ` · ${p.country.name}` : ''}{p.website ? ` · ${p.website}` : ''}
+              {stats && (
+                <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold ${stats.total ? 'bg-brand-50 text-brand-700' : 'bg-ink-100 text-ink-500'}`}>
+                  {stats.total ? `${stats.total.toLocaleString()} jobs · ${stats.live.toLocaleString()} live · ${stats.pending.toLocaleString()} pending` : 'No jobs'}
+                </span>
+              )}
             </p>
           </>
         )}

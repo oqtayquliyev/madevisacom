@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { SponsoredAdsSection } from './SponsoredAdsSection';
 import { createPortal } from 'react-dom';
 import {
   ArrowRight,
@@ -519,23 +520,21 @@ export function LandingHero({
 
       <section className="bg-brand-700 text-white">
 
-        <div className="mx-auto max-w-7xl px-5 pb-28 pt-10 sm:px-8 sm:pb-32 sm:pt-12">
+        <div className="mx-auto max-w-7xl px-5 pb-16 pt-6 sm:px-8 sm:pb-24 sm:pt-10">
 
-          <div className="flex items-center gap-2 text-sm font-medium text-white/70">
+          <div className="hidden items-center gap-2 text-sm font-medium text-white/70 sm:flex">
             <Sparkles className="h-4 w-4" />
             All-in-one opportunity library
           </div>
 
-          <div className="mt-5 max-w-4xl">
+          <div className="max-w-4xl sm:mt-5">
 
-            <h1 className="text-4xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
+            <h1 className="text-3xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
               Find your path with MadeVisa.
             </h1>
 
-            <p className="mt-5 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">
-              MadeVisa brings together jobs, programs, study options, sponsorships and visas that are usually
-              scattered across company career pages, job sites and official sources. Discover opportunities you
-              may not find on LinkedIn or traditional job boards, at home or abroad.
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75 sm:mt-4 sm:text-lg sm:leading-7">
+              Jobs, programs, study and visas from official sources — in one place.
             </p>
 
           </div>
@@ -546,14 +545,14 @@ export function LandingHero({
 
       {/* SEARCH */}
 
-      <section className="relative z-10 mx-auto -mt-12 max-w-7xl px-4 sm:px-8 lg:px-10">
+      <section className="relative z-10 mx-auto -mt-10 max-w-7xl px-3 sm:-mt-14 sm:px-8 lg:px-10">
 
         <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-xl">
 
           {/* JOURNEY OPTIONS — now live inside the box so they stay
               visible no matter which tab's content is showing below. */}
 
-          <div className="flex flex-wrap gap-2 border-b border-ink-100 bg-ink-50 px-6 py-5 sm:px-8">
+          <div className="flex gap-2 overflow-x-auto border-b border-ink-100 bg-ink-50 px-4 py-3 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:px-8 sm:py-5">
 
             {journeys.map((journey) => {
               const Icon = journey.icon;
@@ -564,7 +563,7 @@ export function LandingHero({
                   key={journey.id}
                   type="button"
                   onClick={() => handleJourneyChange(journey.id)}
-                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
+                  className={`flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition sm:px-4 sm:py-2 sm:text-sm ${
                     active
                       ? 'border-brand-600 bg-brand-600 text-white shadow-sm'
                       : 'border-ink-200 bg-white text-ink-600 hover:border-brand-300 hover:text-brand-700'
@@ -704,6 +703,9 @@ export function LandingHero({
         </div>
 
       </section>
+
+      {/* SPONSORED ADS */}
+      <SponsoredAdsSection />
 
       {/* POST A JOB / PROGRAM CTA */}
 

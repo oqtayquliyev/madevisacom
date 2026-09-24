@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { companyPath, recordApplication } from '@/lib/companies';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import {
   ArrowLeft,
@@ -140,7 +141,14 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-ink-500">
               <span className="flex items-center gap-1.5">
                 <Icon className="h-4 w-4 text-ink-400" />
-                {program.publisher?.name}
+                {program.publisher?.name ? (
+                  <a
+                    href={companyPath({ id: program.publisher_id, name: program.publisher.name })}
+                    className="underline decoration-ink-300 underline-offset-2 hover:text-brand-700"
+                  >
+                    {program.publisher.name}
+                  </a>
+                ) : null}
               </span>
               {program.origin === 'direct' && program.publisher?.name && <DirectListingBadge company={program.publisher.name} />}
               {program.country && (
@@ -201,6 +209,7 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
                 href={program.application_url || program.official_url || `mailto:${program.contact_email}`}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => recordApplication({ publisherId: program.publisher_id, kind: 'program', listingId: program.id, title: program.title })}
                 className="rounded-lg bg-brand-600 px-8 py-3.5 text-sm font-bold text-white shadow-soft-lg transition hover:-translate-y-0.5 hover:bg-brand-700"
               >
                 Apply now

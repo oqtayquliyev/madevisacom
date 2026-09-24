@@ -368,3 +368,19 @@ export async function fetchAllVerifiedPublisherNames(): Promise<VerifiedPublishe
   }
   return data ?? [];
 }
+
+/** All published programs of one organization (for its public company page). */
+export async function fetchPublishedProgramsByPublisher(publisherId: string, limit = 200): Promise<SponsoredProgram[]> {
+  const { data, error } = await supabase
+    .from('programs')
+    .select(programColumns)
+    .eq('publisher_id', publisherId)
+    .eq('status', 'published')
+    .order('approved_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error('fetchPublishedProgramsByPublisher failed', error);
+    return [];
+  }
+  return (data ?? []) as unknown as SponsoredProgram[];
+}

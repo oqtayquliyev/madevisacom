@@ -80,6 +80,7 @@ export type View =
   | 'dashboard'
   | 'admin'
   | 'company'
+  | 'companies'
   | 'official-partners'
   | 'travel'
   | 'results'

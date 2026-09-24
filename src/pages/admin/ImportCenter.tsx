@@ -15,6 +15,8 @@ import { ImageUploadField } from '@/components/common/ImageUploadField';
 import {
   bulkDeleteJobs,
   bulkSetJobStatus,
+  deleteAllCompanyJobs,
+  deleteCompany,
   deleteSponsoredJob,
   findOrCreateImportedPublisher,
   setPublisherLogoForAllJobs,
@@ -874,7 +876,14 @@ function CompanyTableRow({
       {expanded && (
         <tr>
           <td colSpan={8} className="bg-ink-50/60 px-3 py-3">
-            <CompanyJobsPanel companyName={row.name} jobs={allJobs.filter((j) => j.publisher_id === row.id)} onChange={onChange} setRun={setRun} setLastResult={setLastResult} />
+            <CompanyJobsPanel
+              companyId={row.id}
+              companyName={row.name}
+              jobs={allJobs.filter((j) => j.publisher_id === row.id)}
+              onChange={onChange}
+              setRun={setRun}
+              setLastResult={setLastResult}
+            />
           </td>
         </tr>
       )}
@@ -885,12 +894,14 @@ function CompanyTableRow({
 // ---------------------------------------------------------------------------
 
 function CompanyJobsPanel({
+  companyId,
   companyName,
   jobs,
   onChange,
   setRun,
   setLastResult,
 }: {
+  companyId: string;
   companyName: string;
   jobs: AdminSponsoredJob[];
   onChange: () => void;
@@ -918,8 +929,45 @@ function CompanyJobsPanel({
     onChange();
   };
 
+  const deleteAll = async () => {
+    const typed = window.prompt(`Delete ALL ${jobs.length.toLocaleString()} jobs of ${companyName}? The company and its sources stay, so you can re-import.\n\nType DELETE to confirm.`);
+    if (typed !== 'DELETE') return;
+    setRun({ label: `Deleting all ${companyName} jobs`, value: 0 });
+    const r = await deleteAllCompanyJobs(companyId, (d, t) => setRun({ label: `Deleting all ${companyName} jobs`, value: t ? d / t : null, detail: `${d.toLocaleString()} of ${t.toLocaleString()} deleted` }));
+    setRun(null);
+    setLastResult(r.ok ? `Deleted all ${r.deleted.toLocaleString()} ${companyName} jobs. Click Sync to import them again.` : `Stopped after ${r.deleted} — ${r.error}`);
+    onChange();
+  };
+
+  const removeCompany = async () => {
+    const typed = window.prompt(
+      `Delete the company "${companyName}" completely — its ${jobs.length.toLocaleString()} jobs, programs, import sources and manager access?\n\nYou can add it again later (Add many companies / import tools).\n\nType DELETE to confirm.`
+    );
+    if (typed !== 'DELETE') return;
+    setRun({ label: `Deleting ${companyName}`, value: 0 });
+    const r = await deleteCompany(companyId, (d, t) => setRun({ label: `Deleting ${companyName}`, value: t ? d / t : null, detail: `${d.toLocaleString()} of ${t.toLocaleString()} jobs deleted` }));
+    setRun(null);
+    setLastResult(r.ok ? `Deleted ${companyName} and its ${r.jobsDeleted.toLocaleString()} jobs.` : r.error ?? 'Delete failed.');
+    onChange();
+  };
+
   return (
     <div>
+      <div className="mb-2 flex flex-wrap items-center justify-end gap-2 border-b border-ink-100 pb-2">
+        <span className="mr-auto text-[11px] text-ink-500">
+          {jobs.length.toLocaleString()} jobs for {companyName}
+        </span>
+        <button
+          onClick={deleteAll}
+          disabled={jobs.length === 0}
+          className="rounded border border-rose-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-40"
+        >
+          Delete all {jobs.length.toLocaleString()} jobs
+        </button>
+        <button onClick={removeCompany} className="rounded bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-rose-700">
+          Delete company
+        </button>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${companyName} jobs…`} className="h-7 w-52 rounded border border-ink-200 bg-white px-1.5 text-[11px]" />
         {(['all', 'published', 'pending', 'other'] as const).map((s) => (
