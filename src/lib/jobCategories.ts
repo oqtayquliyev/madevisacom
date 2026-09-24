@@ -52,6 +52,7 @@ export function isMeaningfulJobType(type: string | null | undefined): boolean {
  */
 export function displayJobCategory(job: { category?: string | null; title: string }): string | null {
   const raw = (job.category ?? '').trim();
-  if (raw && raw.toLowerCase() !== 'other') return raw;
+  // Placeholder values some importers store ("All", "Various") aren't a category.
+  if (raw && !/^(?:other|all|any|various|n\/?a|none|-)$/i.test(raw)) return raw;
   return classifyJobFunctionFromTitle(job.title);
 }

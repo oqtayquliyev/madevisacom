@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { detectJobFacts, type WorkArrangement } from '@/lib/jobFacts';
+import { detectJobFacts, isPlaceholderValue, splitSourceLocation, type WorkArrangement } from '@/lib/jobFacts';
 import type { OrgType } from '@/lib/programs';
 import type { ListingStatus, SalaryStatus, SalaryPeriod, CostStatus } from '@/lib/listingCategories';
 import { JOB_CATEGORIES, type JobCategory } from '@/lib/listingCategories';
@@ -592,21 +592,29 @@ export function importJobToRow(
   const jobCategory = normalizeJobCategory(j.employmentTypeRaw || facts.employmentType);
   const arrangement = j.workArrangement ?? facts.workArrangement;
   const salaryText = j.salaryText || facts.compensation;
+  // The description's own facts block ("Location: Osnabrück, DE",
+  // "Department: ...", "Posting Date: Sep 23, 2026") fills gaps the
+  // listing API left empty or filled with placeholders like "All".
+  const srcLoc = splitSourceLocation(facts.location);
+  const listedCity = deriveCity(j.additionalLocations?.[0] ?? j.locationText);
+  const countryId =
+    resolveCountryId(j.additionalLocations, j.locationText, countries) ??
+    (srcLoc?.countryCode ? countries.find((c) => c.iso_code === srcLoc.countryCode)?.id ?? null : null);
   return {
     publisher_id: publisherId,
     title: j.title,
     description: j.description,
     category: jobCategory,
     employment_type: jobCategory,
-    job_function: j.category ?? null,
+    job_function: (!isPlaceholderValue(j.category) ? j.category : null) ?? facts.department,
     remote: j.remote ?? arrangement === 'remote',
-    country_id: resolveCountryId(j.additionalLocations, j.locationText, countries),
-    city: deriveCity(j.additionalLocations?.[0] ?? j.locationText),
+    country_id: countryId,
+    city: (!isPlaceholderValue(listedCity) ? listedCity : null) ?? srcLoc?.city ?? null,
     official_url: j.officialUrl,
     additional_locations: j.additionalLocations && j.additionalLocations.length > 1 ? j.additionalLocations : null,
     contact_email: 'hello@madevisa.com',
     status: options.status ?? 'pending',
-    source_posted_at: parseSourceDate(j.postedAt),
+    source_posted_at: parseSourceDate(j.postedAt) ?? facts.postedAt,
     origin: 'imported' as const,
     import_source_id: options.importSourceId ?? null,
     external_id: j.externalId ? String(j.externalId) : null,
@@ -918,6 +926,10 @@ type FactRow = {
   salary_status: string | null;
   experience_level: string | null;
   employment_type: string | null;
+  job_function: string | null;
+  city: string | null;
+  country_id: string | null;
+  source_posted_at: string | null;
   remote: boolean;
   visa_sponsorship: boolean;
   work_arrangement?: string | null;
@@ -928,8 +940,11 @@ export async function backfillJobFacts(
   onProgress?: (done: number, total: number) => void,
   shouldStop?: () => boolean
 ): Promise<{ ok: boolean; scanned: number; updated: number; counts: Record<string, number>; error?: string; migrationMissing?: boolean }> {
-  const counts: Record<string, number> = { compensation: 0, experience: 0, employment: 0, workType: 0, visa: 0 };
-  const baseCols = 'id, title, description, compensation_text, salary_status, experience_level, employment_type, remote, visa_sponsorship';
+  const counts: Record<string, number> = { compensation: 0, experience: 0, employment: 0, workType: 0, visa: 0, posted: 0, department: 0, location: 0 };
+  const baseCols =
+    'id, title, description, compensation_text, salary_status, experience_level, employment_type, job_function, city, country_id, source_posted_at, remote, visa_sponsorship';
+  const { data: countryRows } = await supabase.from('countries').select('id, iso_code');
+  const countryIdByIso = new Map(((countryRows ?? []) as { id: string; iso_code: string }[]).map((c) => [c.iso_code, c.id]));
 
   // Small keyset-paginated batches (by primary key): loading every
   // description at once is what hit the database statement timeout.
@@ -993,6 +1008,28 @@ export async function backfillJobFacts(
         counts.visa++;
       }
       if (!r.visa_sponsorship && f.visa === 'offered') patch.visa_sponsorship = true;
+      if (!r.source_posted_at && f.postedAt) {
+        patch.source_posted_at = f.postedAt;
+        counts.posted++;
+      }
+      if (isPlaceholderValue(r.job_function) && f.department) {
+        patch.job_function = f.department;
+        counts.department++;
+      }
+      const loc = splitSourceLocation(f.location);
+      if (loc) {
+        let fixed = false;
+        if (isPlaceholderValue(r.city) && loc.city) {
+          patch.city = loc.city;
+          fixed = true;
+        }
+        const countryId = loc.countryCode ? countryIdByIso.get(loc.countryCode) : undefined;
+        if (!r.country_id && countryId) {
+          patch.country_id = countryId;
+          fixed = true;
+        }
+        if (fixed) counts.location++;
+      }
       if (Object.keys(patch).length) patches.push({ id: r.id, patch });
     }
 

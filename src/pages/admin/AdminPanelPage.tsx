@@ -2971,8 +2971,10 @@ function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () =
         ) : (
           <p>
             Reads every job's description and fills in what's missing — compensation (e.g. “$126,000—$136,000 CAD”),
-            experience (“8–12 years”), employment &amp; work type (“Full time · On-site”) and visa sponsorship. Only
-            empty fields are filled; nothing you set by hand is overwritten.
+            experience (“8–12 years”, “Career Level: Apprentices”), employment &amp; work type (“Full time · On-site”,
+            “Remote Working: Up to 20%”), visa sponsorship, and the facts block many career sites print (posting date,
+            department, location) — which also replaces placeholders like “All” / “Various”. Only empty fields are
+            filled; nothing you set by hand is overwritten.
           </p>
         )}
         <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -2992,7 +2994,7 @@ function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () =
               const c = r.counts;
               setResult(
                 (r.ok ? (stop.current ? 'Stopped. ' : 'Done. ') : `Finished with an error: ${r.error}. `) +
-                  `Scanned ${r.scanned.toLocaleString()}, updated ${r.updated.toLocaleString()} — salary ${c.compensation}, experience ${c.experience}, employment type ${c.employment}, work type ${c.workType}, visa ${c.visa}.` +
+                  `Scanned ${r.scanned.toLocaleString()}, updated ${r.updated.toLocaleString()} — salary ${c.compensation}, experience ${c.experience}, employment type ${c.employment}, work type ${c.workType}, visa ${c.visa}, posted date ${c.posted}, department ${c.department}, location ${c.location}.` +
                   (r.migrationMissing ? ' (Run the 20260925090000 migration to also store work type & “visa not offered”.)' : '')
               );
               onChange();

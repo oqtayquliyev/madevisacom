@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
-import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Check, ChevronDown, GraduationCap, Landmark, Loader2, MapPin, Plane, Share2, UserRound, Users } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Check, ChevronDown, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Phone, Plane, Share2, UserRound, Users } from 'lucide-react';
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
@@ -16,7 +16,8 @@ import { useSeo } from '@/lib/seo';
 import { sanitizeJobHtml } from '@/lib/atsImport';
 import { formatRelativeTime } from '@/lib/dates';
 import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
-import { detectJobFacts, workArrangementLabel } from '@/lib/jobFacts';
+import { cleanJobDescriptionHtml, detectJobFacts, workArrangementLabel, type JobContact } from '@/lib/jobFacts';
+import { allCountries } from '@/data/allCountries';
 
 type JobDetailPageProps = {
   id: string;
@@ -28,6 +29,12 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const [job, setJob] = useState<Job | null | undefined>(undefined);
   const [raw, setRaw] = useState<SponsoredJob | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Description with the facts block, repeated copies, apply CTAs and
+  // trailing contact lines stripped out (contact shown in its own box),
+  // plus the structured facts read from the same text.
+  const cleaned = useMemo(() => (job?.description ? cleanJobDescriptionHtml(sanitizeJobHtml(job.description), job.title) : null), [job]);
+  const detectedFacts = useMemo(() => (job ? detectJobFacts(job.description, job.title) : null), [job]);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,7 +82,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   useSeo({
     // useSeo appends " | MadeVisa" → "Title at Company, Location | MadeVisa"
     title: job ? `${job.title} at ${job.company}${location ? `, ${location}` : ''}` : 'Job',
-    description: job ? jobMetaDescription(job, location) : 'View this job listing on MadeVisa, including requirements and how to apply.',
+    description: job ? jobMetaDescription(job, location, cleaned?.html) : 'View this job listing on MadeVisa, including requirements and how to apply.',
     path: canonicalPath,
     noindex: job === null,
     ogImage: job?.imageUrl ?? undefined,
@@ -138,9 +145,23 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   }
 
   const SponsorIcon = job.publisherOrgType === 'government' ? Landmark : job.publisherOrgType === 'expert' ? UserRound : Building2;
-  const category = displayJobCategory(job);
-  const postedLabel = job.postedDate ? formatRelativeTime(job.postedDate, '') : '';
-  const placeLabel = job.city && job.city !== job.country && job.city !== 'Remote' ? `${job.city}, ${job.country}` : job.country;
+  const detected = detectedFacts ?? detectJobFacts(job.description, job.title);
+  // Importers sometimes store placeholder values ("All", "Various") —
+  // the source's own labeled fields are more accurate then.
+  const category = displayJobCategory({ title: job.title, category: isPlaceholder(job.category) ? detected.department : job.category });
+  const postedDate = pickPostedDate(job.postedDate, detected.postedAt);
+  const postedLabel = postedDate ? formatRelativeTime(postedDate, '') : '';
+  const sourcePlace = parseSourceLocation(detected.location);
+  const cityOk = !isPlaceholder(job.city) && job.city !== 'Remote';
+  const countryOk = !isPlaceholder(job.country);
+  const placeLabel =
+    (!cityOk || !countryOk) && sourcePlace
+      ? sourcePlace.label
+      : cityOk && job.city !== job.country
+        ? `${job.city}, ${job.country}`
+        : job.country;
+  const flagCode = !countryOk && sourcePlace?.code ? sourcePlace.code : job.countryCode;
+  const contact = cleaned?.contact ?? {};
   const hasSourceUrl = Boolean(job.url && job.url !== '#');
   const shareLabel = copied ? 'Link copied' : 'Share';
 
@@ -151,7 +172,6 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // Stored fields win; anything still missing is read from the
   // description itself ("8–12 years of experience", "$126,000—$136,000
   // CAD", "Work Type: Onsite", "unable to sponsor visas", ...).
-  const detected = detectJobFacts(job.description, job.title);
   const salary = job.salary || detected.compensation;
   const arrangement = job.workArrangement ?? detected.workArrangement ?? (job.remote ? 'remote' : null);
   const arrangementLabel = workArrangementLabel(arrangement);
@@ -162,12 +182,25 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
     {
       icon: MapPin,
       label: 'Remote',
-      value: arrangement === 'remote' ? 'Yes' : arrangement === 'hybrid' ? 'Hybrid' : arrangement === 'onsite' ? 'No — on-site' : see,
+      value:
+        arrangement === 'remote' ? (
+          'Yes'
+        ) : arrangement === 'hybrid' ? (
+          <WithDetail main="Hybrid" detail={detected.remoteDetail} />
+        ) : arrangement === 'onsite' ? (
+          'No — on-site'
+        ) : (
+          see
+        ),
     },
     {
       icon: Briefcase,
       label: 'Employment type',
-      value: employmentType && arrangementLabel ? `${employmentType} · ${arrangementLabel}` : employmentType || arrangementLabel || see,
+      value: employmentType ? (
+        <WithDetail main={employmentType} detail={employmentDetail(employmentType, detected.schedule, detected.contractTerm)} />
+      ) : (
+        arrangementLabel || see
+      ),
     },
     { icon: GraduationCap, label: 'Experience level', value: job.experienceLevel || detected.experience || see },
     {
@@ -181,7 +214,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // Evergreen roles can be a year old and still open — say so, rather
   // than letting "Posted 1 year ago" read like a dead listing.
   const isImported = job.sourceType === 'company_careers';
-  const postedAgeDays = job.postedDate ? (Date.now() - new Date(job.postedDate).getTime()) / 86_400_000 : 0;
+  const postedAgeDays = postedDate ? (Date.now() - new Date(postedDate).getTime()) / 86_400_000 : 0;
   const stillHiring = isImported && postedAgeDays > 30;
   const stillHiringTitle = `Still listed on ${job.company}'s careers page${job.lastSeenAt ? ` (checked ${formatRelativeTime(job.lastSeenAt, '')})` : ''} — they're still looking.`;
   if (job.spotsAvailable != null) details.push({ icon: Users, label: 'Positions available', value: String(job.spotsAvailable) });
@@ -246,7 +279,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                   </span>
                 )}
                 <span className="flex items-center gap-1.5">
-                  <CircleFlag countryCode={job.countryCode} label={job.country} size={16} />
+                  <CircleFlag countryCode={flagCode} label={placeLabel} size={16} />
                   {placeLabel}
                 </span>
                 {postedLabel && (
@@ -262,6 +295,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                   </span>
                 )}
               </div>
+              <ContactBox contact={contact} />
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
@@ -294,7 +328,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             ))}
           </div>
 
-          {job.description && <CollapsibleDescription html={sanitizeJobHtml(job.description)} />}
+          {cleaned?.html && <CollapsibleDescription html={cleaned.html} />}
 
           {job.requirements && (
             <div className="mt-6 rounded-lg bg-ink-50 p-4">
@@ -425,13 +459,81 @@ function CollapsibleDescription({ html }: { html: string }) {
   );
 }
 
+/** Main value with a smaller qualifier under it ("Hybrid" / "Up to 20% remote"). */
+function WithDetail({ main, detail }: { main: string; detail: string | null }) {
+  return (
+    <>
+      {main}
+      {detail && <span className="mt-0.5 block text-xs font-medium text-ink-500">{detail}</span>}
+    </>
+  );
+}
+
+/** "Full-time · Fixed-term" under the employment type, skipping whatever the type already says. */
+function employmentDetail(type: string, schedule: string | null, term: string | null): string | null {
+  const t = type.toLowerCase().replace(/[^a-z]/g, '');
+  const parts = [schedule, term].filter((p): p is string => Boolean(p) && !t.includes(p!.toLowerCase().replace(/[^a-z]/g, '')));
+  return parts.length ? parts.join(' · ') : null;
+}
+
+/** Contact details the company printed in the description (moved out of the text). */
+function ContactBox({ contact }: { contact: JobContact }) {
+  const rows = [
+    contact.email && { icon: Mail, text: contact.email, href: `mailto:${contact.email}` },
+    contact.phone && { icon: Phone, text: contact.phone, href: `tel:${contact.phone.replace(/[^\d+]/g, '')}` },
+    contact.website && { icon: Globe, text: contact.website.replace(/^https?:\/\//, '').replace(/\/$/, ''), href: contact.website },
+  ].filter(Boolean) as { icon: typeof Mail; text: string; href: string }[];
+  if (!rows.length) return null;
+  return (
+    <div className="mt-5 flex flex-col gap-2 rounded-xl bg-white/10 px-4 py-3 text-sm ring-1 ring-inset ring-white/20 sm:inline-flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
+      <span className="text-xs font-semibold text-white/70">{contact.name ? `Contact: ${contact.name}` : 'Contact'}</span>
+      {rows.map(({ icon: Icon, text, href }) => (
+        <a
+          key={href}
+          href={href}
+          target={href.startsWith('http') ? '_blank' : undefined}
+          rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
+          className="flex min-w-0 items-center gap-1.5 font-semibold text-white underline decoration-white/40 underline-offset-2 hover:decoration-white"
+        >
+          <Icon className="h-4 w-4 shrink-0 text-white/80" />
+          <span className="break-all">{text}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+const PLACEHOLDER_RE = /^(?:all|any|various|multiple(?: locations)?|n\/?a|none|other|-|–)$/i;
+
+function isPlaceholder(value: string | null | undefined): boolean {
+  return !value || PLACEHOLDER_RE.test(value.trim());
+}
+
+/** "Osnabrück, DE" → { label: "Osnabrück, Germany", code: "DE" }. */
+function parseSourceLocation(raw: string | null | undefined): { label: string; code: string | null } | null {
+  if (!raw || isPlaceholder(raw)) return null;
+  const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+  const last = parts[parts.length - 1] ?? '';
+  const country = allCountries.find((c) => c.code === last.toUpperCase() && last.length === 2) ?? allCountries.find((c) => c.name.toLowerCase() === last.toLowerCase());
+  if (country && parts.length > 1) return { label: [...parts.slice(0, -1), country.name].join(', '), code: country.code };
+  return { label: raw.trim(), code: country?.code ?? null };
+}
+
+/** The date printed on the company's page wins when the stored one is missing or clearly different (e.g. the import date). */
+function pickPostedDate(stored: string | null | undefined, printed: string | null): string | null {
+  if (!stored) return printed;
+  if (!printed) return stored;
+  const diffDays = Math.abs(new Date(stored).getTime() - new Date(printed).getTime()) / 86_400_000;
+  return diffDays > 2 ? printed : stored;
+}
+
 function InfoRow({ icon: Icon, label, value }: { icon: typeof Briefcase; label: string; value: ReactNode }) {
   return (
     <div className="flex items-start gap-2.5 rounded-lg bg-ink-50 p-3">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
       <div className="min-w-0">
         <p className="text-[11px] text-ink-400">{label}</p>
-        <p className="break-words text-sm font-semibold text-ink-800">{value}</p>
+        <div className="break-words text-sm font-semibold text-ink-800">{value}</div>
       </div>
     </div>
   );
@@ -456,10 +558,10 @@ function stripHtml(html: string): string {
 }
 
 /** Unique per job: title, company, location, type/salary when known, then the start of the real description. */
-function jobMetaDescription(job: Job, location: string): string {
+function jobMetaDescription(job: Job, location: string, cleanedHtml?: string | null): string {
   const facts = [job.type, job.salary].filter(Boolean).join(' · ');
   let text = `${job.title} at ${job.company}${location ? ` in ${location}` : ''}.${facts ? ` ${facts}.` : ''}`;
-  const body = job.description ? stripHtml(job.description) : '';
+  const body = cleanedHtml ? stripHtml(cleanedHtml) : job.description ? stripHtml(job.description) : '';
   if (body) text += ` ${body}`;
   else text += ' See requirements and apply on MadeVisa.';
   if (text.length <= 160) return text;
