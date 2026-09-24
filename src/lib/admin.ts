@@ -282,14 +282,14 @@ export type AdminSponsoredJob = {
   /** Set for jobs that came from a saved import source (see src/lib/importSync.ts). */
   import_source_id?: string | null;
   publisher_id?: string;
-  publisher?: { name: string; org_type: OrgType } | null;
+  publisher?: { name: string; org_type: OrgType; logo_url?: string | null } | null;
   country?: { name: string; iso_code: string } | null;
 };
 
 const adminProgramColumns =
   'id, title, description, category, status, created_at, approved_at, expires_at, country_id, city, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, official_url, application_url, image_url, spots_available, citizenship_any, citizenship_allowed, min_age, max_age, applications_open_at, applications_close_at, admin_notes, source_verified, needs_info_message, contact_email, origin, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const adminSponsoredJobColumns =
-  'id, title, description, category, employment_type, job_function, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, origin, import_source_id, publisher_id, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, description, category, employment_type, job_function, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, origin, import_source_id, publisher_id, publisher:program_publishers(name, org_type, logo_url), country:countries(name, iso_code)';
 
 // Same fields as adminSponsoredJobColumns minus description/benefits/
 // requirements/admin_notes/needs_info_message — for the "All sponsored
@@ -300,7 +300,7 @@ const adminSponsoredJobColumns =
 // already carrying the full text. Same reasoning, same fix as the
 // public site's list vs. detail split in src/lib/sponsoredJobs.ts.
 const adminSponsoredJobListColumns =
-  'id, title, category, employment_type, job_function, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, contact_email, origin, import_source_id, publisher_id, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, category, employment_type, job_function, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, contact_email, origin, import_source_id, publisher_id, publisher:program_publishers(name, org_type, logo_url), country:countries(name, iso_code)';
 
 export async function fetchAllPrograms(): Promise<AdminProgram[]> {
   const { data, error } = await supabase
@@ -834,14 +834,15 @@ export async function bulkSetJobImage(ids: string[], imageUrl: string): Promise<
  * Also updates the publisher's own logo_url for consistency, in case
  * anything reads from there later.
  */
-export async function setPublisherLogoForAllJobs(publisherId: string, imageUrl: string): Promise<{ ok: boolean; error?: string }> {
+export async function setPublisherLogoForAllJobs(publisherId: string, imageUrl: string): Promise<{ ok: boolean; jobsUpdated?: number; error?: string }> {
   const [jobsResult, publisherResult] = await Promise.all([
-    supabase.from('sponsored_jobs').update({ image_url: imageUrl }).eq('publisher_id', publisherId),
-    supabase.from('program_publishers').update({ logo_url: imageUrl }).eq('id', publisherId),
+    supabase.from('sponsored_jobs').update({ image_url: imageUrl }, { count: 'exact' }).eq('publisher_id', publisherId),
+    supabase.from('program_publishers').update({ logo_url: imageUrl }, { count: 'exact' }).eq('id', publisherId),
   ]);
   if (jobsResult.error) return { ok: false, error: jobsResult.error.message };
   if (publisherResult.error) return { ok: false, error: publisherResult.error.message };
-  return { ok: true };
+  if (!publisherResult.count && !jobsResult.count) return { ok: false, error: 'Nothing was updated — this company record could not be found.' };
+  return { ok: true, jobsUpdated: jobsResult.count ?? 0 };
 }
 
 /**

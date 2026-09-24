@@ -100,6 +100,8 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
   const [sort, setSort] = useState<'name' | 'jobs' | 'pending' | 'lastSync'>('name');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Logos applied in this session show instantly, before the data reload finishes.
+  const [logoOverrides, setLogoOverrides] = useState<Record<string, string>>({});
 
   // ---- sync options ----
   const [removal, setRemoval] = useState<'delete' | 'expire'>('delete');
@@ -136,12 +138,19 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
       }
       return r;
     };
+    const jobImages = new Map<string, Map<string, number>>();
     for (const s of sources) ensure(s.publisher_id, s.publisher?.name ?? 'Unknown company', s.publisher?.logo_url ?? null).sources.push(s);
     for (const j of allJobs) {
+      if (j.publisher_id && j.image_url) {
+        const m = jobImages.get(j.publisher_id) ?? new Map<string, number>();
+        m.set(j.image_url, (m.get(j.image_url) ?? 0) + 1);
+        jobImages.set(j.publisher_id, m);
+      }
       if (!j.publisher_id) continue;
       // Companies show up here if they have a source or any imported jobs.
       if (!map.has(j.publisher_id) && j.origin !== 'imported') continue;
-      const r = ensure(j.publisher_id, j.publisher?.name ?? 'Unknown company', null);
+      const r = ensure(j.publisher_id, j.publisher?.name ?? 'Unknown company', j.publisher?.logo_url ?? null);
+      if (!r.logo && j.publisher?.logo_url) r.logo = j.publisher.logo_url;
       r.total++;
       if (j.status === 'published') r.live++;
       else if (j.status === 'pending') r.pending++;
@@ -149,6 +158,11 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
       if (j.origin === 'imported' && !j.import_source_id) r.unlinked++;
     }
     for (const r of map.values()) {
+      // Same logo the job board shows: the company's logo, else the one its jobs use most.
+      if (!r.logo) {
+        const imgs = jobImages.get(r.id);
+        if (imgs) r.logo = [...imgs.entries()].sort((a, b) => b[1] - a[1])[0][0];
+      }
       if (r.sources.length) {
         const synced = r.sources.map((s) => s.last_synced_at).filter(Boolean) as string[];
         r.lastSync = synced.sort().pop() ?? null;
@@ -475,7 +489,8 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
               {visible.map((r) => (
                 <CompanyTableRow
                   key={r.id}
-                  row={r}
+                  row={logoOverrides[r.id] ? { ...r, logo: logoOverrides[r.id] } : r}
+                  onLogoApplied={(url) => setLogoOverrides((prev) => ({ ...prev, [r.id]: url }))}
                   allJobs={allJobs}
                   selected={selected.has(r.id)}
                   onToggle={() => toggleSel(r.id)}
@@ -553,6 +568,7 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
 
 function CompanyTableRow({
   row,
+  onLogoApplied,
   allJobs,
   selected,
   onToggle,
@@ -567,6 +583,7 @@ function CompanyTableRow({
   setLastResult,
 }: {
   row: CompanyRow;
+  onLogoApplied: (url: string) => void;
   allJobs: AdminSponsoredJob[];
   selected: boolean;
   onToggle: () => void;
@@ -584,6 +601,8 @@ function CompanyTableRow({
   const [name, setName] = useState(row.name);
   const [logoOpen, setLogoOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState('');
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoMsg, setLogoMsg] = useState<string | null>(null);
   const [addingSource, setAddingSource] = useState(false);
   const [newSource, setNewSource] = useState('');
   const [editSourceId, setEditSourceId] = useState<string | null>(null);
@@ -618,7 +637,14 @@ function CompanyTableRow({
         </td>
         <td className="px-2 py-2.5">
           <div className="flex items-start gap-2">
-            <button onClick={() => setLogoOpen((v) => !v)} title="Change logo" className="shrink-0">
+            <button
+              onClick={() => {
+                setLogoOpen((v) => !v);
+                setLogoMsg(null);
+              }}
+              title="Change logo"
+              className="shrink-0"
+            >
               {row.logo ? (
                 <img src={row.logo} alt="" className="h-9 w-9 rounded border border-ink-100 bg-white object-contain p-0.5" />
               ) : (
@@ -656,20 +682,42 @@ function CompanyTableRow({
           </div>
           {logoOpen && (
             <div className="mt-2 w-64 rounded-md border border-ink-200 bg-white p-2 shadow-sm">
-              <ImageUploadField userId={userId} value={logoUrl} onChange={setLogoUrl} label="Logo (applies to all this company's jobs)" />
-              <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="…or paste an image URL" className="mt-1 h-7 w-full rounded border border-ink-200 px-1.5 text-[11px]" />
-              <button
-                disabled={!logoUrl}
-                onClick={async () => {
-                  const r = await setPublisherLogoForAllJobs(row.id, logoUrl);
-                  if (!r.ok) return window.alert(r.error);
-                  setLogoOpen(false);
-                  onChange();
-                }}
-                className="mt-1.5 rounded bg-brand-600 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
-              >
-                Apply logo
-              </button>
+              <ImageUploadField userId={userId} value={logoUrl} onChange={setLogoUrl} label="Logo (applies to the company and all its jobs)" />
+              <input
+                value={logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value.trim())}
+                placeholder="…or paste an image URL (https://…)"
+                className="mt-1 h-7 w-full rounded border border-ink-200 px-1.5 text-[11px]"
+              />
+              {logoUrl && /^https?:\/\//i.test(logoUrl) && (
+                <div className="mt-1.5 flex items-center gap-2 text-[10px] text-ink-400">
+                  <img src={logoUrl} alt="" className="h-9 w-9 rounded border border-ink-100 object-contain p-0.5" />
+                  Preview
+                </div>
+              )}
+              <div className="mt-1.5 flex items-center gap-2">
+                <button
+                  disabled={!/^https?:\/\//i.test(logoUrl) || logoBusy}
+                  onClick={async () => {
+                    setLogoBusy(true);
+                    setLogoMsg(null);
+                    const r = await setPublisherLogoForAllJobs(row.id, logoUrl);
+                    setLogoBusy(false);
+                    if (!r.ok) return setLogoMsg(r.error ?? 'Could not apply the logo.');
+                    onLogoApplied(logoUrl);
+                    setLogoMsg(`Applied to ${row.name} and ${r.jobsUpdated ?? 0} jobs.`);
+                    setLogoUrl('');
+                    onChange();
+                  }}
+                  className="rounded bg-brand-600 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
+                >
+                  {logoBusy ? 'Applying…' : 'Apply logo'}
+                </button>
+                <button onClick={() => setLogoOpen(false)} className="text-[11px] text-ink-400 hover:text-ink-700">
+                  Close
+                </button>
+              </div>
+              {logoMsg && <p className={`mt-1 text-[11px] ${/Applied/.test(logoMsg) ? 'text-emerald-700' : 'text-rose-600'}`}>{logoMsg}</p>}
             </div>
           )}
         </td>
