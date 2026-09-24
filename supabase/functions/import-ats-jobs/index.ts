@@ -610,16 +610,16 @@ function extractEmbeddedJson(html: string): any[] {
 // =========================================================================
 
 const K = {
-  titleStrong: ["title", "jobTitle", "job_title", "postingTitle", "positionTitle", "Title", "JobTitle", "requisitionTitle", "externalName", "jobName", "job_name", "position_title"],
+  titleStrong: ["PositionTitle", "title", "jobTitle", "job_title", "postingTitle", "positionTitle", "Title", "JobTitle", "requisitionTitle", "externalName", "jobName", "job_name", "position_title"],
   titleWeak: ["name", "text", "Name"],
-  id: ["jobId", "job_id", "jobID", "JobId", "reqId", "req_id", "requisitionId", "requisition_id", "jobReqId", "refNumber", "ats_job_id", "display_job_id", "id_icims", "jobPostingId", "positionId", "jobCode", "job_code", "Id", "ID", "id", "uuid", "externalId", "slug", "key"],
+  id: ["MatchedObjectId", "jobId", "job_id", "jobID", "JobId", "reqId", "req_id", "requisitionId", "requisition_id", "jobReqId", "refNumber", "ats_job_id", "display_job_id", "id_icims", "jobPostingId", "positionId", "jobCode", "job_code", "Id", "ID", "id", "uuid", "externalId", "slug", "key"],
   jobId: ["jobId", "job_id", "reqId", "req_id", "requisitionId", "jobReqId", "ats_job_id", "jobPostingId", "id_icims", "positionId", "refNumber", "display_job_id"],
-  url: ["canonicalPositionUrl", "positionUrl", "absolute_url", "absoluteUrl", "jobUrl", "job_url", "hostedUrl", "externalUrl", "detailUrl", "detailsUrl", "jobDetailUrl", "postingUrl", "canonical_url", "canonicalUrl", "url", "URL", "link", "href", "permalink", "job_path", "jobPath", "externalPath", "applyUrl", "apply_url"],
-  location: ["locationsText", "location", "locationText", "location_name", "locationName", "full_location", "normalized_location", "primaryLocation", "PrimaryLocation", "cityStateCountry", "locations", "multi_location", "standardizedLocations", "jobLocation", "job_location", "office", "offices", "workLocation", "work_location", "city"],
+  url: ["PositionURI", "canonicalPositionUrl", "positionUrl", "absolute_url", "absoluteUrl", "jobUrl", "job_url", "hostedUrl", "externalUrl", "detailUrl", "detailsUrl", "jobDetailUrl", "postingUrl", "canonical_url", "canonicalUrl", "url", "URL", "link", "href", "permalink", "job_path", "jobPath", "externalPath", "applyUrl", "apply_url"],
+  location: ["PositionLocation", "locationsText", "location", "locationText", "location_name", "locationName", "full_location", "normalized_location", "primaryLocation", "PrimaryLocation", "cityStateCountry", "locations", "multi_location", "standardizedLocations", "jobLocation", "job_location", "office", "offices", "workLocation", "work_location", "city"],
   description: ["descriptionHtml", "description_html", "job_description", "jobDescription", "description", "content", "body", "ExternalDescriptionStr", "jobSummary", "descriptionTeaser", "summary", "shortDescription", "ShortDescriptionStr", "descriptionPlain"],
-  category: ["category", "jobCategory", "job_category", "department", "departments", "team", "jobFunction", "job_function", "function", "jobFamily", "JobFamily", "business_unit", "businessUnit", "division", "categories"],
-  type: ["employmentType", "employment_type", "jobType", "job_type", "timeType", "commitment", "job_schedule_type", "workType", "typeOfEmployment", "JobSchedule", "schedule"],
-  posted: ["datePosted", "postedDate", "posted_date", "postedOn", "postingDate", "publishedAt", "published_at", "publishDate", "releasedDate", "PostedDate", "postDateInGMT", "postedTs", "t_create", "createdAt", "created_at", "creationDate", "updated_at", "updatedAt", "t_update"],
+  category: ["JobCategory", "category", "jobCategory", "job_category", "department", "departments", "team", "jobFunction", "job_function", "function", "jobFamily", "JobFamily", "business_unit", "businessUnit", "division", "categories"],
+  type: ["PositionSchedule", "PositionOfferingType", "employmentType", "employment_type", "jobType", "job_type", "timeType", "commitment", "job_schedule_type", "workType", "typeOfEmployment", "JobSchedule", "schedule"],
+  posted: ["PublicationStartDate", "datePosted", "postedDate", "posted_date", "postedOn", "postingDate", "publishedAt", "published_at", "publishDate", "releasedDate", "PostedDate", "postDateInGMT", "postedTs", "t_create", "createdAt", "created_at", "creationDate", "updated_at", "updatedAt", "t_update"],
   remote: ["isRemote", "remote", "work_location_option", "workLocationOption", "workplaceType", "WorkplaceType", "remoteType", "workplace_type", "location_type", "jobLocationType"],
   salary: ["salaryText", "salary", "compensation", "pay_range", "payRange", "salaryRange", "salary_range", "compensationTierSummary", "baseSalary"],
   total: ["totalHits", "total", "totalCount", "total_count", "totalFound", "totalResults", "total_results", "numFound", "TotalJobsCount", "totalJobs", "jobCount", "recordsTotal", "hits", "count", "totalSize"],
@@ -628,7 +628,7 @@ const K = {
 const JOB_KEY_RE = /job|position|posting|requisition|opening|vacanc|career|search.?results?|hits|results/i;
 
 function sourcesOf(o: any): any[] {
-  return [o, o?.data, o?.attributes, o?.jobPostingInfo, o?.job, o?.posting, o?.fields, o?.categories, o?._source].filter(isObj);
+  return [o, o?.MatchedObjectDescriptor, o?.data, o?.attributes, o?.jobPostingInfo, o?.job, o?.posting, o?.fields, o?.categories, o?._source].filter(isObj);
 }
 
 function jobScore(o: any): number {
@@ -738,13 +738,13 @@ function locationList(v: any, depth = 0): string[] {
   if (isObj(v)) {
     if (v.address) return officesFromJsonLdLocations(v);
     const full = firstOf(v, ["fullLocation", "full_location", "formattedAddress", "displayName", "name", "Name", "LocationName", "label", "descriptor", "text", "location"]);
-    const country = textOf(firstOf(v, ["countryName", "country_name", "country", "countryCode", "country_code"]));
+    const country = textOf(firstOf(v, ["countryName", "CountryName", "country_name", "country", "countryCode", "country_code"]));
     const countryTxt = country.length === 2 ? country.toUpperCase() : country;
     if (typeof full === "string" && full.trim()) {
       const f = decodeEntities(full).trim();
       return [countryTxt && !f.toLowerCase().includes(countryTxt.toLowerCase()) ? `${f}, ${countryTxt}` : f];
     }
-    const parts = [textOf(v.city), textOf(v.region ?? v.state ?? v.stateProvince ?? v.regionCode), countryTxt].filter(Boolean);
+    const parts = [textOf(v.city ?? v.CityName), textOf(v.region ?? v.state ?? v.stateProvince ?? v.regionCode ?? v.CountrySubDivisionName), countryTxt || textOf(v.CountryName)].filter(Boolean);
     return parts.length ? [uniq(parts).join(", ")] : [];
   }
   return [];
@@ -1878,6 +1878,111 @@ async function fetchAmazon(ctx: Ctx, url: string, from: number): Promise<BatchRe
 }
 
 // =========================================================================
+// STRATEGY: "search?data={...}" job APIs (Mercedes-Benz, and other sites on
+// the same recruiting platform). The whole query — including paging
+// (SearchParameters.FirstItem / CountItem) — is a JSON blob in ?data=.
+//   response: { SearchResult: { SearchResultCountAll, SearchResultItems:
+//     [{ MatchedObjectId, MatchedObjectDescriptor: { PositionTitle,
+//        PositionURI, PositionLocation[], PublicationStartDate, ... } }] } }
+// =========================================================================
+
+const SEARCH_API_FIELDS = [
+  "ID", "PositionID", "PositionTitle", "PositionURI", "ApplyURI", "OrganizationName",
+  "PositionLocation.CountryName", "PositionLocation.CityName", "PositionLocation.CountrySubDivisionName",
+  "PositionOfferingType.Name", "PositionSchedule.Name", "JobCategory.Name", "CareerLevel.Name",
+  "PublicationStartDate", "PublicationEndDate", "UserArea.TextShort",
+];
+
+function parseSearchDataUrl(url: string): { u: URL; data: any } | null {
+  try {
+    const u = new URL(url);
+    const raw = u.searchParams.get("data");
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return isObj(data) && isObj(data.SearchParameters) ? { u, data } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** jobs.api.example.com → https://jobs.example.com (the public site the API belongs to). */
+function siteForSearchApi(u: URL): string {
+  return u.origin.replace("://jobs.api.", "://jobs.").replace("://api.", "://");
+}
+
+function defaultSearchApiUrl(apiOrigin: string, lang = "EN"): string {
+  const data = {
+    LanguageCode: lang.toUpperCase(),
+    SearchParameters: {
+      FirstItem: 1,
+      CountItem: 100,
+      Sort: [{ Criterion: "PublicationStartDate", Direction: "DESC" }],
+      MatchedObjectDescriptor: SEARCH_API_FIELDS,
+    },
+    SearchCriteria: [],
+  };
+  return `${apiOrigin}/search?data=${encodeURIComponent(JSON.stringify(data))}`;
+}
+
+async function fetchSearchDataApi(ctx: Ctx, url: string, from: number): Promise<BatchResult> {
+  const parsed = parseSearchDataUrl(url);
+  if (!parsed) throw new Error("not a search?data= job API URL");
+  const site = siteForSearchApi(parsed.u);
+  const headers = { Origin: site, Referer: `${site}/` };
+  const PAGE = 100;
+  const jobs: NormalizedJob[] = [];
+  const seen = new Set<string>();
+  let offset = from;
+  let total: number | null = null;
+  let exhausted = false;
+  const stopAt = Date.now() + LISTING_BUDGET_MS;
+
+  while (jobs.length < MAX_JOBS_PER_REQUEST && Date.now() < stopAt) {
+    const data = JSON.parse(JSON.stringify(parsed.data));
+    data.SearchParameters.FirstItem = offset + 1;
+    data.SearchParameters.CountItem = PAGE;
+    if (Array.isArray(data.SearchParameters.MatchedObjectDescriptor)) {
+      data.SearchParameters.MatchedObjectDescriptor = uniq([...data.SearchParameters.MatchedObjectDescriptor, ...SEARCH_API_FIELDS]);
+    }
+    const u = new URL(parsed.u.toString());
+    u.searchParams.set("data", JSON.stringify(data));
+    const { json, page } = await getJson(u.toString(), ctx, { headers });
+    const sr = json?.SearchResult;
+    const items: any[] = sr?.SearchResultItems;
+    if (!Array.isArray(items)) {
+      if (jobs.length === 0 && from === 0) throw new Error(`job search API returned ${describeFailure(page)}`);
+      exhausted = true;
+      break;
+    }
+    if (total === null) {
+      const t = sr.SearchResultCountAll ?? sr.SearchResultCount;
+      if (typeof t === "number" && t >= items.length) total = t;
+    }
+    for (const item of items) {
+      const d = item?.MatchedObjectDescriptor ?? item;
+      const j = jobFromObject(item, site);
+      if (!j) continue;
+      const id = String(d?.ID ?? d?.PositionID ?? item?.MatchedObjectId ?? j.externalId);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      j.externalId = id;
+      j.url = resolveUrl(d?.PositionURI ?? d?.ApplyURI, site) ?? j.url;
+      if (!j.descriptionHtml && typeof d?.UserArea?.TextShort === "string") j.descriptionHtml = formatDescriptionHtml(d.UserArea.TextShort);
+      jobs.push(j);
+    }
+    offset += items.length;
+    if (items.length === 0 || (total !== null && offset >= total) || (total === null && items.length < PAGE)) {
+      exhausted = true;
+      break;
+    }
+    await sleep(150);
+  }
+
+  await enrichFromDetailPages(ctx, jobs, site);
+  return { jobs, nextFrom: exhausted ? null : offset, totalHits: total };
+}
+
+// =========================================================================
 // STRATEGY: TalentBrew / Radancy (jobs.boeing.com, careers.unilever.com, …)
 // =========================================================================
 
@@ -2275,7 +2380,7 @@ async function fetchSitemap(ctx: Ctx, url: string, from: number): Promise<BatchR
 const LABELS: Record<string, string> = {
   phenom: "Phenom", eightfold: "Eightfold", workday: "Workday", greenhouse: "Greenhouse", lever: "Lever", ashby: "Ashby",
   smartrecruiters: "SmartRecruiters", oracle: "Oracle Recruiting Cloud", amazon: "Amazon Jobs", talentbrew: "TalentBrew",
-  drupal: "Drupal JSON:API", flatjson: "jobs JSON", json: "JSON endpoint", embedded: "page data", links: "job links", sitemap: "sitemap",
+  drupal: "Drupal JSON:API", flatjson: "jobs JSON", searchapi: "Job search API", json: "JSON endpoint", embedded: "page data", links: "job links", sitemap: "sitemap",
 };
 
 function plan(s: string, url: string, extra: Record<string, any> = {}): Plan {
@@ -2315,6 +2420,12 @@ function plansFromUrl(raw: string): Plan[] {
   }
   if (parseOracle(raw)) out.push(plan("oracle", raw));
   if (/(^|\.)amazon\.jobs$/.test(h)) out.push(plan("amazon", raw));
+  if (parseSearchDataUrl(raw)) out.push(plan("searchapi", raw));
+  // Careers sites whose job list comes from a jobs.api.<same domain> search API (e.g. Mercedes-Benz).
+  if (/^jobs\.mercedes-benz\.com$/.test(h)) {
+    const lang = segs[0] && /^[a-z]{2}$/i.test(segs[0]) ? segs[0] : "en";
+    out.push(plan("searchapi", defaultSearchApiUrl("https://jobs.api.mercedes-benz.com", lang)));
+  }
   return out;
 }
 
@@ -2446,6 +2557,14 @@ function analyzePage(page: Page): { plans: Plan[]; follow: { url: string; score:
     }
   }
   if (/eightfold|\/api\/apply\/v2\/|smartApplyData|\/api\/pcsx\//i.test(text)) plans.push(plan("eightfold", url));
+  {
+    // Page talks to a jobs.api.<domain> search API (Mercedes-Benz-style recruiting platform).
+    const api = text.replace(/\\\//g, "/").match(/https:\/\/jobs\.api\.[a-z0-9.-]+\.[a-z]{2,}/i);
+    if (api) {
+      const lang = new URL(url).pathname.split("/").filter(Boolean)[0];
+      plans.push(plan("searchapi", defaultSearchApiUrl(api[0], lang && /^[a-z]{2}$/i.test(lang) ? lang : "en")));
+    }
+  }
   plans.push(...atsPlansFromHtml(text));
   if (/talentbrew|tbcdn\.|radancy|data-total-job-results|search-jobs\/results/i.test(text)) {
     const u = new URL(url);
@@ -2486,6 +2605,7 @@ async function runPlan(ctx: Ctx, p: Plan, from: number): Promise<BatchResult> {
     case "embedded":
     case "links": return fetchHtmlListing(ctx, p.url, from, st);
     case "sitemap": return fetchSitemap(ctx, p.url, from);
+    case "searchapi": return fetchSearchDataApi(ctx, p.url, from);
     default: throw new Error(`unknown strategy "${st.s}"`);
   }
 }
