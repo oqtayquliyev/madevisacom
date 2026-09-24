@@ -1930,8 +1930,10 @@ async function fetchSearchDataApi(ctx: Ctx, url: string, from: number): Promise<
   const site = siteForSearchApi(parsed.u);
   const headers = { Origin: site, Referer: `${site}/` };
   const PAGE = 100;
+  const lang = String(parsed.data.LanguageCode ?? "EN").toLowerCase();
   const jobs: NormalizedJob[] = [];
   const seen = new Set<string>();
+  const seenJobs = new Map<string, NormalizedJob>();
   let offset = from;
   let total: number | null = null;
   let exhausted = false;
@@ -1941,9 +1943,11 @@ async function fetchSearchDataApi(ctx: Ctx, url: string, from: number): Promise<
     const data = JSON.parse(JSON.stringify(parsed.data));
     data.SearchParameters.FirstItem = offset + 1;
     data.SearchParameters.CountItem = PAGE;
-    if (Array.isArray(data.SearchParameters.MatchedObjectDescriptor)) {
-      data.SearchParameters.MatchedObjectDescriptor = uniq([...data.SearchParameters.MatchedObjectDescriptor, ...SEARCH_API_FIELDS]);
-    }
+    // Keep the page's own fields but drop "Facet:…" entries (those belong to
+    // filter-count requests, not the job list) and always ask for ours.
+    const own: string[] = Array.isArray(data.SearchParameters.MatchedObjectDescriptor) ? data.SearchParameters.MatchedObjectDescriptor : [];
+    data.SearchParameters.MatchedObjectDescriptor = uniq([...own.filter((f) => !/^Facet:/i.test(String(f))), ...SEARCH_API_FIELDS]);
+    if (!data.LanguageCode) data.LanguageCode = lang;
     const u = new URL(parsed.u.toString());
     u.searchParams.set("data", JSON.stringify(data));
     const { json, page } = await getJson(u.toString(), ctx, { headers });
@@ -1962,11 +1966,20 @@ async function fetchSearchDataApi(ctx: Ctx, url: string, from: number): Promise<
       const d = item?.MatchedObjectDescriptor ?? item;
       const j = jobFromObject(item, site);
       if (!j) continue;
-      const id = String(d?.ID ?? d?.PositionID ?? item?.MatchedObjectId ?? j.externalId);
-      if (seen.has(id)) continue;
-      seen.add(id);
+      // The same position is often published once per site language
+      // (DE / EN / HU …) with the same PositionID — keep one, preferring
+      // the version whose link is in the requested language.
+      const id = String(d?.PositionID ?? d?.ID ?? item?.MatchedObjectId ?? j.externalId);
       j.externalId = id;
       j.url = resolveUrl(d?.PositionURI ?? d?.ApplyURI, site) ?? j.url;
+      const inLang = new RegExp(`/${lang}(/|$|\\?)`, "i").test(j.url);
+      const existing = seenJobs.get(id);
+      if (existing) {
+        if (inLang && !new RegExp(`/${lang}(/|$|\\?)`, "i").test(existing.url)) jobs[jobs.indexOf(existing)] = j, seenJobs.set(id, j);
+        continue;
+      }
+      seen.add(id);
+      seenJobs.set(id, j);
       if (!j.descriptionHtml && typeof d?.UserArea?.TextShort === "string") j.descriptionHtml = formatDescriptionHtml(d.UserArea.TextShort);
       jobs.push(j);
     }
