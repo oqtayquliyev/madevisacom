@@ -617,7 +617,11 @@ export function importJobToRow(
     // automatically if that migration hasn't been run yet.
     work_arrangement: arrangement,
     visa_status: facts.visa,
-    ...(salaryText ? { compensation_text: salaryText, salary_status: 'disclosed' as const } : {}),
+    // Always set both explicitly. In a multi-row insert, a column present on
+    // only SOME rows is sent as NULL for the others — which broke
+    // salary_status (NOT NULL) as soon as one job in a batch had a salary.
+    compensation_text: salaryText || null,
+    salary_status: salaryText ? ('disclosed' as const) : ('not_disclosed' as const),
   };
 }
 
@@ -631,14 +635,14 @@ function isMissingColumnError(error: { message?: string; code?: string } | null)
 
 /** Inserts rows; if the optional new columns don't exist yet, retries without them instead of failing the import. */
 async function insertJobRows(rows: Record<string, unknown>[]): Promise<{ error: { message: string } | null }> {
-  const first = await supabase.from('sponsored_jobs').insert(rows);
+  const first = await supabase.from('sponsored_jobs').insert(rows, { defaultToNull: false });
   if (!isMissingColumnError(first.error)) return { error: first.error };
   const stripped = rows.map((r) => {
     const copy = { ...r };
     for (const c of OPTIONAL_NEW_COLUMNS) delete copy[c];
     return copy;
   });
-  const second = await supabase.from('sponsored_jobs').insert(stripped);
+  const second = await supabase.from('sponsored_jobs').insert(stripped, { defaultToNull: false });
   return { error: second.error };
 }
 
