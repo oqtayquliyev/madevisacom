@@ -1033,7 +1033,7 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
   // (visible growing live in Pending sponsored jobs below) until the
   // source reports nothing left — rather than silently stopping at
   // whatever the first call's cap happened to be.
-  const MAX_BATCHES = 60; // up to ~6,000 jobs in one run — a safety ceiling, not an expected real-world size
+  const MAX_BATCHES = 300; // a safety ceiling, not an expected real-world size (some strategies return 60 jobs per batch)
 
   const fetchAndImport = async () => {
     const company = companyName.trim();
@@ -1053,13 +1053,16 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
     let from = 0;
     let totalImported = 0;
     let totalHits: number | null = null;
+    // Filled in by the first batch: where the jobs really live + how to page them.
+    let cont: { resolvedUrl?: string | null; strategy?: string | null } | undefined;
+    let source: string | null = null;
 
     for (let batch = 0; batch < MAX_BATCHES; batch++) {
       if (stopRequested.current) break;
 
       setBusy('fetching');
       setProgress({ imported: totalImported, totalHits });
-      const res = await fetchJobsFromCareersUrl(careersUrl, from);
+      const res = await fetchJobsFromCareersUrl(careersUrl, from, cont);
 
       if (!res.ok) {
         setBusy(null);
@@ -1069,6 +1072,8 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
         return;
       }
       if (res.totalHits != null) totalHits = res.totalHits;
+      if (res.strategy) cont = { resolvedUrl: res.resolvedUrl, strategy: res.strategy };
+      if (res.source) source = res.source;
 
       if (res.jobs.length === 0) {
         if (batch === 0) {
@@ -1117,8 +1122,8 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
     setProgress(null);
     setResult(
       stopRequested.current
-        ? `Stopped early — added ${totalImported} ${company} job${totalImported === 1 ? '' : 's'} to Pending sponsored jobs below.`
-        : `Added ${totalImported} ${company} job${totalImported === 1 ? '' : 's'} to Pending sponsored jobs below.`
+        ? `Stopped early — added ${totalImported} ${company} job${totalImported === 1 ? '' : 's'} to Pending sponsored jobs below${source ? ` (via ${source})` : ''}.`
+        : `Added ${totalImported} ${company} job${totalImported === 1 ? '' : 's'} to Pending sponsored jobs below${source ? ` (via ${source})` : ''}.`
     );
     setCareersUrl('');
     setCompanyName('');
@@ -1131,8 +1136,10 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
       <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Import jobs from a careers page</h2>
       <div className="mt-3 border border-ink-200 bg-white p-4">
         <p className="text-xs text-ink-500">
-          For companies not on Greenhouse. Paste their careers/search-results page URL — the platform behind it
-          (currently: Phenom People sites) is auto-detected server-side — and jobs get added straight to{' '}
+          Paste any careers page — a landing page, a job search page, an ATS board link, or a JSON request URL
+          copied from DevTools. The platform behind it (Workday, Eightfold, Oracle, SmartRecruiters, Phenom,
+          Greenhouse, Lever, Ashby, TalentBrew, or a generic site) is detected server-side, following "Search jobs"
+          links if needed — and jobs get added straight to{' '}
           <strong>Pending sponsored jobs</strong>, grouped under this company, for review below. Each job's
           destination country, description, type, and (where the source page has them) posted date and salary are
           all pulled from that job's own page automatically — nothing to pick here. Large sites (1000+ listings)
@@ -1148,7 +1155,7 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
               placeholder="https://careers.roche.com/global/en/search-results"
               className="h-9 w-full rounded-md border border-ink-200 px-2 text-sm text-ink-900 outline-none focus:border-brand-500"
             />
-            <p className="mt-1 text-[10px] text-ink-400">The company's job search/listing page — not a single job's URL.</p>
+            <p className="mt-1 text-[10px] text-ink-400">Landing page, search page, ATS board or API URL — not a single job's URL.</p>
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-semibold text-ink-500">Company name (as shown on MadeVisa)</label>
@@ -1188,7 +1195,7 @@ function ImportFromCareersUrlSection({ countries, onImported }: { countries: Cou
           )}
         </div>
 
-        {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
+        {error && <p className="mt-2 whitespace-pre-line text-xs font-medium text-rose-600">{error}</p>}
         {result && <p className="mt-3 text-xs font-medium text-emerald-700">{result}</p>}
       </div>
     </section>

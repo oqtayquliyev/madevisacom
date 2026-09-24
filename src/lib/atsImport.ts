@@ -148,6 +148,13 @@ export type FetchJobsResult =
        * shot). */
       nextFrom?: number | null;
       totalHits?: number | null;
+      /** Where the jobs actually came from (e.g. the Workday board a
+       * landing page linked to) plus the detected strategy — pass both
+       * back via `cont` on the next batch so it skips re-detection. */
+      resolvedUrl?: string | null;
+      strategy?: string | null;
+      /** Human label of the detected platform, e.g. "Workday". */
+      source?: string | null;
     }
   | { ok: false; error: string };
 
@@ -176,7 +183,11 @@ function extractGreenhouseToken(value: string): string {
  *   - a full careers page URL for a Phenom-powered site (e.g. Roche) —
  *     proxied through the import-ats-jobs edge function.
  */
-export async function fetchJobsFromCareersUrl(input: string, from: number = 0): Promise<FetchJobsResult> {
+export async function fetchJobsFromCareersUrl(
+  input: string,
+  from: number = 0,
+  cont?: { resolvedUrl?: string | null; strategy?: string | null }
+): Promise<FetchJobsResult> {
   const trimmed = input.trim();
   if (!trimmed) return { ok: false, error: 'Enter a Greenhouse token or a careers page URL.' };
 
@@ -184,14 +195,28 @@ export async function fetchJobsFromCareersUrl(input: string, from: number = 0): 
 
   if (!looksLikeUrl || isGreenhouseUrl(trimmed)) {
     const token = looksLikeUrl ? extractGreenhouseToken(trimmed) : trimmed;
-    return fetchGreenhouseJobs(token); // Greenhouse's API always returns the full board in one shot — no paging needed.
+    // Greenhouse's API always returns the full board in one shot — no paging needed.
+    const gh = await fetchGreenhouseJobs(token);
+    return gh.ok ? { ok: true, jobs: gh.jobs, nextFrom: null, source: 'Greenhouse' } : { ok: false, error: gh.error ?? 'Greenhouse import failed.' };
   }
 
   const { data, error } = await supabase.functions.invoke('import-ats-jobs', {
-    body: { url: trimmed, from },
+    body: {
+      url: cont?.resolvedUrl || trimmed,
+      from,
+      ...(cont?.strategy ? { strategy: cont.strategy } : {}),
+    },
   });
 
   if (error) return { ok: false, error: error.message };
   if (!data?.ok) return { ok: false, error: data?.error ?? 'Import failed.' };
-  return { ok: true, jobs: data.jobs, nextFrom: data.nextFrom ?? null, totalHits: data.totalHits ?? null };
+  return {
+    ok: true,
+    jobs: data.jobs,
+    nextFrom: data.nextFrom ?? null,
+    totalHits: data.totalHits ?? null,
+    resolvedUrl: data.resolvedUrl ?? null,
+    strategy: data.strategy ?? null,
+    source: data.source ?? null,
+  };
 }
