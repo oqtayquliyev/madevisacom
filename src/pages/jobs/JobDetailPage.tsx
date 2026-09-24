@@ -16,7 +16,7 @@ import { useSeo } from '@/lib/seo';
 import { sanitizeJobHtml } from '@/lib/atsImport';
 import { formatRelativeTime } from '@/lib/dates';
 import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
-import { cleanJobDescriptionHtml, detectJobFacts, workArrangementLabel, type JobContact } from '@/lib/jobFacts';
+import { cleanJobDescriptionHtml, detectJobFacts, type JobContact } from '@/lib/jobFacts';
 import { allCountries } from '@/data/allCountries';
 
 type JobDetailPageProps = {
@@ -157,9 +157,13 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const placeLabel =
     (!cityOk || !countryOk) && sourcePlace
       ? sourcePlace.label
-      : cityOk && job.city !== job.country
+      : cityOk && countryOk && job.city !== job.country
         ? `${job.city}, ${job.country}`
-        : job.country;
+        : cityOk
+          ? job.city
+          : countryOk
+            ? job.country
+            : 'Location on source';
   const flagCode = !countryOk && sourcePlace?.code ? sourcePlace.code : job.countryCode;
   const contact = cleaned?.contact ?? {};
   const hasSourceUrl = Boolean(job.url && job.url !== '#');
@@ -174,7 +178,6 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // CAD", "Work Type: Onsite", "unable to sponsor visas", ...).
   const salary = job.salary || detected.compensation;
   const arrangement = job.workArrangement ?? detected.workArrangement ?? (job.remote ? 'remote' : null);
-  const arrangementLabel = workArrangementLabel(arrangement);
   const employmentType = isMeaningfulJobType(job.type) ? job.type : detected.employmentType;
   const visa = job.visaStatus ?? (job.visaSponsorship ? 'offered' : detected.visa);
   const details: { icon: typeof Briefcase; label: string; value: ReactNode }[] = [
@@ -199,7 +202,8 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       value: employmentType ? (
         <WithDetail main={employmentType} detail={employmentDetail(employmentType, detected.schedule, detected.contractTerm)} />
       ) : (
-        arrangementLabel || see
+        // The Remote box already covers on-site/hybrid/remote.
+        see
       ),
     },
     { icon: GraduationCap, label: 'Experience level', value: job.experienceLevel || detected.experience || see },
@@ -512,7 +516,7 @@ function isPlaceholder(value: string | null | undefined): boolean {
 /** "Osnabrück, DE" → { label: "Osnabrück, Germany", code: "DE" }. */
 function parseSourceLocation(raw: string | null | undefined): { label: string; code: string | null } | null {
   if (!raw || isPlaceholder(raw)) return null;
-  const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+  const parts = raw.split(',').map((p) => p.trim()).filter((p) => p && !/^[\d\s-]{3,10}$/.test(p));
   const last = parts[parts.length - 1] ?? '';
   const country = allCountries.find((c) => c.code === last.toUpperCase() && last.length === 2) ?? allCountries.find((c) => c.name.toLowerCase() === last.toLowerCase());
   if (country && parts.length > 1) return { label: [...parts.slice(0, -1), country.name].join(', '), code: country.code };

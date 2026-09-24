@@ -5,6 +5,7 @@ import type { ListingStatus, SalaryStatus, SalaryPeriod, CostStatus } from '@/li
 import { JOB_CATEGORIES, type JobCategory } from '@/lib/listingCategories';
 import { matchCountriesFromOfficeNames } from '@/lib/officeLocations';
 import { classifyJobFunctionFromTitle } from '@/lib/jobCategories';
+import { fetchJobDetail } from '@/lib/atsImport';
 
 export type PendingPublisher = {
   id: string;
@@ -918,6 +919,12 @@ export async function backfillJobFunctions(): Promise<{ ok: boolean; updated: nu
 // Only fills fields that are empty; never overwrites what's already set.
 // ---------------------------------------------------------------------------
 
+const THIN_DESCRIPTION_CHARS = 400;
+
+function plainTextLength(html: string | null | undefined): number {
+  return (html ?? '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim().length;
+}
+
 type FactRow = {
   id: string;
   title: string;
@@ -930,6 +937,7 @@ type FactRow = {
   city: string | null;
   country_id: string | null;
   source_posted_at: string | null;
+  official_url: string | null;
   remote: boolean;
   visa_sponsorship: boolean;
   work_arrangement?: string | null;
@@ -938,11 +946,12 @@ type FactRow = {
 
 export async function backfillJobFacts(
   onProgress?: (done: number, total: number) => void,
-  shouldStop?: () => boolean
+  shouldStop?: () => boolean,
+  options: { refetchThin?: boolean } = {}
 ): Promise<{ ok: boolean; scanned: number; updated: number; counts: Record<string, number>; error?: string; migrationMissing?: boolean }> {
-  const counts: Record<string, number> = { compensation: 0, experience: 0, employment: 0, workType: 0, visa: 0, posted: 0, department: 0, location: 0 };
+  const counts: Record<string, number> = { refetched: 0, compensation: 0, experience: 0, employment: 0, workType: 0, visa: 0, posted: 0, department: 0, location: 0 };
   const baseCols =
-    'id, title, description, compensation_text, salary_status, experience_level, employment_type, job_function, city, country_id, source_posted_at, remote, visa_sponsorship';
+    'id, title, description, official_url, compensation_text, salary_status, experience_level, employment_type, job_function, city, country_id, source_posted_at, remote, visa_sponsorship';
   const { data: countryRows } = await supabase.from('countries').select('id, iso_code');
   const countryIdByIso = new Map(((countryRows ?? []) as { id: string; iso_code: string }[]).map((c) => [c.iso_code, c.id]));
 
@@ -978,11 +987,43 @@ export async function backfillJobFacts(
     lastId = rows[rows.length - 1].id;
     scanned += rows.length;
 
+    // Jobs whose stored description is only a teaser (often just the page
+    // title) get their own page re-read: full description + side-column
+    // facts ("About the job"), which the detectors below then use.
+    const rereadPatch = new Map<string, Record<string, unknown>>();
+    if (options.refetchThin) {
+      const thin = rows.filter((r) => r.official_url && /^https?:/i.test(r.official_url) && plainTextLength(r.description) < THIN_DESCRIPTION_CHARS);
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: 4 }, async () => {
+          while (next < thin.length && !shouldStop?.()) {
+            const r = thin[next++];
+            const res = await fetchJobDetail(r.official_url!);
+            if (!res.ok || plainTextLength(res.job.descriptionHtml) <= plainTextLength(r.description) + 40) continue;
+            const p: Record<string, unknown> = { description: res.job.descriptionHtml };
+            r.description = res.job.descriptionHtml;
+            // "Admin Support" → "Admin Support - student / studentka" when the page has the full title.
+            if (res.job.title && res.job.title.length > r.title.length && res.job.title.toLowerCase().startsWith(r.title.toLowerCase())) {
+              p.title = res.job.title;
+              r.title = res.job.title;
+            }
+            if (!r.source_posted_at && res.job.postedAt) {
+              p.source_posted_at = res.job.postedAt;
+              r.source_posted_at = res.job.postedAt;
+              counts.posted++;
+            }
+            rereadPatch.set(r.id, p);
+            counts.refetched++;
+          }
+        })
+      );
+    }
+
     const patches: { id: string; patch: Record<string, unknown> }[] = [];
     for (const r of rows) {
       if (!r.description) continue;
       const f = detectJobFacts(r.description, r.title);
-      const patch: Record<string, unknown> = {};
+      const patch: Record<string, unknown> = { ...(rereadPatch.get(r.id) ?? {}) };
       const comp = (r.compensation_text ?? '').trim();
       if ((!comp || comp === '[object Object]') && f.compensation && r.salary_status !== 'volunteer') {
         patch.compensation_text = f.compensation;

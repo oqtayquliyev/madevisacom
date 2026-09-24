@@ -416,7 +416,15 @@ export function LandingHero({
   const [matchItems, setMatchItems] = useState<MatchItem[] | null>(null);
 
   useEffect(() => {
-    fetchMatchItems().then(setMatchItems);
+    let cancelled = false;
+    const show = (items: MatchItem[]) => {
+      if (!cancelled) setMatchItems(items);
+    };
+    // Paints from the cached copy / newest page first, then the full list.
+    fetchMatchItems(show).then(show);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const new24hCount = matchItems ? countNewWithin24h(matchItems) : 0;

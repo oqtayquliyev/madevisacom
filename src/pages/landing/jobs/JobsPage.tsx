@@ -9,7 +9,9 @@ import {
   Clock,
   Flame,
   Globe2,
+  GraduationCap,
   Loader2,
+  Plane,
   Search,
   SlidersHorizontal,
   X,
@@ -22,7 +24,8 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { Logo } from '@/components/layout/Logo';
 import { categories, countries, jobTypes, type Job } from '@/data/jobs';
-import { DISCOVERY_CATEGORIES, displayJobCategory, isMeaningfulJobType, matchesDiscoveryCategory } from '@/lib/jobCategories';
+import { DISCOVERY_CATEGORIES, displayJobCategory, isMeaningfulJobType, isStudentOrInternJob, matchesDiscoveryCategory } from '@/lib/jobCategories';
+import { moveToBack, recencyBucket, recentlyShownIds, rememberShown, visitShuffle } from '@/lib/feedRotation';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
@@ -97,6 +100,16 @@ function interleaveByCompany(jobs: Job[]): Job[] {
     round++;
   }
   return result;
+}
+
+const PLACEHOLDER_PLACE = /^(?:all|any|various|multiple(?: locations)?|n\/?a|none|-)$/i;
+
+/** "City, Country" — without importer placeholders like "All" / "Various". */
+function cardLocation(job: Job): string {
+  const city = job.city && !PLACEHOLDER_PLACE.test(job.city.trim()) ? job.city : '';
+  const country = job.country && !PLACEHOLDER_PLACE.test(job.country.trim()) ? job.country : '';
+  if (city && country && city !== country) return `${city}, ${country}`;
+  return city || country || 'Location on source';
 }
 
 function JobLogo({ job, size = 48 }: { job: Job; size?: number }) {
@@ -213,7 +226,7 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
       <div className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] text-ink-500">
         <span className="flex items-center gap-1.5">
           <CircleFlag countryCode={job.countryCode} label={job.country} size={15} />
-          {job.city && job.city !== job.country ? `${job.city}, ${job.country}` : job.country}
+          {cardLocation(job)}
         </span>
         {isMeaningfulJobType(job.type) && (
           <span className="flex items-center gap-1.5">
@@ -372,6 +385,9 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   const [sortBy, setSortBy] = useState<SortOption>((initial.get('sort') as SortOption) ?? 'newest');
   // "Direct from companies": only listings the company posted on MadeVisa itself.
   const [directOnly, setDirectOnly] = useState(initial.get('direct') === '1');
+  // Quick filters: student / intern / apprentice roles, and roles offering visa sponsorship.
+  const [studentOnly, setStudentOnly] = useState(initial.get('students') === '1');
+  const [visaOnly, setVisaOnly] = useState(initial.get('visa') === '1');
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -396,12 +412,13 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchPublishedSponsoredJobs().then((results) => {
-      if (!cancelled) {
-        setSponsoredJobs(results.map(sponsoredJobToBoardJob));
-        setLoadingSponsored(false);
-      }
-    });
+    const show = (rows: Parameters<typeof sponsoredJobToBoardJob>[0][]) => {
+      if (cancelled) return;
+      setSponsoredJobs(rows.map(sponsoredJobToBoardJob));
+      setLoadingSponsored(false);
+    };
+    // Renders the cached copy / newest page first, then the full list.
+    fetchPublishedSponsoredJobs({ onPartial: show }).then(show);
     return () => {
       cancelled = true;
     };
@@ -452,16 +469,29 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     if (datePosted !== 'Any time') params.set('posted', datePosted);
     if (sortBy !== 'newest') params.set('sort', sortBy);
     if (directOnly) params.set('direct', '1');
+    if (studentOnly) params.set('students', '1');
+    if (visaOnly) params.set('visa', '1');
 
     const query = params.toString();
     window.history.replaceState({}, '', query ? `/jobs?${query}` : '/jobs');
-  }, [search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly]);
+  }, [search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly]);
+  }, [search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly]);
 
   const directJobs = useMemo(() => allJobs.filter((j) => j.sourceType === 'company_submitted'), [allJobs]);
+  const studentCount = useMemo(() => allJobs.filter(isStudentOrInternJob).length, [allJobs]);
+  const visaCount = useMemo(() => allJobs.filter((j) => j.visaSponsorship).length, [allJobs]);
+  // Only employment types that actually have jobs (no empty "Contract / Freelance").
+  const jobTypeOptions = useMemo(() => {
+    const present = new Set(allJobs.map((j) => j.type).filter(isMeaningfulJobType));
+    return ['All types', ...jobTypes.filter((t) => t !== 'All types' && present.has(t))];
+  }, [allJobs]);
+  // Viewed jobs as of this page load — so opening a job and coming back
+  // doesn't reshuffle the list under the person's thumb.
+  const viewedAtLoad = useMemo(() => new Set(allJobs.filter((j) => isJobViewed(j.id)).map((j) => j.id)), [allJobs]);
+  const shownBefore = useMemo(() => recentlyShownIds('jobs'), []);
 
   const filteredJobs = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -487,9 +517,13 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       const matchesLevel = experienceLevel === 'All levels' || experienceBucket(job.experienceLevel) === experienceLevel;
       const matchesDate = withinDateWindow(job.postedDate, datePosted);
       const matchesDirect = !directOnly || job.sourceType === 'company_submitted';
+      const matchesStudent = !studentOnly || isStudentOrInternJob(job);
+      const matchesVisa = !visaOnly || Boolean(job.visaSponsorship);
 
       return (
         matchesDirect &&
+        matchesStudent &&
+        matchesVisa &&
         matchesSearch &&
         matchesCountry &&
         matchesCategory &&
@@ -511,16 +545,42 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     // of companies). "newest" sorts each company's own jobs newest
     // first, then round-robins across companies; "relevant" round-
     // robins in the existing order without re-sorting within a company.
+    //
+    // Each visit also shows a different mix: within a freshness bucket
+    // (today, last 3 days, ...) jobs are shuffled per visit, jobs shown
+    // at the top last time come after unseen ones, and jobs already
+    // opened go to the end of their bucket.
+    const rotate = (jobs: Job[], salt: string) =>
+      interleaveByCompany(
+        moveToBack(
+          moveToBack(visitShuffle(jobs, salt), (j) => shownBefore.has(j.id)),
+          (j) => viewedAtLoad.has(j.id)
+        )
+      );
+
     if (sortBy === 'newest') {
-      const sorted = [...matched].sort((a, b) => {
-        const da = a.postedDate ? new Date(a.postedDate).getTime() : 0;
-        const db = b.postedDate ? new Date(b.postedDate).getTime() : 0;
-        return db - da;
-      });
-      return interleaveByCompany(sorted);
+      const buckets: Job[][] = [[], [], [], [], []];
+      for (const job of matched) buckets[recencyBucket(job.postedDate)].push(job);
+      // Older buckets keep strict newest-first order; the fresh ones rotate.
+      return buckets.flatMap((b, i) =>
+        i <= 1
+          ? rotate(b, `newest-${i}`)
+          : interleaveByCompany(
+              moveToBack(
+                [...b].sort((x, y) => (y.postedDate ? Date.parse(y.postedDate) : 0) - (x.postedDate ? Date.parse(x.postedDate) : 0)),
+                (j) => viewedAtLoad.has(j.id)
+              )
+            )
+      );
     }
-    return interleaveByCompany(matched);
-  }, [allJobs, search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly]);
+    return rotate(matched, 'relevant');
+  }, [allJobs, search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly, shownBefore, viewedAtLoad]);
+
+  // Remember what led the list this visit, so next visit leads with other jobs.
+  const unfiltered = !search && country === 'All countries' && category === 'All categories' && !studentOnly && !visaOnly && !directOnly;
+  useEffect(() => {
+    if (unfiltered && !loadingSponsored) rememberShown('jobs', filteredJobs.slice(0, PAGE_SIZE).map((j) => j.id));
+  }, [unfiltered, loadingSponsored, filteredJobs]);
 
   const visibleJobs = filteredJobs.slice(0, visibleCount);
   const hasMore = visibleCount < filteredJobs.length;
@@ -560,7 +620,9 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     Number(salaryOnly) +
     Number(experienceLevel !== 'All levels') +
     Number(datePosted !== 'Any time') +
-    Number(directOnly);
+    Number(directOnly) +
+    Number(studentOnly) +
+    Number(visaOnly);
 
   // Chip list for the "active filters" row under the category strip —
   // each one clears just that one filter, not everything (clearAllFilters below still does that for the "Clear all" button).
@@ -575,6 +637,8 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     experienceLevel !== 'All levels' ? { key: 'level', label: experienceLevel, onClear: () => setExperienceLevel('All levels') } : null,
     datePosted !== 'Any time' ? { key: 'posted', label: datePosted, onClear: () => setDatePosted('Any time') } : null,
     directOnly ? { key: 'direct', label: 'Direct from companies', onClear: () => setDirectOnly(false) } : null,
+    studentOnly ? { key: 'students', label: 'Students & interns', onClear: () => setStudentOnly(false) } : null,
+    visaOnly ? { key: 'visa', label: 'Visa sponsorship', onClear: () => setVisaOnly(false) } : null,
   ].filter((f): f is { key: string; label: string; onClear: () => void } => f !== null);
 
   const clearAllFilters = () => {
@@ -588,6 +652,8 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     setExperienceLevel('All levels');
     setDatePosted('Any time');
     setDirectOnly(false);
+    setStudentOnly(false);
+    setVisaOnly(false);
   };
 
   return (
@@ -597,14 +663,14 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       <section className="bg-brand-700 text-white">
         <div className="mx-auto max-w-5xl px-5 py-9 sm:px-8 sm:py-14">
           <h1 className="font-slab text-3xl font-bold leading-[1.3] tracking-tight text-white sm:text-4xl sm:leading-[1.3]">
-            Discover <span className="rounded-md bg-ink-950 px-2 font-extrabold text-white [box-decoration-break:clone] [-webkit-box-decoration-break:clone] sm:px-2.5">jobs</span> beyond traditional job boards.
+            Discover <span className="rounded-md bg-white px-2 font-extrabold text-brand-700 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] sm:px-2.5">jobs</span> beyond traditional job boards.
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-white/80 sm:text-base">
             We collect roles from company career pages and multiple sources, so you can find opportunities you may not see on LinkedIn or other job sites.
           </p>
 
           <div className="mt-5">
-            <PersonalizationBar tone="dark" />
+            <PersonalizationBar tone="dark" variant="location" />
           </div>
 
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -670,7 +736,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
               <SelectField label="Country" value={country} options={countryOptions} onChange={setCountry} />
               <TextField label="City" value={city} onChange={setCity} placeholder={cityOptions.slice(0, 3).join(', ') || 'Any city'} />
               <SelectField label="Category" value={category} options={categories} onChange={setCategory} />
-              <SelectField label="Employment type" value={jobType} options={jobTypes} onChange={setJobType} />
+              <SelectField label="Employment type" value={jobType} options={jobTypeOptions} onChange={setJobType} />
               <TextField label="Company" value={company} onChange={setCompany} placeholder={companyOptions.slice(0, 3).join(', ') || 'Any company'} />
               {experienceLevelOptions.length > 0 && (
                 <SelectField label="Experience level" value={experienceLevel} options={['All levels', ...experienceLevelOptions]} onChange={setExperienceLevel} />
@@ -694,6 +760,34 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
                   }`}
                 >
                   Salary listed only
+                </button>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-500">Students</label>
+                <button
+                  type="button"
+                  onClick={() => setStudentOnly((v) => !v)}
+                  className={`flex h-10 w-full items-center gap-2 rounded-md border px-3 text-left text-sm font-medium transition ${
+                    studentOnly ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-300 bg-white text-ink-700 hover:border-brand-400'
+                  }`}
+                >
+                  <GraduationCap className="h-4 w-4" />
+                  Students &amp; interns only
+                </button>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-500">Visa</label>
+                <button
+                  type="button"
+                  onClick={() => setVisaOnly((v) => !v)}
+                  className={`flex h-10 w-full items-center gap-2 rounded-md border px-3 text-left text-sm font-medium transition ${
+                    visaOnly ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-300 bg-white text-ink-700 hover:border-brand-400'
+                  }`}
+                >
+                  <Plane className="h-4 w-4" />
+                  Visa sponsorship only
                 </button>
               </div>
             </div>
@@ -733,6 +827,32 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
+          {studentCount > 0 && (
+            <button
+              type="button"
+              aria-pressed={studentOnly}
+              onClick={() => setStudentOnly((v) => !v)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                studentOnly ? 'bg-violet-600 text-white' : 'bg-violet-50 text-violet-700 ring-1 ring-violet-200 hover:bg-violet-100'
+              }`}
+            >
+              <GraduationCap className="h-3.5 w-3.5" />
+              Students &amp; interns ({studentCount.toLocaleString()})
+            </button>
+          )}
+          {visaCount > 0 && (
+            <button
+              type="button"
+              aria-pressed={visaOnly}
+              onClick={() => setVisaOnly((v) => !v)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                visaOnly ? 'bg-sky-600 text-white' : 'bg-sky-50 text-sky-700 ring-1 ring-sky-200 hover:bg-sky-100'
+              }`}
+            >
+              <Plane className="h-3.5 w-3.5" />
+              Visa sponsorship ({visaCount.toLocaleString()})
+            </button>
+          )}
           {directJobs.length > 0 && (
             <button
               type="button"

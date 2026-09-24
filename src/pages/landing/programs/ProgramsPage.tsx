@@ -366,14 +366,14 @@ function SelectField({ label, value, options, onChange }: { label: string; value
   );
 }
 
-/** Renders "Discover {keyword} ..." with the {keyword} part as white text on a dark block, so it reads clearly on the blue hero. */
+/** Renders "Discover {keyword} ..." with the {keyword} part as MadeVisa-blue text on a white block, so it reads clearly on the blue hero. */
 function HighlightedHeading({ text }: { text: string }) {
   const parts = text.split(/(\{[^}]+\})/);
   return (
     <>
       {parts.map((part, i) =>
         part.startsWith('{') ? (
-          <span key={i} className="rounded-md bg-ink-950 px-2 font-extrabold text-white [box-decoration-break:clone] [-webkit-box-decoration-break:clone] sm:px-2.5">
+          <span key={i} className="rounded-md bg-white px-2 font-extrabold text-brand-700 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] sm:px-2.5">
             {part.slice(1, -1)}
           </span>
         ) : (

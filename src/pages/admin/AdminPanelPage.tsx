@@ -2961,6 +2961,7 @@ function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () =
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [refetchThin, setRefetchThin] = useState(true);
   const stop = useRef(false);
   return (
     <section className="mt-8">
@@ -2987,14 +2988,15 @@ function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () =
               setProgress({ done: 0, total: 0 });
               const r = await backfillJobFacts(
                 (done, total) => setProgress({ done, total }),
-                () => stop.current
+                () => stop.current,
+                { refetchThin }
               );
               setBusy(false);
               setProgress(null);
               const c = r.counts;
               setResult(
                 (r.ok ? (stop.current ? 'Stopped. ' : 'Done. ') : `Finished with an error: ${r.error}. `) +
-                  `Scanned ${r.scanned.toLocaleString()}, updated ${r.updated.toLocaleString()} — salary ${c.compensation}, experience ${c.experience}, employment type ${c.employment}, work type ${c.workType}, visa ${c.visa}, posted date ${c.posted}, department ${c.department}, location ${c.location}.` +
+                  `Scanned ${r.scanned.toLocaleString()}, updated ${r.updated.toLocaleString()} — re-read pages ${c.refetched}, salary ${c.compensation}, experience ${c.experience}, employment type ${c.employment}, work type ${c.workType}, visa ${c.visa}, posted date ${c.posted}, department ${c.department}, location ${c.location}.` +
                   (r.migrationMissing ? ' (Run the 20260925090000 migration to also store work type & “visa not offered”.)' : '')
               );
               onChange();
@@ -3003,6 +3005,10 @@ function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () =
           >
             {busy ? 'Detecting…' : 'Detect job details'}
           </button>
+          <label className="flex items-center gap-2 text-ink-600">
+            <input type="checkbox" checked={refetchThin} disabled={busy} onChange={(e) => setRefetchThin(e.target.checked)} />
+            Also re-read the job page when the saved description is short (slower)
+          </label>
           {busy && (
             <button onClick={() => (stop.current = true)} className="rounded-lg border border-ink-200 px-3 py-2 font-semibold text-ink-600 hover:bg-ink-50">
               Stop

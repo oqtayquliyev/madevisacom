@@ -979,20 +979,132 @@ function extractDescriptionBody(lines: string[], title: string): string {
   return relevant.map((l) => (isSectionHeaderLine(l) ? `<h3>${l.replace(/:$/, "")}</h3>` : `<p>${l}</p>`)).join("").slice(0, 20000);
 }
 
+// "Admin Support - student / studentka Job Details | Volkswagen AG" →
+// "Admin Support - student / studentka". Only trailing segments that are
+// clearly site/brand chrome ("| Volkswagen AG", "- Acme Careers") are
+// removed, so a real " - " inside a job title survives.
+const TITLE_CHROME_WORDS_RE = /\b(?:careers?|jobs|karriere|recruiting|hiring|vacancies|stellenangebote|join us|work(?:ing)? at|jobportal|job portal|emplois?|empleos?)\b/i;
+const TITLE_COMPANY_SUFFIX_RE = /\b(?:ag|gmbh|se|inc\.?|ltd\.?|llc|plc|group|s\.?r\.?o\.?|s\.?a\.?|b\.?v\.?|n\.?v\.?|a\/s|oy|ab)$/i;
+const TITLE_DETAILS_SUFFIX_RE = /\s+(?:job details|job description|job posting|stellenbeschreibung|stellenanzeige)$/i;
+
+function stripTitleSuffix(title: string): string {
+  let t = title.trim();
+  for (let i = 0; i < 3; i++) {
+    t = t.replace(TITLE_DETAILS_SUFFIX_RE, "");
+    const m = t.match(/^(.*\S)\s+([|–—·-])\s+([^|–—·]+)$/);
+    if (!m) break;
+    const tail = m[3].trim();
+    // " | Site name" is nearly always chrome; " - x" only when x looks like a site/company.
+    const chrome = tail.split(/\s+/).length <= 5 && (m[2] === "|" || TITLE_CHROME_WORDS_RE.test(tail) || TITLE_COMPANY_SUFFIX_RE.test(tail));
+    if (!chrome) break;
+    t = m[1];
+  }
+  return t.replace(TITLE_DETAILS_SUFFIX_RE, "").trim();
+}
+
 function titleFromHtml(html: string): string | null {
   const og =
     html.match(/<meta[^>]+property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ??
     html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
   const h1 = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
   const tag = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  for (const raw of [og?.[1], h1 ? stripTags(h1[1]) : null, tag?.[1]]) {
+  const candidates: [string | null | undefined, boolean][] = [
+    [og?.[1], true],
+    [h1 ? stripTags(h1[1]) : null, false], // an <h1> is the title itself — never trimmed
+    [tag?.[1], true],
+  ];
+  for (const [raw, trim] of candidates) {
     if (!raw) continue;
     let t = decodeEntities(raw).replace(/\s+/g, " ").trim();
-    const cut = Math.max(t.lastIndexOf(" | "), t.lastIndexOf(" - "), t.lastIndexOf(" — "), t.lastIndexOf(" – "), t.lastIndexOf(" · "));
-    if (cut > 0) t = t.slice(0, cut).trim();
+    if (trim) t = stripTitleSuffix(t);
     if (!isGarbageTitle(t) && t.length <= 250) return t;
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Main description container + sidebar facts
+// ---------------------------------------------------------------------------
+
+/** Returns the element starting at `openIdx` (whose tag is `tag`) including its matching close tag. */
+function balancedElement(html: string, openIdx: number, tag: string): string | null {
+  const re = new RegExp(`<(/?)${tag}\\b[^>]*>`, "gi");
+  re.lastIndex = openIdx;
+  let depth = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    if (m[0].endsWith("/>")) continue;
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) return html.slice(openIdx, m.index + m[0].length);
+    if (re.lastIndex - openIdx > 400_000) return null;
+  }
+  return null;
+}
+
+// Where career sites put the actual job text, most specific first:
+// SuccessFactors (jobdescription / itemprop), Workday, Greenhouse/Lever
+// embeds, Personio, SmartRecruiters, and common theme class names.
+const DESCRIPTION_CONTAINERS: RegExp[] = [
+  /<(\w+)\b[^>]*\bclass=["'][^"']*\bjobdescription\b[^"']*["'][^>]*>/i,
+  /<(\w+)\b[^>]*\bitemprop=["']description["'][^>]*>/i,
+  /<(\w+)\b[^>]*\bdata-automation-id=["']jobPostingDescription["'][^>]*>/i,
+  /<(\w+)\b[^>]*\b(?:id|class)=["'][^"']*\b(?:job[-_]?description|jobDescriptionText|job-details__description|description__text|posting-description|job__description|job-body|jobad-content|job-ad-body|vacancy-description)\b[^"']*["'][^>]*>/i,
+  /<(\w+)\b[^>]*\b(?:id|class)=["'][^"']*\b(?:content-intro|job-content|jobContent|job_content|position-description)\b[^"']*["'][^>]*>/i,
+];
+
+function mainDescriptionHtml(html: string): string | null {
+  const clean = html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");
+  let best: string | null = null;
+  for (const re of DESCRIPTION_CONTAINERS) {
+    const m = re.exec(clean);
+    if (!m) continue;
+    const el = balancedElement(clean, m.index, m[1]);
+    if (!el) continue;
+    const inner = el.replace(/^<[^>]+>/, "").replace(/<\/\w+>\s*$/, "");
+    if (plainLength(inner) >= 150 && (!best || plainLength(inner) > plainLength(best) * 1.2)) best = inner;
+    if (best && plainLength(best) > 600) break;
+  }
+  return best;
+}
+
+// Facts many sites print in a side column ("About the job": Job ID,
+// Location, Career Level, Working Model, Posting Date, ...) rather than
+// in the description itself.
+const FACT_LABELS = [
+  "job id", "req id", "requisition id", "job requisition id", "reference number", "company", "location", "locations",
+  "work location", "job location", "department", "job function", "business unit", "division", "career level",
+  "experience level", "seniority level", "job level", "working model", "work model", "working time", "time type",
+  "schedule", "contract type", "employment type", "job type", "type of contract", "remote working", "remote work",
+  "workplace type", "work arrangement", "posting date", "date posted", "posted on", "start date", "application deadline",
+  "closing date", "salary", "salary range", "compensation", "pay range", "working hours",
+];
+const FACT_LABEL_RE = new RegExp(`^(${FACT_LABELS.map((l) => l.replace(/ /g, "\\s+")).join("|")})\\s*:\\s*(.*)$`, "i");
+
+function sidebarFactLines(html: string): string[] {
+  const lines = htmlToLines(html);
+  const facts = new Map<string, string>();
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(FACT_LABEL_RE);
+    if (!m) continue;
+    const label = m[1].replace(/\s+/g, " ");
+    const key = label.toLowerCase();
+    let value = m[2].trim();
+    if (!value && lines[i + 1] && !FACT_LABEL_RE.test(lines[i + 1])) value = lines[i + 1].trim();
+    if (!value || value.length > 90 || facts.has(key)) continue;
+    facts.set(key, `${label.replace(/^./, (c) => c.toUpperCase())}: ${value}`);
+  }
+  return facts.size >= 2 ? [...facts.values()] : [];
+}
+
+/** Prepends sidebar facts the description doesn't already contain, as "Label: value" lines. */
+function withSidebarFacts(descriptionHtml: string, pageHtml: string): string {
+  const facts = sidebarFactLines(pageHtml);
+  if (!facts.length) return descriptionHtml;
+  const have = stripTags(descriptionHtml).replace(/\s+/g, " ").toLowerCase();
+  const missing = facts.filter((f) => !have.includes(f.toLowerCase()));
+  if (!missing.length) return descriptionHtml;
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<ul>${missing.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>${descriptionHtml}`;
 }
 
 function fallbackJobFromHtml(html: string, detailUrl: string): NormalizedJob | null {
@@ -1007,7 +1119,7 @@ function fallbackJobFromHtml(html: string, detailUrl: string): NormalizedJob | n
     title,
     locationText: fields.location ?? "",
     offices,
-    descriptionHtml: extractDescriptionBody(lines, title),
+    descriptionHtml: mainDescriptionHtml(html) ?? extractDescriptionBody(lines, title),
     url: detailUrl,
     category: fields.category ?? null,
     employmentTypeRaw: fields.employmentType ?? null,
@@ -1034,8 +1146,34 @@ function jobDetailFromPhenomDdo(ddo: any): Partial<NormalizedJob> | null {
   };
 }
 
-/** Parse one job's own page: JSON-LD → Phenom ddo → embedded JSON → labeled HTML. */
+/**
+ * Parse one job's own page, then make sure the description is the real
+ * one: when structured data only carried a teaser (often just the page
+ * title), the page's own description container wins; and facts printed
+ * in a side column ("About the job") are added so they can be detected.
+ */
 function jobFromDetailHtml(html: string, url: string): NormalizedJob | null {
+  const j = jobFromDetailHtmlInner(html, url);
+  if (!j) return null;
+  const main = mainDescriptionHtml(html);
+  if (main && plainLength(main) > plainLength(j.descriptionHtml) * 1.3) j.descriptionHtml = main;
+  j.descriptionHtml = withSidebarFacts(j.descriptionHtml, html);
+  const pageTitle = titleFromHtml(html);
+  // A title that was cut short ("Admin Support" vs "Admin Support - student") gets the full one.
+  if (pageTitle && pageTitle.length > j.title.length && pageTitle.toLowerCase().startsWith(j.title.toLowerCase())) j.title = pageTitle;
+  if (!j.postedAt || !j.locationText) {
+    const fields = extractLabeledFields(htmlToLines(html));
+    j.postedAt = j.postedAt ?? toIsoDate(fields.postedAt);
+    if (!j.locationText && fields.location) {
+      j.locationText = fields.location;
+      if (!j.offices.length) j.offices = [fields.location];
+    }
+    j.category = j.category ?? fields.category ?? null;
+  }
+  return j;
+}
+
+function jobFromDetailHtmlInner(html: string, url: string): NormalizedJob | null {
   const ddo = isPhenomSite(html) ? extractPhenomDdo(html) : null;
   const fromDdo = ddo ? jobDetailFromPhenomDdo(ddo) : null;
   const ld = extractJsonLdJobPosting(html);
@@ -1090,13 +1228,14 @@ function jobFromDetailHtml(html: string, url: string): NormalizedJob | null {
 
 /** Fills in full descriptions (and missing metadata) from each job's own page, for jobs whose listing only had a teaser. */
 async function enrichFromDetailPages(ctx: Ctx, jobs: NormalizedJob[], listingUrl: string): Promise<void> {
-  const targets = jobs.filter((j) => j.url && !sameUrl(j.url.split("#")[0], listingUrl) && plainLength(j.descriptionHtml) < 300);
+  const targets = jobs.filter((j) => j.url && !sameUrl(j.url.split("#")[0], listingUrl) && plainLength(j.descriptionHtml) < 400);
   await pool(targets, ctx, DETAIL_BUDGET_MS, async (job) => {
     const page = await get(job.url, { ctx, timeoutMs: 10_000 });
     if (!page.ok) return;
     const d = jobFromDetailHtml(page.text, page.url);
     if (!d) return;
     if (plainLength(d.descriptionHtml) > plainLength(job.descriptionHtml)) job.descriptionHtml = d.descriptionHtml;
+    if (d.title.length > job.title.length && d.title.toLowerCase().startsWith(job.title.toLowerCase())) job.title = d.title;
     if (d.offices.length && (job.offices.length === 0 || job.offices.every((o) => /various|multiple/i.test(o)))) {
       job.offices = d.offices;
       job.locationText = d.offices[0];
@@ -2746,6 +2885,16 @@ serve(async (req) => {
     if (!/^https?:$/.test(parsedUrl.protocol) || isBlockedHost(parsedUrl.hostname)) return reply({ ok: false, error: "This host is not allowed." }, 400);
 
     const ctx: Ctx = { deadline: Date.now() + REQUEST_BUDGET_MS };
+
+    // Single job page: re-read one posting (used by the admin
+    // "Detect job details" tool for jobs whose description came in thin).
+    if (body.mode === "detail") {
+      const page = await get(parsedUrl.toString(), { ctx, timeoutMs: 15_000 });
+      if (!page.ok) return reply({ ok: false, error: describeFailure(page) });
+      const job = jobFromDetailHtml(page.text, page.url);
+      if (!job) return reply({ ok: false, error: "Couldn't find a job on that page." });
+      return reply({ ok: true, job });
+    }
 
     // Continuation batch: the frontend sends back the strategy the first batch chose.
     let state: State | null = null;

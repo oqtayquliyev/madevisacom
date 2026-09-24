@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { jobPath } from '@/lib/jobUrl';
 import { isJobViewed } from '@/lib/viewedJobs';
+import { moveToBack, recencyBucket, recentlyShownIds, rememberShown, visitShuffle } from '@/lib/feedRotation';
 import {
   Briefcase,
   GraduationCap,
@@ -36,9 +37,21 @@ export type MatchItem =
 /** Fetches every published job + program once. Shared by the landing
  * hero (for the "X new" tab badge) and this section (for the grid) so
  * the two can never disagree — same fetch, same data. */
-export async function fetchMatchItems(): Promise<MatchItem[]> {
-  const [jobs, programs] = await Promise.all([fetchPublishedSponsoredJobs(), fetchSponsoredPrograms()]);
+export async function fetchMatchItems(onPartial?: (items: MatchItem[]) => void): Promise<MatchItem[]> {
+  const programsPromise = fetchSponsoredPrograms();
+  let programsSoFar: Awaited<typeof programsPromise> = [];
+  programsPromise.then((p) => (programsSoFar = p)).catch(() => {});
+  const [jobs, programs] = await Promise.all([
+    fetchPublishedSponsoredJobs({ onPartial: onPartial ? (rows) => onPartial(buildMatchItems(rows, programsSoFar)) : undefined }),
+    programsPromise,
+  ]);
+  return buildMatchItems(jobs, programs);
+}
 
+function buildMatchItems(
+  jobs: Awaited<ReturnType<typeof fetchPublishedSponsoredJobs>>,
+  programs: Awaited<ReturnType<typeof fetchSponsoredPrograms>>
+): MatchItem[] {
   const jobItems: MatchItem[] = jobs.map((j) => {
     const board: Job = sponsoredJobToBoardJob(j);
     return {
@@ -180,31 +193,36 @@ function FlagSwitcher({
 }
 
 /**
- * Picks up to `count` items for the landing page's small preview
- * section, sorted by recency but with at most one per company/org —
- * otherwise a single company's bulk import (Roche, Booking.com, etc.,
- * all landing with nearly the same timestamp) fills every slot with
- * itself, which defeats the point of a "here's what's out there"
- * preview. Tops up with the next-most-recent items regardless of
- * company only if there aren't enough distinct ones to fill `count`.
+ * Picks up to `count` items for the landing page's small preview:
+ *  - from the freshest items (posted in the last few days, or the newest
+ *    60 if there are fewer), in a different random order every visit;
+ *  - items shown here on the last visits, and jobs already opened, go
+ *    last — so each refresh leads with something new;
+ *  - at most one per company/org (a single bulk import would otherwise
+ *    fill every slot), topped up regardless of company if needed.
  */
-function pickDiverseByCompany(items: MatchItem[], count: number): MatchItem[] {
-  const sorted = [...items].sort((a, b) => {
+function pickFreshDiverse(items: MatchItem[], count: number, shownBefore: Set<string>): MatchItem[] {
+  const byDate = [...items].sort((a, b) => {
     const da = new Date(a.postedDate ?? a.createdAt).getTime();
     const db = new Date(b.postedDate ?? b.createdAt).getTime();
     return db - da;
   });
+  const fresh = byDate.filter((i) => recencyBucket(i.postedDate ?? i.createdAt) <= 1);
+  const pool = fresh.length >= 60 ? fresh : byDate.slice(0, 60);
+  const ordered = moveToBack(
+    moveToBack(visitShuffle(pool, 'landing'), (i) => shownBefore.has(i.id)),
+    (i) => i.kind === 'job' && isJobViewed(i.id)
+  );
 
   const seenOrgs = new Set<string>();
   const picked: MatchItem[] = [];
-  for (const item of sorted) {
+  for (const item of ordered) {
     if (seenOrgs.has(item.org)) continue;
     seenOrgs.add(item.org);
     picked.push(item);
     if (picked.length >= count) return picked;
   }
-
-  for (const item of sorted) {
+  for (const item of ordered) {
     if (picked.includes(item)) continue;
     picked.push(item);
     if (picked.length >= count) break;
@@ -260,8 +278,15 @@ export function LocationMatchSection({
   const [query, setQuery] = useState('');
 
   const destinationCountry = allCountries.find((c) => c.code === destinationCode);
-  const visibleItems = items?.filter((item) => !destinationCode || item.countryCode === destinationCode) ?? null;
-  const shownItems = visibleItems ? pickDiverseByCompany(visibleItems, 4) : null;
+  const visibleItems = useMemo(
+    () => items?.filter((item) => !destinationCode || item.countryCode === destinationCode) ?? null,
+    [items, destinationCode]
+  );
+  const shownBefore = useMemo(() => recentlyShownIds('landing'), []);
+  const shownItems = useMemo(() => (visibleItems ? pickFreshDiverse(visibleItems, 4, shownBefore) : null), [visibleItems, shownBefore]);
+  useEffect(() => {
+    if (shownItems?.length && !destinationCode) rememberShown('landing', shownItems.map((i) => i.id));
+  }, [shownItems, destinationCode]);
   const countryParam = destinationCountry ? `?country=${encodeURIComponent(destinationCountry.name)}` : '';
   const animatedCount = useCountUp(visibleItems ? visibleItems.length : null);
 

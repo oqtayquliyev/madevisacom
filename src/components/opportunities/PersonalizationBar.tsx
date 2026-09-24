@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle2, ChevronDown, Globe2, Sparkles } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Globe2, MapPin, Sparkles } from 'lucide-react';
 import { usePersonalization } from '@/lib/personalization';
 import type { EligibilityResult } from '@/lib/personalization';
 import { allCountries } from '@/data/allCountries';
@@ -13,9 +13,23 @@ import { CircleFlag } from '@/components/common/CircleFlag';
  * Everything stays on this device; listing cards use it to compute
  * the fit badge.
  */
-export function PersonalizationBar({ tone = 'light' }: { tone?: 'light' | 'dark' } = {}) {
+export function PersonalizationBar({ tone = 'light', variant = 'full' }: { tone?: 'light' | 'dark'; variant?: 'full' | 'location' } = {}) {
   const { profile, updateProfile } = usePersonalization();
   const onBlue = tone === 'dark';
+
+  // Jobs page: just where the person is, nothing about citizenship.
+  if (variant === 'location') {
+    return (
+      <div
+        className={`flex flex-wrap items-center gap-2 text-xs font-medium ${onBlue ? 'text-white/80' : 'text-ink-500'}`}
+        title="Kept on this device only."
+      >
+        <MapPin className={`h-3.5 w-3.5 ${onBlue ? 'text-white' : 'text-brand-600'}`} />
+        Your location
+        <CountryPicker code={profile.currentLocation} onSelect={(code) => updateProfile({ currentLocation: code })} />
+      </div>
+    );
+  }
 
   return (
     <div

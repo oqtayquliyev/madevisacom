@@ -66,6 +66,11 @@ const AMOUNT = `(?:(?:${SYMS})\\s?|(?:${CODES})\\s?)?(?:${NUM})(?:\\s?(?:${CODES
 const RANGE_RE = new RegExp(`(${AMOUNT})(?:\\s*(?:-|–|—|to|and|until|bis|à)\\s*(${AMOUNT}))?(\\s*(?:${CODES})\\b)?`, 'gi');
 const HAS_CURRENCY = new RegExp(`(?:${SYMS})|\\b(?:${CODES})\\b`, 'i');
 const SALARY_CONTEXT = /salary|pay\b|pay range|compensation|base|wage|remuneration|OTE|earning|annual|per year|per annum|p\.a\.|hourly|range|gross/i;
+// Money mentioned in a benefits context is not the salary: "$1750 per
+// family annually" (insurance), "€2000 L&D budget", "$500 home-office
+// stipend", "referral bonus of £1,000".
+const BENEFIT_CONTEXT = /insurance|premium|deductible|\bhsa\b|\bfsa\b|401\s?\(?k|pension|allowance|stipend|budget|reimburs|bonus|referral|per family|per ee\b|contribut|l\s?&\s?d|learning|training|equity|stock|shares|relocation|sign(?:ing|-on)|voucher|credit|gym|wellness|wellbeing|meal|lunch|childcare|tuition|equipment|home[- ]office|internet|phone|travel|per diem|donation|matching/i;
+const STRONG_SALARY_CONTEXT = /\b(?:salary|base pay|base salary|pay range|salary range|compensation range|annual (?:base )?(?:salary|pay)|hourly (?:rate|pay|wage)|wage|gehalt|vergütung|remuneration|OTE|on-target)\b/i;
 const NOT_SALARY_AFTER = /^\s*(?:million|billion|bn\b|mn\b|m\b|b\b|trillion|users|customers|members|people|employees|downloads|in (?:revenue|funding|sales)|revenue|funding|valuation|ARR|of (?:revenue|funding))/i;
 
 function toNumber(raw: string): number {
@@ -107,8 +112,15 @@ export function detectCompensation(text: string): string | null {
     const before = text.slice(Math.max(0, m.index - 160), m.index);
     const lineStart = text.lastIndexOf('\n', m.index) + 1;
     const line = text.slice(lineStart, text.indexOf('\n', m.index) === -1 ? undefined : text.indexOf('\n', m.index));
-    const score = (SALARY_CONTEXT.test(before) || SALARY_CONTEXT.test(line) ? 2 : 0) + (m[2] ? 1 : 0) + (period ? 1 : 0);
+    // The sentence the amount sits in (bounded by the line).
+    const sentenceStart = Math.max(lineStart, text.lastIndexOf('. ', m.index) + 1);
+    const near = text.slice(sentenceStart, Math.min(text.length, m.index + full.length + 60));
+    const strong = STRONG_SALARY_CONTEXT.test(near) || STRONG_SALARY_CONTEXT.test(before.slice(-60));
+    if (!strong && BENEFIT_CONTEXT.test(near)) continue;
+    const score = (SALARY_CONTEXT.test(before) || SALARY_CONTEXT.test(line) ? 2 : 0) + (m[2] ? 1 : 0) + (period ? 1 : 0) + (strong ? 2 : 0);
     if (score === 0 && lo < 10_000) continue;
+    // A lone yearly figure under 15k with no salary wording is almost never a salary.
+    if (!strong && !m[2] && !hourly && period !== ' / month' && lo < 15_000) continue;
     const pretty = full
       .replace(/\s*(?:-|–|—|to|and|until|bis|à)\s*(?=(?:[^\s]*\d))/i, ' – ')
       .replace(/\s+/g, ' ')
@@ -189,7 +201,7 @@ export function detectWorkArrangement(text: string): WorkArrangement | null {
   if (tag) return arrangementFromWord(tag[1]);
   if (/\bflexible hybrid\b|\bhybrid (?:role|position|work(?:ing)?|model|schedule|setup)\b|\bthis (?:role|position|job) is hybrid\b|\bdays? (?:a|per) week in (?:the )?office\b/i.test(text)) return 'hybrid';
   if (/\b(?:this (?:is a |role is |position is )?(?:fully |100% )?remote(?: role| position)?|fully remote|remote-first|work from anywhere|100% remote)\b/i.test(text)) return 'remote';
-  if (/\b(?:this (?:role|position) is (?:based )?on-?site|on-?site (?:role|position)|fully on-?site|5 days (?:a|per) week in (?:the )?office|in[- ]office (?:role|position))\b/i.test(text)) return 'onsite';
+  if (/\b(?:this (?:role|position) is (?:based )?on-?site|on-?site (?:role|position)|fully on-?site|5 days (?:a|per) week in (?:the )?office|in[- ]office (?:role|position)|office[- ]first|office[- ]based (?:role|position|setup)|work from (?:our|the) office)\b/i.test(text)) return 'onsite';
   return null;
 }
 
@@ -394,7 +406,7 @@ export function parseLooseDate(raw: string | null | undefined): string | null {
 }
 
 const PLURAL_LEVELS: Record<string, string> = {
-  apprentices: 'Apprentice', trainees: 'Trainee', interns: 'Intern', students: 'Student', graduates: 'Graduate',
+  apprentices: 'Apprentice', 'dual students': 'Dual student', trainees: 'Trainee', interns: 'Intern', students: 'Student', graduates: 'Graduate',
   professionals: 'Professional', 'young professionals': 'Young professional', 'experienced professionals': 'Experienced professional',
   managers: 'Manager', executives: 'Executive', specialists: 'Specialist', experts: 'Expert', seniors: 'Senior',
 };
@@ -431,7 +443,12 @@ function remoteFromLabel(raw: string | undefined): { arrangement: WorkArrangemen
     return { arrangement: 'hybrid', detail: `${upTo}${n}% remote` };
   }
   if (/^(?:no|none|not (?:possible|available)|nein|on-?site|office)\b/.test(v)) return { arrangement: 'onsite', detail: null };
-  if (/hybrid|partial|partly|some|flexible|possible|occasional|days? (?:a|per) week/.test(v)) return { arrangement: 'hybrid', detail: null };
+  if (/by agreement|upon agreement|on agreement|nach (?:absprache|vereinbarung)|negotiable|по договор|dohodou|po dohode|na dohodę/.test(v)) {
+    return { arrangement: 'hybrid', detail: 'Remote by agreement' };
+  }
+  if (/hybrid|partial|partly|some|flexible|possible|occasional|days? (?:a|per) week/.test(v)) {
+    return { arrangement: 'hybrid', detail: raw.trim().length <= 30 && !/^hybrid$/i.test(raw.trim()) ? raw.trim() : null };
+  }
   if (/^(?:yes|ja|fully|100|remote|full remote|work from home)/.test(v)) return { arrangement: 'remote', detail: null };
   return null;
 }
@@ -452,9 +469,9 @@ export function detectJobFacts(descriptionHtml: string | null | undefined, title
   // ("Apprentice (f/m/d) ..."), then labeled type fields, then the
   // older free-text detector. "Full-time + Fixed-term" stays Full time —
   // a fixed-term employee isn't a freelancer.
-  const titleType = /\bintern(ship)?\b|werkstudent|working student/i.test(title)
+  const titleType = /\bintern(?:s|ship)?\b|werkstudent|working student|praktik(?:um|ant)|\bstagiaire\b|\bstage\b\s+(?:de|d'|en)|pr[aá]cticas|becari[oa]|est[aá]gi|tirocin|stagista|\bstaż|st[aá]ž|gyakornok|stajyer/i.test(title)
     ? 'Internship'
-    : /apprentice|azubi|ausbildung/i.test(title)
+    : /apprentice|azubi|ausbildung|duales? studium|dual(?:e|es)? (?:study|studies|student)|\bapprenti|alternance|\bformaci[oó]n dual/i.test(title)
       ? 'Apprenticeship'
       : null;
   const labeledType = f.employmentType ? detectEmploymentType(`Employment type: ${f.employmentType}`) : null;
@@ -692,7 +709,8 @@ export function isPlaceholderValue(value: string | null | undefined): boolean {
 /** "Osnabrück, DE" / "Berlin, Germany" → { city: "Osnabrück", countryCode: "DE" }. */
 export function splitSourceLocation(raw: string | null | undefined): { city: string | null; countryCode: string | null } | null {
   if (!raw || isPlaceholderValue(raw)) return null;
-  const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+  // Drop postal codes ("843 02", "70173") so the country segment is last.
+  const parts = raw.split(',').map((p) => p.trim()).filter((p) => p && !/^[\d\s-]{3,10}$/.test(p));
   if (!parts.length) return null;
   const last = parts[parts.length - 1];
   const country =

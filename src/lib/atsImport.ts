@@ -222,3 +222,23 @@ export async function fetchJobsFromCareersUrl(
     source: data.source ?? null,
   };
 }
+
+export type FetchedJobDetail = {
+  title: string;
+  descriptionHtml: string;
+  locationText: string;
+  offices: string[];
+  category?: string | null;
+  employmentTypeRaw?: string | null;
+  postedAt?: string | null;
+  remote?: boolean | null;
+  salaryText?: string | null;
+};
+
+/** Re-reads one job's own page (full description + side-column facts) through the import-ats-jobs edge function. */
+export async function fetchJobDetail(url: string): Promise<{ ok: true; job: FetchedJobDetail } | { ok: false; error: string }> {
+  const { data, error } = await supabase.functions.invoke('import-ats-jobs', { body: { url, mode: 'detail' } });
+  if (error) return { ok: false, error: error.message };
+  if (!data?.ok || !data.job) return { ok: false, error: data?.error ?? 'Could not read that page.' };
+  return { ok: true, job: data.job as FetchedJobDetail };
+}
