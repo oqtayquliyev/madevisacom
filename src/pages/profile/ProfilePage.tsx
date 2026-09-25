@@ -384,11 +384,11 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             )}
             {canPost && (
               <button
-                onClick={() => go('submit-program')}
+                onClick={() => go('company')}
                 className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-brand-700"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Post a listing
+                Post a job
               </button>
             )}
             <button onClick={() => setTab('settings')} className="rounded-lg border border-ink-200 px-3.5 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50">
@@ -441,7 +441,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             userId={user?.id}
             userEmail={user?.email ?? ''}
             onCreated={setPublisher}
-            onPost={() => go('submit-program')}
+            onPost={() => go('company')}
           />
         )}
 
@@ -838,7 +838,7 @@ function PartnerSection({
                 className="mt-4 inline-flex items-center gap-1.5 rounded bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Post a job or program
+                Post a job
               </button>
               <MyListingsSection publisherId={publisher.id} />
             </>

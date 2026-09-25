@@ -72,7 +72,7 @@ export type View =
   | 'programs'
   | 'study'
   | 'sponsored-programs'
-  | 'submit-program'
+  | 'submit-job'
   | 'profile'
   | 'experts'
   | 'destinations'

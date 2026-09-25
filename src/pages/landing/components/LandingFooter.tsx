@@ -30,7 +30,7 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
     links: [
       { label: 'About', href: '/about' },
       { label: 'Contact', href: '/contact' },
-      { label: 'Post a listing', view: 'submit-program' },
+      { label: 'Post a job', view: 'submit-job' },
       { label: 'Advertise', href: 'mailto:hello@madevisa.com?subject=Advertising%20on%20MadeVisa' },
       { label: 'Official institutions', view: 'official-partners' },
     ],

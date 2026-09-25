@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EvidenceReviewSection } from '@/pages/admin/EvidenceReviewSection';
+import { ListingRequestsSection } from '@/pages/admin/ListingRequestsSection';
 import { PublisherFilterChips, RegisteredCompanyPanel, type PublisherFilter } from '@/pages/admin/RegisteredCompanyPanel';
 import { Bell, Briefcase, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Inbox, Landmark, Mail, Pencil, RefreshCw, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -378,6 +379,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                     loadAll();
                   }}
                 />
+
+                <ListingRequestsSection />
 
                 <EvidenceReviewSection />
 

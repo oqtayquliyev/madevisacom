@@ -242,12 +242,69 @@ export const legalPages: Record<string, LegalPageContent> = {
       {
         heading: 'Submitting a listing or inquiring about advertising',
         paragraphs: [
-          `Governments, companies, and agencies can apply from their MadeVisa profile ("Become a partner"), or reach us directly at ${EMAIL}.`,
+          `Companies can request a free or sponsored job at madevisa.com/submit-job (see the Sponsored Listing Terms for prices, the 30-day period and refunds), or reach us directly at ${EMAIL}.`,
         ],
       },
     ],
   },
 
+  'sponsored-listing-terms': {
+    slug: 'sponsored-listing-terms',
+    title: 'Sponsored Listing Terms',
+    intro: `These terms apply when a company asks ${ENTITY} to publish a sponsored job. By ticking "I agree" on the Post a job form you accept them. Last updated ${LAST_UPDATED}.`,
+    sections: [
+      {
+        heading: 'What a sponsored job includes',
+        paragraphs: [
+          'One job, shown for 30 consecutive days from the day it goes live: pinned on the MadeVisa homepage and at the top of the jobs board, and listed with all other jobs.',
+          'Sponsored jobs are always clearly marked "Sponsored" or "Ad". Sponsorship never changes eligibility information, company response statistics, or anything else we show about a company.',
+        ],
+      },
+      {
+        heading: 'Price',
+        paragraphs: [
+          'A sponsored job costs $299 (USD) per job for 30 days, plus any tax that applies in your country. The price shown when you send your request is the price you pay.',
+          'Small fixes to a live job (typos, a changed link) are free — email us. A different role is a new listing.',
+        ],
+      },
+      {
+        heading: 'Review first, payment after approval',
+        paragraphs: [
+          'Sending the form is a request, not a purchase. We review your company and the job first — usually within a few hours on working days.',
+          'Nothing is charged before approval. If we approve the job, we email you a secure payment link or invoice. The 30 days start when the job goes live after payment.',
+          'If we don\'t approve the job, you pay nothing.',
+        ],
+      },
+      {
+        heading: 'Cancellations and refunds',
+        paragraphs: [
+          'You can cancel for free at any time before you pay.',
+          'After payment, if you cancel before the job goes live, or we fail to publish it within 3 working days, you get a full refund.',
+          'Once the job is live, the fee is not refundable, except when we remove the job for a reason that is not your fault — then we refund the unused days.',
+          'You can close a sponsored job early from your company dashboard; closing early does not create a refund.',
+        ],
+      },
+      {
+        heading: 'What we accept',
+        paragraphs: [
+          'The job must be real, currently open, and offered by the company named in the request (or by a recruiter clearly acting for it).',
+          'Applicants must never be asked to pay a fee to apply, to be hired, or for a visa. Listings must follow the law and must not discriminate on grounds such as gender, religion, ethnicity or age, except where the law requires it.',
+          'We may edit formatting, fix obvious mistakes, or decline a job. We may remove a live job that turns out to be misleading or unlawful; in that case no refund is due.',
+        ],
+      },
+      {
+        heading: 'Your details and privacy',
+        paragraphs: [
+          'We use the name, email and company you send only to handle your request: to reply, set up your company page, and send the payment link. We keep a record of what you accepted and when.',
+          'We never sell these details or add you to marketing lists. To protect the form from abuse we store a one-way hash of your network address for a limited time. See our Privacy Policy for more.',
+        ],
+      },
+      {
+        heading: 'Contact',
+        paragraphs: [`Questions about a sponsored job or a payment: ${EMAIL}. These terms are governed by ${JURISDICTION}.`],
+      },
+    ],
+  },
   'editorial-policy': {
     slug: 'editorial-policy',
     title: 'Editorial Policy',
@@ -324,6 +381,7 @@ export const legalPageOrder = [
   'cookies',
   'disclaimer',
   'advertising-policy',
+  'sponsored-listing-terms',
   'editorial-policy',
   'corrections',
   'verification-policy',

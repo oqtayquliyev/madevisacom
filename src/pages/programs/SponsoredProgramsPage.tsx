@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { SoonChip } from '@/components/common/SoonChip';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import {
   Banknote,
@@ -297,11 +298,13 @@ export function SponsoredProgramsPage({ go, onAuth, goToProgram }: SponsoredProg
             </p>
             <button
               type="button"
-              onClick={() => go('submit-program')}
-              className="mt-5 flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
+              disabled
+              title="Programs open on MadeVisa soon"
+              className="mt-5 flex cursor-not-allowed items-center gap-2 rounded-lg bg-ink-100 px-5 py-2.5 text-sm font-semibold text-ink-400"
             >
               <Megaphone className="h-4 w-4" />
               Submit a programme
+              <SoonChip className="!bg-white" />
             </button>
           </div>
 

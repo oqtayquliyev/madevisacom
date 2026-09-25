@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { SoonChip } from '@/components/common/SoonChip';
 import {
   ArrowRight,
   BadgeCheck,
@@ -690,8 +691,9 @@ export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: Pro
                 Browse jobs
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
-              <button type="button" onClick={() => go('submit-program')} className="rounded-md border border-ink-300 px-5 py-2.5 text-sm font-semibold text-ink-700 hover:bg-ink-50">
+              <button type="button" disabled title="Opens on MadeVisa soon" className="flex cursor-not-allowed items-center gap-2 rounded-md border border-ink-200 px-5 py-2.5 text-sm font-semibold text-ink-400">
                 List a {mode === 'study' ? 'study opportunity' : 'program'}
+                <SoonChip />
               </button>
             </div>
           </div>

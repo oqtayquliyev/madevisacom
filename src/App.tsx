@@ -22,7 +22,7 @@ import { OfficialPartnersPage } from '@/pages/partners/OfficialPartnersPage';
 import { PublicProfilePage } from '@/pages/u/PublicProfilePage';
 import { LegalPage } from '@/pages/legal/LegalPage';
 import { legalPageOrder } from '@/data/legalContent';
-import { SubmitProgramPage } from '@/pages/programs/SubmitProgramPage';
+import { SubmitJobPage } from '@/pages/submit/SubmitJobPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { PendingConfirmationPage } from '@/pages/auth/PendingConfirmationPage';
 import type { PendingSignup } from '@/pages/auth/RegisterPage';
@@ -40,7 +40,7 @@ const pathForView: Partial<Record<View, string>> = {
   programs: '/programs',
   study: '/study',
   'sponsored-programs': '/sponsored-programs',
-  'submit-program': '/submit-program',
+  'submit-job': '/submit-job',
   profile: '/profile',
   experts: '/experts',
   destinations: '/destinations',
@@ -196,8 +196,10 @@ export default function App() {
     return <SponsoredProgramsPage go={go} onAuth={goToAuth} goToProgram={(id) => goToDetail('programs', id)} />;
   }
 
-  if (path === '/submit-program') {
-    return <SubmitProgramPage go={go} onAuth={goToAuth} />;
+  if (path === '/submit-job' || path === '/submit-program') {
+    // /submit-program was the old listing form — old links land here.
+    if (path === '/submit-program') window.history.replaceState({}, '', '/submit-job' + window.location.search);
+    return <SubmitJobPage go={go} onAuth={goToAuth} />;
   }
 
   if (path === '/experts') {
@@ -317,8 +319,8 @@ function renderPublicView(view: View, go: (view: View) => void) {
       return <ProgramsPage go={go} />;
     case 'sponsored-programs':
       return <SponsoredProgramsPage go={go} />;
-    case 'submit-program':
-      return <SubmitProgramPage go={go} />;
+    case 'submit-job':
+      return <SubmitJobPage go={go} />;
     // 'agencies' is kept as an alias: old "Find a visa expert" links land on the real experts page.
     case 'experts':
     case 'agencies':

@@ -18,7 +18,6 @@ import type { View } from '@/types';
 import { useOriginCountry } from '@/lib/originCountry';
 import { estimateJourneyCostBreakdown } from '@/lib/costEstimates';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/lib/auth';
 import { LocationMatchSection, fetchMatchItems, countNewWithin24h, type MatchItem } from './LocationMatchSection';
 import { useSiteStats } from '@/lib/siteStats';
 import { allCountries, type CountryEntry } from '@/data/allCountries';
@@ -296,10 +295,9 @@ function JourneyCostEstimate({
   );
 }
 
-export function LandingHero({
-  go,
-  onAuth,
-}: LandingHeroProps) {
+// go/onAuth stay in the props for callers; the hero itself links by URL now.
+export function LandingHero(_props: LandingHeroProps) {
+  void _props;
   const { countryCode: detectedCode, countryName: detectedName, setCountry } =
     useOriginCountry();
 
@@ -356,16 +354,6 @@ export function LandingHero({
   // From the hourly snapshot when available (steady, same on every device).
   const new24hCount = siteStats ? siteStats.newJobs24h : matchItems && matchItemsComplete ? countNewWithin24h(matchItems) : 0;
 
-  const { user } = useAuth();
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-
-  const handlePostClick = (target: View) => {
-    if (user) {
-      go(target);
-    } else {
-      setShowAuthPrompt(true);
-    }
-  };
 
   const selectedJourney =
     journeys.find(
@@ -627,38 +615,8 @@ export function LandingHero({
       </section>
 
       {/* FOR ORGANIZATIONS — free posting + sponsored ads, one section */}
-      <SponsoredAdsSection onPost={() => handlePostClick('submit-program')} />
+      <SponsoredAdsSection />
 
-      {showAuthPrompt && (
-        <>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={() => setShowAuthPrompt(false)}
-            className="fixed inset-0 z-50 cursor-default bg-ink-950/50"
-          />
-          <div className="fixed left-1/2 top-1/2 z-50 w-[90vw] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 text-center shadow-2xl">
-            <p className="text-base font-bold text-ink-950">Sign up to post a listing</p>
-            <p className="mt-2 text-sm text-ink-500">
-              Create a free MadeVisa account to submit a job or program — it's reviewed within 24 hours before going live.
-            </p>
-            <div className="mt-5 flex flex-col gap-2">
-              <button
-                onClick={() => { setShowAuthPrompt(false); onAuth?.('register'); }}
-                className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
-              >
-                Create account
-              </button>
-              <button
-                onClick={() => { setShowAuthPrompt(false); onAuth?.('login'); }}
-                className="rounded-lg border border-ink-200 px-4 py-2.5 text-sm font-semibold text-ink-700 hover:bg-ink-50"
-              >
-                I already have an account
-              </button>
-            </div>
-          </div>
-        </>
-      )}
 
     </main>
   );
