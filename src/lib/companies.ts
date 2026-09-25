@@ -168,6 +168,12 @@ export type ApplicationReport = {
   confirmed_at?: string | null;
   /** Shown on their public profile. */
   is_public?: boolean;
+  /** 3-question check-in (20261014090000 migration). */
+  match_answer?: 'full' | 'partly' | 'no' | null;
+  accuracy_answer?: 'yes' | 'mostly' | 'no' | null;
+  survey_at?: string | null;
+  /** When to ask them again (in-app reminder). */
+  remind_at?: string | null;
   publisher?: { id: string; name: string; logo_url: string | null } | null;
 };
 
@@ -229,12 +235,14 @@ export async function syncPendingApplications(): Promise<number> {
 const REPORT_COLUMNS =
   'id, publisher_id, listing_kind, listing_id, listing_title, applied_at, status, viewed_at, responded_at, interview_at, offer_at, experience_rating, feedback_tags, evidence_path, evidence_status, excluded, updated_at, publisher:program_publishers(id, name, logo_url)';
 const REPORT_COLUMNS_V3 = `${REPORT_COLUMNS}, confirmed_at, is_public`;
+const REPORT_COLUMNS_V4 = `${REPORT_COLUMNS_V3}, match_answer, accuracy_answer, survey_at, remind_at`;
 const REPORT_COLUMNS_V1 =
   'id, publisher_id, listing_kind, listing_id, listing_title, applied_at, status, responded_at, interview_at, offer_at, experience_rating, updated_at, publisher:program_publishers(id, name, logo_url)';
 
 export async function fetchMyApplicationReports(): Promise<ApplicationReport[]> {
   const load = (cols: string) => supabase.from('application_reports').select(cols).order('applied_at', { ascending: false }).limit(200);
-  let res: { data: unknown; error: { message: string } | null } = await load(REPORT_COLUMNS_V3);
+  let res: { data: unknown; error: { message: string } | null } = await load(REPORT_COLUMNS_V4);
+  if (res.error && /column|schema cache/i.test(res.error.message)) res = await load(REPORT_COLUMNS_V3);
   if (res.error && /column|schema cache/i.test(res.error.message)) res = await load(REPORT_COLUMNS);
   if (res.error && /column|schema cache/i.test(res.error.message)) {
     // Before the v2 migration: still show what exists.
@@ -345,7 +353,15 @@ export async function fetchMyListingStatuses(): Promise<Map<string, ListingStatu
 
 export async function updateApplicationReport(
   id: string,
-  patch: { status?: ApplicationStatus; experience_rating?: number | null; feedback_tags?: string[] | null; evidence_path?: string | null }
+  patch: {
+    status?: ApplicationStatus;
+    experience_rating?: number | null;
+    feedback_tags?: string[] | null;
+    evidence_path?: string | null;
+    match_answer?: ApplicationReport['match_answer'];
+    accuracy_answer?: ApplicationReport['accuracy_answer'];
+    remind_at?: string | null;
+  }
 ) {
   const { error } = await supabase.from('application_reports').update(patch).eq('id', id);
   return error ? { ok: false, error: error.message } : { ok: true };
@@ -398,4 +414,66 @@ export async function reviewEvidence(id: string, verdict: 'verified' | 'rejected
 export async function setReportExcluded(id: string, excluded: boolean, reason?: string) {
   const { error } = await supabase.from('application_reports').update({ excluded, excluded_reason: excluded ? reason ?? 'Excluded by admin' : null }).eq('id', id);
   return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+// ---- "I applied — track this job" --------------------------------------
+
+/**
+ * One tap on a job page: records the application as confirmed (the person
+ * says they applied), so tracking and the 3-question check-in start now.
+ * Signed out: remembered on this device and added after they sign in.
+ */
+export async function trackAppliedListing(input: { publisherId: string; kind: 'job' | 'program'; listingId: string; title: string }): Promise<{ ok: boolean; error?: string; signedIn: boolean }> {
+  const { data: s } = await supabase.auth.getSession();
+  if (!s.session) {
+    await recordApplication(input);
+    return { ok: true, signedIn: false };
+  }
+  await recordApplication(input);
+  const { data, error } = await supabase
+    .from('application_reports')
+    .select('id, status')
+    .eq('user_id', s.session.user.id)
+    .eq('listing_kind', input.kind)
+    .eq('listing_id', input.listingId)
+    .maybeSingle();
+  if (error || !data) return { ok: false, error: error?.message ?? 'Could not start tracking.', signedIn: true };
+  if ((data as { status: string }).status === 'clicked') {
+    const res = await confirmApplication((data as { id: string }).id);
+    if (!res.ok) return { ok: false, error: res.error, signedIn: true };
+  }
+  return { ok: true, signedIn: true };
+}
+
+/** Tracked applications whose check-in is due (for the in-app reminder). */
+export async function fetchDueCheckIns(): Promise<{ id: string; listing_id: string; listing_title: string | null; company: string }[]> {
+  const { data, error } = await supabase
+    .from('application_reports')
+    .select('id, listing_id, listing_title, publisher:program_publishers(name)')
+    .lte('remind_at', new Date().toISOString())
+    .order('remind_at', { ascending: true })
+    .limit(5);
+  if (error || !data) return [];
+  return (data as unknown as { id: string; listing_id: string; listing_title: string | null; publisher: { name: string } | null }[]).map((r) => ({
+    id: r.id,
+    listing_id: r.listing_id,
+    listing_title: r.listing_title,
+    company: r.publisher?.name ?? 'the company',
+  }));
+}
+
+export type ClosedJobOutcomes = {
+  company: { applications: number; replied_pct: number; interview_pct: number } | null;
+  platform: { applications: number; replied_pct: number; interview_pct: number } | null;
+  avg_open_days: number | null;
+};
+
+const closedCache = new Map<string, Promise<ClosedJobOutcomes | null>>();
+export function fetchClosedJobOutcomes(publisherId: string): Promise<ClosedJobOutcomes | null> {
+  let p = closedCache.get(publisherId);
+  if (!p) {
+    p = Promise.resolve(supabase.rpc('closed_job_outcomes', { pid: publisherId })).then(({ data, error }) => (error ? null : (data as ClosedJobOutcomes)));
+    closedCache.set(publisherId, p);
+  }
+  return p;
 }

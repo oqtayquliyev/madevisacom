@@ -5,7 +5,9 @@
 import { supabase } from '@/lib/supabase';
 
 export type JobPageInsights = {
-  response: { rate: number; avg_days: number | null; tracked: number } | null;
+  response: { rate: number; avg_days: number | null; tracked: number; people?: number; early?: boolean; low?: number | null; high?: number | null } | null;
+  /** "Was the job as described?" answers (20261014090000). */
+  accuracy?: { answers: number; ok: number } | null;
   international: { people: number; countries: number; top: { name: string; code: string; n: number }[]; other: number } | null;
   live: { open: number; imported_open: number; checked: number; weeks: number[]; avg_open_days: number | null } | null;
 };

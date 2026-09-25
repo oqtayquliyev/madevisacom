@@ -501,7 +501,17 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
         </div>
 
         {raw?.publisher_id && (
-          <JobInsights publisherId={raw.publisher_id} company={job.company} onTrack={(signedIn) => (signedIn ? go('profile') : onAuth?.('register'))} />
+          <JobInsights
+            publisherId={raw.publisher_id}
+            company={job.company}
+            listing={{ id: raw.id, title: job.title, kind: 'job' }}
+            onOpenTracking={() => {
+              window.history.pushState({}, '', `/profile?track=${raw.id}`);
+              window.dispatchEvent(new PopStateEvent('popstate'));
+              window.scrollTo({ top: 0 });
+            }}
+            onSignUp={() => onAuth?.('register')}
+          />
         )}
 
         {raw && (

@@ -115,6 +115,8 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
     const t = new URLSearchParams(window.location.search).get('tab');
     return t === 'partner' || t === 'settings' ? t : 'dashboard';
   });
+  // /profile?track=<listing id> (from "I applied — track this job"): open that application's check-in.
+  const [trackFocus] = useState(() => new URLSearchParams(window.location.search).get('track'));
   const [countries, setCountries] = useState<CountryOption[]>([]);
 
   // Personal info form state
@@ -397,7 +399,19 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {/* DASHBOARD — applications at a glance + recently viewed */}
         {tab === 'dashboard' && (
           <div className="mt-6 space-y-8">
-            <ApplicantReport viewedCount={recentlyViewedJobs.length} hasPublicProfile={Boolean(profile.username)} />
+            <ApplicantReport
+              viewedCount={recentlyViewedJobs.length}
+              hasPublicProfile={Boolean(profile.username)}
+              focusListingId={trackFocus}
+              onEditProfile={() => setTab('settings')}
+              me={{
+                name: profile.full_name ?? user?.email ?? 'You',
+                avatarUrl: profile.avatar_url,
+                emailVerified: isEmailConfirmed,
+                nationalitySet: Boolean(profile.nationality_country_id),
+                accountCreatedAt: user?.created_at ?? null,
+              }}
+            />
             <RecentlyViewedSection items={recentlyViewedJobs} onBrowse={() => go('jobs')} />
           </div>
         )}
