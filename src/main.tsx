@@ -5,6 +5,7 @@ import { AuthProvider } from '@/lib/auth';
 import { MfaGate } from '@/components/auth/MfaGate';
 import { PersonalizationProvider } from '@/lib/personalization';
 import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -15,6 +16,7 @@ createRoot(document.getElementById('root')!).render(
           <App />
         </MfaGate>
         <Analytics />
+        <SpeedInsights />
       </PersonalizationProvider>
     </AuthProvider>
   </StrictMode>
