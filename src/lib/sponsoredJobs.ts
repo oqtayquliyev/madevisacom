@@ -294,11 +294,11 @@ export async function fetchPublishedSponsoredJobs(opts: { onPartial?: (rows: Spo
 }
 
 export async function fetchMySponsoredJobs(publisherId: string): Promise<SponsoredJob[]> {
-  const { data, error } = await supabase
-    .from('sponsored_jobs')
-    .select(columns)
-    .eq('publisher_id', publisherId)
-    .order('created_at', { ascending: false });
+  const run = (cols: string) => supabase.from('sponsored_jobs').select(cols).eq('publisher_id', publisherId).order('created_at', { ascending: false });
+  // Detail columns include work arrangement / visa status for the company
+  // form; fall back if an older database doesn't have them yet.
+  let { data, error } = await run(detailColumns);
+  if (error && /column|schema cache/i.test(error.message)) ({ data, error } = await run(columns));
 
   if (error) {
     console.error('fetchMySponsoredJobs failed', error);
@@ -425,7 +425,8 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     visaSponsorship: job.visa_sponsorship,
     additionalLocations: job.additional_locations,
     spotsAvailable: job.spots_available,
-    imageUrl: job.image_url,
+    // A job without its own image shows the company's logo.
+    imageUrl: job.image_url || job.publisher?.logo_url || null,
     postedDate: job.source_posted_at,
     experienceLevel: job.experience_level,
     workArrangement: job.work_arrangement ?? null,

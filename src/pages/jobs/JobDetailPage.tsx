@@ -189,7 +189,10 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // Every fact in the details box is either real data from the listing
   // or a link back to the original posting — never a guessed value or
   // a vague "Not specified".
-  const see = <SourceLink url={hasSourceUrl ? job.url : null} />;
+  // Direct listings have no separate source page — their apply link is
+  // the company's own form, so "See on source" would be misleading.
+  const isDirect = job.sourceType === 'company_submitted';
+  const see = isDirect ? <span className="font-medium text-ink-400">Not listed</span> : <SourceLink url={hasSourceUrl ? job.url : null} />;
   // Stored fields win; anything still missing is read from the
   // description itself ("8–12 years of experience", "$126,000—$136,000
   // CAD", "Work Type: Onsite", "unable to sponsor visas", ...).
@@ -227,7 +230,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
     {
       icon: Plane,
       label: 'Visa sponsorship',
-      value: visa === 'offered' ? 'Offered' : visa === 'not_offered' ? 'Not offered' : <SourceLink url={hasSourceUrl ? job.url : null} label="Ask on source" />,
+      value: visa === 'offered' ? 'Offered' : visa === 'not_offered' ? 'Not offered' : isDirect ? see : <SourceLink url={hasSourceUrl ? job.url : null} label="Ask on source" />,
     },
   ];
 
@@ -456,7 +459,7 @@ function HeaderLogo({ job, SponsorIcon }: { job: Job; SponsorIcon: typeof Buildi
     <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white p-2 shadow-sm sm:h-16 sm:w-16">
       {job.imageUrl && !failed ? (
         <img src={job.imageUrl} alt={`${job.company} logo`} onError={() => setFailed(true)} className="h-full w-full object-contain" />
-      ) : job.publisherOrgType ? (
+      ) : job.publisherOrgType && job.publisherOrgType !== 'company' ? (
         <SponsorIcon className="h-7 w-7 text-brand-400" />
       ) : (
         <CompanyLogo name={job.company} size={44} />

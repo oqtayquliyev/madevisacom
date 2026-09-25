@@ -16,6 +16,8 @@ export type PendingPublisher = {
   verification_status: string;
   created_at: string;
   logo_url: string | null;
+  /** Set when a real MadeVisa account registered this company; null for companies MadeVisa imported. */
+  owner_id?: string | null;
   country?: { name: string; iso_code: string } | null;
 };
 
@@ -57,7 +59,7 @@ export type PendingAgency = {
 };
 
 const publisherColumns =
-  'id, org_type, name, website, contact_email, verification_status, created_at, logo_url, country:countries(name, iso_code)';
+  'id, org_type, name, website, contact_email, verification_status, created_at, logo_url, owner_id, country:countries(name, iso_code)';
 const programColumns =
   'id, title, category, status, created_at, origin, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const sponsoredJobColumns =
@@ -226,6 +228,7 @@ export type AdminProgram = {
   needs_info_message: string | null;
   contact_email: string;
   origin?: ListingOrigin;
+  publisher_id?: string;
   publisher?: { name: string; org_type: OrgType } | null;
   country?: { name: string; iso_code: string } | null;
 };
@@ -288,7 +291,7 @@ export type AdminSponsoredJob = {
 };
 
 const adminProgramColumns =
-  'id, title, description, category, status, created_at, approved_at, expires_at, country_id, city, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, official_url, application_url, image_url, spots_available, citizenship_any, citizenship_allowed, min_age, max_age, applications_open_at, applications_close_at, admin_notes, source_verified, needs_info_message, contact_email, origin, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
+  'id, title, description, category, status, created_at, approved_at, expires_at, country_id, city, duration_text, eligibility_notes, benefits, funding_text, cost_status, cost_amount_min, cost_amount_max, cost_currency, requirements, official_url, application_url, image_url, spots_available, citizenship_any, citizenship_allowed, min_age, max_age, applications_open_at, applications_close_at, admin_notes, source_verified, needs_info_message, contact_email, origin, publisher_id, publisher:program_publishers(name, org_type), country:countries(name, iso_code)';
 const adminSponsoredJobColumns =
   'id, title, description, category, employment_type, job_function, remote, status, created_at, approved_at, expires_at, source_posted_at, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, official_url, application_url, image_url, citizenship_any, citizenship_allowed, min_age, max_age, admin_notes, source_verified, needs_info_message, contact_email, origin, import_source_id, publisher_id, publisher:program_publishers(name, org_type, logo_url), country:countries(name, iso_code)';
 
@@ -458,6 +461,17 @@ export async function setSponsoredJobStatus(id: string, status: ListingStatus): 
   const { error } = await supabase.from('sponsored_jobs').update({ status }).eq('id', id);
   if (error) { console.error('setSponsoredJobStatus failed', error); return { ok: false, error: error.message }; }
   return { ok: true };
+}
+
+/** Emails of the accounts that own these companies (owner_id → profile email). */
+export async function fetchOwnerEmails(ownerIds: string[]): Promise<Map<string, string>> {
+  const ids = [...new Set(ownerIds.filter(Boolean))];
+  const out = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await supabase.from('profiles').select('id, email').in('id', ids.slice(i, i + 200));
+    for (const r of (data ?? []) as { id: string; email: string | null }[]) if (r.email) out.set(r.id, r.email);
+  }
+  return out;
 }
 
 export async function setAgencyStatus(id: string, status: 'verified' | 'rejected' | 'pending'): Promise<{ ok: boolean; error?: string }> {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { SoonChip } from '@/components/common/SoonChip';
 import { ApplicantReport } from '@/components/dashboard/ApplicantReport';
 import { jobPath } from '@/lib/jobUrl';
 import {
@@ -1072,11 +1073,11 @@ function PostingInfo() {
           </div>
         </div>
         <div className="flex items-start gap-3 rounded-md bg-ink-50 p-4">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded bg-white text-[#2563EB]">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded bg-white text-ink-400">
             <GraduationCap className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-sm font-bold text-ink-900">Programs</p>
+            <p className="flex items-center gap-2 text-sm font-bold text-ink-500">Programs <SoonChip /></p>
             <p className="mt-0.5 text-xs leading-5 text-ink-500">Government schemes, scholarships, training and relocation programs, with requirements and deadlines.</p>
           </div>
         </div>

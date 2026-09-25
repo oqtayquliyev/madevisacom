@@ -1,4 +1,5 @@
 import { Facebook, Instagram, Linkedin } from 'lucide-react';
+import { SoonChip, SOON_VIEWS } from '@/components/common/SoonChip';
 import type { View } from '@/types';
 import { BrandMark } from '@/components/layout/Logo';
 
@@ -80,8 +81,12 @@ export function LandingFooter({ go }: LandingFooterProps) {
                   {column.links.map((link) => (
                     <li key={link.label}>
                       {link.view ? (
-                        <button onClick={() => go(link.view as View)} className="text-left text-sm text-ink-300 transition hover:text-white">
+                        <button
+                          onClick={() => go(link.view as View)}
+                          className={`flex items-center gap-2 text-left text-sm transition hover:text-white ${SOON_VIEWS.has(link.view) ? 'text-ink-500' : 'text-ink-300'}`}
+                        >
                           {link.label}
+                          {SOON_VIEWS.has(link.view) && <SoonChip className="!bg-white/10 !text-ink-400" />}
                         </button>
                       ) : (
                         <a href={link.href} className="text-sm text-ink-300 transition hover:text-white">

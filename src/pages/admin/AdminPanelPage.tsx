@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EvidenceReviewSection } from '@/pages/admin/EvidenceReviewSection';
+import { PublisherFilterChips, RegisteredCompanyPanel, type PublisherFilter } from '@/pages/admin/RegisteredCompanyPanel';
 import { Bell, Briefcase, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Inbox, Landmark, Mail, Pencil, RefreshCw, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { ProgressBar } from '@/components/common/ProgressBar';
@@ -54,6 +55,7 @@ import {
   type PublisherMember,
   backfillJobFacts,
   deleteCompany,
+  fetchOwnerEmails,
 } from '@/lib/admin';
 import {
   fetchImportSources,
@@ -265,6 +267,29 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
   }, [allJobs]);
   const [deletingCompany, setDeletingCompany] = useState<{ name: string; done: number; total: number } | null>(null);
 
+  // Verified companies: registered on MadeVisa (has an owner account) vs imported.
+  const [publisherFilter, setPublisherFilter] = useState<PublisherFilter>('all');
+  const [openCompany, setOpenCompany] = useState<string | null>(null);
+  const [ownerEmails, setOwnerEmails] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    const ids = verifiedPublishers.map((p) => p.owner_id).filter((v): v is string => Boolean(v));
+    if (ids.length) fetchOwnerEmails(ids).then(setOwnerEmails);
+  }, [verifiedPublishers]);
+  const pendingDirectByPublisher = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const j of allJobs) if (j.publisher_id && j.origin === 'direct' && j.status === 'pending') m.set(j.publisher_id, (m.get(j.publisher_id) ?? 0) + 1);
+    for (const p of allPrograms) if (p.publisher_id && p.origin === 'direct' && p.status === 'pending') m.set(p.publisher_id, (m.get(p.publisher_id) ?? 0) + 1);
+    return m;
+  }, [allJobs, allPrograms]);
+  const publisherMatches = (p: PendingPublisher, f: PublisherFilter) =>
+    f === 'all' ? true : f === 'registered' ? Boolean(p.owner_id) : f === 'imported' ? !p.owner_id : (pendingDirectByPublisher.get(p.id) ?? 0) > 0;
+  const publisherCounts = {
+    all: verifiedPublishers.length,
+    registered: verifiedPublishers.filter((p) => publisherMatches(p, 'registered')).length,
+    imported: verifiedPublishers.filter((p) => publisherMatches(p, 'imported')).length,
+    review: verifiedPublishers.filter((p) => publisherMatches(p, 'review')).length,
+  };
+
   if (loading) return null;
 
   if (!isAdmin) {
@@ -466,12 +491,29 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                   </div>
                 )}
 
+                <PublisherFilterChips value={publisherFilter} onChange={setPublisherFilter} counts={publisherCounts} />
                 <PaginatedSection
-                  title="Verified publisher accounts"
-                  items={verifiedPublishers}
-                  searchText={(p) => `${p.name} ${p.contact_email}`}
+                  key={publisherFilter}
+                  title={
+                    { all: 'Verified publisher accounts', registered: 'Registered on MadeVisa', imported: 'Imported companies', review: 'Companies with listings in review' }[publisherFilter]
+                  }
+                  items={verifiedPublishers.filter((p) => publisherMatches(p, publisherFilter))}
+                  defaultOpen={publisherFilter !== 'all'}
+                  searchText={(p) => `${p.name} ${p.contact_email} ${p.owner_id ? ownerEmails.get(p.owner_id) ?? '' : ''}`}
                   renderRow={(p) => (
-                    <PublisherRow key={p.id} p={p} onChange={loadAll} allowLogo stats={jobStatsByPublisher.get(p.id) ?? { total: 0, live: 0, pending: 0 }}>
+                    <div key={p.id}>
+                    <PublisherRow p={p} onChange={loadAll} allowLogo stats={jobStatsByPublisher.get(p.id) ?? { total: 0, live: 0, pending: 0 }}>
+                      {p.owner_id ? (
+                        <button
+                          onClick={() => setOpenCompany(openCompany === p.id ? null : p.id)}
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${openCompany === p.id ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-200 text-ink-600 hover:bg-ink-50'}`}
+                          title={ownerEmails.get(p.owner_id) ? `Registered by ${ownerEmails.get(p.owner_id)}` : 'Registered on MadeVisa'}
+                        >
+                          Access & listings{pendingDirectByPublisher.get(p.id) ? ` · ${pendingDirectByPublisher.get(p.id)} in review` : ''}
+                        </button>
+                      ) : (
+                        <span className="rounded bg-ink-100 px-2 py-1 text-[10px] font-semibold uppercase text-ink-500">Imported</span>
+                      )}
                       <button
                         onClick={async () => { const r = await setPublisherStatus(p.id, 'suspended'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
                         className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
@@ -497,6 +539,17 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                         Delete
                       </button>
                     </PublisherRow>
+                    {openCompany === p.id && (
+                      <RegisteredCompanyPanel
+                        publisher={p}
+                        ownerEmail={p.owner_id ? ownerEmails.get(p.owner_id) ?? null : null}
+                        members={members.filter((m) => m.publisher_id === p.id)}
+                        jobs={allJobs.filter((j) => j.publisher_id === p.id)}
+                        programs={allPrograms.filter((x) => x.publisher_id === p.id)}
+                        onChange={loadAll}
+                      />
+                    )}
+                    </div>
                   )}
                 />
 

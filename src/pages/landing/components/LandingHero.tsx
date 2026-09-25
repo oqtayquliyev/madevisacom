@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { SoonChip, SOON_VIEWS } from '@/components/common/SoonChip';
 import { SponsoredAdsSection } from './SponsoredAdsSection';
 import { createPortal } from 'react-dom';
 import {
@@ -484,11 +485,14 @@ export function LandingHero({
                   className={`flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition sm:px-4 sm:py-2 sm:text-sm ${
                     active
                       ? 'border-brand-600 bg-brand-600 text-white shadow-sm'
-                      : 'border-ink-200 bg-white text-ink-600 hover:border-brand-300 hover:text-brand-700'
+                      : SOON_VIEWS.has(journey.id)
+                        ? 'border-ink-200 bg-white text-ink-400 hover:text-ink-600'
+                        : 'border-ink-200 bg-white text-ink-600 hover:border-brand-300 hover:text-brand-700'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
                   {journey.label}
+                  {SOON_VIEWS.has(journey.id) && <SoonChip className={active ? '!bg-white/20 !text-white' : ''} />}
                   {journey.id === 'relocation' && new24hCount > 0 && (
                     <span
                       className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${

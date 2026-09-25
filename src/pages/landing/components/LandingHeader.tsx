@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SoonChip, SOON_VIEWS } from '@/components/common/SoonChip';
 import {
   BookOpen,
   Building2,
@@ -96,9 +97,14 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
           {primaryLinks.map((link) => {
             const Icon = link.icon;
             return (
-              <button key={link.view} onClick={() => { go(link.view); setOpenMenu(false); }} className={linkClass(link.view)}>
+              <button
+                key={link.view}
+                onClick={() => { go(link.view); setOpenMenu(false); }}
+                className={`${linkClass(link.view)} ${SOON_VIEWS.has(link.view) && active !== link.view ? '!text-ink-400 hover:!text-ink-600' : ''}`}
+              >
                 <Icon className="h-4 w-4" />
                 {link.label}
+                {SOON_VIEWS.has(link.view) && <SoonChip />}
               </button>
             );
           })}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, Info, Scale, Search, X } from 'lucide-react';
+import { ArrowRight, Building2, Info, Loader2, Scale, Search, X } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -10,6 +10,7 @@ import { formatRelativeTime } from '@/lib/dates';
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
 const MAX_COMPARE = 3;
+const PAGE_SIZE = 12;
 
 function nav(href: string) {
   window.history.pushState({}, '', href);
@@ -31,6 +32,8 @@ export function CompaniesPage({ go, onAuth }: Props) {
     return ids ? ids.split(',').filter(Boolean).slice(0, MAX_COMPARE) : [];
   });
   const [insights, setInsights] = useState<Record<string, CompanyInsights | null>>({});
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     fetchCompaniesDirectory().then(setRows);
@@ -61,6 +64,18 @@ export function CompaniesPage({ go, onAuth }: Props) {
         : b.active_jobs + b.active_programs - (a.active_jobs + a.active_programs)
     );
   }, [rows, q, sort]);
+
+  // New search / sort starts from the first page again.
+  useEffect(() => setVisibleCount(PAGE_SIZE), [q, sort]);
+  const visible = shown.slice(0, visibleCount);
+  const hasMore = visibleCount < shown.length;
+  const showMore = () => {
+    setLoadingMore(true);
+    window.setTimeout(() => {
+      setVisibleCount((v) => v + PAGE_SIZE);
+      setLoadingMore(false);
+    }, 300);
+  };
 
   const toggle = (id: string) =>
     setCompare((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= MAX_COMPARE ? [...prev.slice(1), id] : [...prev, id]));
@@ -199,10 +214,16 @@ export function CompaniesPage({ go, onAuth }: Props) {
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {rows === undefined && [0, 1, 2, 3].map((k) => <div key={k} className="skeleton-shimmer h-28 rounded-lg" />)}
-          {shown.map((c) => {
+          {visible.map((c, i) => {
             const selected = compare.includes(c.id);
+            // The last row fades out while there's more to load, like the jobs list.
+            // (one card per row on phones, two from sm up).
+            const fade = !hasMore || loadingMore ? '' : i === visible.length - 1 ? 'mask-fade-b' : i === visible.length - 2 ? 'sm:mask-fade-b' : '';
             return (
-              <div key={c.id} className={`rounded-lg border bg-white p-4 transition ${selected ? 'border-brand-400 ring-1 ring-brand-200' : 'border-ink-200 hover:border-brand-200'}`}>
+              <div
+                key={c.id}
+                className={`rounded-lg border bg-white p-4 transition ${selected ? 'border-brand-400 ring-1 ring-brand-200' : 'border-ink-200 hover:border-brand-200'} ${fade}`}
+              >
                 <div className="flex items-start gap-3">
                   <Logo url={c.logo_url} size="lg" />
                   <div className="min-w-0 flex-1">
@@ -225,25 +246,56 @@ export function CompaniesPage({ go, onAuth }: Props) {
                   </label>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-600">
-                  <span>
-                    <strong className="text-ink-950">{c.active_jobs.toLocaleString()}</strong> jobs
-                  </span>
+                  {c.active_jobs > 0 && (
+                    <span>
+                      <strong className="text-ink-950">{c.active_jobs.toLocaleString()}</strong> {c.active_jobs === 1 ? 'job' : 'jobs'}
+                    </span>
+                  )}
                   {c.active_programs > 0 && (
                     <span>
                       <strong className="text-ink-950">{c.active_programs.toLocaleString()}</strong> programs
                     </span>
                   )}
-                  <span>
-                    <strong className="text-ink-950">{c.posted_30d.toLocaleString()}</strong> new (30d)
-                  </span>
-                  <span>
-                    Response rate <strong className="text-ink-950">{c.response_rate != null ? `${c.response_rate}%` : '—'}</strong>
-                  </span>
+                  {c.posted_30d > 0 && (
+                    <span>
+                      <strong className="text-ink-950">{c.posted_30d.toLocaleString()}</strong> new (30d)
+                    </span>
+                  )}
+                  {c.response_rate != null && c.response_rate > 0 && (
+                    <span>
+                      Response rate <strong className="text-ink-950">{c.response_rate}%</strong>
+                    </span>
+                  )}
+                  {c.active_jobs + c.active_programs + c.posted_30d === 0 && <span className="font-semibold text-brand-700">New on MadeVisa</span>}
                 </div>
               </div>
             );
           })}
+          {loadingMore && [0, 1].map((k) => <div key={`more-${k}`} className="skeleton-shimmer h-28 rounded-lg" />)}
         </div>
+
+        {hasMore && (
+          <div className="mt-7 flex justify-center">
+            <button
+              type="button"
+              onClick={showMore}
+              disabled={loadingMore}
+              className="flex items-center gap-2 rounded-md border border-ink-300 px-6 py-2.5 text-sm font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50"
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading…
+                </>
+              ) : (
+                <>
+                  Show more companies
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </main>
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
