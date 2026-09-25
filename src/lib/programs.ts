@@ -26,6 +26,8 @@ export type ProgramPublisher = {
   logo_url: string | null;
   country_id: string | null;
   verification_status: 'pending' | 'verified' | 'rejected' | 'suspended';
+  /** Companies only: owner, authorized representative or HR (20261001090000 migration). */
+  representative_role?: 'owner' | 'authorized' | 'hr' | null;
 };
 
 export type SponsoredProgram = {
@@ -177,6 +179,9 @@ export async function fetchMyPublisherProfile(userId: string): Promise<ProgramPu
   return data;
 }
 
+/** How the person signing up a company is connected to it. */
+export type RepresentativeRole = 'owner' | 'authorized' | 'hr';
+
 export async function createPublisherProfile(input: {
   ownerId: string;
   orgType: OrgType;
@@ -185,20 +190,26 @@ export async function createPublisherProfile(input: {
   countryId?: string;
   contactEmail?: string;
   logoUrl?: string;
+  representativeRole?: RepresentativeRole | null;
 }): Promise<ProgramPublisher | null> {
-  const { data, error } = await supabase
+  const row = {
+    owner_id: input.ownerId,
+    org_type: input.orgType,
+    name: input.name,
+    website: input.website || null,
+    country_id: input.countryId || null,
+    contact_email: input.contactEmail || PUBLISHING_CONTACT_EMAIL,
+    logo_url: input.logoUrl || null,
+  };
+  let { data, error } = await supabase
     .from('program_publishers')
-    .insert({
-      owner_id: input.ownerId,
-      org_type: input.orgType,
-      name: input.name,
-      website: input.website || null,
-      country_id: input.countryId || null,
-      contact_email: input.contactEmail || PUBLISHING_CONTACT_EMAIL,
-      logo_url: input.logoUrl || null,
-    })
+    .insert({ ...row, representative_role: input.representativeRole ?? null })
     .select('*')
     .single();
+  // Before the representative_role migration: still create the organization.
+  if (error && /representative_role|column|schema cache/i.test(error.message)) {
+    ({ data, error } = await supabase.from('program_publishers').insert(row).select('*').single());
+  }
 
   if (error) {
     console.error('createPublisherProfile failed', error);
@@ -216,21 +227,25 @@ export async function createPublisherProfile(input: {
  */
 export async function resubmitPublisherProfile(
   id: string,
-  updates: { orgType?: OrgType; name?: string; website?: string; countryId?: string; logoUrl?: string }
+  updates: { orgType?: OrgType; name?: string; website?: string; countryId?: string; logoUrl?: string; representativeRole?: RepresentativeRole | null }
 ): Promise<ProgramPublisher | null> {
-  const { data, error } = await supabase
+  const patch = {
+    ...(updates.orgType ? { org_type: updates.orgType } : {}),
+    ...(updates.name ? { name: updates.name } : {}),
+    website: updates.website || null,
+    country_id: updates.countryId || null,
+    logo_url: updates.logoUrl || null,
+    verification_status: 'pending',
+  };
+  let { data, error } = await supabase
     .from('program_publishers')
-    .update({
-      ...(updates.orgType ? { org_type: updates.orgType } : {}),
-      ...(updates.name ? { name: updates.name } : {}),
-      website: updates.website || null,
-      country_id: updates.countryId || null,
-      logo_url: updates.logoUrl || null,
-      verification_status: 'pending',
-    })
+    .update(updates.representativeRole !== undefined ? { ...patch, representative_role: updates.representativeRole } : patch)
     .eq('id', id)
     .select('*')
     .single();
+  if (error && /representative_role|column|schema cache/i.test(error.message)) {
+    ({ data, error } = await supabase.from('program_publishers').update(patch).eq('id', id).select('*').single());
+  }
 
   if (error) {
     console.error('resubmitPublisherProfile failed', error);

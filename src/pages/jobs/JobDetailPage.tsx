@@ -364,7 +364,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-white">Keep track of your job search</p>
                 <p className="mt-0.5 text-xs leading-5 text-white/80">
-                  You've looked at {guestViews} jobs. Create a free account to save the jobs you view and apply to, track each application, and see how
+                  You've looked at {guestViews} jobs. Create a free account to track the jobs you apply to and see how
                   fast companies respond.
                 </p>
               </div>

@@ -10,7 +10,6 @@ import {
   MapPin,
   Menu,
   ShieldCheck,
-  User,
   UserPlus,
   Users,
   X,
@@ -20,7 +19,7 @@ import { fetchMyManagedPublishers } from '@/lib/companyManager';
 import { handleNavClick } from '@/lib/navLink';
 import type { View } from '@/types';
 import { BrandMark } from '@/components/layout/Logo';
-import { TravelerAvatar } from '@/components/common/TravelerAvatar';
+import { DefaultAvatar, TravelerAvatar } from '@/components/common/TravelerAvatar';
 
 type LandingHeaderProps = {
   go: (view: View) => void;
@@ -33,6 +32,11 @@ const primaryLinks: { view: View; label: string; icon: typeof Briefcase }[] = [
   { view: 'programs', label: 'Programs', icon: GraduationCap },
   { view: 'study', label: 'Study', icon: BookOpen },
 ];
+
+// Dropdown rows: grey by default, MadeVisa blue text on hover.
+const menuItemClass =
+  'group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-[15px] font-medium text-ink-700 transition-colors hover:bg-brand-50 hover:text-[#2563EB]';
+const menuIconClass = 'h-[18px] w-[18px] text-ink-400 transition-colors group-hover:text-[#2563EB]';
 
 export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
   const { profile, signOut } = useAuth();
@@ -54,28 +58,46 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
     };
   }, [profile?.id]);
 
+  // Esc closes whichever menu is open.
+  useEffect(() => {
+    if (!openMenu && !openProfile) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpenMenu(false);
+        setOpenProfile(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openMenu, openProfile]);
+
   const linkClass = (view: View) =>
-    `flex items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
-      active === view ? 'bg-brand-50 text-brand-700' : 'text-ink-600 hover:bg-ink-50'
+    `flex items-center gap-2 rounded-md px-3.5 py-2.5 text-left text-[15px] font-medium transition-colors ${
+      active === view ? 'bg-brand-50 text-[#2563EB]' : 'text-ink-600 hover:text-[#2563EB]'
     }`;
+
+  const closeAll = () => {
+    setOpenMenu(false);
+    setOpenProfile(false);
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-ink-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+      <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-3 px-5 sm:px-8">
         <BrandMark onClick={() => go('home')} />
 
         <nav
           className={`${
             openMenu
-              ? 'absolute left-4 right-4 top-16 z-50 flex flex-col border border-ink-200 bg-white p-3 shadow-xl'
+              ? 'menu-pop absolute left-4 right-4 top-[72px] z-50 flex flex-col rounded-md border border-ink-200 bg-white p-3 shadow-xl'
               : 'hidden'
-          } gap-1 md:static md:z-auto md:flex md:flex-row md:items-center md:border-0 md:bg-transparent md:p-0 md:shadow-none`}
+          } gap-1 md:static md:z-auto md:flex md:flex-row md:items-center md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:[animation:none]`}
         >
           {primaryLinks.map((link) => {
             const Icon = link.icon;
             return (
               <button key={link.view} onClick={() => { go(link.view); setOpenMenu(false); }} className={linkClass(link.view)}>
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="h-4 w-4" />
                 {link.label}
               </button>
             );
@@ -86,7 +108,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             onClick={(event) => handleNavClick(event, () => { go('experts'); setOpenMenu(false); })}
             className={linkClass('experts')}
           >
-            <Users className="h-3.5 w-3.5" />
+            <Users className="h-4 w-4" />
             Community
           </a>
 
@@ -95,80 +117,69 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             onClick={(event) => handleNavClick(event, () => { go('destinations'); setOpenMenu(false); })}
             className={linkClass('destinations')}
           >
-            <MapPin className="h-3.5 w-3.5" />
+            <MapPin className="h-4 w-4" />
             Destinations
           </a>
 
           <div className="my-1 h-px bg-ink-100 md:hidden" />
 
-          <div className="flex items-center gap-1 text-xs text-ink-400 md:hidden">
+          <div className="flex items-center gap-1.5 px-3.5 py-1 text-xs text-ink-400 md:hidden">
             <GraduationCap className="h-3.5 w-3.5" />
             <Briefcase className="h-3.5 w-3.5" />
             More opportunities added every week
           </div>
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {!profile && (
-            <>
-              <a
-                href="/login"
-                onClick={(event) => handleNavClick(event, () => onAuth?.('login'))}
-                className="hidden px-3 py-2 text-sm text-ink-600 sm:block"
-              >
-                Sign in
-              </a>
-
-              <a
-                href="/register"
-                onClick={(event) => handleNavClick(event, () => onAuth?.('register'))}
-                className="hidden rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 sm:block"
-              >
-                Get started
-              </a>
-            </>
+            // Guests get one clear action. It opens sign-in, which links on
+            // to "Create account" for people who don't have one yet.
+            <a
+              href="/login"
+              onClick={(event) => handleNavClick(event, () => onAuth?.('login'))}
+              className="hidden rounded-md bg-[#2563EB] px-5 py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-700 sm:block"
+            >
+              Get started
+            </a>
           )}
 
-          {/* Profile / guest menu */}
+          {/* Account menu */}
           <div className="relative">
             <button
               type="button"
               onClick={() => {
                 setOpenProfile((v) => !v);
-                setOpenMenu(false); // opening the profile menu closes the hamburger nav — otherwise both overlap on mobile
+                setOpenMenu(false); // one menu at a time, otherwise they overlap on mobile
               }}
               aria-label="Account menu"
-              className={`flex items-center transition ${
-                profile
-                  ? 'gap-2 rounded-full py-0.5 pl-3 pr-0.5 hover:bg-ink-50'
-                  : 'grid h-9 w-9 place-items-center rounded-full border border-ink-200 bg-ink-50 text-ink-500 hover:border-brand-300 hover:text-brand-600'
+              aria-expanded={openProfile}
+              className={`flex items-center rounded-md transition ${
+                profile ? 'gap-2.5 py-1 pl-3 pr-1 hover:bg-ink-50' : 'p-0.5 hover:opacity-90'
               }`}
             >
               {profile ? (
                 <>
-                  <span className="hidden max-w-[8rem] truncate text-sm font-semibold text-ink-800 sm:block">
+                  <span className="hidden max-w-[9rem] truncate text-[15px] font-semibold text-ink-800 sm:block">
                     {profile.full_name?.split(' ')[0] || 'Profile'}
                   </span>
-                  <span className="rounded-full p-[2px] ring-[2.5px] ring-[#2563EB]">
-                    <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={32} />
+                  <span className="rounded-md p-[2px] ring-2 ring-[#2563EB]">
+                    <TravelerAvatar avatarUrl={profile.avatar_url} size={36} />
                   </span>
                 </>
               ) : (
-                <User className="h-4 w-4" />
+                <DefaultAvatar size={40} />
               )}
             </button>
 
             {openProfile && (
               <>
-                <button type="button" aria-label="close" onClick={() => setOpenProfile(false)} className="fixed inset-0 z-30" />
-                <div className="absolute right-0 top-full z-40 mt-2 w-56 border border-ink-200 bg-white p-1.5 shadow-xl">
-                  <div className="flex items-center gap-3 px-3 py-2">
-                    {profile && <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={32} />}
+                <button type="button" aria-label="Close menu" tabIndex={-1} onClick={() => setOpenProfile(false)} className="fixed inset-0 z-30 cursor-default" />
+                <div className="menu-pop absolute right-0 top-full z-40 mt-2 w-64 rounded-md border border-ink-200 bg-white p-1.5 shadow-xl">
+                  <div className="flex items-center gap-3 px-3 py-2.5">
+                    {profile ? <TravelerAvatar avatarUrl={profile.avatar_url} size={36} /> : <DefaultAvatar size={36} />}
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">
-                        {profile ? 'Account' : 'Guest'}
-                      </p>
-                      <p className="mt-0.5 truncate text-sm font-semibold text-ink-900">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">{profile ? 'Account' : 'Guest'}</p>
+                      <p className="mt-0.5 truncate text-[15px] font-semibold text-ink-900">
                         {profile ? profile.full_name ?? profile.email : 'Browsing as guest'}
                       </p>
                     </div>
@@ -177,36 +188,27 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
 
                   {profile ? (
                     <>
-                      <button
-                        onClick={() => { go('profile'); setOpenProfile(false); }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
-                      >
-                        <LayoutDashboard className="h-4 w-4 text-ink-400" />
+                      <button onClick={() => { go('profile'); closeAll(); }} className={menuItemClass}>
+                        <LayoutDashboard className={menuIconClass} />
                         My profile & applications
                       </button>
                       {managedCompanyName && (
-                        <button
-                          onClick={() => { go('company'); setOpenProfile(false); }}
-                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
-                        >
-                          <Building2 className="h-4 w-4 text-ink-400" />
+                        <button onClick={() => { go('company'); closeAll(); }} className={menuItemClass}>
+                          <Building2 className={menuIconClass} />
                           <span className="truncate">Manage {managedCompanyName}</span>
                         </button>
                       )}
                       {profile.role === 'admin' && (
-                        <button
-                          onClick={() => { go('admin'); setOpenProfile(false); }}
-                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
-                        >
-                          <ShieldCheck className="h-4 w-4 text-ink-400" />
+                        <button onClick={() => { go('admin'); closeAll(); }} className={menuItemClass}>
+                          <ShieldCheck className={menuIconClass} />
                           Admin panel
                         </button>
                       )}
                       <button
-                        onClick={() => { signOut(); setOpenProfile(false); }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-rose-600 hover:bg-rose-50"
+                        onClick={() => { signOut(); closeAll(); }}
+                        className="group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-[15px] font-medium text-rose-600 transition-colors hover:bg-rose-50"
                       >
-                        <LogOut className="h-4 w-4" />
+                        <LogOut className="h-[18px] w-[18px]" />
                         Sign out
                       </button>
                     </>
@@ -214,18 +216,18 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                     <>
                       <a
                         href="/login"
-                        onClick={(event) => handleNavClick(event, () => { onAuth?.('login'); setOpenProfile(false); })}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
+                        onClick={(event) => handleNavClick(event, () => { onAuth?.('login'); closeAll(); })}
+                        className={menuItemClass}
                       >
-                        <LogIn className="h-4 w-4 text-ink-400" />
+                        <LogIn className={menuIconClass} />
                         Sign in
                       </a>
                       <a
                         href="/register"
-                        onClick={(event) => handleNavClick(event, () => { onAuth?.('register'); setOpenProfile(false); })}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
+                        onClick={(event) => handleNavClick(event, () => { onAuth?.('register'); closeAll(); })}
+                        className={menuItemClass}
                       >
-                        <UserPlus className="h-4 w-4 text-ink-400" />
+                        <UserPlus className={menuIconClass} />
                         Create account
                       </a>
                     </>
@@ -238,12 +240,13 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
           <button
             onClick={() => {
               setOpenMenu(!openMenu);
-              setOpenProfile(false); // opening the hamburger nav closes the profile menu — otherwise both overlap on mobile
+              setOpenProfile(false);
             }}
-            className="grid h-9 w-9 place-items-center rounded-lg border border-ink-200 md:hidden"
+            className="grid h-10 w-10 place-items-center rounded-md border border-ink-200 text-ink-700 transition-colors hover:text-[#2563EB] md:hidden"
             aria-label="Toggle navigation"
+            aria-expanded={openMenu}
           >
-            {openMenu ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            {openMenu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
       </div>

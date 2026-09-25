@@ -96,7 +96,7 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
   };
 
   return (
-    <AuthCard title="Create your account" subtitle="Save the jobs you view and apply to, and track every application." onHome={onHome}>
+    <AuthCard title="Create your account" subtitle="Track the jobs you apply to and see which companies respond." onHome={onHome}>
       <ErrorBanner message={error} />
       <GoogleButton onClick={handleGoogle} loading={googleLoading} label="Continue with Google" />
       <Divider label="or" />

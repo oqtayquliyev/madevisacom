@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApplicantReport } from '@/components/dashboard/ApplicantReport';
 import { jobPath } from '@/lib/jobUrl';
 import {
@@ -12,7 +12,6 @@ import {
   Clock,
   Copy,
   Download,
-  ExternalLink,
   GraduationCap,
   Landmark,
   Link2,
@@ -26,7 +25,6 @@ import {
   Sparkles,
   Trash2,
   UserRound,
-  Users2,
   X,
 } from 'lucide-react';
 import { useAuth, type Profile } from '@/lib/auth';
@@ -39,6 +37,7 @@ import {
   updateMyProgram,
   PUBLISHING_CONTACT_EMAIL,
   type OrgType,
+  type RepresentativeRole,
   type ProgramPublisher,
   type SponsoredProgram,
 } from '@/lib/programs';
@@ -47,18 +46,14 @@ import { getRecentlyViewedJobs, type ViewedJobSnapshot } from '@/lib/viewedJobs'
 import { uploadListingImage } from '@/lib/uploadImage';
 import { deleteMyAccount } from '@/lib/accountDeletion';
 import { OriginCountryProvider, useOriginCountry } from '@/lib/originCountry';
-import {
-  getApplications,
-  removeApplication,
-  type SavedApplication,
-} from '@/lib/applications';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { TravelerAvatar } from '@/components/common/TravelerAvatar';
 import { PhoneInput } from '@/components/common/PhoneInput';
 import { ImageUploadField } from '@/components/common/ImageUploadField';
+import { LinkedInLogo } from '@/components/common/LinkedInLogo';
 import { useSeo } from '@/lib/seo';
-import { isUsernameAvailable, suggestUsername, updateMyUsername } from '@/lib/username';
+import { isUsernameAvailable, normalizeLinkedInUrl, suggestUsername, updateMyLinkedIn, updateMyUsername } from '@/lib/username';
 import type { View } from '@/types';
 
 type ProfilePageProps = {
@@ -67,7 +62,7 @@ type ProfilePageProps = {
 };
 
 type CountryOption = { id: string; name: string; flag_emoji: string | null; iso_code: string };
-type Tab = 'dashboard' | 'saved' | 'partner' | 'settings';
+type Tab = 'dashboard' | 'partner' | 'settings';
 
 const inputClass =
   'h-11 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
@@ -111,9 +106,9 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   const { countryName: originName } = useOriginCountry();
 
   const [tab, setTab] = useState<Tab>(() => {
-    // Deep link: /profile?tab=saved (e.g. from a company page's "report back" link)
+    // Deep link: /profile?tab=partner|settings (old ?tab=saved links land on the dashboard)
     const t = new URLSearchParams(window.location.search).get('tab');
-    return t === 'saved' || t === 'partner' || t === 'settings' ? t : 'dashboard';
+    return t === 'partner' || t === 'settings' ? t : 'dashboard';
   });
   const [countries, setCountries] = useState<CountryOption[]>([]);
 
@@ -137,8 +132,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   const [publisher, setPublisher] = useState<ProgramPublisher | null>(null);
   const [publisherLoading, setPublisherLoading] = useState(true);
 
-  const [applications, setApplications] = useState<SavedApplication[]>([]);
-
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -160,10 +153,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   }, []);
 
   useEffect(() => {
-    setApplications(getApplications());
-  }, []);
-
-  useEffect(() => {
     if (!profile) return;
     setFullName(profile.full_name ?? '');
     setPhone(profile.phone ?? '');
@@ -176,25 +165,11 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
     setExperience(profile.experience ?? '');
   }, [profile]);
 
-  const jobs = useMemo(() => applications.filter((a) => a.kind === 'job'), [applications]);
-  const programs = useMemo(() => applications.filter((a) => a.kind === 'program'), [applications]);
-  const savedAgencies = useMemo(() => applications.filter((a) => a.kind === 'agency'), [applications]);
-  const savedExperts = useMemo(() => applications.filter((a) => a.kind === 'expert'), [applications]);
-  const savedDestinations = useMemo(() => applications.filter((a) => a.kind === 'destination'), [applications]);
-
-  // Client-only, same as "Saved" — reads straight from localStorage,
-  // loaded once on mount since the tab switch itself doesn't remount
-  // this component.
+  // Client-only — read from localStorage once on mount.
   const [recentlyViewedJobs, setRecentlyViewedJobs] = useState<ViewedJobSnapshot[]>([]);
   useEffect(() => {
     setRecentlyViewedJobs(getRecentlyViewedJobs());
   }, []);
-
-
-  const handleRemove = (app: SavedApplication) => {
-    removeApplication(app.kind, app.refId);
-    setApplications((current) => current.filter((a) => a.id !== app.id));
-  };
 
   if (!profile) {
     return (
@@ -293,8 +268,8 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         specialization: profile.specialization,
         experience: profile.experience,
         languages: profile.languages,
+        linkedin_url: profile.linkedin_url ?? null,
       },
-      savedItems: applications,
       exportedAt: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -317,12 +292,13 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
       <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
         {/* HEADER — compact */}
         <div className="flex flex-wrap items-center gap-4 rounded-lg border border-ink-200 bg-white p-5">
-          <span className="rounded-full p-[3px] ring-[3px] ring-[#2563EB]">
-            <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={64} />
+          <span className="rounded-md p-[3px] ring-[3px] ring-[#2563EB]">
+            <TravelerAvatar avatarUrl={profile.avatar_url} size={64} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-xl font-bold tracking-tight text-ink-950 sm:text-2xl">{profile.full_name || 'Your profile'}</h1>
+              <LinkedInConnect userId={profile.id} url={profile.linkedin_url ?? null} onSaved={refreshProfile} />
               {isEmailConfirmed && (
                 <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                   <CheckCircle2 className="h-3 w-3" />
@@ -387,7 +363,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {/* TABS */}
         <div className="mt-6 flex gap-2 overflow-x-auto border-b border-ink-200 pb-3 [scrollbar-width:none]">
           <TabButton active={tab === 'dashboard'} onClick={() => setTab('dashboard')} icon={Sparkles} label="Dashboard" />
-          <TabButton active={tab === 'saved'} onClick={() => setTab('saved')} icon={Briefcase} label={`Saved (${applications.length})`} />
           <TabButton active={tab === 'partner'} onClick={() => setTab('partner')} icon={Award} label={publisher ? 'Organization' : 'For organizations'} />
           <TabButton active={tab === 'settings'} onClick={() => setTab('settings')} icon={SettingsIcon} label="Settings" />
         </div>
@@ -400,69 +375,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
           </div>
         )}
 
-        {/* SAVED */}
-        {tab === 'saved' && (
-          <div className="mt-6 space-y-10">
-            <SavedSection
-              icon={Briefcase}
-              title="Saved jobs"
-              items={jobs}
-              emptyLabel="No saved jobs yet"
-              cta="Browse jobs"
-              onBrowse={() => go('jobs')}
-              onRemove={handleRemove}
-            />
-            <SavedSection
-              icon={GraduationCap}
-              title="Saved programs"
-              items={programs}
-              emptyLabel="No saved programs yet"
-              cta="Browse programs"
-              onBrowse={() => go('sponsored-programs')}
-              onRemove={handleRemove}
-            />
-            <SavedSection
-              icon={Building2}
-              title="Saved agencies"
-              items={savedAgencies}
-              emptyLabel="No saved agencies yet"
-              cta="Browse agencies"
-              onBrowse={() => go('experts')}
-              onRemove={handleRemove}
-            />
-            <SavedSection
-              icon={UserRound}
-              title="Saved experts"
-              items={savedExperts}
-              emptyLabel="No saved experts yet"
-              cta="Browse experts"
-              onBrowse={() => go('experts')}
-              onRemove={handleRemove}
-            />
-            <SavedSection
-              icon={MapPin}
-              title="Saved destinations"
-              items={savedDestinations}
-              emptyLabel="No saved destinations yet"
-              cta="Browse destinations"
-              onBrowse={() => go('destinations')}
-              onRemove={handleRemove}
-            />
-
-            <div className="border border-ink-200 bg-white p-5">
-              <h3 className="text-sm font-bold text-ink-900">Applications</h3>
-              <p className="mt-2 text-xs leading-5 text-ink-500">
-                No applications yet. This will track the real status of visa/job/program applications you submit
-                through MadeVisa — coming soon.
-              </p>
-            </div>
-
-            <p className="text-[11px] text-ink-400">
-              Saved items are kept on this device only. Sign in from another device and they won't follow yet.
-            </p>
-          </div>
-        )}
-
         {/* PARTNER */}
         {tab === 'partner' && (
           <PartnerSection
@@ -472,6 +384,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             userId={user?.id}
             userEmail={user?.email ?? ''}
             onCreated={setPublisher}
+            onPost={() => go('submit-program')}
           />
         )}
 
@@ -481,7 +394,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             <div className="border border-ink-200 bg-white p-6">
               <h2 className="text-sm font-bold text-ink-900">Profile photo</h2>
               <div className="mt-4 flex items-center gap-4">
-                <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={64} />
+                <TravelerAvatar avatarUrl={profile.avatar_url} size={64} />
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -751,82 +664,17 @@ function RecentlyViewedSection({ items }: { items: ViewedJobSnapshot[]; onBrowse
   );
 }
 
-function SavedSection({
-  icon: Icon,
-  title,
-  items,
-  emptyLabel,
-  cta,
-  onBrowse,
-  onRemove,
-}: {
-  icon: typeof Briefcase;
-  title: string;
-  items: SavedApplication[];
-  emptyLabel: string;
-  cta: string;
-  onBrowse: () => void;
-  onRemove: (item: SavedApplication) => void;
-}) {
-  return (
-    <section>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-ink-400" />
-          <h2 className="text-lg font-bold text-ink-950">{title}</h2>
-          <span className="text-xs text-ink-400">({items.length})</span>
-        </div>
-        <button onClick={onBrowse} className="text-xs font-semibold text-brand-600 hover:text-brand-700">
-          {cta}
-        </button>
-      </div>
+const ROLE_OPTIONS: { value: RepresentativeRole; label: string; detail: string }[] = [
+  { value: 'owner', label: 'I own or run the company', detail: 'Founder, owner, director or managing partner.' },
+  { value: 'authorized', label: "I'm authorized to represent it", detail: 'Allowed by the company to publish its jobs.' },
+  { value: 'hr', label: 'I work in HR or recruiting', detail: 'People team, talent acquisition or recruiter.' },
+];
 
-      {items.length === 0 ? (
-        <div className="mt-4 flex flex-col items-center gap-3 border border-dashed border-ink-200 bg-white px-6 py-10 text-center">
-          <p className="text-sm text-ink-500">{emptyLabel}</p>
-          <button onClick={onBrowse} className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700">
-            {cta}
-          </button>
-        </div>
-      ) : (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {items.map((item) => (
-            <div key={item.id} className="flex items-start justify-between gap-3 border border-ink-200 bg-white p-4">
-              <div className="min-w-0">
-                {item.countryCode && (
-                  <div className="flex items-center gap-1.5 text-xs text-ink-400">
-                    <CircleFlagInline countryCode={item.countryCode} />
-                    {item.country}
-                  </div>
-                )}
-                <h3 className="mt-1 truncate text-sm font-bold text-ink-900">{item.title}</h3>
-                <p className="truncate text-xs text-ink-500">{item.organization}</p>
-                {item.url && (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
-                  >
-                    View original
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </div>
-              <button
-                onClick={() => onRemove(item)}
-                aria-label="Remove"
-                className="shrink-0 rounded-lg p-1.5 text-ink-300 hover:bg-rose-50 hover:text-rose-600"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
+const roleLabel: Record<RepresentativeRole, string> = {
+  owner: 'Owner',
+  authorized: 'Authorized representative',
+  hr: 'HR / recruiting',
+};
 
 function PartnerSection({
   publisher,
@@ -835,6 +683,7 @@ function PartnerSection({
   userId,
   userEmail,
   onCreated,
+  onPost,
 }: {
   publisher: ProgramPublisher | null;
   loading: boolean;
@@ -842,13 +691,15 @@ function PartnerSection({
   userId: string | undefined;
   userEmail: string;
   onCreated: (p: ProgramPublisher) => void;
+  onPost: () => void;
 }) {
-  const [applying, setApplying] = useState<OrgType | null>(null);
+  const [applying, setApplying] = useState<'government' | 'company' | null>(null);
   const [resubmitting, setResubmitting] = useState(false);
   const [orgName, setOrgName] = useState('');
   const [website, setWebsite] = useState('');
   const [countryId, setCountryId] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [role, setRole] = useState<RepresentativeRole | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -866,75 +717,99 @@ function PartnerSection({
     const Icon = orgTypeIcon[publisher.org_type];
     const status = statusCopy[publisher.verification_status];
     return (
-      <div className="mt-6 border border-ink-200 bg-white p-6">
-        <h2 className="text-sm font-bold text-ink-900">Partner workspace</h2>
-        <div className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-ink-50 p-4">
-          <div className="flex items-center gap-3">
-            {publisher.logo_url ? (
-              <img src={publisher.logo_url} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
-            ) : (
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-white text-ink-500">
-                <Icon className="h-4 w-4" />
-              </span>
-            )}
-            <div>
-              <p className="text-sm font-semibold text-ink-900">{publisher.name}</p>
-              <p className="text-xs text-ink-500">{orgTypeLabel[publisher.org_type]}</p>
+      <div className="mt-6 space-y-6">
+        <div className="rounded-md border border-ink-200 bg-white p-6">
+          <h2 className="text-sm font-bold text-ink-900">Your organization</h2>
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-md bg-ink-50 p-4">
+            <div className="flex items-center gap-3">
+              {publisher.logo_url ? (
+                <img src={publisher.logo_url} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
+              ) : (
+                <span className="grid h-10 w-10 place-items-center rounded bg-white text-ink-500">
+                  <Icon className="h-4 w-4" />
+                </span>
+              )}
+              <div>
+                <p className="text-sm font-semibold text-ink-900">{publisher.name}</p>
+                <p className="text-xs text-ink-500">
+                  {orgTypeLabel[publisher.org_type]}
+                  {publisher.representative_role ? ` · ${roleLabel[publisher.representative_role]}` : ''}
+                </p>
+              </div>
             </div>
+            <span className={`rounded border px-2.5 py-1 text-xs font-semibold ${status.className}`}>{status.label}</span>
           </div>
-          <span className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${status.className}`}>{status.label}</span>
+          {publisher.verification_status === 'pending' && (
+            <p className="mt-3 text-xs text-ink-500">We'll email you once this is reviewed. Questions — {PUBLISHING_CONTACT_EMAIL}.</p>
+          )}
+          {publisher.verification_status === 'verified' && (
+            <>
+              <button
+                onClick={onPost}
+                className="mt-4 inline-flex items-center gap-1.5 rounded bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Post a job or program
+              </button>
+              <MyListingsSection publisherId={publisher.id} />
+            </>
+          )}
+          {canReapply && (
+            <div className="mt-4">
+              <p className="text-xs text-ink-500">
+                {publisher.verification_status === 'suspended'
+                  ? "This organization was suspended, but you're welcome to send another request."
+                  : "This request wasn't approved, but you're welcome to try again."}
+              </p>
+              <button
+                onClick={() => {
+                  setOrgName(publisher.name);
+                  setWebsite(publisher.website ?? '');
+                  setCountryId(publisher.country_id ?? '');
+                  setLogoUrl(publisher.logo_url ?? '');
+                  setRole(publisher.representative_role ?? null);
+                  setApplying(publisher.org_type === 'government' ? 'government' : 'company');
+                  setResubmitting(true);
+                }}
+                className="mt-2 rounded bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700"
+              >
+                Send another request
+              </button>
+            </div>
+          )}
         </div>
-        {publisher.verification_status === 'pending' && (
-          <p className="mt-3 text-xs text-ink-500">
-            We'll email you once this is reviewed. Questions — {PUBLISHING_CONTACT_EMAIL}.
-          </p>
-        )}
-        {publisher.verification_status === 'verified' && (
-          <>
-            <p className="mt-3 text-xs text-ink-500">
-              Use the "Post a job" and "Post a program" buttons at the top of your profile to submit a new listing.
-            </p>
-            <MyListingsSection publisherId={publisher.id} />
-          </>
-        )}
-        {canReapply && (
-          <div className="mt-4">
-            <p className="text-xs text-ink-500">
-              {publisher.verification_status === 'suspended'
-                ? "This partner account was suspended, but you're welcome to send another request."
-                : "This request wasn't approved, but you're welcome to try again."}
-            </p>
-            <button
-              onClick={() => {
-                setOrgName(publisher.name);
-                setWebsite(publisher.website ?? '');
-                setCountryId(publisher.country_id ?? '');
-                setLogoUrl(publisher.logo_url ?? '');
-                setResubmitting(true);
-              }}
-              className="mt-2 rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700"
-            >
-              Send another request
-            </button>
-          </div>
-        )}
+        <PostingInfo />
       </div>
     );
   }
 
   const submit = async () => {
     if (!orgName.trim()) {
-      setError('Organization name is required.');
+      setError(applying === 'government' ? 'Enter the name of the government body.' : 'Enter the company name.');
+      return;
+    }
+    if (applying === 'company' && !role) {
+      setError('Choose how you’re connected to the company.');
       return;
     }
     setSubmitting(true);
     setError(null);
+    const representativeRole = applying === 'company' ? role : null;
 
     if (resubmitting && publisher) {
-      const updated = await resubmitPublisherProfile(publisher.id, { orgType: applying ?? publisher.org_type, name: orgName, website, countryId, logoUrl });
+      const updated = await resubmitPublisherProfile(publisher.id, {
+        orgType: applying ?? undefined,
+        name: orgName,
+        website,
+        countryId,
+        logoUrl,
+        representativeRole,
+      });
       setSubmitting(false);
-      if (updated) { onCreated(updated); setResubmitting(false); }
-      else setError('Something went wrong — please try again.');
+      if (updated) {
+        onCreated(updated);
+        setResubmitting(false);
+      } else setError('Something went wrong — please try again.');
       return;
     }
 
@@ -942,55 +817,71 @@ function PartnerSection({
       setSubmitting(false);
       return;
     }
-    const created = await createPublisherProfile({ ownerId: userId, orgType: applying, name: orgName, website, countryId, contactEmail: userEmail, logoUrl });
+    const created = await createPublisherProfile({
+      ownerId: userId,
+      orgType: applying,
+      name: orgName,
+      website,
+      countryId,
+      contactEmail: userEmail,
+      logoUrl,
+      representativeRole,
+    });
     setSubmitting(false);
     if (created) onCreated(created);
     else setError('Something went wrong — please try again.');
   };
 
   return (
-    <div className="mt-6">
-      {!resubmitting && !applying && (
-        <div className="mb-6 border border-ink-200 bg-gradient-to-br from-ink-950 to-ink-800 p-8 text-white">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-brand-300">
-            <Users2 className="h-4 w-4" />
-            Become a MadeVisa Partner
-          </div>
-          <h2 className="mt-3 text-2xl font-bold tracking-tight">Reach people actively looking for opportunities abroad.</h2>
-        </div>
-      )}
+    <div className="mt-6 space-y-6">
+      {!resubmitting && !applying && <PostingInfo />}
 
-      <div className="border border-ink-200 bg-white p-6">
-        <h2 className="text-sm font-bold text-ink-900">{resubmitting ? 'Send another request' : 'Choose your partner type'}</h2>
-        {!resubmitting && (
-          <p className="mt-1 text-xs text-ink-500">
-            Reviewed before anything goes public. Questions — {PUBLISHING_CONTACT_EMAIL}.
-          </p>
-        )}
+      <div className="rounded-md border border-ink-200 bg-white p-6">
+        <h2 className="text-sm font-bold text-ink-900">
+          {resubmitting ? 'Send another request' : applying ? `Set up your ${applying === 'government' ? 'government body' : 'company'}` : 'Who are you posting for?'}
+        </h2>
+        {!resubmitting && !applying && <p className="mt-1 text-xs text-ink-500">Every organization is reviewed before anything goes public.</p>}
 
         {!applying ? (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <PartnerTypeCard type="agency" onClick={() => setApplying('agency')} title="Agency" detail="Publish visa, immigration and relocation services." />
-            <PartnerTypeCard type="company" onClick={() => setApplying('company')} title="Company" detail="Publish jobs and reach international talent." />
-            <PartnerTypeCard type="government" onClick={() => setApplying('government')} title="Government" detail="Promote official programs, pathways and initiatives." />
-            <PartnerTypeCard type="expert" onClick={() => setApplying('expert')} title="Independent expert" detail="Offer professional expertise and consultations." />
-            {resubmitting && (
-              <button
-                onClick={() => setResubmitting(false)}
-                className="col-span-full text-center text-xs font-semibold text-ink-500 hover:text-ink-800"
-              >
-                Cancel
-              </button>
-            )}
+            <PartnerTypeCard type="company" onClick={() => setApplying('company')} title="Company" detail="You own it, are authorized to represent it, or work in its HR team." />
+            <PartnerTypeCard type="government" onClick={() => setApplying('government')} title="Government" detail="A ministry, agency or public body promoting official programs." />
           </div>
         ) : (
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-4">
+            {applying === 'company' && (
+              <fieldset>
+                <legend className={labelClass}>How are you connected to the company?</legend>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {ROLE_OPTIONS.map((o) => (
+                    <label
+                      key={o.value}
+                      className={`flex cursor-pointer flex-col rounded-md border p-3 text-left transition-colors ${
+                        role === o.value ? 'border-[#2563EB] bg-brand-50' : 'border-ink-200 hover:border-brand-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 text-xs font-semibold text-ink-900">
+                        <input
+                          type="radio"
+                          name="representative-role"
+                          checked={role === o.value}
+                          onChange={() => setRole(o.value)}
+                          className="h-3.5 w-3.5 accent-[#2563EB]"
+                        />
+                        {o.label}
+                      </span>
+                      <span className="mt-1 pl-5 text-[11px] leading-4 text-ink-500">{o.detail}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
             <div>
-              <label className={labelClass}>{applying === 'expert' ? 'Your professional name' : 'Organization name'}</label>
+              <label className={labelClass}>{applying === 'government' ? 'Government body' : 'Company name'}</label>
               <input value={orgName} onChange={(e) => setOrgName(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Website (optional)</label>
+              <label className={labelClass}>Official website {applying === 'company' ? '(helps us verify you faster)' : '(optional)'}</label>
               <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://" className={inputClass} />
             </div>
             <div>
@@ -998,31 +889,30 @@ function PartnerSection({
               <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className={inputClass}>
                 <option value="">Select</option>
                 {countries.map((c) => (
-                  <option key={c.id} value={c.id}>{c.flag_emoji ?? ''} {c.name}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.flag_emoji ?? ''} {c.name}
+                  </option>
                 ))}
               </select>
             </div>
-            {userId && (
-              <ImageUploadField
-                userId={userId}
-                value={logoUrl}
-                onChange={setLogoUrl}
-                label={applying === 'expert' ? 'Your photo (optional)' : 'Official logo (optional)'}
-              />
-            )}
+            {userId && <ImageUploadField userId={userId} value={logoUrl} onChange={setLogoUrl} label="Official logo (optional)" />}
             {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
             <div className="flex items-center gap-2">
               <button
                 onClick={submit}
                 disabled={submitting}
-                className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+                className="flex items-center gap-2 rounded bg-[#2563EB] px-4 py-2.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
               >
                 {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Submit for review
               </button>
               <button
-                onClick={() => { setApplying(null); setResubmitting(false); }}
-                className="text-xs font-semibold text-ink-500 hover:text-ink-800"
+                onClick={() => {
+                  setApplying(null);
+                  setResubmitting(false);
+                  setError(null);
+                }}
+                className="text-xs font-semibold text-ink-500 hover:text-[#2563EB]"
               >
                 Back
               </button>
@@ -1030,12 +920,47 @@ function PartnerSection({
           </div>
         )}
       </div>
-
-      <p className="mt-3 text-[11px] text-ink-400">
-        More partner types (universities, education providers, recruitment and relocation companies) are planned —
-        the architecture here is built to support them without another rebuild.
-      </p>
     </div>
+  );
+}
+
+/** What organizations can post on MadeVisa, and who to email. */
+function PostingInfo() {
+  return (
+    <section className="rounded-md border border-ink-200 bg-white p-6">
+      <h2 className="text-lg font-bold tracking-tight text-ink-950">Post jobs and programs on MadeVisa</h2>
+      <p className="mt-1 text-sm text-ink-500">Reach people who are actively planning a move for work or study.</p>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className="flex items-start gap-3 rounded-md bg-ink-50 p-4">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded bg-white text-[#2563EB]">
+            <Briefcase className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-sm font-bold text-ink-900">Jobs</p>
+            <p className="mt-0.5 text-xs leading-5 text-ink-500">Open roles, including ones offering visa sponsorship or relocation. Shown next to jobs from company career pages.</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-3 rounded-md bg-ink-50 p-4">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded bg-white text-[#2563EB]">
+            <GraduationCap className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-sm font-bold text-ink-900">Programs</p>
+            <p className="mt-0.5 text-xs leading-5 text-ink-500">Government schemes, scholarships, training and relocation programs, with requirements and deadlines.</p>
+          </div>
+        </div>
+      </div>
+      <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-ink-100 pt-4 text-sm">
+        <span className="text-ink-600">Questions before you start?</span>
+        <a
+          href={`mailto:${PUBLISHING_CONTACT_EMAIL}?subject=${encodeURIComponent('Posting on MadeVisa')}`}
+          className="inline-flex items-center gap-1.5 font-semibold text-[#2563EB] hover:text-brand-700"
+        >
+          <Mail className="h-4 w-4" />
+          {PUBLISHING_CONTACT_EMAIL}
+        </a>
+      </div>
+    </section>
   );
 }
 
@@ -1174,6 +1099,105 @@ function MyJobListingRow({ job, onChange }: { job: SponsoredJob; onChange: () =>
   );
 }
 
+/** Next to the name: the LinkedIn logo linking to the profile, or a "Connect LinkedIn" button. */
+function LinkedInConnect({ userId, url, onSaved }: { userId: string; url: string | null; onSaved: () => Promise<void> | void }) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(url ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async (next: string | null) => {
+    setError(null);
+    const normalized = next === null ? null : normalizeLinkedInUrl(next);
+    if (next !== null && !normalized) {
+      setError('Paste your LinkedIn profile link, like linkedin.com/in/your-name');
+      return;
+    }
+    setSaving(true);
+    const res = await updateMyLinkedIn(userId, normalized);
+    setSaving(false);
+    if (!res.ok) {
+      setError(res.error ?? 'Could not save.');
+      return;
+    }
+    await onSaved();
+    setOpen(false);
+  };
+
+  return (
+    <span className="relative inline-flex items-center gap-1">
+      {url ? (
+        <>
+          <a href={url} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn profile" title="LinkedIn profile" className="transition-opacity hover:opacity-80">
+            <LinkedInLogo size={22} />
+          </a>
+          <button
+            type="button"
+            onClick={() => {
+              setValue(url);
+              setOpen((v) => !v);
+            }}
+            aria-label="Edit LinkedIn link"
+            className="grid h-6 w-6 place-items-center rounded text-ink-400 hover:bg-ink-50 hover:text-[#2563EB]"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded border border-ink-200 py-0.5 pl-0.5 pr-2 text-[11px] font-semibold text-ink-600 transition-colors hover:border-[#0A66C2] hover:text-[#0A66C2]"
+        >
+          <LinkedInLogo size={18} />
+          Connect LinkedIn
+        </button>
+      )}
+
+      {open && (
+        <>
+          <button type="button" aria-label="Close" tabIndex={-1} onClick={() => setOpen(false)} className="fixed inset-0 z-30 cursor-default" />
+          <div className="menu-pop absolute left-0 top-full z-40 mt-2 w-[min(20rem,80vw)] rounded-md border border-ink-200 bg-white p-3 shadow-xl" style={{ transformOrigin: 'top left' }}>
+            <label className="text-xs font-semibold text-ink-700" htmlFor="linkedin-url">
+              Your LinkedIn profile link
+            </label>
+            <input
+              id="linkedin-url"
+              autoFocus
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && save(value)}
+              placeholder="linkedin.com/in/your-name"
+              className="mt-1.5 h-9 w-full rounded border border-ink-200 px-2.5 text-sm text-ink-900 outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-brand-100"
+            />
+            {error && <p className="mt-1.5 text-[11px] font-medium text-rose-600">{error}</p>}
+            <p className="mt-1.5 text-[11px] text-ink-400">Shown as a LinkedIn logo next to your name, here and on your public profile.</p>
+            <div className="mt-2.5 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => save(value)}
+                disabled={saving}
+                className="flex items-center gap-1.5 rounded bg-[#2563EB] px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+              >
+                {saving && <Loader2 className="h-3 w-3 animate-spin" />}
+                Save
+              </button>
+              {url && (
+                <button type="button" onClick={() => save(null)} disabled={saving} className="text-xs font-semibold text-ink-500 hover:text-rose-600">
+                  Remove
+                </button>
+              )}
+              <button type="button" onClick={() => setOpen(false)} className="ml-auto text-xs text-ink-400 hover:text-ink-700">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
 function UsernameCard({ profile, onSaved }: { profile: Profile; onSaved: () => void }) {
   const [editing, setEditing] = useState(!profile.username);
   const [value, setValue] = useState(profile.username ?? suggestUsername(profile.full_name));
@@ -1290,13 +1314,13 @@ function PartnerTypeCard({ type, onClick, title, detail }: { type: OrgType; onCl
   return (
     <button
       onClick={onClick}
-      className="flex items-start gap-3 rounded-lg border border-ink-200 p-4 text-left transition hover:border-brand-300 hover:bg-brand-50/40"
+      className="group flex items-start gap-3 rounded-md border border-ink-200 p-4 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/40"
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded bg-brand-50 text-[#2563EB]">
         <Icon className="h-5 w-5" />
       </span>
       <div>
-        <p className="text-sm font-bold text-ink-900">{title}</p>
+        <p className="text-sm font-bold text-ink-900 group-hover:text-[#2563EB]">{title}</p>
         <p className="mt-0.5 text-xs leading-5 text-ink-500">{detail}</p>
       </div>
     </button>
@@ -1334,8 +1358,7 @@ function DeleteAccountDialog({ onClose, hasPublisher }: { onClose: () => void; h
         <p className="mt-4 text-xs leading-5 text-ink-600">This permanently deletes your account. Here's what happens:</p>
         <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-500">
           <li>• Your profile and login are deleted immediately and can't be recovered.</li>
-          <li>• Saved jobs/programs on this device are cleared.</li>
-          <li>• There's no application history to delete yet — that feature isn't built.</li>
+          <li>• Your Applicant Response Report is deleted.</li>
           {hasPublisher && (
             <li>
               • Your partner profile and anything you've published stay live but become unowned — reach{' '}

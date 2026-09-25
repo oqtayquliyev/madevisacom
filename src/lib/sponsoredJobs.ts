@@ -503,3 +503,75 @@ export async function fetchPublishedJobsByPublisher(publisherId: string, limit =
   }
   return (data ?? []) as unknown as SponsoredJob[];
 }
+
+// ---------------------------------------------------------------------------
+// Showcase jobs (sign-in / register ticker)
+// ---------------------------------------------------------------------------
+
+export type ShowcaseJob = {
+  id: string;
+  title: string;
+  company: string;
+  logoUrl: string | null;
+  city: string | null;
+  country: string | null;
+  countryCode: string | null;
+  remote: boolean;
+};
+
+let showcaseCache: Promise<ShowcaseJob[]> | null = null;
+
+/**
+ * A small random sample of recent jobs for decoration on the auth pages —
+ * one request for ~60 rows (no descriptions), shuffled, never the whole
+ * catalog. Shared per tab, so switching between sign-in and register
+ * doesn't refetch.
+ */
+export function fetchShowcaseJobs(count = 24): Promise<ShowcaseJob[]> {
+  if (!showcaseCache) {
+    showcaseCache = (async () => {
+      const { data, error } = await supabase
+        .from('sponsored_jobs')
+        .select('id, title, city, remote, image_url, publisher:program_publishers(name, logo_url), country:countries(name, iso_code)')
+        .eq('status', 'published')
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+        .order('created_at', { ascending: false })
+        .limit(60);
+      if (error || !data) {
+        showcaseCache = null;
+        return [];
+      }
+      type Row = {
+        id: string;
+        title: string;
+        city: string | null;
+        remote: boolean;
+        image_url: string | null;
+        publisher: { name: string; logo_url: string | null } | null;
+        country: { name: string; iso_code: string } | null;
+      };
+      const rows = (data as unknown as Row[]).map(
+        (r): ShowcaseJob => ({
+          id: r.id,
+          title: r.title,
+          company: r.publisher?.name ?? '',
+          logoUrl: r.image_url ?? r.publisher?.logo_url ?? null,
+          city: r.city && !/^(?:all|any|various|remote)$/i.test(r.city.trim()) ? r.city : null,
+          country: r.country?.name ?? null,
+          countryCode: r.country?.iso_code ?? null,
+          remote: r.remote,
+        })
+      );
+      // Shuffle, then one job per company first so the ticker isn't one employer.
+      for (let i = rows.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [rows[i], rows[j]] = [rows[j], rows[i]];
+      }
+      const seen = new Set<string>();
+      const firstPass = rows.filter((r) => (seen.has(r.company) ? false : (seen.add(r.company), true)));
+      const rest = rows.filter((r) => !firstPass.includes(r));
+      return [...firstPass, ...rest].slice(0, count);
+    })();
+  }
+  return showcaseCache;
+}

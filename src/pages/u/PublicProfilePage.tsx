@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Pencil, Shield, UserRound } from 'lucide-react';
+import { Pencil, Shield } from 'lucide-react';
 import type { View } from '@/types';
 import { useAuth } from '@/lib/auth';
 import { fetchPublicProfileByUsername, type PublicProfile } from '@/lib/username';
+import { TravelerAvatar } from '@/components/common/TravelerAvatar';
+import { LinkedInLogo } from '@/components/common/LinkedInLogo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { useSeo } from '@/lib/seo';
@@ -65,17 +67,18 @@ export function PublicProfilePage({ username, go, onAuth }: { username: string; 
         <div className="overflow-hidden rounded-lg border border-ink-200 bg-white">
           <div className="h-24 bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-700" />
           <div className="px-6 pb-6">
-            <div className="-mt-10 rounded-full bg-white p-1 shadow-md w-fit">
-              {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt="" className="h-20 w-20 rounded-full object-cover" />
-              ) : (
-                <span className="grid h-20 w-20 place-items-center rounded-full bg-ink-100 text-ink-400">
-                  <UserRound className="h-8 w-8" />
-                </span>
-              )}
+            <div className="-mt-10 w-fit rounded-md bg-white p-1 shadow-md">
+              <TravelerAvatar avatarUrl={profile.avatar_url} size={80} />
             </div>
 
-            <h1 className="mt-3 text-xl font-bold text-ink-950">{profile.full_name ?? profile.username}</h1>
+            <h1 className="mt-3 flex items-center gap-2 text-xl font-bold text-ink-950">
+              {profile.full_name ?? profile.username}
+              {profile.linkedin_url && (
+                <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer me" aria-label="LinkedIn profile" className="transition-opacity hover:opacity-80">
+                  <LinkedInLogo size={22} />
+                </a>
+              )}
+            </h1>
             <p className="text-sm text-ink-400">@{profile.username}</p>
 
             {user?.id === profile.id && (

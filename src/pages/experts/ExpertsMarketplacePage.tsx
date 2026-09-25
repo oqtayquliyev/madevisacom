@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
-  Bookmark,
-  BookmarkCheck,
   Briefcase,
   Building2,
   Loader2,
@@ -19,7 +17,6 @@ import {
   type VerifiedExpert,
 } from '@/lib/programs';
 import { fetchPublishedSponsoredJobs, type SponsoredJob } from '@/lib/sponsoredJobs';
-import { isApplied, markApplied, removeApplication, type ApplicationKind } from '@/lib/applications';
 import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -160,15 +157,6 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
                       </div>
                       {expert.description && <p className="mt-3 flex-1 text-xs leading-5 text-ink-500">{expert.description}</p>}
                       <div className="mt-4 flex items-center gap-2">
-                        <SaveButton
-                          kind="expert"
-                          refId={expert.id}
-                          title={expert.name}
-                          organization={expert.name}
-                          country={expert.country?.name ?? 'Various'}
-                          countryCode={expert.country?.iso_code ?? ''}
-                          url={expert.website ?? undefined}
-                        />
                         {expert.website && (
                           <a
                             href={expert.website}
@@ -217,15 +205,6 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
                       </div>
                       {agency.description && <p className="mt-4 text-xs leading-5 text-ink-500">{agency.description}</p>}
                       <div className="mt-4 flex items-center gap-2">
-                        <SaveButton
-                          kind="agency"
-                          refId={agency.id}
-                          title={agency.name}
-                          organization={agency.name}
-                          country={agency.country ?? 'Various'}
-                          countryCode=""
-                          url={agency.website ?? undefined}
-                        />
                         {agency.website && (
                           <a
                             href={agency.website}
@@ -308,42 +287,3 @@ function EmptyState({ label, detail }: { label: string; detail: string }) {
   );
 }
 
-function SaveButton({
-  kind,
-  refId,
-  title,
-  organization,
-  country,
-  countryCode,
-  url,
-}: {
-  kind: ApplicationKind;
-  refId: string;
-  title: string;
-  organization: string;
-  country: string;
-  countryCode: string;
-  url?: string;
-}) {
-  const [saved, setSaved] = useState(() => isApplied(kind, refId));
-
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        if (saved) {
-          removeApplication(kind, refId);
-        } else {
-          markApplied({ kind, refId, title, organization, country, countryCode, url });
-        }
-        setSaved(!saved);
-      }}
-      className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-        saved ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-ink-200 text-ink-500 hover:bg-ink-50'
-      }`}
-    >
-      {saved ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
-      {saved ? 'Saved' : 'Save'}
-    </button>
-  );
-}

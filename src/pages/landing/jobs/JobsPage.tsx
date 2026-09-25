@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   BadgeCheck,
-  Bookmark,
-  BookmarkCheck,
   Briefcase,
   ChevronDown,
   Clock,
@@ -17,7 +15,6 @@ import {
   X,
 } from 'lucide-react';
 import type { View } from '@/types';
-import { isApplied, markApplied, removeApplication } from '@/lib/applications';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -201,44 +198,6 @@ function SourceLabel({ job }: { job: Job }) {
   );
 }
 
-function SaveButton({
-  refId,
-  title,
-  organization,
-  country,
-  countryCode,
-  url,
-}: {
-  refId: string;
-  title: string;
-  organization: string;
-  country: string;
-  countryCode: string;
-  url?: string;
-}) {
-  const [saved, setSaved] = useState(() => isApplied('job', refId));
-
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (saved) removeApplication('job', refId);
-        else markApplied({ kind: 'job', refId, title, organization, country, countryCode, url });
-        setSaved(!saved);
-      }}
-      aria-label={saved ? 'Remove from saved jobs' : 'Save job'}
-      aria-pressed={saved}
-      className={`grid h-9 w-9 shrink-0 place-items-center rounded-md border transition ${
-        saved ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-300 text-ink-600 hover:border-ink-500 hover:text-ink-900'
-      }`}
-    >
-      {saved ? <BookmarkCheck className="h-4 w-4" strokeWidth={2.5} /> : <Bookmark className="h-4 w-4" strokeWidth={2.5} />}
-    </button>
-  );
-}
-
 function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void }) {
   const isExternal = job.sourceType === 'live_feed';
   const viewed = isJobViewed(job.id);
@@ -251,7 +210,6 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
           <p className="truncate text-xs font-semibold text-ink-500">{job.company}</p>
           <h3 className="mt-0.5 font-slab text-lg font-bold leading-snug text-ink-950 group-hover:text-brand-700">{job.title}</h3>
         </div>
-        <SaveButton refId={job.id} title={job.title} organization={job.company} country={job.country} countryCode={job.countryCode} url={job.url} />
       </div>
 
       <div className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] text-ink-500">

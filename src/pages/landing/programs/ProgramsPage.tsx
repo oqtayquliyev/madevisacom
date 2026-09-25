@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   BadgeCheck,
-  Bookmark,
-  BookmarkCheck,
   ChevronDown,
   Clock,
   Flame,
@@ -23,7 +21,6 @@ import {
   type SponsoredProgram,
 } from '@/lib/programs';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
-import { isApplied, markApplied, removeApplication } from '@/lib/applications';
 import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -211,38 +208,6 @@ function ProgramLogo({ program, size = 52 }: { program: SponsoredProgram; size?:
   );
 }
 
-function SaveButton({ program }: { program: SponsoredProgram }) {
-  const [saved, setSaved] = useState(() => isApplied('program', program.id));
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (saved) removeApplication('program', program.id);
-        else
-          markApplied({
-            kind: 'program',
-            refId: program.id,
-            title: program.title,
-            organization: program.publisher?.name ?? 'Unknown',
-            country: program.country?.name ?? 'Various',
-            countryCode: program.country?.iso_code ?? '',
-            url: program.official_url ?? undefined,
-          });
-        setSaved(!saved);
-      }}
-      aria-label={saved ? 'Remove from saved' : 'Save'}
-      aria-pressed={saved}
-      className={`grid h-9 w-9 shrink-0 place-items-center rounded-md border transition ${
-        saved ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-300 text-ink-600 hover:border-ink-500 hover:text-ink-900'
-      }`}
-    >
-      {saved ? <BookmarkCheck className="h-4 w-4" strokeWidth={2.5} /> : <Bookmark className="h-4 w-4" strokeWidth={2.5} />}
-    </button>
-  );
-}
-
 function ProgramCard({ program, goToProgram }: { program: SponsoredProgram; goToProgram?: (id: string) => void }) {
   const { profile } = usePersonalization();
   const eligibility = computeEligibility(toEligibilityCriteria(program), profile, program.country?.iso_code);
@@ -267,7 +232,6 @@ function ProgramCard({ program, goToProgram }: { program: SponsoredProgram; goTo
           <p className="truncate text-xs font-semibold text-ink-500">{program.publisher?.name}</p>
           <h3 className="mt-0.5 font-slab text-lg font-bold leading-snug text-ink-950 group-hover:text-brand-700">{program.title}</h3>
         </div>
-        <SaveButton program={program} />
       </div>
 
       <div className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] text-ink-500">

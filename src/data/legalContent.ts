@@ -166,7 +166,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         paragraphs: [
           'A cookie remembers the country you\'re browsing from (or that you manually selected), so pricing/relevance estimates match your situation — stored for up to 180 days.',
           'Authentication tokens are stored by Supabase to keep you signed in between visits.',
-          "Saved jobs, programs, agencies, experts and destinations are stored in your browser's local storage — this data stays on your device and isn't sent to our servers.",
+          "Jobs you recently viewed (kept for 48 hours) and your location preference are stored in your browser's local storage — this data stays on your device and isn't sent to our servers.",
         ],
       },
       {

@@ -19,6 +19,8 @@ export type Profile = {
   experience: string | null;
   preferred_destination_country_id: string | null;
   username: string | null;
+  /** linkedin.com/in/… profile link (20261001090000 migration). */
+  linkedin_url?: string | null;
 };
 
 type AuthContextValue = {
@@ -46,11 +48,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, phone, role, avatar_url, country_id, nationality_country_id, languages, occupation, education, specialization, experience, preferred_destination_country_id, username')
-        .eq('id', userId)
-        .maybeSingle();
+      const cols =
+        'id, full_name, email, phone, role, avatar_url, country_id, nationality_country_id, languages, occupation, education, specialization, experience, preferred_destination_country_id, username';
+      let { data, error } = await supabase.from('profiles').select(`${cols}, linkedin_url`).eq('id', userId).maybeSingle();
+      // Before the linkedin_url migration: load everything else rather than no profile at all.
+      if (error && /linkedin_url|column|schema cache/i.test(error.message)) {
+        ({ data, error } = await supabase.from('profiles').select(cols).eq('id', userId).maybeSingle());
+      }
       if (error) {
         console.error('Profile load failed', error);
         setProfile(null);

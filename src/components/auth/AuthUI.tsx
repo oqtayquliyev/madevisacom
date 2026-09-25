@@ -2,7 +2,15 @@ import { type ReactNode, useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/layout/Logo';
 import { handleNavClick } from '@/lib/navLink';
+import { JobTicker } from '@/components/auth/JobTicker';
+import { useSiteStats } from '@/lib/siteStats';
 
+/**
+ * Sign-in / register / reset layout: the form card sits on a light top
+ * area and overlaps a MadeVisa-blue band below it (the job page's hero,
+ * flipped), where real jobs drift past — a reason to finish signing up,
+ * with nothing to click away to.
+ */
 export function AuthCard({
   children,
   title,
@@ -14,17 +22,57 @@ export function AuthCard({
   subtitle?: string;
   onHome?: () => void;
 }) {
-  // One simple, centered card — no side panel.
+  const stats = useSiteStats();
+
+  const goBack = () => {
+    // Back to wherever the visitor came from on MadeVisa; home otherwise.
+    const cameFromHere = document.referrer && new URL(document.referrer).origin === window.location.origin;
+    if (window.history.length > 1 && (cameFromHere || window.history.state !== null)) window.history.back();
+    else onHome?.();
+  };
+
   return (
-    <div className="flex min-h-screen flex-col items-center bg-[#f7f9fc] px-5 py-10 sm:justify-center">
-      <a href="/" onClick={(event) => handleNavClick(event, () => onHome?.())} className="mb-6 inline-flex items-center" aria-label="MadeVisa home">
-        <Logo />
-      </a>
-      <div className="w-full max-w-md rounded-2xl border border-ink-200 bg-white p-6 shadow-soft-lg sm:p-8">
-        <h1 className="text-2xl font-bold tracking-tight text-ink-950">{title}</h1>
-        {subtitle && <p className="mt-1.5 text-sm leading-relaxed text-ink-500">{subtitle}</p>}
-        <div className="mt-6">{children}</div>
+    <div className="flex min-h-screen flex-col bg-[#f8fafc]">
+      <div className="px-5 pt-5 sm:px-8">
+        <div className="mx-auto flex max-w-5xl items-center justify-between">
+          <button
+            type="button"
+            onClick={goBack}
+            className="inline-flex items-center gap-1.5 rounded-md border border-ink-200 bg-white px-3 py-2 text-sm font-semibold text-ink-700 transition-colors hover:border-brand-300 hover:text-[#2563EB]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </button>
+          <a href="/" onClick={(event) => handleNavClick(event, () => onHome?.())} className="inline-flex items-center" aria-label="MadeVisa home">
+            <Logo />
+          </a>
+          {/* Balances the Back button so the logo stays centered. */}
+          <span className="w-[76px]" aria-hidden="true" />
+        </div>
+
+        <div className="relative z-10 mx-auto mt-8 w-full max-w-md rounded-lg border border-ink-200 bg-white p-6 shadow-soft-lg sm:mt-10 sm:p-8">
+          <h1 className="text-2xl font-bold tracking-tight text-ink-950">{title}</h1>
+          {subtitle && <p className="mt-1.5 text-sm leading-relaxed text-ink-500">{subtitle}</p>}
+          <div className="mt-6">{children}</div>
+        </div>
       </div>
+
+      {/* Blue band: the card above overlaps into it. */}
+      <section className="-mt-24 flex-1 bg-brand-700 pb-12 pt-32 text-white sm:-mt-28 sm:pt-36">
+        <p className="px-5 text-center text-sm font-semibold text-white/85 sm:text-base">
+          {stats ? (
+            <>
+              <span className="font-slab text-lg font-bold text-white sm:text-xl">{stats.publishedJobs.toLocaleString()}</span> opportunities from company
+              career pages, waiting for you
+            </>
+          ) : (
+            'Jobs and programs from company career pages, waiting for you'
+          )}
+        </p>
+        <div className="mx-auto mt-6 max-w-[1400px]">
+          <JobTicker />
+        </div>
+      </section>
     </div>
   );
 }

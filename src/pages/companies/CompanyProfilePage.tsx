@@ -14,7 +14,6 @@ import {
   MessageSquare,
   Scale,
   ShieldCheck,
-  Star,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -230,11 +229,7 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
                     <Stat label="Applications tracked" value={i.tracked.toLocaleString()} />
                     <Stat label="Last 90 days" value={i.last90.toLocaleString()} />
                     <Stat label="Got a response" value={i.response_rate != null ? `${i.response_rate}%` : '—'} />
-                    <Stat label="Reached interview" value={i.interview_rate != null ? `${i.interview_rate}%` : '—'} />
-                    <Stat label="Received an offer" value={i.offer_rate != null ? `${i.offer_rate}%` : '—'} />
-                    <Stat label="Rejected" value={i.rejection_rate != null ? `${i.rejection_rate}%` : '—'} />
-                    <Stat label="Application viewed" value={i.viewed_rate != null ? `${i.viewed_rate}%` : '—'} />
-                    <Stat label="No reply after 30 days" value={i.no_response_rate != null ? `${i.no_response_rate}%` : '—'} />
+                    <Stat label="Replied within a week" value={i.response_week_rate != null ? `${i.response_week_rate}%` : '—'} />
                   </dl>
                   {i.response_rate == null && (
                     <p className="mt-4 flex items-start gap-1.5 rounded-md bg-ink-50 px-3 py-2 text-[11px] text-ink-500">
@@ -246,28 +241,6 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
               )
             ) : (
               <Pending />
-            )}
-          </Panel>
-
-          {/* CANDIDATE EXPERIENCE */}
-          <Panel
-            title="Candidate experience"
-            icon={Star}
-            note="Rated by applicants after the process ended"
-            badge={i ? <ReliabilityLabel level={i.rating != null ? (reliabilityOf(i) === 'verified' ? 'verified' : 'reported') : 'insufficient'} /> : null}
-          >
-            {i?.rating != null ? (
-              <div className="flex items-center gap-4">
-                <p className="font-slab text-4xl font-bold text-ink-950">{i.rating}</p>
-                <div>
-                  <Stars value={i.rating} />
-                  <p className="mt-1 text-xs text-ink-500">from {i.rating_count} verified applicant{i.rating_count === 1 ? '' : 's'}</p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-ink-500">
-                Not enough ratings yet{i?.rating_count ? ` (${i.rating_count} so far — shown from 3)` : ''}. Applicants rate the process from their dashboard after applying.
-              </p>
             )}
           </Panel>
 
@@ -450,16 +423,6 @@ function reliabilityOf(i: CompanyInsights): Reliability {
   return i.confidence === 'insufficient' ? 'insufficient' : 'reported';
 }
 
-function Stars({ value }: { value: number }) {
-  return (
-    <div className="flex">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <Star key={n} className={`h-4 w-4 ${value >= n - 0.25 ? 'fill-amber-400 text-amber-400' : 'text-ink-200'}`} />
-      ))}
-    </div>
-  );
-}
-
 function Check({ ok, text, neutral = false }: { ok: boolean; text: string; neutral?: boolean }) {
   return (
     <li className="flex items-start gap-2">
@@ -487,7 +450,7 @@ function EmptyApplications() {
         When you apply through MadeVisa while signed in, you can report back from your dashboard whether the company responded — that's
         what builds these numbers.
       </p>
-      <a href="/profile?tab=saved" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800">
+      <a href="/profile" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800">
         Go to your dashboard <ArrowUpRight className="h-3.5 w-3.5" />
       </a>
     </div>

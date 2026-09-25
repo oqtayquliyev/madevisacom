@@ -51,6 +51,8 @@ export type CompanyInsights = {
   interview_rate: number | null;
   offer_rate: number | null;
   no_response_rate: number | null;
+  /** % of tracked applications answered within 7 days (20261001090000 migration). */
+  response_week_rate?: number | null;
   avg_response_days: number | null;
   rating: number | null;
   confidence: 'high' | 'medium' | 'low' | 'insufficient';
@@ -117,7 +119,7 @@ export async function fetchCompaniesDirectory(): Promise<DirectoryCompany[] | nu
 // Application tracking (Applicant Report)
 // ---------------------------------------------------------------------------
 
-export type ApplicationStatus = 'applied' | 'viewed' | 'responded' | 'interview' | 'offer' | 'rejected' | 'no_response' | 'withdrawn';
+export type ApplicationStatus = 'applied' | 'viewed' | 'responded' | 'interview' | 'offer' | 'rejected' | 'no_response_week' | 'no_response' | 'withdrawn';
 
 /** Statuses a user can pick. ('responded' is a legacy value still displayed if present.) */
 export const APPLICATION_STATUSES: { value: ApplicationStatus; label: string }[] = [
@@ -244,6 +246,41 @@ export async function fetchMyApplicationReports(): Promise<ApplicationReport[]> 
     excluded: false,
     ...r,
   })) as ApplicationReport[];
+}
+
+// ---- Applicant Response Report ------------------------------------------
+
+/** Days after applying before each "no response" choice unlocks (also enforced in the database). */
+export const NO_RESPONSE_WEEK_DAYS = 7;
+export const NEVER_HEARD_BACK_DAYS = 21;
+
+/** Anything that means the company got back to the applicant (incl. older, more detailed statuses). */
+export function hasResponse(r: Pick<ApplicationReport, 'status' | 'responded_at'>): boolean {
+  return Boolean(r.responded_at) || ['responded', 'viewed', 'interview', 'offer', 'rejected'].includes(r.status);
+}
+
+/** True when the response came within 7 days of applying. */
+export function respondedWithinWeek(r: Pick<ApplicationReport, 'applied_at' | 'responded_at'>): boolean {
+  if (!r.responded_at) return false;
+  return new Date(r.responded_at).getTime() - new Date(r.applied_at).getTime() <= NO_RESPONSE_WEEK_DAYS * 86_400_000;
+}
+
+export async function deleteApplicationReport(id: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from('application_reports').delete().eq('id', id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export type ListingStatus = { status: 'published' | 'expired' | 'deleted' | string; removedAt: string | null };
+
+/** Whether each application's job/program is still listed. Empty map before the 20261001090000 migration. */
+export async function fetchMyListingStatuses(): Promise<Map<string, ListingStatus>> {
+  const { data, error } = await supabase.rpc('my_application_listing_status');
+  const map = new Map<string, ListingStatus>();
+  if (error || !Array.isArray(data)) return map;
+  for (const row of data as { report_id: string; listing_status: string; listing_removed_at: string | null }[]) {
+    map.set(row.report_id, { status: row.listing_status, removedAt: row.listing_removed_at });
+  }
+  return map;
 }
 
 export async function updateApplicationReport(
