@@ -21,7 +21,22 @@ export type Profile = {
   username: string | null;
   /** linkedin.com/in/… profile link (20261001090000 migration). */
   linkedin_url?: string | null;
+  /** Set once the person opened a link sent to their inbox (20261005090000 migration). */
+  email_verified_at?: string | null;
+  /** The address that was verified — a later email change no longer counts. */
+  verified_email?: string | null;
 };
+
+/**
+ * Has this person proven they own their email? Uses MadeVisa's own check
+ * (profiles.email_verified_at); before that migration runs, falls back to
+ * Supabase's confirmation date.
+ */
+export function isEmailVerified(profile: Profile | null, user: User | null): boolean {
+  if (!profile || !user) return false;
+  if (profile.email_verified_at === undefined) return Boolean(user.email_confirmed_at);
+  return Boolean(profile.email_verified_at && profile.verified_email && profile.verified_email === (user.email ?? '').toLowerCase());
+}
 
 type AuthContextValue = {
   session: Session | null;
@@ -50,10 +65,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const cols =
         'id, full_name, email, phone, role, avatar_url, country_id, nationality_country_id, languages, occupation, education, specialization, experience, preferred_destination_country_id, username';
-      let { data, error } = await supabase.from('profiles').select(`${cols}, linkedin_url`).eq('id', userId).maybeSingle();
-      // Before the linkedin_url migration: load everything else rather than no profile at all.
+      let { data, error } = await supabase.from('profiles').select(`${cols}, linkedin_url, email_verified_at, verified_email`).eq('id', userId).maybeSingle();
+      // Older databases: drop the newest columns first, then everything optional.
+      if (error && /column|schema cache/i.test(error.message)) {
+        ({ data, error } = await supabase.from('profiles').select(`${cols}, linkedin_url`).eq('id', userId).maybeSingle());
+      }
       if (error && /linkedin_url|column|schema cache/i.test(error.message)) {
         ({ data, error } = await supabase.from('profiles').select(cols).eq('id', userId).maybeSingle());
+      }
+      // Signed in from an emailed link (verify link, magic link, password
+      // reset)? That proves the inbox — record it once, quietly.
+      if (!error && data && (data as Profile).email_verified_at === null) {
+        const { data: res } = await supabase.rpc('mark_email_verified');
+        if ((res as { verified?: boolean } | null)?.verified) {
+          const again = await supabase.from('profiles').select(`${cols}, linkedin_url, email_verified_at, verified_email`).eq('id', userId).maybeSingle();
+          if (!again.error && again.data) data = again.data;
+        }
       }
       if (error) {
         console.error('Profile load failed', error);

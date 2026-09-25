@@ -3,7 +3,6 @@ import { SoonChip } from '@/components/common/SoonChip';
 import { ApplicantReport } from '@/components/dashboard/ApplicantReport';
 import { jobPath } from '@/lib/jobUrl';
 import {
-  AlertTriangle,
   ArrowRight,
   Award,
   Briefcase,
@@ -30,7 +29,8 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
-import { useAuth, type Profile } from '@/lib/auth';
+import { isEmailVerified, useAuth, type Profile } from '@/lib/auth';
+import { VerifyEmailCard } from '@/components/common/VerifyEmailCard';
 import { supabase } from '@/lib/supabase';
 import {
   createPublisherProfile,
@@ -131,8 +131,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [resending, setResending] = useState(false);
-  const [resent, setResent] = useState(false);
 
   const [publisher, setPublisher] = useState<ProgramPublisher | null>(null);
   const [publisherLoading, setPublisherLoading] = useState(true);
@@ -185,7 +183,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   }
 
   const residenceCountry = countries.find((c) => c.id === countryId);
-  const isEmailConfirmed = Boolean(user?.email_confirmed_at);
+  const isEmailConfirmed = isEmailVerified(profile, user);
 
   const handleSave = async () => {
     setSaving(true);
@@ -230,17 +228,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
     await refreshProfile();
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
-  };
-
-  const handleResendConfirmation = async () => {
-    if (!profile.email) return;
-    setResending(true);
-    const { error } = await supabase.auth.resend({ type: 'signup', email: profile.email });
-    setResending(false);
-    if (!error) {
-      setResent(true);
-      setTimeout(() => setResent(false), 5000);
-    }
   };
 
   const handleAvatarFile = async (file: File) => {
@@ -397,25 +384,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
           </div>
         </div>
 
-        {!isEmailConfirmed && (
-          <div className="mt-4 flex items-start gap-3 border border-amber-200 bg-amber-50 p-4">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-            <div className="flex-1">
-              <p className="text-sm font-bold text-amber-900">Email not confirmed</p>
-              <p className="mt-1 text-xs leading-5 text-amber-700">
-                We sent a confirmation link to {profile.email}. Some features may be limited until you confirm it.
-              </p>
-              <button
-                type="button"
-                onClick={handleResendConfirmation}
-                disabled={resending}
-                className="mt-2 text-xs font-semibold text-amber-800 underline hover:text-amber-900 disabled:opacity-50"
-              >
-                {resent ? 'Sent — check your inbox' : resending ? 'Sending…' : 'Resend confirmation email'}
-              </button>
-            </div>
-          </div>
-        )}
+        {!isEmailConfirmed && profile.email && <VerifyEmailCard email={profile.email} className="mt-4" />}
 
         {/* TABS */}
         <div className="mt-6 flex gap-2 overflow-x-auto border-b border-ink-200 pb-3 [scrollbar-width:none]">
@@ -440,6 +409,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             countries={countries}
             userId={user?.id}
             userEmail={user?.email ?? ''}
+            emailVerified={isEmailConfirmed}
             onCreated={setPublisher}
             onPost={() => go('company')}
           />
@@ -771,6 +741,7 @@ function PartnerSection({
   countries,
   userId,
   userEmail,
+  emailVerified,
   onCreated,
   onPost,
 }: {
@@ -779,6 +750,7 @@ function PartnerSection({
   countries: CountryOption[];
   userId: string | undefined;
   userEmail: string;
+  emailVerified: boolean;
   onCreated: (p: ProgramPublisher) => void;
   onPost: () => void;
 }) {
@@ -925,6 +897,16 @@ function PartnerSection({
     if (created) onCreated(created);
     else setError('Something went wrong — please try again.');
   };
+
+  // Registering an organization needs a verified email (the database enforces it too).
+  if (!emailVerified && !resubmitting) {
+    return (
+      <div className="mt-6 space-y-6">
+        <VerifyEmailCard email={userEmail} reason="Before you register a company or government body, please verify your email." />
+        <PostingInfo />
+      </div>
+    );
+  }
 
   return (
     <div className="mt-6 space-y-6">

@@ -16,7 +16,8 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
+import { isEmailVerified, useAuth } from '@/lib/auth';
+import { VerifyEmailCard } from '@/components/common/VerifyEmailCard';
 import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -85,7 +86,7 @@ const EMPLOYMENT_TYPES = ['Full time', 'Part time', 'Contract / Freelance', 'Int
 
 export function CompanyManagerPage({ go, onAuth }: Props) {
   useSeo({ title: 'Manage your company', description: 'Manage your company page, vacancies and programs on MadeVisa.', path: '/company', noindex: true });
-  const { session, profile, loading } = useAuth();
+  const { session, user, profile, loading } = useAuth();
   const [publishers, setPublishers] = useState<ManagedPublisher[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('jobs');
@@ -131,6 +132,9 @@ export function CompanyManagerPage({ go, onAuth }: Props) {
       <div className="mx-auto max-w-md py-16 text-center">
         <Building2 className="mx-auto h-10 w-10 text-ink-300" />
         <h1 className="mt-4 text-xl font-bold">No company access yet</h1>
+        {!isEmailVerified(profile, user) && profile?.email && (
+          <VerifyEmailCard email={profile.email} reason="Company access only works for verified emails." className="mt-5 text-left" />
+        )}
         <p className="mt-2 text-sm text-ink-500">
           You're signed in as <strong>{profile?.email}</strong>. If you're the HR or hiring contact for a company, ask MadeVisa at{' '}
           <a className="text-brand-600 underline" href={`mailto:${CHANGE_REQUEST_EMAIL}`}>{CHANGE_REQUEST_EMAIL}</a> to give this email access. Make sure your email address is confirmed.

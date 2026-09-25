@@ -23,6 +23,7 @@ import { PublicProfilePage } from '@/pages/u/PublicProfilePage';
 import { LegalPage } from '@/pages/legal/LegalPage';
 import { legalPageOrder } from '@/data/legalContent';
 import { SubmitJobPage } from '@/pages/submit/SubmitJobPage';
+import { VerifyEmailPage } from '@/pages/auth/VerifyEmailPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { PendingConfirmationPage } from '@/pages/auth/PendingConfirmationPage';
 import type { PendingSignup } from '@/pages/auth/RegisterPage';
@@ -194,6 +195,10 @@ export default function App() {
 
   if (path === '/sponsored-programs') {
     return <SponsoredProgramsPage go={go} onAuth={goToAuth} goToProgram={(id) => goToDetail('programs', id)} />;
+  }
+
+  if (path === '/verify-email') {
+    return <VerifyEmailPage go={go} onAuth={goToAuth} />;
   }
 
   if (path === '/submit-job' || path === '/submit-program') {
