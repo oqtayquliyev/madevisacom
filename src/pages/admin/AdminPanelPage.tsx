@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { EvidenceReviewSection } from '@/pages/admin/EvidenceReviewSection';
 import { Bell, Briefcase, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Inbox, Landmark, Mail, Pencil, RefreshCw, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { ProgressBar } from '@/components/common/ProgressBar';
@@ -352,6 +353,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                     loadAll();
                   }}
                 />
+
+                <EvidenceReviewSection />
 
                 <PaginatedSection
                   title="Company & government account requests"

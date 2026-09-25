@@ -186,20 +186,20 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
       <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8">
         {/* HEADLINE NUMBERS */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Metric label="Open jobs" value={i ? i.active_jobs.toLocaleString() : jobs?.length.toLocaleString()} icon={Briefcase} />
-          <Metric label="Open programs" value={i ? i.active_programs.toLocaleString() : programs?.length.toLocaleString()} icon={GraduationCap} />
-          <Metric label="Response rate" value={i?.response_rate != null ? `${i.response_rate}%` : '—'} icon={MessageSquare} hint={i && i.response_rate == null ? 'Needs 5+ tracked applications' : undefined} />
+          <Metric label="Open jobs" value={i ? i.active_jobs.toLocaleString() : jobs?.length.toLocaleString()} icon={Briefcase} reliability="records" />
+          <Metric label="Open programs" value={i ? i.active_programs.toLocaleString() : programs?.length.toLocaleString()} icon={GraduationCap} reliability="records" />
+          <Metric label="Response rate" value={i?.response_rate != null ? `${i.response_rate}%` : '—'} icon={MessageSquare} reliability={i ? reliabilityOf(i) : undefined} />
           <Metric
             label="Avg. response time"
             value={i?.avg_response_days != null ? `${i.avg_response_days} ${i.avg_response_days === 1 ? 'day' : 'days'}` : '—'}
             icon={Clock}
-            hint={i && i.avg_response_days == null ? 'Needs 3+ responses' : undefined}
+            reliability={i ? (i.avg_response_days != null ? reliabilityOf(i) : 'insufficient') : undefined}
           />
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           {/* HIRING ACTIVITY */}
-          <Panel title="Hiring activity" icon={TrendingUp} note="From listings on MadeVisa">
+          <Panel title="Hiring activity" icon={TrendingUp} note="From listings on MadeVisa" badge={<ReliabilityLabel level="records" />}>
             {i ? (
               <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
                 <Stat label="Active listings" value={(i.active_jobs + i.active_programs).toLocaleString()} />
@@ -215,7 +215,12 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
           </Panel>
 
           {/* APPLICANT RESPONSE */}
-          <Panel title="Applicant response" icon={Users} note="From applications tracked on MadeVisa" badge={i ? <Confidence level={i.confidence} /> : null}>
+          <Panel
+            title="Applicant response"
+            icon={Users}
+            note={i ? `${i.tracked} applications tracked${i.applicants != null ? ` from ${i.applicants} applicant${i.applicants === 1 ? '' : 's'}` : ''}${i.verified ? ` · ${i.verified} verified` : ''}` : 'From applications tracked on MadeVisa'}
+            badge={i ? <ReliabilityLabel level={reliabilityOf(i)} /> : null}
+          >
             {i ? (
               i.tracked === 0 ? (
                 <EmptyApplications />
@@ -227,12 +232,14 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
                     <Stat label="Got a response" value={i.response_rate != null ? `${i.response_rate}%` : '—'} />
                     <Stat label="Reached interview" value={i.interview_rate != null ? `${i.interview_rate}%` : '—'} />
                     <Stat label="Received an offer" value={i.offer_rate != null ? `${i.offer_rate}%` : '—'} />
+                    <Stat label="Rejected" value={i.rejection_rate != null ? `${i.rejection_rate}%` : '—'} />
+                    <Stat label="Application viewed" value={i.viewed_rate != null ? `${i.viewed_rate}%` : '—'} />
                     <Stat label="No reply after 30 days" value={i.no_response_rate != null ? `${i.no_response_rate}%` : '—'} />
                   </dl>
                   {i.response_rate == null && (
                     <p className="mt-4 flex items-start gap-1.5 rounded-md bg-ink-50 px-3 py-2 text-[11px] text-ink-500">
                       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      Rates appear once 5 applications are tracked, so no individual applicant can be identified.
+                      Rates appear once at least 5 applications from 3 different applicants are tracked, so no individual can be identified.
                     </p>
                   )}
                 </>
@@ -243,7 +250,12 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
           </Panel>
 
           {/* CANDIDATE EXPERIENCE */}
-          <Panel title="Candidate experience" icon={Star} note="Rated by applicants after applying">
+          <Panel
+            title="Candidate experience"
+            icon={Star}
+            note="Rated by applicants after the process ended"
+            badge={i ? <ReliabilityLabel level={i.rating != null ? (reliabilityOf(i) === 'verified' ? 'verified' : 'reported') : 'insufficient'} /> : null}
+          >
             {i?.rating != null ? (
               <div className="flex items-center gap-4">
                 <p className="font-slab text-4xl font-bold text-ink-950">{i.rating}</p>
@@ -260,7 +272,7 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
           </Panel>
 
           {/* TRUST */}
-          <Panel title="Trust & engagement" icon={ShieldCheck} note="Based on MadeVisa records">
+          <Panel title="Trust & engagement" icon={ShieldCheck} note="Based on MadeVisa records" badge={<ReliabilityLabel level="records" />}>
             <ul className="space-y-2.5 text-sm">
               <Check ok={verified} text={verified ? 'Company verified by MadeVisa' : 'Verification pending'} />
               <Check ok={postsDirectly} text={postsDirectly ? 'Posts jobs directly on MadeVisa' : 'Listings imported from the official careers site'} neutral={!postsDirectly} />
@@ -371,15 +383,38 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
 
 // ---------------------------------------------------------------------------
 
-function Metric({ label, value, icon: Icon, hint }: { label: string; value?: string; icon: typeof Briefcase; hint?: string }) {
+function Metric({ label, value, icon: Icon, hint, reliability }: { label: string; value?: string; icon: typeof Briefcase; hint?: string; reliability?: Reliability }) {
   return (
     <div className="rounded-lg border border-ink-200 bg-white p-4" title={hint}>
       <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
         <Icon className="h-3.5 w-3.5" /> {label}
       </p>
       <p className="mt-1.5 font-slab text-2xl font-bold text-ink-950 tabular-nums">{value ?? '…'}</p>
-      {hint && <p className="mt-0.5 text-[10px] text-ink-400">{hint}</p>}
+      {reliability && (
+        <div className="mt-1">
+          <ReliabilityLabel level={reliability} compact />
+        </div>
+      )}
     </div>
+  );
+}
+
+type Reliability = 'verified' | 'reported' | 'insufficient' | 'records';
+
+/** Tells the reader how much to trust each number. */
+function ReliabilityLabel({ level, compact = false }: { level: Reliability; compact?: boolean }) {
+  const map: Record<Reliability, [string, string, string]> = {
+    records: ['Verified data', 'bg-emerald-50 text-emerald-700', 'From MadeVisa records of listings — not self-reported.'],
+    verified: ['Verified data', 'bg-emerald-50 text-emerald-700', 'Enough applicant reports, including at least 5 backed by evidence MadeVisa verified.'],
+    reported: ['Applicant reported', 'bg-sky-50 text-sky-700', 'From applications users tracked through MadeVisa (5+ reports from 3+ applicants).'],
+    insufficient: ['Insufficient data', 'bg-ink-100 text-ink-500', 'Not enough tracked applications yet — figures are withheld.'],
+  };
+  const [label, cls, tip] = map[level];
+  return (
+    <span title={tip} className={`inline-flex shrink-0 items-center gap-1 rounded-full font-bold ${cls} ${compact ? 'px-1.5 py-[1px] text-[9px]' : 'px-2.5 py-0.5 text-[10px]'}`}>
+      {level === 'verified' || level === 'records' ? <BadgeCheck className={compact ? 'h-2.5 w-2.5' : 'h-3 w-3'} /> : null}
+      {label}
+    </span>
   );
 }
 
@@ -409,19 +444,10 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Confidence({ level }: { level: CompanyInsights['confidence'] }) {
-  const map = {
-    high: ['High', 'bg-emerald-50 text-emerald-700'],
-    medium: ['Medium', 'bg-sky-50 text-sky-700'],
-    low: ['Low', 'bg-amber-50 text-amber-700'],
-    insufficient: ['Not enough data', 'bg-ink-100 text-ink-500'],
-  } as const;
-  const [label, cls] = map[level];
-  return (
-    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${cls}`} title="Data confidence: high = 50+ tracked applications, medium = 15+, low = 5+">
-      Data confidence: {label}
-    </span>
-  );
+function reliabilityOf(i: CompanyInsights): Reliability {
+  if (i.reliability) return i.reliability;
+  // Before the v2 migration: derive from confidence.
+  return i.confidence === 'insufficient' ? 'insufficient' : 'reported';
 }
 
 function Stars({ value }: { value: number }) {

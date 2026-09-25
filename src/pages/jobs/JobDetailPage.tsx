@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { isMeaningfulSalary } from '@/lib/listingCategories';
 import { companyPath, recordApplication } from '@/lib/companies';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Check, ChevronDown, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Phone, Plane, Share2, UserRound, Users } from 'lucide-react';
@@ -86,7 +87,8 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
     description: job ? jobMetaDescription(job, location, cleaned?.html) : 'View this job listing on MadeVisa, including requirements and how to apply.',
     path: canonicalPath,
     noindex: job === null,
-    ogImage: job?.imageUrl ?? undefined,
+    // Generated per job by /api/og/job (see api/og/job.ts); crawlers get it via middleware.ts.
+    ogImage: raw?.id ? `${window.location.origin}/api/og/job?id=${raw.id.slice(0, 8)}` : job?.imageUrl ?? undefined,
   });
 
   // JobPosting structured data — individual job pages only (never the
@@ -106,17 +108,22 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
   const share = async () => {
     const url = window.location.href;
-    if (navigator.share) {
+    // Always copy first, so the "Link copied" note is always true…
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      /* clipboard blocked — the native share sheet below still works */
+    }
+    // …and on phones also open the native share sheet.
+    if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
       try {
         await navigator.share({ title: job?.title, url });
-        return;
       } catch {
-        // user cancelled — fall through to copy
+        /* user cancelled */
       }
     }
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   if (job === undefined) {
@@ -177,7 +184,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // Stored fields win; anything still missing is read from the
   // description itself ("8–12 years of experience", "$126,000—$136,000
   // CAD", "Work Type: Onsite", "unable to sponsor visas", ...).
-  const salary = job.salary || detected.compensation;
+  const salary = [job.salary, detected.compensation].find((v) => isMeaningfulSalary(v)) ?? null;
   const arrangement = job.workArrangement ?? detected.workArrangement ?? (job.remote ? 'remote' : null);
   const employmentType = isMeaningfulJobType(job.type) ? job.type : detected.employmentType;
   const visa = job.visaStatus ?? (job.visaSponsorship ? 'offered' : detected.visa);
@@ -326,13 +333,20 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
             <div className="flex shrink-0 items-center gap-2">
               {applyButton('flex-1 bg-white text-brand-700 shadow-sm hover:bg-brand-50 focus-visible:outline-white md:flex-none')}
-              <button
-                onClick={share}
-                aria-label={shareLabel}
-                className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full border border-white/40 text-white transition hover:bg-white/10"
-              >
-                {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
-              </button>
+              <span className="relative shrink-0">
+                <button
+                  onClick={share}
+                  aria-label={shareLabel}
+                  className="grid h-[52px] w-[52px] place-items-center rounded-full border border-white/40 text-white transition hover:bg-white/10"
+                >
+                  {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+                </button>
+                {copied && (
+                  <span role="status" className="absolute left-1/2 top-full mt-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-white px-2 py-0.5 text-[11px] font-semibold text-brand-700 shadow-sm">
+                    Link copied
+                  </span>
+                )}
+              </span>
             </div>
           </div>
         </div>
@@ -377,13 +391,20 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {applyButton('flex-1 bg-brand-600 text-white shadow-soft-lg hover:bg-brand-700 focus-visible:outline-brand-600 md:flex-none')}
-              <button
-                onClick={share}
-                aria-label={shareLabel}
-                className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full border border-ink-200 text-ink-700 transition hover:bg-ink-50"
-              >
-                {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
-              </button>
+              <span className="relative shrink-0">
+                <button
+                  onClick={share}
+                  aria-label={shareLabel}
+                  className="grid h-[52px] w-[52px] place-items-center rounded-full border border-ink-200 text-ink-700 transition hover:bg-ink-50"
+                >
+                  {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
+                </button>
+                {copied && (
+                  <span role="status" className="absolute left-1/2 top-full mt-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                    Link copied
+                  </span>
+                )}
+              </span>
             </div>
           </div>
 

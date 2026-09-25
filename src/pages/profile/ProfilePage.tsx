@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ApplicationTracker } from '@/components/dashboard/ApplicationTracker';
+import { ApplicantReport } from '@/components/dashboard/ApplicantReport';
 import { jobPath } from '@/lib/jobUrl';
 import {
   AlertTriangle,
@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Clock,
   Copy,
-  Compass,
   Download,
   ExternalLink,
   GraduationCap,
@@ -24,7 +23,6 @@ import {
   Plus,
   Save,
   Settings as SettingsIcon,
-  Shield,
   Sparkles,
   Trash2,
   UserRound,
@@ -69,7 +67,7 @@ type ProfilePageProps = {
 };
 
 type CountryOption = { id: string; name: string; flag_emoji: string | null; iso_code: string };
-type Tab = 'overview' | 'journey' | 'saved' | 'partner' | 'settings';
+type Tab = 'dashboard' | 'saved' | 'partner' | 'settings';
 
 const inputClass =
   'h-11 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
@@ -110,12 +108,12 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   useSeo({ title: 'Your profile', description: 'Manage your MadeVisa profile.', path: '/profile', noindex: true });
 
   const { user, profile, refreshProfile } = useAuth();
-  const { countryCode: originCode, countryName: originName } = useOriginCountry();
+  const { countryName: originName } = useOriginCountry();
 
   const [tab, setTab] = useState<Tab>(() => {
     // Deep link: /profile?tab=saved (e.g. from a company page's "report back" link)
     const t = new URLSearchParams(window.location.search).get('tab');
-    return t === 'saved' || t === 'journey' || t === 'partner' || t === 'settings' ? t : 'overview';
+    return t === 'saved' || t === 'partner' || t === 'settings' ? t : 'dashboard';
   });
   const [countries, setCountries] = useState<CountryOption[]>([]);
 
@@ -129,7 +127,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   const [education, setEducation] = useState('');
   const [specialization, setSpecialization] = useState('');
   const [experience, setExperience] = useState('');
-  const [preferredDestinationId, setPreferredDestinationId] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -177,7 +174,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
     setEducation(profile.education ?? '');
     setSpecialization(profile.specialization ?? '');
     setExperience(profile.experience ?? '');
-    setPreferredDestinationId(profile.preferred_destination_country_id ?? '');
   }, [profile]);
 
   const jobs = useMemo(() => applications.filter((a) => a.kind === 'job'), [applications]);
@@ -194,16 +190,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
     setRecentlyViewedJobs(getRecentlyViewedJobs());
   }, []);
 
-  const journeyDestinations = useMemo(() => {
-    const map = new Map<string, { country: string; countryCode: string; count: number }>();
-    for (const app of applications) {
-      if (!app.countryCode) continue;
-      const existing = map.get(app.countryCode);
-      if (existing) existing.count += 1;
-      else map.set(app.countryCode, { country: app.country, countryCode: app.countryCode, count: 1 });
-    }
-    return Array.from(map.values());
-  }, [applications]);
 
   const handleRemove = (app: SavedApplication) => {
     removeApplication(app.kind, app.refId);
@@ -220,21 +206,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
 
   const residenceCountry = countries.find((c) => c.id === countryId);
   const isEmailConfirmed = Boolean(user?.email_confirmed_at);
-
-  // Profile completion — a fixed, honest set of fields; no invented weighting.
-  const completionFields = [
-    Boolean(fullName),
-    Boolean(phone),
-    Boolean(countryId),
-    Boolean(nationalityId),
-    Boolean(profile.avatar_url),
-    Boolean(occupation),
-    Boolean(education),
-    Boolean(specialization),
-    Boolean(languagesText.trim()),
-    Boolean(preferredDestinationId),
-  ];
-  const completionPct = Math.round((completionFields.filter(Boolean).length / completionFields.length) * 100);
 
   const handleSave = async () => {
     setSaving(true);
@@ -258,7 +229,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         education: education || null,
         specialization: specialization || null,
         experience: experience || null,
-        preferred_destination_country_id: preferredDestinationId || null,
       })
       .eq('id', profile.id);
 
@@ -339,103 +309,58 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   const partnerBadge = publisher ? statusCopy[publisher.verification_status] : null;
   const profileCountry = countries.find((c) => c.id === profile.country_id);
   const canPost = publisher?.verification_status === 'verified';
-  const availabilityLine = publisher
-    ? `${orgTypeLabel[publisher.org_type]} · ${partnerBadge?.label ?? ''}`
-    : 'Looking for opportunities abroad';
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="home" />
 
       <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
-        {/* HEADER */}
-        <div className="overflow-hidden rounded-lg border border-ink-200 bg-white">
-          {/* Cover banner */}
-          <div className="h-28 bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-700 sm:h-36" />
-
-          <div className="px-6 pb-6">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div className="-mt-12 flex items-end gap-4 sm:-mt-14">
-                <div className="rounded-full bg-white p-1 shadow-md">
-                  <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={96} />
-                </div>
-              </div>
-
-              {canPost && (
-                <div className="flex flex-wrap gap-2 pb-1">
-                  <button
-                    onClick={() => go('submit-program')}
-                    className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Post a job
-                  </button>
-                  <button
-                    onClick={() => go('submit-program')}
-                    className="flex items-center gap-1.5 rounded-lg bg-ink-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-ink-800"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Post a program
-                  </button>
-                </div>
+        {/* HEADER — compact */}
+        <div className="flex flex-wrap items-center gap-4 rounded-lg border border-ink-200 bg-white p-5">
+          <span className="rounded-full p-[3px] ring-[3px] ring-[#2563EB]">
+            <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={64} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-xl font-bold tracking-tight text-ink-950 sm:text-2xl">{profile.full_name || 'Your profile'}</h1>
+              {isEmailConfirmed && (
+                <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Verified
+                </span>
+              )}
+              {partnerBadge && (
+                <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${partnerBadge.className}`}>
+                  {orgTypeLabel[publisher!.org_type]} · {partnerBadge.label}
+                </span>
               )}
             </div>
-
-            <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-bold tracking-tight text-ink-950">{profile.full_name || 'Your profile'}</h1>
-                  {isEmailConfirmed && (
-                    <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                      <CheckCircle2 className="h-3 w-3" />
-                      Verified
-                    </span>
-                  )}
-                  {partnerBadge && (
-                    <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${partnerBadge.className}`}>
-                      {orgTypeLabel[publisher!.org_type]} · {partnerBadge.label}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-brand-700">
-                  <Shield className="h-4 w-4" />
-                  {availabilityLine}
-                </p>
-
-                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-ink-600">
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="h-4 w-4 text-ink-400" />
-                    {profileCountry?.name ?? 'Add your location'}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Briefcase className="h-4 w-4 text-ink-400" />
-                    {profile.occupation || 'Add your occupation'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex flex-col items-end gap-2">
-                <button
-                  onClick={() => setTab('settings')}
-                  className="rounded-lg border border-ink-200 px-4 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50"
-                >
-                  Edit profile
-                </button>
-                <div className="flex items-center gap-2 text-[11px] text-ink-400">
-                  <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ink-100">
-                    <div className="h-full rounded-full bg-brand-500" style={{ width: `${completionPct}%` }} />
-                  </div>
-                  {completionPct}% complete
-                </div>
-              </div>
-            </div>
-
-            {/* Soft info card */}
-            <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 rounded-lg bg-ink-50 px-4 py-3 text-xs text-ink-600">
-              <span><span className="font-semibold text-ink-800">Education:</span> {profile.education || '—'}</span>
-              <span><span className="font-semibold text-ink-800">Specialization:</span> {profile.specialization || '—'}</span>
-              <span><span className="font-semibold text-ink-800">Languages:</span> {profile.languages?.length ? profile.languages.join(', ') : '—'}</span>
-            </div>
+            <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-500">
+              <span className="flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 text-ink-400" />
+                {profileCountry?.name ?? originName ?? 'Location not set'}
+              </span>
+              {profile.occupation && (
+                <span className="flex items-center gap-1.5">
+                  <Briefcase className="h-3.5 w-3.5 text-ink-400" />
+                  {profile.occupation}
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {canPost && (
+              <button
+                onClick={() => go('submit-program')}
+                className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-brand-700"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Post a listing
+              </button>
+            )}
+            <button onClick={() => setTab('settings')} className="rounded-lg border border-ink-200 px-3.5 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50">
+              Edit profile
+            </button>
           </div>
         </div>
 
@@ -460,132 +385,24 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         )}
 
         {/* TABS */}
-        <div className="mt-6 flex flex-wrap gap-2 border-b border-ink-200 pb-3">
-          <TabButton active={tab === 'overview'} onClick={() => setTab('overview')} icon={Sparkles} label="Overview" />
-          <TabButton active={tab === 'journey'} onClick={() => setTab('journey')} icon={Compass} label="My journey" />
-          <TabButton
-            active={tab === 'saved'}
-            onClick={() => setTab('saved')}
-            icon={Briefcase}
-            label={`Applications & saved (${applications.length})`}
-          />
-          <TabButton
-            active={tab === 'partner'}
-            onClick={() => setTab('partner')}
-            icon={Award}
-            label={publisher ? 'Partner workspace' : 'Become a partner'}
-          />
+        <div className="mt-6 flex gap-2 overflow-x-auto border-b border-ink-200 pb-3 [scrollbar-width:none]">
+          <TabButton active={tab === 'dashboard'} onClick={() => setTab('dashboard')} icon={Sparkles} label="Dashboard" />
+          <TabButton active={tab === 'saved'} onClick={() => setTab('saved')} icon={Briefcase} label={`Saved (${applications.length})`} />
+          <TabButton active={tab === 'partner'} onClick={() => setTab('partner')} icon={Award} label={publisher ? 'Organization' : 'For organizations'} />
           <TabButton active={tab === 'settings'} onClick={() => setTab('settings')} icon={SettingsIcon} label="Settings" />
         </div>
 
-        {/* OVERVIEW */}
-        {tab === 'overview' && (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <SummaryCard
-              icon={Briefcase}
-              title="Saved items"
-              value={String(applications.length)}
-              detail={`${jobs.length} jobs · ${programs.length} programs · ${savedAgencies.length + savedExperts.length} experts/agencies`}
-              onClick={() => setTab('saved')}
-            />
-            <SummaryCard
-              icon={Compass}
-              title="Your journey"
-              value={originName ?? 'Not detected'}
-              detail={journeyDestinations.length > 0 ? `Exploring ${journeyDestinations.length} destination${journeyDestinations.length === 1 ? '' : 's'}` : 'Save something to start your journey'}
-              onClick={() => setTab('journey')}
-            />
-            <SummaryCard
-              icon={Award}
-              title={publisher ? 'Partner status' : 'Become a partner'}
-              value={publisher ? statusCopy[publisher.verification_status].label : 'Not applied'}
-              detail={publisher ? orgTypeLabel[publisher.org_type] : 'Publish jobs, programs, or list as an expert'}
-              onClick={() => setTab('partner')}
-            />
-            <SummaryCard
-              icon={UserRound}
-              title="Profile completion"
-              value={`${completionPct}%`}
-              detail={completionPct < 100 ? 'Fill in more details in Settings' : "You're all set"}
-              onClick={() => setTab('settings')}
-            />
+        {/* DASHBOARD — applications at a glance + recently viewed */}
+        {tab === 'dashboard' && (
+          <div className="mt-6 space-y-8">
+            <ApplicantReport viewedCount={recentlyViewedJobs.length} />
+            <RecentlyViewedSection items={recentlyViewedJobs} onBrowse={() => go('jobs')} />
           </div>
-        )}
-
-        {/* JOURNEY */}
-        {tab === 'journey' && (
-          <section className="mt-6 border border-ink-200 bg-white p-6">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-600">
-              <Compass className="h-4 w-4" />
-              Your journey
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2 rounded-lg bg-ink-50 px-3 py-2">
-                <MapPin className="h-4 w-4 text-ink-400" />
-                <span className="text-xs text-ink-500">Currently in</span>
-                {originCode ? (
-                  <span className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
-                    <CircleFlagInline countryCode={originCode} />
-                    {originName}
-                  </span>
-                ) : (
-                  <span className="text-sm text-ink-400">Not detected</span>
-                )}
-              </div>
-
-              {journeyDestinations.length > 0 && (
-                <>
-                  <ArrowRight className="h-4 w-4 text-ink-300" />
-                  <div className="flex flex-wrap gap-2">
-                    {journeyDestinations.map((d) => (
-                      <span
-                        key={d.countryCode}
-                        className="flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700"
-                      >
-                        <CircleFlagInline countryCode={d.countryCode} />
-                        {d.country}
-                        {d.count > 1 && <span className="text-xs font-normal text-brand-500">×{d.count}</span>}
-                      </span>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {journeyDestinations.length === 0 && (
-              <p className="mt-3 text-xs text-ink-400">Save a job, program or destination and it'll show up here.</p>
-            )}
-
-            <div className="mt-6 border-t border-ink-100 pt-5">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Your path</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                {['Discover', 'Compare', 'Choose', 'Apply', 'Prepare', 'Move'].map((stage, i) => (
-                  <div key={stage} className="flex items-center gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1.5 font-semibold ${
-                        i === 0 ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-400'
-                      }`}
-                    >
-                      {stage}
-                    </span>
-                    {i < 5 && <ArrowRight className="h-3 w-3 text-ink-300" />}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-3 text-[11px] text-ink-400">
-                Full journey tracking (documents, deadlines, next steps) is on the roadmap — this shows where the
-                feature is headed.
-              </p>
-            </div>
-          </section>
         )}
 
         {/* SAVED */}
         {tab === 'saved' && (
           <div className="mt-6 space-y-10">
-            {/* Applications started through MadeVisa — updating the outcome here builds company response stats */}
-            <ApplicationTracker />
             <SavedSection
               icon={Briefcase}
               title="Saved jobs"
@@ -595,7 +412,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
               onBrowse={() => go('jobs')}
               onRemove={handleRemove}
             />
-            <RecentlyViewedSection items={recentlyViewedJobs} onBrowse={() => go('jobs')} />
             <SavedSection
               icon={GraduationCap}
               title="Saved programs"
@@ -787,15 +603,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
                   />
                 </div>
 
-                <div>
-                  <label className={labelClass}>Preferred destination (optional)</label>
-                  <select value={preferredDestinationId} onChange={(e) => setPreferredDestinationId(e.target.value)} className={inputClass}>
-                    <option value="">Select</option>
-                    {countries.map((c) => (
-                      <option key={c.id} value={c.id}>{c.flag_emoji ?? ''} {c.name}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               {error && <p className="mt-3 text-xs font-medium text-rose-600">{error}</p>}
@@ -877,34 +684,6 @@ function TabButton({ active, onClick, icon: Icon, label }: { active: boolean; on
     >
       <Icon className="h-3.5 w-3.5" />
       {label}
-    </button>
-  );
-}
-
-function SummaryCard({
-  icon: Icon,
-  title,
-  value,
-  detail,
-  onClick,
-}: {
-  icon: typeof Sparkles;
-  title: string;
-  value: string;
-  detail: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-start border border-ink-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg"
-    >
-      <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-50 text-brand-600">
-        <Icon className="h-4 w-4" />
-      </span>
-      <p className="mt-3 text-xs font-semibold text-ink-500">{title}</p>
-      <p className="mt-0.5 text-lg font-bold text-ink-950">{value}</p>
-      <p className="mt-1 text-xs text-ink-400">{detail}</p>
     </button>
   );
 }

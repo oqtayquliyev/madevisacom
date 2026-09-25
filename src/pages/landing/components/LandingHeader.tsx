@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   User,
   UserPlus,
-  UserRound,
   Users,
   X,
 } from 'lucide-react';
@@ -139,13 +138,24 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                 setOpenMenu(false); // opening the profile menu closes the hamburger nav — otherwise both overlap on mobile
               }}
               aria-label="Account menu"
-              className={`grid place-items-center rounded-full transition ${
+              className={`flex items-center transition ${
                 profile
-                  ? 'h-9 w-9 ring-2 ring-transparent hover:ring-brand-200'
-                  : 'h-9 w-9 border border-ink-200 bg-ink-50 text-ink-500 hover:border-brand-300 hover:text-brand-600'
+                  ? 'gap-2 rounded-full py-0.5 pl-3 pr-0.5 hover:bg-ink-50'
+                  : 'grid h-9 w-9 place-items-center rounded-full border border-ink-200 bg-ink-50 text-ink-500 hover:border-brand-300 hover:text-brand-600'
               }`}
             >
-              {profile ? <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={36} /> : <User className="h-4 w-4" />}
+              {profile ? (
+                <>
+                  <span className="hidden max-w-[8rem] truncate text-sm font-semibold text-ink-800 sm:block">
+                    {profile.full_name?.split(' ')[0] || 'Profile'}
+                  </span>
+                  <span className="rounded-full p-[2px] ring-[2.5px] ring-[#2563EB]">
+                    <TravelerAvatar seed={profile.id} avatarUrl={profile.avatar_url} size={32} />
+                  </span>
+                </>
+              ) : (
+                <User className="h-4 w-4" />
+              )}
             </button>
 
             {openProfile && (
@@ -168,26 +178,11 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                   {profile ? (
                     <>
                       <button
-                        onClick={() => {
-                          setOpenProfile(false);
-                          if (profile?.username) {
-                            window.history.pushState({}, '', `/u/${profile.username}`);
-                            window.dispatchEvent(new PopStateEvent('popstate'));
-                          } else {
-                            go('profile');
-                          }
-                        }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
-                      >
-                        <UserRound className="h-4 w-4 text-ink-400" />
-                        My profile
-                      </button>
-                      <button
-                        onClick={() => { go('dashboard'); setOpenProfile(false); }}
+                        onClick={() => { go('profile'); setOpenProfile(false); }}
                         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
                       >
                         <LayoutDashboard className="h-4 w-4 text-ink-400" />
-                        Dashboard
+                        My profile & applications
                       </button>
                       {managedCompanyName && (
                         <button

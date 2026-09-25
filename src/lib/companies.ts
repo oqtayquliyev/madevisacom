@@ -37,6 +37,14 @@ export type CompanyInsights = {
   top_functions: string[];
   top_countries: { name: string; code: string; n: number }[];
   tracked: number;
+  /** Distinct applicants behind `tracked` (rates need ≥3). */
+  applicants?: number;
+  /** Reports backed by admin-verified evidence. */
+  verified?: number;
+  viewed_rate?: number | null;
+  rejection_rate?: number | null;
+  /** 'verified' | 'reported' | 'insufficient' — how reliable the applicant metrics are. */
+  reliability?: 'verified' | 'reported' | 'insufficient';
   last90: number;
   rating_count: number;
   response_rate: number | null;
@@ -106,19 +114,34 @@ export async function fetchCompaniesDirectory(): Promise<DirectoryCompany[] | nu
 }
 
 // ---------------------------------------------------------------------------
-// Application tracking (signed-in users)
+// Application tracking (Applicant Report)
 // ---------------------------------------------------------------------------
 
-export type ApplicationStatus = 'applied' | 'responded' | 'interview' | 'offer' | 'rejected' | 'no_response' | 'withdrawn';
+export type ApplicationStatus = 'applied' | 'viewed' | 'responded' | 'interview' | 'offer' | 'rejected' | 'no_response' | 'withdrawn';
 
+/** Statuses a user can pick. ('responded' is a legacy value still displayed if present.) */
 export const APPLICATION_STATUSES: { value: ApplicationStatus; label: string }[] = [
-  { value: 'applied', label: 'Applied — waiting' },
-  { value: 'responded', label: 'Got a response' },
+  { value: 'applied', label: 'Applied' },
+  { value: 'viewed', label: 'Viewed by company' },
   { value: 'interview', label: 'Interview' },
-  { value: 'offer', label: 'Offer 🎉' },
+  { value: 'offer', label: 'Offer' },
   { value: 'rejected', label: 'Rejected' },
   { value: 'no_response', label: 'No response' },
   { value: 'withdrawn', label: 'I withdrew' },
+];
+
+export const FINAL_STATUSES: ApplicationStatus[] = ['offer', 'rejected', 'no_response'];
+
+/** Structured feedback only — no free text, so reports stay factual. */
+export const FEEDBACK_TAGS: { value: string; label: string; tone: 'good' | 'bad' }[] = [
+  { value: 'clear_communication', label: 'Clear communication', tone: 'good' },
+  { value: 'timely_updates', label: 'Timely updates', tone: 'good' },
+  { value: 'respectful_process', label: 'Respectful process', tone: 'good' },
+  { value: 'fair_assessment', label: 'Fair assessment', tone: 'good' },
+  { value: 'slow_process', label: 'Slow process', tone: 'bad' },
+  { value: 'no_feedback_given', label: 'No feedback given', tone: 'bad' },
+  { value: 'unclear_requirements', label: 'Unclear requirements', tone: 'bad' },
+  { value: 'long_silence', label: 'Long silence', tone: 'bad' },
 ];
 
 export type ApplicationReport = {
@@ -129,20 +152,45 @@ export type ApplicationReport = {
   listing_title: string | null;
   applied_at: string;
   status: ApplicationStatus;
+  viewed_at: string | null;
   responded_at: string | null;
+  interview_at: string | null;
+  offer_at: string | null;
   experience_rating: number | null;
+  feedback_tags: string[] | null;
+  evidence_path: string | null;
+  evidence_status: 'none' | 'pending' | 'verified' | 'rejected';
+  excluded: boolean;
+  updated_at: string;
   publisher?: { id: string; name: string; logo_url: string | null } | null;
 };
 
+const PENDING_KEY = 'madevisa.pendingApplications.v1';
+type PendingApplication = { publisherId: string; kind: 'job' | 'program'; listingId: string; title: string; clickedAt: string };
+
+function readPending(): PendingApplication[] {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_KEY) ?? '[]') as PendingApplication[];
+  } catch {
+    return [];
+  }
+}
+
 /**
- * Records that the signed-in user applied through MadeVisa. Called when
- * they click Apply. Silently does nothing for visitors who aren't signed
- * in, for live-feed jobs without a company record, or if already recorded.
+ * Records that the user clicked Apply. Signed in → saved straight away.
+ * Not signed in → remembered on this device and added to their Applicant
+ * Report the next time they're signed in (with the real click time, up
+ * to 14 days back). Never blocks applying.
  */
 export async function recordApplication(input: { publisherId: string; kind: 'job' | 'program'; listingId: string; title: string }): Promise<void> {
   try {
     const { data } = await supabase.auth.getSession();
-    if (!data.session) return;
+    if (!data.session) {
+      const pending = readPending().filter((p) => !(p.kind === input.kind && p.listingId === input.listingId));
+      pending.unshift({ ...input, clickedAt: new Date().toISOString() });
+      localStorage.setItem(PENDING_KEY, JSON.stringify(pending.slice(0, 50)));
+      return;
+    }
     await supabase.from('application_reports').upsert(
       { publisher_id: input.publisherId, listing_kind: input.kind, listing_id: input.listingId, listing_title: input.title },
       { onConflict: 'user_id,listing_kind,listing_id', ignoreDuplicates: true }
@@ -152,17 +200,105 @@ export async function recordApplication(input: { publisherId: string; kind: 'job
   }
 }
 
-export async function fetchMyApplicationReports(): Promise<ApplicationReport[]> {
-  const { data, error } = await supabase
-    .from('application_reports')
-    .select('id, publisher_id, listing_kind, listing_id, listing_title, applied_at, status, responded_at, experience_rating, publisher:program_publishers(id, name, logo_url)')
-    .order('applied_at', { ascending: false })
-    .limit(200);
-  if (error) return [];
-  return (data ?? []) as unknown as ApplicationReport[];
+/** Moves Apply clicks made while signed out into the signed-in user's report. */
+export async function syncPendingApplications(): Promise<number> {
+  const pending = readPending();
+  if (!pending.length) return 0;
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return 0;
+  let synced = 0;
+  const left: PendingApplication[] = [];
+  for (const p of pending) {
+    const { error } = await supabase.from('application_reports').upsert(
+      { publisher_id: p.publisherId, listing_kind: p.kind, listing_id: p.listingId, listing_title: p.title, applied_at: p.clickedAt },
+      { onConflict: 'user_id,listing_kind,listing_id', ignoreDuplicates: true }
+    );
+    if (error && !/not on MadeVisa/i.test(error.message)) left.push(p);
+    else if (!error) synced++;
+  }
+  localStorage.setItem(PENDING_KEY, JSON.stringify(left));
+  return synced;
 }
 
-export async function updateApplicationReport(id: string, patch: { status?: ApplicationStatus; experience_rating?: number | null }) {
+const REPORT_COLUMNS =
+  'id, publisher_id, listing_kind, listing_id, listing_title, applied_at, status, viewed_at, responded_at, interview_at, offer_at, experience_rating, feedback_tags, evidence_path, evidence_status, excluded, updated_at, publisher:program_publishers(id, name, logo_url)';
+const REPORT_COLUMNS_V1 =
+  'id, publisher_id, listing_kind, listing_id, listing_title, applied_at, status, responded_at, interview_at, offer_at, experience_rating, updated_at, publisher:program_publishers(id, name, logo_url)';
+
+export async function fetchMyApplicationReports(): Promise<ApplicationReport[]> {
+  let res: { data: unknown; error: { message: string } | null } = await supabase
+    .from('application_reports')
+    .select(REPORT_COLUMNS)
+    .order('applied_at', { ascending: false })
+    .limit(200);
+  if (res.error && /column|schema cache/i.test(res.error.message)) {
+    // Before the v2 migration: still show what exists.
+    res = await supabase.from('application_reports').select(REPORT_COLUMNS_V1).order('applied_at', { ascending: false }).limit(200);
+  }
+  if (res.error) return [];
+  return ((res.data ?? []) as unknown as Partial<ApplicationReport>[]).map((r) => ({
+    viewed_at: null,
+    feedback_tags: null,
+    evidence_path: null,
+    evidence_status: 'none',
+    excluded: false,
+    ...r,
+  })) as ApplicationReport[];
+}
+
+export async function updateApplicationReport(
+  id: string,
+  patch: { status?: ApplicationStatus; experience_rating?: number | null; feedback_tags?: string[] | null; evidence_path?: string | null }
+) {
   const { error } = await supabase.from('application_reports').update(patch).eq('id', id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/** Uploads a private screenshot/PDF of the company's reply. Only the user and MadeVisa admins can open it. */
+export async function uploadApplicationEvidence(report: ApplicationReport, file: File): Promise<{ ok: boolean; error?: string }> {
+  if (file.size > 5 * 1024 * 1024) return { ok: false, error: 'File is larger than 5 MB.' };
+  if (!/^(image\/(png|jpeg|webp)|application\/pdf)$/.test(file.type)) return { ok: false, error: 'Use a PNG, JPG, WebP or PDF.' };
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return { ok: false, error: 'Please sign in again.' };
+  const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
+  const path = `${data.user.id}/${report.id}/${Date.now()}.${ext}`;
+  const up = await supabase.storage.from('application-evidence').upload(path, file, { upsert: false, contentType: file.type });
+  if (up.error) return { ok: false, error: up.error.message };
+  if (report.evidence_path) await supabase.storage.from('application-evidence').remove([report.evidence_path]);
+  return updateApplicationReport(report.id, { evidence_path: path });
+}
+
+export async function removeApplicationEvidence(report: ApplicationReport) {
+  if (report.evidence_path) await supabase.storage.from('application-evidence').remove([report.evidence_path]);
+  return updateApplicationReport(report.id, { evidence_path: null });
+}
+
+export async function evidenceSignedUrl(path: string): Promise<string | null> {
+  const { data } = await supabase.storage.from('application-evidence').createSignedUrl(path, 300);
+  return data?.signedUrl ?? null;
+}
+
+// ---- Admin: evidence review ----------------------------------------------
+
+export type EvidenceReview = ApplicationReport & { user_id?: string };
+
+export async function fetchPendingEvidence(): Promise<EvidenceReview[]> {
+  const { data, error } = await supabase
+    .from('application_reports')
+    .select(REPORT_COLUMNS)
+    .eq('evidence_status', 'pending')
+    .order('updated_at', { ascending: true })
+    .limit(100);
+  if (error) return [];
+  return (data ?? []) as unknown as EvidenceReview[];
+}
+
+export async function reviewEvidence(id: string, verdict: 'verified' | 'rejected') {
+  const { error } = await supabase.from('application_reports').update({ evidence_status: verdict }).eq('id', id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function setReportExcluded(id: string, excluded: boolean, reason?: string) {
+  const { error } = await supabase.from('application_reports').update({ excluded, excluded_reason: excluded ? reason ?? 'Excluded by admin' : null }).eq('id', id);
   return error ? { ok: false, error: error.message } : { ok: true };
 }

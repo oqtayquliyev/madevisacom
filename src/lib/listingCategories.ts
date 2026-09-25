@@ -109,6 +109,19 @@ export const JOB_CATEGORY_FIELDS: Record<JobCategory, string[]> = {
  * newly-submitted "Volunteer / unpaid" job never shows a stray "—".
  * Returns null when there's genuinely nothing to show.
  */
+/**
+ * True when a salary text actually states an amount. Careers sites often
+ * leave placeholder values in hidden salary fields ("0.0", "0", "$0.00",
+ * "N/A") that never appear on their own page — those must not be shown.
+ */
+export function isMeaningfulSalary(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const t = text.trim();
+  if (!t || t === '[object Object]') return false;
+  if (/^(n\/?a|none|null|undefined|tbd|-+|—)$/i.test(t)) return false;
+  return /[1-9]/.test(t);
+}
+
 export function formatSalary(job: {
   salary_status?: SalaryStatus;
   salary_min?: number | null;
@@ -120,7 +133,7 @@ export function formatSalary(job: {
   // Some importer runs stored a JS object into compensation_text, which
   // then rendered literally as "[object Object]" on cards. Treat that as
   // "no salary text" rather than showing it.
-  if (job.compensation_text && job.compensation_text.trim() === '[object Object]') {
+  if (job.compensation_text && !isMeaningfulSalary(job.compensation_text)) {
     job = { ...job, compensation_text: null };
   }
   switch (job.salary_status) {
@@ -139,6 +152,7 @@ export function formatSalary(job: {
         job.salary_min != null && job.salary_max != null && job.salary_min !== job.salary_max
           ? `${fmt(job.salary_min)}–${fmt(job.salary_max)}`
           : fmt(job.salary_min ?? job.salary_max ?? 0);
+      if (!(job.salary_min || job.salary_max)) return job.compensation_text || null; // min/max both 0
       return `${range}/${period}`;
     }
     case 'not_disclosed':

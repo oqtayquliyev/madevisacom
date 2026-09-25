@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { detectJobFacts, isPlaceholderValue, splitSourceLocation, type WorkArrangement } from '@/lib/jobFacts';
 import type { OrgType } from '@/lib/programs';
 import type { ListingStatus, SalaryStatus, SalaryPeriod, CostStatus } from '@/lib/listingCategories';
-import { JOB_CATEGORIES, type JobCategory } from '@/lib/listingCategories';
+import { JOB_CATEGORIES, isMeaningfulSalary, type JobCategory } from '@/lib/listingCategories';
 import { matchCountriesFromOfficeNames } from '@/lib/officeLocations';
 import { classifyJobFunctionFromTitle } from '@/lib/jobCategories';
 import { fetchJobDetail } from '@/lib/atsImport';
@@ -592,7 +592,7 @@ export function importJobToRow(
   const facts = detectJobFacts(j.description, j.title);
   const jobCategory = normalizeJobCategory(j.employmentTypeRaw || facts.employmentType);
   const arrangement = j.workArrangement ?? facts.workArrangement;
-  const salaryText = j.salaryText || facts.compensation;
+  const salaryText = [j.salaryText, facts.compensation].find((v) => isMeaningfulSalary(v)) ?? null;
   // The description's own facts block ("Location: Osnabrück, DE",
   // "Department: ...", "Posting Date: Sep 23, 2026") fills gaps the
   // listing API left empty or filled with placeholders like "All".
@@ -1025,7 +1025,7 @@ export async function backfillJobFacts(
       const f = detectJobFacts(r.description, r.title);
       const patch: Record<string, unknown> = { ...(rereadPatch.get(r.id) ?? {}) };
       const comp = (r.compensation_text ?? '').trim();
-      if ((!comp || comp === '[object Object]') && f.compensation && r.salary_status !== 'volunteer') {
+      if (!isMeaningfulSalary(comp) && f.compensation && r.salary_status !== 'volunteer') {
         patch.compensation_text = f.compensation;
         patch.salary_status = 'disclosed';
         counts.compensation++;
