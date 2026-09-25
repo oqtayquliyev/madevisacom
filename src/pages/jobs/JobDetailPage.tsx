@@ -16,10 +16,10 @@ import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { useSeo } from '@/lib/seo';
-import { sanitizeJobHtml } from '@/lib/atsImport';
+import { purifyJobHtml, sanitizeJobHtml } from '@/lib/atsImport';
 import { formatRelativeTime } from '@/lib/dates';
 import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
-import { cleanJobDescriptionHtml, detectJobFacts, type JobContact } from '@/lib/jobFacts';
+import { EMPTY_FACTS, fetchJobFacts, isCurrentFacts, type JobContact, type StoredJobFacts } from '@/lib/jobFactsClient';
 import { allCountries } from '@/data/allCountries';
 
 type JobDetailPageProps = {
@@ -43,8 +43,36 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // Description with the facts block, repeated copies, apply CTAs and
   // trailing contact lines stripped out (contact shown in its own box),
   // plus the structured facts read from the same text.
-  const cleaned = useMemo(() => (job?.description ? cleanJobDescriptionHtml(sanitizeJobHtml(job.description), job.title) : null), [job]);
-  const detectedFacts = useMemo(() => (job ? detectJobFacts(job.description, job.title) : null), [job]);
+  // Both come from MadeVisa's detector on the server (job-facts function):
+  // saved with the job, or computed on first view. Until they arrive the
+  // description is shown as-is and the detail boxes show placeholders.
+  const [stored, setStored] = useState<StoredJobFacts | null>(null);
+  const [factsPending, setFactsPending] = useState(false);
+  useEffect(() => {
+    setStored(null);
+    setFactsPending(false);
+    if (!raw) return;
+    if (isCurrentFacts(raw.facts)) {
+      setStored(raw.facts);
+      return;
+    }
+    let cancelled = false;
+    setFactsPending(true);
+    fetchJobFacts(raw.id).then((f) => {
+      if (cancelled) return;
+      setStored(f);
+      setFactsPending(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [raw]);
+  const cleaned = useMemo<{ html: string; contact: JobContact } | null>(() => {
+    if (!job?.description) return null;
+    if (stored) return { html: purifyJobHtml(stored.html), contact: stored.contact ?? {} };
+    return { html: sanitizeJobHtml(job.description), contact: {} };
+  }, [job, stored]);
+  const detectedFacts = stored?.facts ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -162,7 +190,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   }
 
   const SponsorIcon = job.publisherOrgType === 'government' ? Landmark : job.publisherOrgType === 'expert' ? UserRound : Building2;
-  const detected = detectedFacts ?? detectJobFacts(job.description, job.title);
+  const detected = detectedFacts ?? EMPTY_FACTS;
   // Importers sometimes store placeholder values ("All", "Various") —
   // the source's own labeled fields are more accurate then.
   const category = displayJobCategory({ title: job.title, category: isPlaceholder(job.category) ? detected.department : job.category });
@@ -192,7 +220,10 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // Direct listings have no separate source page — their apply link is
   // the company's own form, so "See on source" would be misleading.
   const isDirect = job.sourceType === 'company_submitted';
-  const see = isDirect ? <span className="font-medium text-ink-400">Not listed</span> : <SourceLink url={hasSourceUrl ? job.url : null} />;
+  // While the server is still reading the description (first view only),
+  // show a placeholder bar instead of a premature "See on source".
+  const pendingBar = <span className="inline-block h-4 w-20 animate-pulse rounded bg-ink-100 align-middle" aria-label="Loading" />;
+  const see = factsPending ? pendingBar : isDirect ? <span className="font-medium text-ink-400">Not listed</span> : <SourceLink url={hasSourceUrl ? job.url : null} />;
   // Stored fields win; anything still missing is read from the
   // description itself ("8–12 years of experience", "$126,000—$136,000
   // CAD", "Work Type: Onsite", "unable to sponsor visas", ...).
@@ -230,7 +261,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
     {
       icon: Plane,
       label: 'Visa sponsorship',
-      value: visa === 'offered' ? 'Offered' : visa === 'not_offered' ? 'Not offered' : isDirect ? see : <SourceLink url={hasSourceUrl ? job.url : null} label="Ask on source" />,
+      value: visa === 'offered' ? 'Offered' : visa === 'not_offered' ? 'Not offered' : isDirect || factsPending ? see : <SourceLink url={hasSourceUrl ? job.url : null} label="Ask on source" />,
     },
   ];
 

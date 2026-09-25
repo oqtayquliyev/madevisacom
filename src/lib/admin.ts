@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
-import { detectJobFacts, isPlaceholderValue, splitSourceLocation, type WorkArrangement } from '@/lib/jobFacts';
+import { isPlaceholderValue, splitSourceLocation } from '@/lib/jobText';
+import { detectFactsForItems, EMPTY_FACTS, refreshJobFacts, type DetectedFacts, type WorkArrangement } from '@/lib/jobFactsClient';
 import type { OrgType } from '@/lib/programs';
 import type { ListingStatus, SalaryStatus, SalaryPeriod, CostStatus } from '@/lib/listingCategories';
 import { JOB_CATEGORIES, isMeaningfulSalary, type JobCategory } from '@/lib/listingCategories';
@@ -598,12 +599,14 @@ export function importJobToRow(
   j: ImportJobInput,
   publisherId: string,
   countries: ImportCountryLookup[],
-  options: { importSourceId?: string | null; status?: 'pending' | 'published' } = {}
+  options: { importSourceId?: string | null; status?: 'pending' | 'published' } = {},
+  // What the description says — computed by the job-facts server function
+  // (see importJobsAsPending). Empty when that function isn't reachable.
+  facts: DetectedFacts = EMPTY_FACTS
 ) {
   // Employment type comes from employmentTypeRaw (or, failing that, what
   // the description says) — j.category is a job-function value (Design,
   // Engineering, ...), not an employment type.
-  const facts = detectJobFacts(j.description, j.title);
   const jobCategory = normalizeJobCategory(j.employmentTypeRaw || facts.employmentType);
   const arrangement = j.workArrangement ?? facts.workArrangement;
   const salaryText = [j.salaryText, facts.compensation].find((v) => isMeaningfulSalary(v)) ?? null;
@@ -657,16 +660,32 @@ function isMissingColumnError(error: { message?: string; code?: string } | null)
 }
 
 /** Inserts rows; if the optional new columns don't exist yet, retries without them instead of failing the import. */
-async function insertJobRows(rows: Record<string, unknown>[]): Promise<{ error: { message: string } | null }> {
-  const first = await supabase.from('sponsored_jobs').insert(rows, { defaultToNull: false });
-  if (!isMissingColumnError(first.error)) return { error: first.error };
+async function insertJobRows(rows: Record<string, unknown>[]): Promise<{ error: { message: string } | null; ids: string[] }> {
+  const first = await supabase.from('sponsored_jobs').insert(rows, { defaultToNull: false }).select('id');
+  if (!isMissingColumnError(first.error)) return { error: first.error, ids: ((first.data ?? []) as { id: string }[]).map((r) => r.id) };
   const stripped = rows.map((r) => {
     const copy = { ...r };
     for (const c of OPTIONAL_NEW_COLUMNS) delete copy[c];
     return copy;
   });
-  const second = await supabase.from('sponsored_jobs').insert(stripped, { defaultToNull: false });
-  return { error: second.error };
+  const second = await supabase.from('sponsored_jobs').insert(stripped, { defaultToNull: false }).select('id');
+  return { error: second.error, ids: ((second.data ?? []) as { id: string }[]).map((r) => r.id) };
+}
+
+/**
+ * Saves the full detector results (cleaned description, contact, facts)
+ * for freshly imported jobs — 100 per server call — so no visitor ever
+ * waits for them on first view. Failures are ignored: the page computes
+ * them on demand instead.
+ */
+async function storeFactsForNewJobs(ids: string[]) {
+  for (let i = 0; i < ids.length; i += 100) {
+    const res = await refreshJobFacts(ids.slice(i, i + 100), false);
+    if (!res.ok) {
+      console.warn('job-facts: could not store results for new jobs', res.error);
+      return;
+    }
+  }
 }
 
 /**
@@ -704,7 +723,7 @@ export async function importJobsAsPending(
     }
   }
 
-  const rows: ReturnType<typeof importJobToRow>[] = [];
+  const fresh: ImportJobInput[] = [];
   let skipped = 0;
   for (const j of jobs) {
     const ext = j.externalId ? String(j.externalId) : '';
@@ -715,16 +734,25 @@ export async function importJobsAsPending(
     }
     if (ext) seenExternal.add(ext);
     if (url) seenUrls.add(url);
-    rows.push(importJobToRow(j, publisherId, countries, options));
+    fresh.push(j);
   }
+  // The description detector runs on the server (job-facts function). If
+  // it can't be reached the import still goes ahead; "Backfill job facts"
+  // fills the gaps later.
+  const detected = fresh.length ? await detectFactsForItems(fresh.map((j) => ({ title: j.title, description: j.description }))) : { ok: true, facts: [] };
+  if (!detected.ok) console.warn('job-facts unavailable during import:', detected.error);
+  const rows = fresh.map((j, i) => importJobToRow(j, publisherId, countries, options, detected.facts[i] ?? EMPTY_FACTS));
 
   // Chunked: a failure partway through still keeps what already landed.
   const INSERT_CHUNK_SIZE = 250;
   let imported = 0;
+  const newIds: string[] = [];
   for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
     const chunk = rows.slice(i, i + INSERT_CHUNK_SIZE);
-    const { error } = await insertJobRows(chunk);
+    const { error, ids } = await insertJobRows(chunk);
+    newIds.push(...ids);
     if (error) {
+      await storeFactsForNewJobs(newIds);
       return {
         ok: imported > 0,
         imported,
@@ -734,6 +762,7 @@ export async function importJobsAsPending(
     }
     imported += chunk.length;
   }
+  await storeFactsForNewJobs(newIds);
   return { ok: true, imported, skipped };
 }
 
@@ -1033,10 +1062,28 @@ export async function backfillJobFacts(
       );
     }
 
+    // Detector runs on the server (job-facts function): stored rows are
+    // (re)analysed and saved there; re-read descriptions aren't saved yet,
+    // so they're analysed as text.
+    const withText = rows.filter((r) => r.description);
+    const reread = withText.filter((r) => rereadPatch.has(r.id));
+    const [stored, fromText] = await Promise.all([
+      refreshJobFacts(withText.filter((r) => !rereadPatch.has(r.id)).map((r) => r.id)),
+      reread.length ? detectFactsForItems(reread.map((r) => ({ title: r.title, description: r.description }))) : Promise.resolve({ ok: true, facts: [] as DetectedFacts[], error: undefined as string | undefined }),
+    ]);
+    if (!stored.ok || !fromText.ok) {
+      firstError = stored.error ?? fromText.error ?? 'job-facts function failed — is it deployed?';
+      break;
+    }
+    const factsById = new Map<string, DetectedFacts>();
+    for (const [id, v] of Object.entries(stored.results)) factsById.set(id, v.facts);
+    reread.forEach((r, i) => factsById.set(r.id, fromText.facts[i]));
+
     const patches: { id: string; patch: Record<string, unknown> }[] = [];
     for (const r of rows) {
       if (!r.description) continue;
-      const f = detectJobFacts(r.description, r.title);
+      const f = factsById.get(r.id);
+      if (!f) continue;
       const patch: Record<string, unknown> = { ...(rereadPatch.get(r.id) ?? {}) };
       const comp = (r.compensation_text ?? '').trim();
       if (!isMeaningfulSalary(comp) && f.compensation && r.salary_status !== 'volunteer') {

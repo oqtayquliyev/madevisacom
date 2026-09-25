@@ -55,6 +55,8 @@ export type SponsoredJob = {
   work_arrangement?: 'onsite' | 'hybrid' | 'remote' | null;
   /** 'offered' | 'not_offered' | null (source doesn't say). */
   visa_status?: 'offered' | 'not_offered' | null;
+  /** Detector results saved by the job-facts function (see src/lib/jobFactsClient.ts). */
+  facts?: import('@/lib/jobFactsClient').StoredJobFacts | null;
   /** Last time a sync saw this job still listed on the source. */
   last_seen_at?: string | null;
   publisher?: { id: string; name: string; org_type: OrgType; logo_url: string | null; owner_id: string | null };
@@ -325,10 +327,15 @@ export async function updateMySponsoredJob(
 const detailColumns = `${columns.replace(', publisher:', ', last_seen_at, work_arrangement, visa_status, publisher:')}`;
 
 type DetailQuery = (cols: string) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
+// Plus the stored detector results (20261007090000 migration).
+const detailWithFactsColumns = detailColumns.replace(', publisher:', ', facts, publisher:');
+const isMissingColumn = (e: { message: string; code?: string }) => /column|schema cache/i.test(e.message) || e.code === '42703';
 async function withDetailColumns(run: DetailQuery) {
+  const withFacts = await run(detailWithFactsColumns);
+  if (!withFacts.error || !isMissingColumn(withFacts.error)) return withFacts;
   const first = await run(detailColumns);
   if (!first.error) return first;
-  if (/column|schema cache/i.test(first.error.message) || first.error.code === '42703') return run(columns);
+  if (isMissingColumn(first.error)) return run(columns);
   return first;
 }
 

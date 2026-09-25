@@ -30,7 +30,7 @@ import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
 import { PersonalizationBar } from '@/components/opportunities/PersonalizationBar';
 import { jobPath } from '@/lib/jobUrl';
-import { experienceBucket } from '@/lib/jobFacts';
+import { experienceBucket } from '@/lib/jobText';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 
 type JobsPageProps = {

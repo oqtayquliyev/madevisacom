@@ -122,6 +122,15 @@ export function sanitizeJobHtml(rawHtml: string): string {
   });
 }
 
+/**
+ * Re-checks HTML that's already been cleaned on the server (job-facts
+ * function) before rendering — same allowed tags, no entity decoding, so
+ * text like "&lt;b&gt;" stays text.
+ */
+export function purifyJobHtml(html: string): string {
+  return DOMPurify.sanitize(html, { ALLOWED_TAGS, ALLOWED_ATTR: ['href'] });
+}
+
 /** Plain-text fallback (e.g. for meta descriptions or previews). */
 export function stripHtml(html: string): string {
   return decodeEntities(html)

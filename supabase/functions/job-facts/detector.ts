@@ -1,3 +1,13 @@
+/// <reference lib="dom" />
+// MadeVisa job description detector — SERVER ONLY.
+// Moved out of the website code (src/lib/jobFacts.ts) so it can't be read
+// in the browser. Runs inside the `job-facts` Supabase function. Keep the
+// logic identical to what the site used; bump FACTS_VERSION in index.ts
+// when you change it so stored results get recomputed.
+import { JSDOM } from 'npm:jsdom@26.1.0';
+
+// Browser-grade HTML parser (same parsing rules as Chrome/Firefox).
+const { DOMParser } = new JSDOM('').window;
 // Detects structured job facts from free-text job descriptions:
 //   compensation   "$126,000—$136,000 CAD", "€54,000 - €75,000", "USD 120k–150k per year"
 //   experience     "8–12 years of progressive experience", "3+ years of ... experience", "at least 5 years"
@@ -10,7 +20,7 @@
 // and as a display-time fallback on the job page. Every detector returns
 // null rather than guessing when the text doesn't clearly say.
 
-import { allCountries } from '@/data/allCountries';
+import { allCountries } from './countries.ts';
 
 export type WorkArrangement = 'onsite' | 'hybrid' | 'remote';
 export type VisaStatus = 'offered' | 'not_offered';
@@ -534,7 +544,7 @@ const phoneDigits = (t: string) => t.replace(/\D/g, '').length;
  */
 export function cleanJobDescriptionHtml(html: string, title = ''): { html: string; contact: JobContact } {
   const contact: JobContact = {};
-  if (!html || typeof DOMParser === 'undefined') return { html, contact };
+  if (!html) return { html, contact };
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
   const body = doc.body;
 
