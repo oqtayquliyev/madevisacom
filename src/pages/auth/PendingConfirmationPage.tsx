@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useCaptcha } from '@/components/auth/Turnstile';
 import { AlertTriangle, CheckCircle2, Loader2, Mail, Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -31,11 +32,13 @@ export function PendingConfirmationPage({ info, go, onAuth }: PendingConfirmatio
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const captcha = useCaptcha({ invisible: true });
 
   const handleResend = async () => {
     setResending(true);
     setError(null);
-    const { error } = await supabase.auth.resend({ type: 'signup', email: info.email });
+    const { error } = await supabase.auth.resend({ type: 'signup', email: info.email, options: { captchaToken: captcha.token } });
+    captcha.reset();
     setResending(false);
     if (error) {
       setError(error.message);
@@ -75,12 +78,13 @@ export function PendingConfirmationPage({ info, go, onAuth }: PendingConfirmatio
               <button
                 type="button"
                 onClick={handleResend}
-                disabled={resending}
+                disabled={resending || !captcha.ready}
                 className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
               >
                 {resending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                 Resend confirmation email
               </button>
+              {captcha.element}
               {resent && (
                 <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700">
                   <CheckCircle2 className="h-3.5 w-3.5" />

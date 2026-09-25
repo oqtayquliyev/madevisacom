@@ -3,7 +3,7 @@ import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { handleNavClick } from '@/lib/navLink';
 import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
-import { Turnstile } from '@/components/auth/Turnstile';
+import { useCaptcha } from '@/components/auth/Turnstile';
 import { useSeo } from '@/lib/seo';
 
 type Country = { id: string; name: string; flag_emoji: string | null; iso_code: string };
@@ -49,7 +49,7 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
   const [password, setPassword] = useState('');
   const [countryId, setCountryId] = useState('');
   const [loading, setLoading] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState('');
+  const captcha = useCaptcha();
 
   useEffect(() => {
     supabase.from('countries').select('id, name, flag_emoji, iso_code').order('name').then(({ data }) => {
@@ -72,7 +72,7 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
   const handleSubmit = async () => {
     if (!fullName.trim()) return setError('Please enter your name.');
     if (!passwordOk) return setError('Your password doesn\'t meet all the requirements yet.');
-    if (!captchaToken) return setError('Please complete the verification below.');
+    if (!captcha.ready) return setError('Please complete the verification below.');
     setLoading(true);
     setError(null);
     const country = countries.find((c) => c.id === countryId) ?? null;
@@ -80,10 +80,11 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
       email,
       password,
       options: {
-        captchaToken,
+        captchaToken: captcha.token,
         data: { role: 'customer', full_name: fullName.trim(), country_id: countryId || null, nationality_country_id: countryId || null },
       },
     });
+    captcha.reset();
     setLoading(false);
     if (error) {
       setError(error.message.includes('already') ? 'An account with this email already exists.' : error.message);
@@ -118,8 +119,8 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
           </ul>
         </div>
         <CountrySelect label="Country (optional)" countries={countries} value={countryId} onChange={setCountryId} />
-        <Turnstile onVerify={setCaptchaToken} />
-        <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captchaToken || !passwordOk}>
+        {captcha.element}
+        <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captcha.ready || !passwordOk}>
           Create account
         </PrimaryButton>
         <p className="text-center text-xs leading-5 text-ink-500">

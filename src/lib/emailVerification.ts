@@ -21,13 +21,16 @@ export function verifyCooldownLeft(): number {
   return Math.max(0, Math.ceil((lastSentAt() + COOLDOWN_MS - Date.now()) / 1000));
 }
 
-export async function sendVerificationEmail(email: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendVerificationEmail(email: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
   if (verifyCooldownLeft() > 0) return { ok: false, error: `Please wait ${verifyCooldownLeft()} s before sending another email.` };
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}${VERIFY_PATH}` },
+    options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}${VERIFY_PATH}`, captchaToken },
   });
   if (error) {
+    if (/captcha/i.test(error.message)) {
+      return { ok: false, error: 'The security check didn\'t go through. Please wait a moment and try again.' };
+    }
     if (/rate limit|too many|security purposes/i.test(error.message)) {
       return { ok: false, error: 'An email was sent recently. Please check your inbox (and spam), or try again in a few minutes.' };
     }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, MailCheck, ShieldAlert } from 'lucide-react';
 import { sendVerificationEmail, verifyCooldownLeft } from '@/lib/emailVerification';
+import { useCaptcha } from '@/components/auth/Turnstile';
 
 /**
  * Amber card for accounts that haven't verified their email yet. Explains
@@ -11,6 +12,7 @@ export function VerifyEmailCard({ email, reason, className = '' }: { email: stri
   const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [wait, setWait] = useState(verifyCooldownLeft());
+  const captcha = useCaptcha({ invisible: true });
 
   useEffect(() => {
     if (wait <= 0) return;
@@ -21,7 +23,8 @@ export function VerifyEmailCard({ email, reason, className = '' }: { email: stri
   const send = async () => {
     setError(null);
     setState('sending');
-    const res = await sendVerificationEmail(email);
+    const res = await sendVerificationEmail(email, captcha.token);
+    captcha.reset();
     if (res.ok) {
       setState('sent');
       setWait(verifyCooldownLeft());
@@ -51,10 +54,11 @@ export function VerifyEmailCard({ email, reason, className = '' }: { email: stri
           </>
         )}
         {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
+        {captcha.element}
         <button
           type="button"
           onClick={send}
-          disabled={state === 'sending' || wait > 0}
+          disabled={state === 'sending' || wait > 0 || !captcha.ready}
           className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 disabled:bg-amber-300"
         >
           {state === 'sending' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
