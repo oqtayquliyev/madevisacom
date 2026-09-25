@@ -1,25 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Building2, Check, ChevronDown, Landmark, Search, Sparkles, UserRound } from 'lucide-react';
+import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { handleNavClick } from '@/lib/navLink';
-import { PhoneInput } from '@/components/common/PhoneInput';
-import { AuthCard, BackButton, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
+import { AuthCard, Divider, ErrorBanner, GoogleButton, Input, PrimaryButton } from '@/components/auth/AuthUI';
 import { Turnstile } from '@/components/auth/Turnstile';
 import { useSeo } from '@/lib/seo';
 
 type Country = { id: string; name: string; flag_emoji: string | null; iso_code: string };
-type Role = 'customer' | 'agency' | 'government' | null;
 
-const MIN_PASSWORD_LENGTH = 8;
-
-/** Shared minimum across every signup flow in this file. Returns an
- *  error message, or null if the password is acceptable. Client-side
- *  UX only — Supabase Auth's own configured minimum is the real
- *  enforcement boundary and should be set to match. */
-function passwordError(password: string): string | null {
-  if (password.length < MIN_PASSWORD_LENGTH) return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
-  return null;
-}
+/** Live password rules — all must pass. Client-side UX; set Supabase Auth's
+ *  password policy to match (Authentication → Providers → Email). */
+const PASSWORD_RULES: { label: string; test: (p: string) => boolean }[] = [
+  { label: '8 characters or longer', test: (p) => p.length >= 8 },
+  { label: 'At least one number', test: (p) => /\d/.test(p) },
+  { label: 'At least one lowercase letter', test: (p) => /[a-z]/.test(p) },
+  { label: 'At least one uppercase letter', test: (p) => /[A-Z]/.test(p) },
+];
 
 export type PendingSignup = {
   email: string;
@@ -33,19 +29,27 @@ export type PendingSignup = {
 type RegisterPageProps = {
   onSwitchToLogin: () => void;
   onHome?: () => void;
-  /** Called instead of showing a blocking "check your email" screen,
-   *  when signup succeeds but no session was returned (confirmation
-   *  required). The caller navigates to a pending-confirmation view
-   *  that shows this data. */
+  /** Called when signup succeeds but email confirmation is required. */
   onPendingConfirmation: (info: PendingSignup) => void;
 };
 
+/**
+ * One simple sign-up for everyone. Organizations (companies, agencies,
+ * governments) create a normal account first, then set up their
+ * organization from Profile → For organizations.
+ */
 export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }: RegisterPageProps) {
   useSeo({ title: 'Create account', description: 'Create your MadeVisa account.', path: '/register', noindex: true });
-  const [role, setRole] = useState<Role>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [countries, setCountries] = useState<Country[]>([]);
+
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [countryId, setCountryId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
 
   useEffect(() => {
     supabase.from('countries').select('id, name, flag_emoji, iso_code').order('name').then(({ data }) => {
@@ -53,377 +57,90 @@ export function RegisterPage({ onSwitchToLogin, onHome, onPendingConfirmation }:
     });
   }, []);
 
+  const passwordOk = PASSWORD_RULES.every((r) => r.test(password));
+
   const handleGoogle = async () => {
     setGoogleLoading(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    });
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
     if (error) {
       setError('Google sign-in failed. Please try again.');
       setGoogleLoading(false);
     }
   };
 
+  const handleSubmit = async () => {
+    if (!fullName.trim()) return setError('Please enter your name.');
+    if (!passwordOk) return setError('Your password doesn\'t meet all the requirements yet.');
+    if (!captchaToken) return setError('Please complete the verification below.');
+    setLoading(true);
+    setError(null);
+    const country = countries.find((c) => c.id === countryId) ?? null;
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        captchaToken,
+        data: { role: 'customer', full_name: fullName.trim(), country_id: countryId || null, nationality_country_id: countryId || null },
+      },
+    });
+    setLoading(false);
+    if (error) {
+      setError(error.message.includes('already') ? 'An account with this email already exists.' : error.message);
+      return;
+    }
+    if (!data.session) {
+      onPendingConfirmation({ email, fullName, phone: '', countryName: country?.name ?? null, nationalityName: country?.name ?? null, role: 'customer' });
+    }
+    // With a session (email confirmation off) the AuthProvider picks it up automatically.
+  };
+
   return (
-    <AuthCard title="Create your MadeVisa account" subtitle="Choose your path to get started." onHome={onHome} showSidePanel>
+    <AuthCard title="Create your account" subtitle="Save the jobs you view and apply to, and track every application." onHome={onHome}>
       <ErrorBanner message={error} />
       <GoogleButton onClick={handleGoogle} loading={googleLoading} label="Continue with Google" />
       <Divider label="or" />
-      {!role ? (
-        <div className="space-y-3">
-          <button
-            onClick={() => setRole('customer')}
-            className="relative flex w-full items-center gap-4 rounded-2xl border-2 border-brand-500 bg-brand-50/40 p-4 text-left shadow-soft transition hover:shadow-soft-lg"
-          >
-            <span className="absolute -top-2.5 right-4 flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-              <Sparkles className="h-2.5 w-2.5" />
-              Most popular
-            </span>
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-600 text-white"><UserRound className="h-6 w-6" /></span>
-            <div>
-              <p className="font-semibold text-ink-900">Explore opportunities</p>
-              <p className="mt-0.5 text-sm text-ink-500">Jobs, programs, and visa paths abroad — track requirements, get agency help.</p>
-            </div>
-          </button>
-          <button
-            onClick={() => setRole('agency')}
-            className="flex w-full items-center gap-4 rounded-2xl border border-ink-200 bg-white p-4 text-left shadow-soft transition hover:border-brand-300 hover:shadow-soft-lg"
-          >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600"><Building2 className="h-6 w-6" /></span>
-            <div>
-              <p className="font-semibold text-ink-900">I'm an agency / company</p>
-              <p className="mt-0.5 text-sm text-ink-500">Manage customers, trips, and post sponsored jobs or programs.</p>
-            </div>
-          </button>
-          <button
-            onClick={() => setRole('government')}
-            className="flex w-full items-center gap-4 rounded-2xl border border-ink-200 bg-white p-4 text-left shadow-soft transition hover:border-brand-300 hover:shadow-soft-lg"
-          >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><Landmark className="h-6 w-6" /></span>
-            <div>
-              <p className="font-semibold text-ink-900">I'm a government institution</p>
-              <p className="mt-0.5 text-sm text-ink-500">Promote official programs, visas and opportunities.</p>
-            </div>
-          </button>
-          <p className="text-center text-[11px] text-ink-400">
-            Agency, company and government accounts are reviewed before their listings go public.
-          </p>
+      <div className="space-y-4">
+        <Input label="Full name" value={fullName} onChange={setFullName} placeholder="Your full name" required autoComplete="name" />
+        <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="you@example.com" required autoComplete="email" />
+        <div>
+          <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="Create a password" required autoComplete="new-password" />
+          <ul className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2" aria-live="polite">
+            {PASSWORD_RULES.map((r) => {
+              const ok = r.test(password);
+              return (
+                <li key={r.label} className={`flex items-center gap-1.5 text-xs ${ok ? 'text-emerald-700' : 'text-ink-500'}`}>
+                  {ok ? <Check className="h-3.5 w-3.5 shrink-0" /> : <X className="h-3.5 w-3.5 shrink-0 text-ink-300" />}
+                  {r.label}
+                </li>
+              );
+            })}
+          </ul>
         </div>
-      ) : role === 'customer' ? (
-        <CustomerForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
-      ) : role === 'agency' ? (
-        <AgencyForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
-      ) : (
-        <GovernmentForm countries={countries} onBack={() => setRole(null)} onError={setError} onPendingConfirmation={onPendingConfirmation} />
-      )}
+        <CountrySelect label="Country (optional)" countries={countries} value={countryId} onChange={setCountryId} />
+        <Turnstile onVerify={setCaptchaToken} />
+        <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captchaToken || !passwordOk}>
+          Create account
+        </PrimaryButton>
+        <p className="text-center text-xs leading-5 text-ink-500">
+          By registering, you agree to our{' '}
+          <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-600 underline underline-offset-2 hover:text-brand-700">
+            Terms of Service
+          </a>{' '}
+          and{' '}
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-600 underline underline-offset-2 hover:text-brand-700">
+            Privacy Policy
+          </a>
+          .
+        </p>
+      </div>
       <div className="mt-5 text-center text-sm text-ink-500">
         Already have an account?{' '}
-        <a
-          href="/login"
-          onClick={(event) => handleNavClick(event, onSwitchToLogin)}
-          className="font-semibold text-brand-600 hover:text-brand-700"
-        >
+        <a href="/login" onClick={(event) => handleNavClick(event, onSwitchToLogin)} className="font-semibold text-brand-600 hover:text-brand-700">
           Sign in
         </a>
       </div>
     </AuthCard>
-  );
-}
-
-function CustomerForm({
-  countries,
-  onBack,
-  onError,
-  onPendingConfirmation,
-}: {
-  countries: Country[];
-  onBack: () => void;
-  onError: (msg: string) => void;
-  onPendingConfirmation: (info: PendingSignup) => void;
-}) {
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [countryId, setCountryId] = useState('');
-  const [nationalitySameAsCountry, setNationalitySameAsCountry] = useState(true);
-  const [nationalityId, setNationalityId] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState('');
-
-  const country = countries.find((c) => c.id === countryId) ?? null;
-  const effectiveNationalityId = nationalitySameAsCountry ? countryId : nationalityId;
-
-  const handleSubmit = async () => {
-    const pwError = passwordError(password);
-    if (pwError) {
-      onError(pwError);
-      return;
-    }
-
-    if (!captchaToken) {
-      onError('Please complete the verification below.');
-      return;
-    }
-
-    setLoading(true);
-    onError('');
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        captchaToken,
-        data: {
-          role: 'customer',
-          full_name: fullName,
-          phone: phone || null,
-          country_id: countryId || null,
-          nationality_country_id: effectiveNationalityId || null,
-        },
-      },
-    });
-
-    setLoading(false);
-
-    if (error) {
-      onError(error.message.includes('already') ? 'An account with this email already exists.' : error.message);
-      return;
-    }
-
-    if (!data.session) {
-      const nationalityCountry = countries.find((c) => c.id === effectiveNationalityId) ?? null;
-      onPendingConfirmation({
-        email,
-        fullName,
-        phone,
-        countryName: country?.name ?? null,
-        nationalityName: nationalityCountry?.name ?? null,
-        role: 'customer',
-      });
-    }
-    // If a session WAS returned (email confirmation disabled), the
-    // AuthProvider's onAuthStateChange listener picks it up automatically.
-  };
-
-  return (
-    <div className="space-y-4">
-      <BackButton onClick={onBack} />
-      <Input label="Full name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
-      <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="you@example.com" required autoComplete="email" />
-      <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 8 characters" required autoComplete="new-password" />
-      <CountrySelect label="Country (optional)" countries={countries} value={countryId} onChange={setCountryId} />
-      <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} />
-
-      <label className="flex items-center gap-2 text-sm text-ink-600">
-        <input
-          type="checkbox"
-          checked={nationalitySameAsCountry}
-          onChange={(e) => setNationalitySameAsCountry(e.target.checked)}
-          className="h-4 w-4 rounded border-ink-300"
-        />
-        My nationality is the same as my country
-      </label>
-
-      {!nationalitySameAsCountry && (
-        <CountrySelect label="Nationality / citizenship" countries={countries} value={nationalityId} onChange={setNationalityId} />
-      )}
-
-      <Turnstile onVerify={setCaptchaToken} />
-      <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captchaToken}>Create account</PrimaryButton>
-    </div>
-  );
-}
-
-function AgencyForm({
-  countries,
-  onBack,
-  onError,
-  onPendingConfirmation,
-}: {
-  countries: Country[];
-  onBack: () => void;
-  onError: (msg: string) => void;
-  onPendingConfirmation: (info: PendingSignup) => void;
-}) {
-  const [fullName, setFullName] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [countryId, setCountryId] = useState('');
-  const [city, setCity] = useState('');
-  const [website, setWebsite] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState('');
-
-  const country = countries.find((c) => c.id === countryId) ?? null;
-
-  const handleSubmit = async () => {
-    const pwError = passwordError(password);
-    if (pwError) {
-      onError(pwError);
-      return;
-    }
-
-    if (!captchaToken) {
-      onError('Please complete the verification below.');
-      return;
-    }
-
-    setLoading(true);
-    onError('');
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        captchaToken,
-        data: {
-          role: 'agency',
-          full_name: fullName,
-          phone: phone || null,
-          country_id: countryId || null,
-          company_name: companyName,
-          country: country?.name ?? null,
-          city: city || null,
-          website: website || null,
-        },
-      },
-    });
-
-    setLoading(false);
-
-    if (error) {
-      onError(error.message.includes('already') ? 'An account with this email already exists.' : error.message);
-      return;
-    }
-
-    if (!data.session) {
-      onPendingConfirmation({
-        email,
-        fullName,
-        phone,
-        countryName: country?.name ?? null,
-        nationalityName: null,
-        role: 'agency',
-      });
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <BackButton onClick={onBack} />
-      <Input label="Contact person name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
-      <Input label="Company name" value={companyName} onChange={setCompanyName} placeholder="Your travel agency" required />
-      <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="agency@example.com" required autoComplete="email" />
-      <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 8 characters" required autoComplete="new-password" />
-      <CountrySelect label="Country" countries={countries} value={countryId} onChange={setCountryId} />
-      <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} required />
-      <Input label="City" value={city} onChange={setCity} placeholder="Baku" required />
-      <Input label="Website (optional)" value={website} onChange={setWebsite} placeholder="https://youragency.com" />
-      <Turnstile onVerify={setCaptchaToken} />
-      <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captchaToken}>Create agency account</PrimaryButton>
-    </div>
-  );
-}
-
-function GovernmentForm({
-  countries,
-  onBack,
-  onError,
-  onPendingConfirmation,
-}: {
-  countries: Country[];
-  onBack: () => void;
-  onError: (msg: string) => void;
-  onPendingConfirmation: (info: PendingSignup) => void;
-}) {
-  const [fullName, setFullName] = useState('');
-  const [orgName, setOrgName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [countryId, setCountryId] = useState('');
-  const [website, setWebsite] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState('');
-
-  const country = countries.find((c) => c.id === countryId) ?? null;
-
-  const handleSubmit = async () => {
-    const pwError = passwordError(password);
-    if (pwError) {
-      onError(pwError);
-      return;
-    }
-
-    if (!captchaToken) {
-      onError('Please complete the verification below.');
-      return;
-    }
-
-    setLoading(true);
-    onError('');
-
-    // role stays 'customer' — a government account's ability to
-    // publish is entirely governed by the pending program_publishers
-    // row this creates (see the handle_new_user trigger), reviewed
-    // from the admin panel before anything goes public.
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        captchaToken,
-        data: {
-          role: 'customer',
-          full_name: fullName,
-          phone: phone || null,
-          country_id: countryId || null,
-          publisher_org_type: 'government',
-          company_name: orgName,
-          website: website || null,
-        },
-      },
-    });
-
-    setLoading(false);
-
-    if (error) {
-      onError(error.message.includes('already') ? 'An account with this email already exists.' : error.message);
-      return;
-    }
-
-    if (!data.session) {
-      onPendingConfirmation({
-        email,
-        fullName,
-        phone,
-        countryName: country?.name ?? null,
-        nationalityName: null,
-        role: 'government',
-      });
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <BackButton onClick={onBack} />
-      <Input label="Contact person name" value={fullName} onChange={setFullName} placeholder="Your full name" required />
-      <Input label="Ministry / institution name" value={orgName} onChange={setOrgName} placeholder="e.g. Ministry of Labor" required />
-      <Input label="Official email" type="email" value={email} onChange={setEmail} placeholder="you@ministry.gov" required autoComplete="email" />
-      <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 8 characters" required autoComplete="new-password" />
-      <CountrySelect label="Country" countries={countries} value={countryId} onChange={setCountryId} />
-      <PhoneInput countryIsoCode={country?.iso_code} value={phone} onChange={setPhone} required />
-      <Input label="Official website (optional)" value={website} onChange={setWebsite} placeholder="https://www.ministry.gov" />
-      <Turnstile onVerify={setCaptchaToken} />
-      <PrimaryButton onClick={handleSubmit} loading={loading} disabled={!captchaToken}>Create government account</PrimaryButton>
-      <p className="text-center text-[11px] text-ink-400">
-        Verified by MadeVisa before you can publish — usually within 1-2 business days.
-      </p>
-    </div>
   );
 }
 

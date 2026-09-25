@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { setViewedJobsOwner } from '@/lib/viewedJobs';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
@@ -75,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 8000);
 
     supabase.auth.getSession().then(({ data: { session } }) => {
+      setViewedJobsOwner(session?.user.id ?? null);
       setSession(session);
       hasRestoredInitialSession.current = true;
       if (session?.user) {
@@ -85,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      setViewedJobsOwner(session?.user.id ?? null);
       setSession(session);
 
       // 'SIGNED_IN' fires for a fresh sign-in/sign-up/OAuth completion

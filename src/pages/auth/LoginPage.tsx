@@ -77,7 +77,7 @@ export function LoginPage({ onSwitchToRegister, onHome }: LoginPageProps) {
   };
 
   return (
-    <AuthCard title="Welcome back" subtitle="Sign in to continue managing your trips." onHome={onHome} showSidePanel>
+    <AuthCard title="Welcome back" subtitle="Sign in to your MadeVisa account." onHome={onHome}>
       <ErrorBanner message={error} />
       {resetSent && (
         <div className="mb-4 flex items-start gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 ring-1 ring-emerald-200">

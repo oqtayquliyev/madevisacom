@@ -1,99 +1,30 @@
-import { type ReactNode, useEffect, useState } from 'react';
-import { ArrowLeft, Eye, EyeOff, Loader2, Sparkles } from 'lucide-react';
+import { type ReactNode, useState } from 'react';
+import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/layout/Logo';
 import { handleNavClick } from '@/lib/navLink';
-import { supabase } from '@/lib/supabase';
-import { AuthSidePanel } from './AuthSidePanel';
 
 export function AuthCard({
   children,
   title,
   subtitle,
   onHome,
-  showSidePanel = false,
 }: {
   children: ReactNode;
   title: string;
   subtitle?: string;
   onHome?: () => void;
-  showSidePanel?: boolean;
 }) {
+  // One simple, centered card — no side panel.
   return (
-    <div className="min-h-screen bg-[#f7f9fc] lg:grid lg:grid-cols-2">
-      {/* Widened from max-w-md: more breathing room for inputs, especially
-          the phone/country row and the password field's show/hide toggle. */}
-      <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-5 py-12">
-        <a
-          href="/"
-          onClick={(event) => handleNavClick(event, () => onHome?.())}
-          className="mb-6 inline-flex w-fit items-center"
-          aria-label="MadeVisa home"
-        >
-          <Logo />
-        </a>
-
-        <LiveOpportunitiesBadge />
-
-        <div className="mt-4 rounded-3xl border border-ink-200 bg-white p-6 shadow-soft-lg sm:p-8">
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-900">{title}</h1>
-          {subtitle && <p className="mt-2 text-sm leading-relaxed text-ink-500">{subtitle}</p>}
-          <div className="mt-6">{children}</div>
-        </div>
+    <div className="flex min-h-screen flex-col items-center bg-[#f7f9fc] px-5 py-10 sm:justify-center">
+      <a href="/" onClick={(event) => handleNavClick(event, () => onHome?.())} className="mb-6 inline-flex items-center" aria-label="MadeVisa home">
+        <Logo />
+      </a>
+      <div className="w-full max-w-md rounded-2xl border border-ink-200 bg-white p-6 shadow-soft-lg sm:p-8">
+        <h1 className="text-2xl font-bold tracking-tight text-ink-950">{title}</h1>
+        {subtitle && <p className="mt-1.5 text-sm leading-relaxed text-ink-500">{subtitle}</p>}
+        <div className="mt-6">{children}</div>
       </div>
-      {showSidePanel && <AuthSidePanel />}
-    </div>
-  );
-}
-
-/**
- * Fetches a real, live count from the database — never a hardcoded
- * number. Prefers "shared today" (more exciting when there's been
- * recent activity); falls back to "live right now" when today's count
- * is 0, so the badge never shows an anticlimactic "+0" first thing.
- * Renders nothing while loading or if both queries fail, rather than
- * showing a placeholder/loading flash.
- */
-function LiveOpportunitiesBadge() {
-  const [state, setState] = useState<{ count: number; label: string } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-
-      const [todayPrograms, todayJobs, totalPrograms, totalJobs] = await Promise.all([
-        supabase.from('programs').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('approved_at', startOfToday.toISOString()),
-        supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('approved_at', startOfToday.toISOString()),
-        supabase.from('programs').select('id', { count: 'exact', head: true }).eq('status', 'published'),
-        supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).eq('status', 'published'),
-      ]);
-
-      if (cancelled) return;
-
-      const todayCount = (todayPrograms.count ?? 0) + (todayJobs.count ?? 0);
-      const totalCount = (totalPrograms.count ?? 0) + (totalJobs.count ?? 0);
-
-      if (todayCount > 0) {
-        setState({ count: todayCount, label: 'shared today' });
-      } else if (totalCount > 0) {
-        setState({ count: totalCount, label: 'live right now' });
-      }
-      // If both are 0 (empty database), render nothing at all.
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (!state) return null;
-
-  return (
-    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700">
-      <Sparkles className="h-3.5 w-3.5" />
-      +{state.count} opportunities {state.label} on MadeVisa
     </div>
   );
 }

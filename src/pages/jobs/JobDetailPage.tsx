@@ -8,7 +8,8 @@ import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { fetchSponsoredJobById, fetchSponsoredJobByShortId, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { jobPath, parseJobPath } from '@/lib/jobUrl';
-import { markJobViewed } from '@/lib/viewedJobs';
+import { getGuestJobViewCount, markJobViewed } from '@/lib/viewedJobs';
+import { useAuth } from '@/lib/auth';
 import { displayJobCategory, isMeaningfulJobType } from '@/lib/jobCategories';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -31,6 +32,13 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const [job, setJob] = useState<Job | null | undefined>(undefined);
   const [raw, setRaw] = useState<SponsoredJob | null>(null);
   const [copied, setCopied] = useState(false);
+  const { session } = useAuth();
+  // Signed-out visitors: after 3 job views, invite them to create an account.
+  const [guestViews, setGuestViews] = useState(0);
+  useEffect(() => {
+    if (!session) setGuestViews(getGuestJobViewCount());
+  }, [id, session]);
+  const showSignupInvite = !session && guestViews >= 3;
 
   // Description with the facts block, repeated copies, apply CTAs and
   // trailing contact lines stripped out (contact shown in its own box),
@@ -66,6 +74,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       // shared/bookmarked links keep working without a reload.
       if (board) {
         markJobViewed(board.id, { id: board.id, title: board.title, organization: board.company, country: board.country, countryCode: board.countryCode, url: board.url });
+        setGuestViews(getGuestJobViewCount());
         const canonical = jobPath(board);
         if (window.location.pathname !== canonical) {
           window.history.replaceState(window.history.state, '', canonical + window.location.search + window.location.hash);
@@ -349,6 +358,26 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               </span>
             </div>
           </div>
+
+          {showSignupInvite && (
+            <div className="mt-6 flex flex-col gap-3 rounded-xl bg-white/10 p-4 ring-1 ring-white/25 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-white">Keep track of your job search</p>
+                <p className="mt-0.5 text-xs leading-5 text-white/80">
+                  You've looked at {guestViews} jobs. Create a free account to save the jobs you view and apply to, track each application, and see how
+                  fast companies respond.
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button onClick={() => onAuth?.('register')} className="rounded-full bg-white px-4 py-2 text-xs font-bold text-brand-700 hover:bg-brand-50">
+                  Create free account
+                </button>
+                <button onClick={() => onAuth?.('login')} className="rounded-full px-3 py-2 text-xs font-semibold text-white ring-1 ring-white/40 hover:bg-white/10">
+                  Sign in
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

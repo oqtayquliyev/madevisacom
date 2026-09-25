@@ -5,7 +5,42 @@
 // permanent history), and pruned lazily on read rather than needing any
 // background job.
 
-const STORAGE_KEY = 'madevisa:viewedJobs';
+// Viewed jobs are only collected for SIGNED-IN users, stored per account
+// (so a new account never inherits someone's guest browsing). Guests get
+// just an anonymous counter — no job data — used to invite them to sign up
+// after a few views.
+const LEGACY_KEY = 'madevisa:viewedJobs'; // old per-browser list — removed
+const USER_KEY_PREFIX = 'madevisa:viewedJobs:';
+const GUEST_COUNT_KEY = 'madevisa:guestJobViews';
+
+let ownerId: string | null = null;
+
+/** Called by the auth provider whenever the signed-in user changes. */
+export function setViewedJobsOwner(userId: string | null) {
+  ownerId = userId;
+  try {
+    window.localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Distinct job ids a signed-out visitor opened (ids only, capped) — for counting, not history. */
+function guestIds(): string[] {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(GUEST_COUNT_KEY) ?? '[]');
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+/** How many different jobs a signed-out visitor has opened. */
+export function getGuestJobViewCount(): number {
+  return guestIds().length;
+}
+
+const storageKey = () => (ownerId ? `${USER_KEY_PREFIX}${ownerId}` : null);
 const VIEWED_TTL_MS = 48 * 60 * 60 * 1000; // 48 hours
 
 export type ViewedJobSnapshot = {
@@ -21,9 +56,10 @@ type ViewedEntry = { ts: number; snapshot?: ViewedJobSnapshot };
 type ViewedMap = Record<string, ViewedEntry>; // job id -> entry
 
 function readAll(): ViewedMap {
-  if (typeof window === 'undefined') return {};
+  const key = storageKey();
+  if (typeof window === 'undefined' || !key) return {};
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     return typeof parsed === 'object' && parsed !== null ? (parsed as ViewedMap) : {};
@@ -33,9 +69,10 @@ function readAll(): ViewedMap {
 }
 
 function writeAll(map: ViewedMap) {
-  if (typeof window === 'undefined') return;
+  const key = storageKey();
+  if (typeof window === 'undefined' || !key) return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    window.localStorage.setItem(key, JSON.stringify(map));
   } catch {
     // localStorage can throw (private browsing, quota) — viewed tracking
     // is a nice-to-have, so fail silently rather than breaking the page.
@@ -59,6 +96,16 @@ function pruneExpired(map: ViewedMap): ViewedMap {
  *  call repeatedly with or without a snapshot; a later call updates
  *  the timestamp (and snapshot, if provided) rather than duplicating. */
 export function markJobViewed(jobId: string, snapshot?: ViewedJobSnapshot) {
+  if (!ownerId) {
+    // Guest: just count distinct jobs — no titles or history are kept.
+    try {
+      const ids = guestIds();
+      if (!ids.includes(jobId)) window.localStorage.setItem(GUEST_COUNT_KEY, JSON.stringify([...ids, jobId].slice(-20)));
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
   const map = pruneExpired(readAll());
   const existing = map[jobId];
   map[jobId] = { ts: Date.now(), snapshot: snapshot ?? existing?.snapshot };
