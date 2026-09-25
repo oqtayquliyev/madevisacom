@@ -2869,6 +2869,11 @@ serve(async (req) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const { data: profile, error: profileError } = await adminClient.from("profiles").select("role").eq("id", user.id).maybeSingle();
     if (profileError || profile?.role !== "admin") return reply({ ok: false, error: "Admin access required." }, 403);
+    // Same rule as the database (is_admin): once the admin has an
+    // authenticator app, this session must have passed the 6-digit code.
+    const asCaller = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authHeader } } });
+    const { data: adminOk, error: adminErr } = await asCaller.rpc("is_admin");
+    if (adminErr || adminOk !== true) return reply({ ok: false, error: "Admin access requires your two-step login code. Sign out and sign in again." }, 403);
 
     // --- Input ---
     const body = await req.json();
