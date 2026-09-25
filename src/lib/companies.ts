@@ -10,7 +10,7 @@
 //     rating — aggregated server-side, withheld below 5 applications.
 
 import { supabase } from '@/lib/supabase';
-import { slugify } from '@/lib/jobUrl';
+import { jobPath, slugify } from '@/lib/jobUrl';
 import type { OrgType } from '@/lib/programs';
 
 export type CompanyProfile = {
@@ -119,7 +119,7 @@ export async function fetchCompaniesDirectory(): Promise<DirectoryCompany[] | nu
 // Application tracking (Applicant Report)
 // ---------------------------------------------------------------------------
 
-export type ApplicationStatus = 'applied' | 'viewed' | 'responded' | 'interview' | 'offer' | 'rejected' | 'no_response_week' | 'no_response' | 'withdrawn';
+export type ApplicationStatus = 'clicked' | 'applied' | 'viewed' | 'responded' | 'interview' | 'offer' | 'rejected' | 'no_response_week' | 'no_response' | 'withdrawn';
 
 /** Statuses a user can pick. ('responded' is a legacy value still displayed if present.) */
 export const APPLICATION_STATUSES: { value: ApplicationStatus; label: string }[] = [
@@ -164,6 +164,10 @@ export type ApplicationReport = {
   evidence_status: 'none' | 'pending' | 'verified' | 'rejected';
   excluded: boolean;
   updated_at: string;
+  /** Set when the person confirms they applied (20261002090000 migration). */
+  confirmed_at?: string | null;
+  /** Shown on their public profile. */
+  is_public?: boolean;
   publisher?: { id: string; name: string; logo_url: string | null } | null;
 };
 
@@ -224,15 +228,14 @@ export async function syncPendingApplications(): Promise<number> {
 
 const REPORT_COLUMNS =
   'id, publisher_id, listing_kind, listing_id, listing_title, applied_at, status, viewed_at, responded_at, interview_at, offer_at, experience_rating, feedback_tags, evidence_path, evidence_status, excluded, updated_at, publisher:program_publishers(id, name, logo_url)';
+const REPORT_COLUMNS_V3 = `${REPORT_COLUMNS}, confirmed_at, is_public`;
 const REPORT_COLUMNS_V1 =
   'id, publisher_id, listing_kind, listing_id, listing_title, applied_at, status, responded_at, interview_at, offer_at, experience_rating, updated_at, publisher:program_publishers(id, name, logo_url)';
 
 export async function fetchMyApplicationReports(): Promise<ApplicationReport[]> {
-  let res: { data: unknown; error: { message: string } | null } = await supabase
-    .from('application_reports')
-    .select(REPORT_COLUMNS)
-    .order('applied_at', { ascending: false })
-    .limit(200);
+  const load = (cols: string) => supabase.from('application_reports').select(cols).order('applied_at', { ascending: false }).limit(200);
+  let res: { data: unknown; error: { message: string } | null } = await load(REPORT_COLUMNS_V3);
+  if (res.error && /column|schema cache/i.test(res.error.message)) res = await load(REPORT_COLUMNS);
   if (res.error && /column|schema cache/i.test(res.error.message)) {
     // Before the v2 migration: still show what exists.
     res = await supabase.from('application_reports').select(REPORT_COLUMNS_V1).order('applied_at', { ascending: false }).limit(200);
@@ -263,6 +266,63 @@ export function hasResponse(r: Pick<ApplicationReport, 'status' | 'responded_at'
 export function respondedWithinWeek(r: Pick<ApplicationReport, 'applied_at' | 'responded_at'>): boolean {
   if (!r.responded_at) return false;
   return new Date(r.responded_at).getTime() - new Date(r.applied_at).getTime() <= NO_RESPONSE_WEEK_DAYS * 86_400_000;
+}
+
+/** "Yes, I applied" — starts tracking this application. */
+export async function confirmApplication(id: string) {
+  return updateApplicationReport(id, { status: 'applied' });
+}
+
+export async function setApplicationPublic(id: string, isPublic: boolean): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.from('application_reports').update({ is_public: isPublic }).eq('id', id);
+  if (!error) return { ok: true };
+  if (/is_public|column|schema cache/i.test(error.message)) return { ok: false, error: 'Public tracking needs a quick database update first (migration 20261002090000).' };
+  return { ok: false, error: error.message };
+}
+
+export type CompanyResponseRate = { tracked: number; responseRate: number | null; responseWeekRate: number | null };
+
+/** Response rate per company (null rates until there's enough data). Empty map before the 20261002090000 migration. */
+export async function fetchCompanyResponseRates(publisherIds: string[]): Promise<Map<string, CompanyResponseRate>> {
+  const map = new Map<string, CompanyResponseRate>();
+  const ids = [...new Set(publisherIds)].filter(Boolean);
+  if (!ids.length) return map;
+  const { data, error } = await supabase.rpc('company_response_rates', { pids: ids });
+  if (error || !Array.isArray(data)) return map;
+  for (const r of data as { publisher_id: string; tracked: number; response_rate: number | null; response_week_rate: number | null }[]) {
+    map.set(r.publisher_id, {
+      tracked: r.tracked,
+      responseRate: r.response_rate == null ? null : Number(r.response_rate),
+      responseWeekRate: r.response_week_rate == null ? null : Number(r.response_week_rate),
+    });
+  }
+  return map;
+}
+
+export type PublicApplication = {
+  id: string;
+  listing_kind: 'job' | 'program';
+  listing_id: string;
+  listing_title: string | null;
+  company_name: string | null;
+  company_logo_url: string | null;
+  applied_at: string;
+  status: ApplicationStatus;
+  responded_at: string | null;
+};
+
+/** Applications someone chose to show on their public profile. */
+export async function fetchPublicApplications(username: string): Promise<PublicApplication[]> {
+  const { data, error } = await supabase.rpc('get_public_applications', { p_username: username });
+  if (error || !Array.isArray(data)) return [];
+  return data as PublicApplication[];
+}
+
+/** Link to the job/program page an application was made through. */
+export function applicationListingPath(r: { listing_kind: 'job' | 'program'; listing_id: string; listing_title: string | null }, company: string): string {
+  return r.listing_kind === 'program'
+    ? `/programs/${r.listing_id}`
+    : jobPath({ id: `sponsored-${r.listing_id}`, title: r.listing_title ?? 'job', company });
 }
 
 export async function deleteApplicationReport(id: string): Promise<{ ok: boolean; error?: string }> {

@@ -68,6 +68,10 @@
   .marquee-track.reverse {
     animation-direction: reverse;
   }
+  /* Hovering a row stops just that row, so a card can be read. */
+  .marquee-pause:hover .marquee-track {
+    animation-play-state: paused;
+  }
   @keyframes marquee {
     from { transform: translateX(0); }
     to { transform: translateX(-50%); }

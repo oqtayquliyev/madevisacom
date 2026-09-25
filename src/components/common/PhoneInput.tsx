@@ -28,7 +28,10 @@ export function PhoneInput({ countryIsoCode, value, onChange, required }: PhoneI
         <input
           type="tel"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          // Digits, spaces and + ( ) - only; 20 characters at most (matches the database rule).
+          onChange={(e) => onChange(e.target.value.replace(/[^0-9+ ()-]/g, '').replace(/\s{2,}/g, ' ').slice(0, 20))}
+          inputMode="tel"
+          maxLength={20}
           placeholder={dialCode ? '50 555 12 34' : 'Select a country first'}
           required={required}
           className="w-full px-3.5 py-3 text-sm text-ink-800 outline-none"

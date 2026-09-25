@@ -58,7 +58,7 @@ export function AuthCard({
       </div>
 
       {/* Blue band: the card above overlaps into it. */}
-      <section className="-mt-24 flex-1 bg-brand-700 pb-12 pt-32 text-white sm:-mt-28 sm:pt-36">
+      <section className="-mt-24 flex-1 bg-brand-700 pb-10 pt-32 text-white sm:-mt-28 sm:pb-12 sm:pt-36">
         <p className="px-5 text-center text-sm font-semibold text-white/85 sm:text-base">
           {stats ? (
             <>
@@ -69,7 +69,9 @@ export function AuthCard({
             'Jobs and programs from company career pages, waiting for you'
           )}
         </p>
-        <div className="mx-auto mt-6 max-w-[1400px]">
+        {/* Phones: no ticker — the moving rows don't run reliably there and
+            only push the form's context further down. */}
+        <div className="mx-auto mt-6 hidden max-w-[1400px] sm:block">
           <JobTicker />
         </div>
       </section>

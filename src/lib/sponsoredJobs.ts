@@ -523,8 +523,8 @@ let showcaseCache: Promise<ShowcaseJob[]> | null = null;
 
 /**
  * A small random sample of recent jobs for decoration on the auth pages —
- * one request for ~60 rows (no descriptions), shuffled, never the whole
- * catalog. Shared per tab, so switching between sign-in and register
+ * one request for ~200 short rows (no descriptions), one job per company,
+ * shuffled, never the whole catalog. Shared per tab, so switching between sign-in and register
  * doesn't refetch.
  */
 export function fetchShowcaseJobs(count = 24): Promise<ShowcaseJob[]> {
@@ -536,7 +536,7 @@ export function fetchShowcaseJobs(count = 24): Promise<ShowcaseJob[]> {
         .eq('status', 'published')
         .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         .order('created_at', { ascending: false })
-        .limit(60);
+        .limit(200);
       if (error || !data) {
         showcaseCache = null;
         return [];
@@ -562,15 +562,13 @@ export function fetchShowcaseJobs(count = 24): Promise<ShowcaseJob[]> {
           remote: r.remote,
         })
       );
-      // Shuffle, then one job per company first so the ticker isn't one employer.
+      // Shuffle, then keep exactly one job per company.
       for (let i = rows.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [rows[i], rows[j]] = [rows[j], rows[i]];
       }
       const seen = new Set<string>();
-      const firstPass = rows.filter((r) => (seen.has(r.company) ? false : (seen.add(r.company), true)));
-      const rest = rows.filter((r) => !firstPass.includes(r));
-      return [...firstPass, ...rest].slice(0, count);
+      return rows.filter((r) => r.company && (seen.has(r.company) ? false : (seen.add(r.company), true))).slice(0, count);
     })();
   }
   return showcaseCache;

@@ -4,11 +4,11 @@ import { fetchShowcaseJobs, type ShowcaseJob } from '@/lib/sponsoredJobs';
 import { CircleFlag } from '@/components/common/CircleFlag';
 
 /**
- * Two rows of real, recent jobs drifting sideways behind the sign-in and
- * register forms — a glimpse of what's inside, deliberately not clickable
- * so nobody gets pulled away from finishing sign-up. Decorative only
- * (hidden from screen readers); edges fade out; motion stops for people
- * who prefer reduced motion.
+ * Two rows of real, recent jobs — one per company, and each row shows
+ * different companies — drifting sideways under the sign-in and register
+ * forms. Deliberately not clickable so nobody gets pulled away from
+ * finishing sign-up. Hovering a row pauses it so a card can be read.
+ * Decorative only (hidden from screen readers); desktop/tablet only.
  */
 export function JobTicker() {
   const [jobs, setJobs] = useState<ShowcaseJob[] | null>(null);
@@ -32,13 +32,19 @@ export function JobTicker() {
   }
   if (jobs.length < 6) return null;
 
-  const half = Math.ceil(jobs.length / 2);
-  const rows = [jobs.slice(0, half), jobs.slice(half)];
+  // Alternate so both rows get a spread of companies, none repeated across rows.
+  // Short rows are repeated so one copy is always wider than the screen (no gap mid-loop).
+  const fill = (row: ShowcaseJob[]) => {
+    let out = row;
+    while (out.length < 7) out = [...out, ...row];
+    return out;
+  };
+  const rows = [fill(jobs.filter((_, i) => i % 2 === 0)), fill(jobs.filter((_, i) => i % 2 === 1))];
 
   return (
     <div className="space-y-3" aria-hidden="true">
       {rows.map((row, i) => (
-        <div key={i} className="marquee-mask pointer-events-none select-none overflow-hidden">
+        <div key={i} className="marquee-mask marquee-pause cursor-default select-none overflow-hidden">
           <div
             className={`marquee-track flex w-max gap-3 ${i === 1 ? 'reverse' : ''}`}
             style={{ ['--marquee-duration' as string]: `${row.length * 5}s` }}

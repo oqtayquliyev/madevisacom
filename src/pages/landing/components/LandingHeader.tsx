@@ -19,7 +19,7 @@ import { fetchMyManagedPublishers } from '@/lib/companyManager';
 import { handleNavClick } from '@/lib/navLink';
 import type { View } from '@/types';
 import { BrandMark } from '@/components/layout/Logo';
-import { DefaultAvatar, TravelerAvatar } from '@/components/common/TravelerAvatar';
+import { GuestAvatar, TravelerAvatar } from '@/components/common/TravelerAvatar';
 
 type LandingHeaderProps = {
   go: (view: View) => void;
@@ -167,7 +167,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                   </span>
                 </>
               ) : (
-                <DefaultAvatar size={40} />
+                <GuestAvatar size={40} />
               )}
             </button>
 
@@ -176,7 +176,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                 <button type="button" aria-label="Close menu" tabIndex={-1} onClick={() => setOpenProfile(false)} className="fixed inset-0 z-30 cursor-default" />
                 <div className="menu-pop absolute right-0 top-full z-40 mt-2 w-64 rounded-md border border-ink-200 bg-white p-1.5 shadow-xl">
                   <div className="flex items-center gap-3 px-3 py-2.5">
-                    {profile ? <TravelerAvatar avatarUrl={profile.avatar_url} size={36} /> : <DefaultAvatar size={36} />}
+                    {profile ? <TravelerAvatar avatarUrl={profile.avatar_url} size={36} /> : <GuestAvatar size={36} />}
                     <div className="min-w-0">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">{profile ? 'Account' : 'Guest'}</p>
                       <p className="mt-0.5 truncate text-[15px] font-semibold text-ink-900">

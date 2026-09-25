@@ -12,6 +12,7 @@ import {
   Clock,
   Copy,
   Download,
+  ExternalLink,
   GraduationCap,
   Landmark,
   Link2,
@@ -22,6 +23,7 @@ import {
   Plus,
   Save,
   Settings as SettingsIcon,
+  Share2,
   Sparkles,
   Trash2,
   UserRound,
@@ -52,6 +54,7 @@ import { TravelerAvatar } from '@/components/common/TravelerAvatar';
 import { PhoneInput } from '@/components/common/PhoneInput';
 import { ImageUploadField } from '@/components/common/ImageUploadField';
 import { LinkedInLogo } from '@/components/common/LinkedInLogo';
+import { AutoGrowTextarea, ChipsInput, FIELD_LIMITS, LimitedLabel, cleanText } from '@/components/common/LimitedFields';
 import { useSeo } from '@/lib/seo';
 import { isUsernameAvailable, normalizeLinkedInUrl, suggestUsername, updateMyLinkedIn, updateMyUsername } from '@/lib/username';
 import type { View } from '@/types';
@@ -117,7 +120,8 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   const [phone, setPhone] = useState('');
   const [countryId, setCountryId] = useState('');
   const [nationalityId, setNationalityId] = useState('');
-  const [languagesText, setLanguagesText] = useState('');
+  const [languages, setLanguages] = useState<string[]>([]);
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
   const [occupation, setOccupation] = useState('');
   const [education, setEducation] = useState('');
   const [specialization, setSpecialization] = useState('');
@@ -158,7 +162,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
     setPhone(profile.phone ?? '');
     setCountryId(profile.country_id ?? '');
     setNationalityId(profile.nationality_country_id ?? '');
-    setLanguagesText((profile.languages ?? []).join(', '));
+    setLanguages((profile.languages ?? []).slice(0, FIELD_LIMITS.languageItems));
     setOccupation(profile.occupation ?? '');
     setEducation(profile.education ?? '');
     setSpecialization(profile.specialization ?? '');
@@ -187,30 +191,38 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
     setError(null);
     setSaved(false);
 
-    const languages = languagesText
-      .split(',')
-      .map((l) => l.trim())
-      .filter(Boolean);
+    const name = fullName.trim();
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (!name) {
+      setSaving(false);
+      setError('Enter your name.');
+      return;
+    }
+    if (phone.trim() && (phoneDigits.length < 6 || phoneDigits.length > 15)) {
+      setSaving(false);
+      setError('Enter a valid phone number (6–15 digits), or leave it empty.');
+      return;
+    }
 
     const { error } = await supabase
       .from('profiles')
       .update({
-        full_name: fullName,
-        phone: phone || null,
+        full_name: name,
+        phone: phone.trim() || null,
         country_id: countryId || null,
         nationality_country_id: nationalityId || null,
         languages: languages.length ? languages : null,
-        occupation: occupation || null,
-        education: education || null,
-        specialization: specialization || null,
-        experience: experience || null,
+        occupation: occupation.trim() || null,
+        education: education.trim() || null,
+        specialization: specialization.trim() || null,
+        experience: experience.trim() || null,
       })
       .eq('id', profile.id);
 
     setSaving(false);
 
     if (error) {
-      setError(error.message);
+      setError(/input_limits/.test(error.message) ? 'One of the fields is too long or has characters that aren’t allowed.' : error.message);
       return;
     }
 
@@ -325,6 +337,50 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {profile.username ? (
+              <>
+                <button
+                  onClick={async () => {
+                    const url = `${window.location.origin}/u/${profile.username}`;
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({ title: `${profile.full_name ?? profile.username} on MadeVisa`, url });
+                        return;
+                      } catch {
+                        /* cancelled — fall back to copying */
+                      }
+                    }
+                    await navigator.clipboard.writeText(url);
+                    setShareMsg('Link copied');
+                    window.setTimeout(() => setShareMsg(null), 2000);
+                  }}
+                  className="flex items-center gap-1.5 rounded border border-ink-200 px-3.5 py-2 text-xs font-semibold text-ink-700 transition-colors hover:border-brand-300 hover:text-[#2563EB]"
+                >
+                  {shareMsg ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Share2 className="h-3.5 w-3.5" />}
+                  {shareMsg ?? 'Share profile'}
+                </button>
+                <a
+                  href={`/u/${profile.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded border border-ink-200 px-3.5 py-2 text-xs font-semibold text-ink-700 transition-colors hover:border-brand-300 hover:text-[#2563EB]"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  View as visitor
+                </a>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  setTab('settings');
+                  window.setTimeout(() => document.getElementById('profile-link')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+                }}
+                className="flex items-center gap-1.5 rounded border border-ink-200 px-3.5 py-2 text-xs font-semibold text-ink-700 transition-colors hover:border-brand-300 hover:text-[#2563EB]"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                Create a shareable profile link
+              </button>
+            )}
             {canPost && (
               <button
                 onClick={() => go('submit-program')}
@@ -370,7 +426,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {/* DASHBOARD — applications at a glance + recently viewed */}
         {tab === 'dashboard' && (
           <div className="mt-6 space-y-8">
-            <ApplicantReport viewedCount={recentlyViewedJobs.length} />
+            <ApplicantReport viewedCount={recentlyViewedJobs.length} hasPublicProfile={Boolean(profile.username)} />
             <RecentlyViewedSection items={recentlyViewedJobs} onBrowse={() => go('jobs')} />
           </div>
         )}
@@ -452,8 +508,15 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Full name</label>
-                  <input value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputClass} />
+                  <LimitedLabel label="Full name" value={fullName} max={FIELD_LIMITS.fullName} htmlFor="pf-name" />
+                  <input
+                    id="pf-name"
+                    value={fullName}
+                    maxLength={FIELD_LIMITS.fullName}
+                    autoComplete="name"
+                    onChange={(e) => setFullName(cleanText(e.target.value.replace(/[0-9<>{}[\]@#$%^*=_|\\~`]/g, ''), FIELD_LIMITS.fullName))}
+                    className={inputClass}
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -480,37 +543,62 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
                 <PhoneInput countryIsoCode={residenceCountry?.iso_code} value={phone} onChange={setPhone} />
 
                 <div>
-                  <label className={labelClass}>Languages (optional)</label>
+                  <label className={labelClass} htmlFor="pf-languages">
+                    Languages (optional)
+                  </label>
+                  <ChipsInput
+                    id="pf-languages"
+                    values={languages}
+                    onChange={setLanguages}
+                    maxItems={FIELD_LIMITS.languageItems}
+                    maxLength={FIELD_LIMITS.languageLength}
+                    placeholder="e.g. English"
+                  />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <LimitedLabel label="Occupation (optional)" value={occupation} max={FIELD_LIMITS.occupation} htmlFor="pf-occupation" />
+                    <input
+                      id="pf-occupation"
+                      value={occupation}
+                      maxLength={FIELD_LIMITS.occupation}
+                      onChange={(e) => setOccupation(cleanText(e.target.value, FIELD_LIMITS.occupation))}
+                      placeholder="e.g. Product designer"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <LimitedLabel label="Education (optional)" value={education} max={FIELD_LIMITS.education} htmlFor="pf-education" />
+                    <input
+                      id="pf-education"
+                      value={education}
+                      maxLength={FIELD_LIMITS.education}
+                      onChange={(e) => setEducation(cleanText(e.target.value, FIELD_LIMITS.education))}
+                      placeholder="e.g. BSc Computer Science"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <LimitedLabel label="Specialization (optional)" value={specialization} max={FIELD_LIMITS.specialization} htmlFor="pf-spec" />
                   <input
-                    value={languagesText}
-                    onChange={(e) => setLanguagesText(e.target.value)}
-                    placeholder="e.g. English, Azerbaijani, Turkish"
+                    id="pf-spec"
+                    value={specialization}
+                    maxLength={FIELD_LIMITS.specialization}
+                    onChange={(e) => setSpecialization(cleanText(e.target.value, FIELD_LIMITS.specialization))}
                     className={inputClass}
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className={labelClass}>Occupation (optional)</label>
-                    <input value={occupation} onChange={(e) => setOccupation(e.target.value)} className={inputClass} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Education (optional)</label>
-                    <input value={education} onChange={(e) => setEducation(e.target.value)} className={inputClass} />
-                  </div>
-                </div>
-
                 <div>
-                  <label className={labelClass}>Specialization (optional)</label>
-                  <input value={specialization} onChange={(e) => setSpecialization(e.target.value)} className={inputClass} />
-                </div>
-
-                <div>
-                  <label className={labelClass}>Experience (optional)</label>
-                  <textarea
+                  <LimitedLabel label="Experience (optional)" value={experience} max={FIELD_LIMITS.experience} htmlFor="pf-exp" />
+                  <AutoGrowTextarea
+                    id="pf-exp"
                     value={experience}
-                    onChange={(e) => setExperience(e.target.value)}
-                    rows={3}
+                    onChange={setExperience}
+                    max={FIELD_LIMITS.experience}
                     placeholder="A brief summary of your work or study experience"
                     className={textareaClass}
                   />
@@ -792,6 +880,11 @@ function PartnerSection({
       setError('Choose how you’re connected to the company.');
       return;
     }
+    const site = normalizeWebsite(website);
+    if (website.trim() && !site) {
+      setError('Enter the official website, like https://company.com');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     const representativeRole = applying === 'company' ? role : null;
@@ -799,8 +892,8 @@ function PartnerSection({
     if (resubmitting && publisher) {
       const updated = await resubmitPublisherProfile(publisher.id, {
         orgType: applying ?? undefined,
-        name: orgName,
-        website,
+        name: orgName.trim(),
+        website: site ?? '',
         countryId,
         logoUrl,
         representativeRole,
@@ -820,8 +913,8 @@ function PartnerSection({
     const created = await createPublisherProfile({
       ownerId: userId,
       orgType: applying,
-      name: orgName,
-      website,
+      name: orgName.trim(),
+      website: site ?? '',
       countryId,
       contactEmail: userEmail,
       logoUrl,
@@ -877,12 +970,36 @@ function PartnerSection({
               </fieldset>
             )}
             <div>
-              <label className={labelClass}>{applying === 'government' ? 'Government body' : 'Company name'}</label>
-              <input value={orgName} onChange={(e) => setOrgName(e.target.value)} className={inputClass} />
+              <LimitedLabel label={applying === 'government' ? 'Government body' : 'Company name'} value={orgName} max={FIELD_LIMITS.orgName} htmlFor="org-name" />
+              <input
+                id="org-name"
+                value={orgName}
+                maxLength={FIELD_LIMITS.orgName}
+                onChange={(e) => setOrgName(cleanText(e.target.value.replace(/[<>{}]/g, ''), FIELD_LIMITS.orgName))}
+                className={inputClass}
+              />
             </div>
             <div>
-              <label className={labelClass}>Official website {applying === 'company' ? '(helps us verify you faster)' : '(optional)'}</label>
-              <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://" className={inputClass} />
+              <label className={labelClass} htmlFor="org-site">
+                Official website {applying === 'company' ? '(helps us verify you faster)' : '(optional)'}
+              </label>
+              <input
+                id="org-site"
+                type="url"
+                inputMode="url"
+                value={website}
+                maxLength={FIELD_LIMITS.website}
+                onChange={(e) => setWebsite(e.target.value.replace(/\s/g, ''))}
+                onBlur={() => {
+                  const n = normalizeWebsite(website);
+                  if (n) setWebsite(n);
+                }}
+                placeholder="https://company.com"
+                className={inputClass}
+              />
+              {website.trim() && !normalizeWebsite(website) && (
+                <p className="mt-1 text-[11px] font-medium text-rose-600">That doesn't look like a website address.</p>
+              )}
             </div>
             <div>
               <label className={labelClass}>Country</label>
@@ -922,6 +1039,20 @@ function PartnerSection({
       </div>
     </div>
   );
+}
+
+/** "company.com/careers" → "https://company.com/careers". Null if it isn't a real web address. */
+function normalizeWebsite(input: string): string | null {
+  const raw = input.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    if (!/^https?:$/.test(url.protocol) || !/\.[a-z]{2,}$/i.test(url.hostname)) return null;
+    const out = url.toString().replace(/\/$/, '');
+    return out.length <= FIELD_LIMITS.website ? out : null;
+  } catch {
+    return null;
+  }
 }
 
 /** What organizations can post on MadeVisa, and who to email. */
@@ -1165,7 +1296,8 @@ function LinkedInConnect({ userId, url, onSaved }: { userId: string; url: string
               id="linkedin-url"
               autoFocus
               value={value}
-              onChange={(e) => setValue(e.target.value)}
+              maxLength={FIELD_LIMITS.linkedin}
+              onChange={(e) => setValue(e.target.value.replace(/\s/g, ''))}
               onKeyDown={(e) => e.key === 'Enter' && save(value)}
               placeholder="linkedin.com/in/your-name"
               className="mt-1.5 h-9 w-full rounded border border-ink-200 px-2.5 text-sm text-ink-900 outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-brand-100"
@@ -1242,7 +1374,7 @@ function UsernameCard({ profile, onSaved }: { profile: Profile; onSaved: () => v
   };
 
   return (
-    <div className="border border-ink-200 bg-white p-6">
+    <div id="profile-link" className="scroll-mt-24 border border-ink-200 bg-white p-6">
       <h2 className="flex items-center gap-1.5 text-sm font-bold text-ink-900">
         <Link2 className="h-4 w-4 text-ink-400" />
         Shareable profile link
@@ -1276,7 +1408,8 @@ function UsernameCard({ profile, onSaved }: { profile: Profile; onSaved: () => v
             <span className="text-sm text-ink-400">madevisa.com/u/</span>
             <input
               value={value}
-              onChange={(e) => setValue(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+              onChange={(e) => setValue(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, FIELD_LIMITS.username))}
+              maxLength={FIELD_LIMITS.username}
               placeholder="your-name"
               className="h-10 flex-1 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-900 outline-none focus:border-brand-500"
             />
@@ -1286,6 +1419,9 @@ function UsernameCard({ profile, onSaved }: { profile: Profile; onSaved: () => v
             {!checking && available === true && value.length >= 3 && <span className="font-medium text-emerald-600">Available</span>}
             {!checking && available === false && <span className="font-medium text-rose-600">Already taken</span>}
             {!checking && value.length > 0 && value.length < 3 && <span className="text-ink-400">At least 3 characters</span>}
+            <span className="float-right text-ink-400">
+              {value.length} / {FIELD_LIMITS.username} · letters, numbers, - and _
+            </span>
           </div>
           {error && <p className="mt-1 text-xs font-medium text-rose-600">{error}</p>}
           <div className="mt-3 flex items-center gap-2">
