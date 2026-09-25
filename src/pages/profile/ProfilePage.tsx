@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { isEmailVerified, useAuth, type Profile } from '@/lib/auth';
 import { VerifyEmailCard } from '@/components/common/VerifyEmailCard';
+import { TwoFactorSettings } from '@/components/auth/TwoFactorSettings';
 import { supabase } from '@/lib/supabase';
 import {
   createPublisherProfile,
@@ -418,6 +419,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {/* SETTINGS */}
         {tab === 'settings' && (
           <div className="mt-6 space-y-6">
+            <TwoFactorSettings isAdmin={profile.role === 'admin'} />
             <div className="border border-ink-200 bg-white p-6">
               <h2 className="text-sm font-bold text-ink-900">Profile photo</h2>
               <div className="mt-4 flex items-center gap-4">

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EvidenceReviewSection } from '@/pages/admin/EvidenceReviewSection';
 import { ListingRequestsSection } from '@/pages/admin/ListingRequestsSection';
+import { listTotpFactors } from '@/lib/mfa';
 import { PublisherFilterChips, RegisteredCompanyPanel, type PublisherFilter } from '@/pages/admin/RegisteredCompanyPanel';
 import { Bell, Briefcase, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Inbox, Landmark, Mail, Pencil, RefreshCw, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -325,6 +326,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
       <LandingHeader go={go} onAuth={onAuth} active="home" />
 
       <main className="mx-auto max-w-5xl px-5 py-12 sm:px-8">
+        <AdminMfaReminder onOpen={() => go('profile')} />
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-ink-950">Admin panel</h1>
@@ -3152,5 +3154,25 @@ function AddJobsTools({ children }: { children: ReactNode }) {
       </button>
       {open && <div className="-mt-4">{children}</div>}
     </section>
+  );
+}
+
+/** Shown until this admin turns on two-step login (Profile → Settings). */
+function AdminMfaReminder({ onOpen }: { onOpen: () => void }) {
+  const [missing, setMissing] = useState(false);
+  useEffect(() => {
+    listTotpFactors().then(({ verified }) => setMissing(verified.length === 0));
+  }, []);
+  if (!missing) return null;
+  return (
+    <div className="mb-6 flex flex-wrap items-center gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+      <ShieldAlert className="h-5 w-5 shrink-0 text-amber-600" />
+      <p className="min-w-0 flex-1 text-sm text-amber-900">
+        <strong>Protect admin access.</strong> Turn on two-step login so a leaked password alone can't open this panel.
+      </p>
+      <button onClick={onOpen} className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700">
+        Set it up (Profile → Settings)
+      </button>
+    </div>
   );
 }
