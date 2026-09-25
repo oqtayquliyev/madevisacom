@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { NotFoundPage } from '@/pages/NotFoundPage';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -101,15 +102,7 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
     );
   }
   if (company === null) {
-    return shell(
-      <div className="mx-auto max-w-lg px-5 py-24 text-center">
-        <Building2 className="mx-auto h-10 w-10 text-ink-300" />
-        <h1 className="mt-4 text-xl font-bold">Company not found</h1>
-        <button onClick={() => nav('/companies')} className="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
-          Browse companies
-        </button>
-      </div>
-    );
+    return <NotFoundPage kind="company" go={go} onAuth={onAuth} />;
   }
 
   const i = insights;

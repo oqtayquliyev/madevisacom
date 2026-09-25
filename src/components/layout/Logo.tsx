@@ -53,10 +53,16 @@ export function BrandMark({
 }) {
   const isFooter = variant === 'footer';
 
+  // A real link to "/" so right-click → "Open link in new tab" works;
+  // a plain click still runs the in-app navigation.
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <a
+      href="/"
+      onClick={(event) => {
+        if (!onClick || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        event.preventDefault();
+        onClick();
+      }}
       aria-label="MadeVisa home"
       className="flex items-center gap-2.5"
     >
@@ -69,6 +75,6 @@ export function BrandMark({
       >
         madevisa<span className="text-brand-500">.</span>
       </span>
-    </button>
+    </a>
   );
 }

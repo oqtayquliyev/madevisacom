@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { NotFoundPage } from '@/pages/NotFoundPage';
 import { isMeaningfulSalary } from '@/lib/listingCategories';
 import { companyPath, recordApplication } from '@/lib/companies';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
@@ -175,18 +176,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   }
 
   if (!job) {
-    return (
-      <div className="min-h-screen bg-[#f8fafc]">
-        <LandingHeader go={go} onAuth={onAuth} active="jobs" />
-        <div className="mx-auto max-w-lg px-5 py-24 text-center">
-          <h1 className="text-xl font-bold text-ink-900">Job not found</h1>
-          <p className="mt-2 text-sm text-ink-500">It may have been removed or isn't published yet.</p>
-          <button onClick={() => go('jobs')} className="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
-            Browse jobs
-          </button>
-        </div>
-      </div>
-    );
+    // Removed, closed or mistyped link → friendly 404 with a way back to jobs.
+    const companySlug = id.includes('/') ? id.split('/')[0] : null;
+    return <NotFoundPage kind="job" go={go} onAuth={onAuth} companySlug={companySlug} />;
   }
 
   const SponsorIcon = job.publisherOrgType === 'government' ? Landmark : job.publisherOrgType === 'expert' ? UserRound : Building2;

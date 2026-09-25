@@ -28,10 +28,10 @@ type LandingHeaderProps = {
   active?: View;
 };
 
-const primaryLinks: { view: View; label: string; icon: typeof Briefcase }[] = [
-  { view: 'jobs', label: 'Jobs', icon: Briefcase },
-  { view: 'programs', label: 'Programs', icon: GraduationCap },
-  { view: 'study', label: 'Study', icon: BookOpen },
+const primaryLinks: { view: View; href: string; label: string; icon: typeof Briefcase }[] = [
+  { view: 'jobs', href: '/jobs', label: 'Jobs', icon: Briefcase },
+  { view: 'programs', href: '/programs', label: 'Programs', icon: GraduationCap },
+  { view: 'study', href: '/study', label: 'Study', icon: BookOpen },
 ];
 
 // Dropdown rows: grey by default, MadeVisa blue text on hover.
@@ -97,15 +97,16 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
           {primaryLinks.map((link) => {
             const Icon = link.icon;
             return (
-              <button
+              <a
                 key={link.view}
-                onClick={() => { go(link.view); setOpenMenu(false); }}
+                href={link.href}
+                onClick={(event) => handleNavClick(event, () => { go(link.view); setOpenMenu(false); })}
                 className={`${linkClass(link.view)} ${SOON_VIEWS.has(link.view) && active !== link.view ? '!text-ink-400 hover:!text-ink-600' : ''}`}
               >
                 <Icon className="h-4 w-4" />
                 {link.label}
                 {SOON_VIEWS.has(link.view) && <SoonChip />}
-              </button>
+              </a>
             );
           })}
 
@@ -194,21 +195,21 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
 
                   {profile ? (
                     <>
-                      <button onClick={() => { go('profile'); closeAll(); }} className={menuItemClass}>
+                      <a href="/profile" onClick={(event) => handleNavClick(event, () => { go('profile'); closeAll(); })} className={menuItemClass}>
                         <LayoutDashboard className={menuIconClass} />
                         My profile & applications
-                      </button>
+                      </a>
                       {managedCompanyName && (
-                        <button onClick={() => { go('company'); closeAll(); }} className={menuItemClass}>
+                        <a href="/company" onClick={(event) => handleNavClick(event, () => { go('company'); closeAll(); })} className={menuItemClass}>
                           <Building2 className={menuIconClass} />
                           <span className="truncate">Manage {managedCompanyName}</span>
-                        </button>
+                        </a>
                       )}
                       {profile.role === 'admin' && (
-                        <button onClick={() => { go('admin'); closeAll(); }} className={menuItemClass}>
+                        <a href="/admin" onClick={(event) => handleNavClick(event, () => { go('admin'); closeAll(); })} className={menuItemClass}>
                           <ShieldCheck className={menuIconClass} />
                           Admin panel
-                        </button>
+                        </a>
                       )}
                       <button
                         onClick={() => { signOut(); closeAll(); }}

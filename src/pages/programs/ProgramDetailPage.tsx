@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { NotFoundPage } from '@/pages/NotFoundPage';
 import { companyPath, recordApplication } from '@/lib/companies';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import {
@@ -92,18 +93,7 @@ export function ProgramDetailPage({ id, go, onAuth }: ProgramDetailPageProps) {
   }
 
   if (!program) {
-    return (
-      <div className="min-h-screen bg-[#f8fafc]">
-        <LandingHeader go={go} onAuth={onAuth} active="programs" />
-        <div className="mx-auto max-w-lg px-5 py-24 text-center">
-          <h1 className="text-xl font-bold text-ink-900">Program not found</h1>
-          <p className="mt-2 text-sm text-ink-500">It may have been removed or isn't published yet.</p>
-          <button onClick={() => go('sponsored-programs')} className="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
-            Browse programs
-          </button>
-        </div>
-      </div>
-    );
+    return <NotFoundPage kind="program" go={go} onAuth={onAuth} />;
   }
 
   const Icon = orgIcon[program.publisher?.org_type ?? 'company'];

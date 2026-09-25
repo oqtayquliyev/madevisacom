@@ -1,4 +1,5 @@
 import type { View } from '@/types';
+import { NotFoundPage } from '@/pages/NotFoundPage';
 import { legalPages } from '@/data/legalContent';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -20,18 +21,7 @@ export function LegalPage({ slug, go, onAuth }: LegalPageProps) {
   });
 
   if (!content) {
-    return (
-      <div className="min-h-screen bg-[#f8fafc]">
-        <LandingHeader go={go} onAuth={onAuth} active="home" />
-        <div className="mx-auto max-w-lg px-5 py-24 text-center">
-          <h1 className="text-xl font-bold text-ink-900">Page not found</h1>
-          <button onClick={() => go('home')} className="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
-            Back to MadeVisa
-          </button>
-        </div>
-        <LandingFooter go={go} onAuth={onAuth} />
-      </div>
-    );
+    return <NotFoundPage go={go} onAuth={onAuth} />;
   }
 
   return (

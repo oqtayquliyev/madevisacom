@@ -1,4 +1,5 @@
 import { Facebook, Instagram, Linkedin } from 'lucide-react';
+import { handleNavClick } from '@/lib/navLink';
 import { SoonChip, SOON_VIEWS } from '@/components/common/SoonChip';
 import type { View } from '@/types';
 import { BrandMark } from '@/components/layout/Logo';
@@ -36,6 +37,17 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
     ],
   },
 ];
+
+// Real addresses for footer links, so right-click → "Open link in new tab" works.
+const FOOTER_HREF: Record<string, string> = {
+  jobs: '/jobs',
+  programs: '/programs',
+  study: '/study',
+  companies: '/companies',
+  experts: '/experts',
+  'submit-job': '/submit-job',
+  'official-partners': '/official-partners',
+};
 
 const LEGAL = [
   { label: 'Privacy', href: '/privacy' },
@@ -81,13 +93,14 @@ export function LandingFooter({ go }: LandingFooterProps) {
                   {column.links.map((link) => (
                     <li key={link.label}>
                       {link.view ? (
-                        <button
-                          onClick={() => go(link.view as View)}
+                        <a
+                          href={FOOTER_HREF[link.view] ?? '/'}
+                          onClick={(event) => handleNavClick(event, () => go(link.view as View))}
                           className={`flex items-center gap-2 text-left text-sm transition hover:text-white ${SOON_VIEWS.has(link.view) ? 'text-ink-500' : 'text-ink-300'}`}
                         >
                           {link.label}
                           {SOON_VIEWS.has(link.view) && <SoonChip className="!bg-white/10 !text-ink-400" />}
-                        </button>
+                        </a>
                       ) : (
                         <a href={link.href} className="text-sm text-ink-300 transition hover:text-white">
                           {link.label}

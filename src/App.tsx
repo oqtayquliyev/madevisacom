@@ -24,6 +24,7 @@ import { LegalPage } from '@/pages/legal/LegalPage';
 import { legalPageOrder } from '@/data/legalContent';
 import { SubmitJobPage } from '@/pages/submit/SubmitJobPage';
 import { VerifyEmailPage } from '@/pages/auth/VerifyEmailPage';
+import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { PendingConfirmationPage } from '@/pages/auth/PendingConfirmationPage';
 import type { PendingSignup } from '@/pages/auth/RegisterPage';
@@ -51,6 +52,10 @@ const pathForView: Partial<Record<View, string>> = {
   companies: '/companies',
   'official-partners': '/official-partners',
 };
+
+// Pages routed by view (plus home and sign-in). Paths with their own
+// handlers above the 404 check (jobs, companies, legal, …) aren't needed here.
+const KNOWN_PATHS = new Set<string>(['/', '/index.html', '/login', '/register', '/reset-password', ...Object.values(pathForView).filter((p): p is string => Boolean(p))]);
 
 const authPathToPage: Record<string, AuthPage> = {
   '/login': 'login',
@@ -267,6 +272,13 @@ export default function App() {
   // "set a new password" form into the logged-in app.
   if (path === '/reset-password') {
     return <ResetPasswordPage onHome={() => go('home')} onSwitchToLogin={() => goToAuth('login')} />;
+  }
+
+  // Anything else that isn't a known page → friendly 404 instead of
+  // silently showing the homepage under a wrong address.
+  const cleanPath = path.replace(/\/+$/, '') || '/';
+  if (!KNOWN_PATHS.has(cleanPath)) {
+    return <NotFoundPage go={go} onAuth={goToAuth} />;
   }
 
   if (!session) {
