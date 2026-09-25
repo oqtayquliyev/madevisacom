@@ -23,6 +23,7 @@ import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
 import { EMPTY_FACTS, fetchJobFacts, isCurrentFacts, type JobContact, type StoredJobFacts } from '@/lib/jobFactsClient';
 import { allCountries } from '@/data/allCountries';
 import { ReportJobButton } from '@/components/jobs/ReportJobDialog';
+import { JobInsights } from '@/components/jobs/JobInsights';
 
 type JobDetailPageProps = {
   id: string;
@@ -498,6 +499,8 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             </p>
           )}
         </div>
+
+        {raw?.publisher_id && <JobInsights publisherId={raw.publisher_id} company={job.company} />}
 
         {raw && (
           <div className="mt-4 flex flex-col gap-3 rounded-xl border border-ink-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
