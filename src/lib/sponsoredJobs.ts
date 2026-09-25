@@ -59,6 +59,8 @@ export type SponsoredJob = {
   facts?: import('@/lib/jobFactsClient').StoredJobFacts | null;
   /** Last time a sync saw this job still listed on the source. */
   last_seen_at?: string | null;
+  /** Set when the job was closed (gone from the careers page). Visitors see it greyed out for 24 hours. */
+  closed_at?: string | null;
   publisher?: { id: string; name: string; org_type: OrgType; logo_url: string | null; owner_id: string | null };
   country?: { id: string; name: string; iso_code: string };
 };
@@ -96,6 +98,18 @@ export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
 // with .range() in 1000-row pages until a page comes back short is the
 // standard way to pull every row past that default cap.
 const SUPABASE_MAX_ROWS_PER_REQUEST = 1000;
+
+/** How long a closed job stays visible (greyed out) before it's removed. */
+export const CLOSED_VISIBLE_MS = 24 * 60 * 60 * 1000;
+export const isClosedJob = (j: Pick<SponsoredJob, 'status'>) => j.status === 'expired';
+
+// Closed jobs need the closed_at column (migration 20261011090000). Until
+// it exists, list and detail queries fall back to live jobs only.
+let closedColumnMissing = false;
+const LIST_COLUMNS_WITH_CLOSED = LIST_COLUMNS.replace(', publisher:', ', closed_at, publisher:');
+/** Live jobs, plus jobs closed in the last 24 hours. */
+const liveOrRecentlyClosed = (asOf: string) =>
+  `and(status.eq.published,or(expires_at.is.null,expires_at.gt.${asOf})),and(status.eq.expired,closed_at.gt.${new Date(Date.parse(asOf) - CLOSED_VISIBLE_MS).toISOString()})`;
 
 // ---------------------------------------------------------------------------
 // Caching strategy (fastest first):
@@ -174,19 +188,17 @@ const nowIso = () => new Date().toISOString();
 /** Drops rows that expired since they were cached. */
 function stillLive(rows: SponsoredJob[]): SponsoredJob[] {
   const now = nowIso();
-  return rows.filter((r) => !r.expires_at || r.expires_at > now);
+  const closedSince = new Date(Date.now() - CLOSED_VISIBLE_MS).toISOString();
+  return rows.filter((r) => (isClosedJob(r) ? Boolean(r.closed_at && r.closed_at > closedSince) : !r.expires_at || r.expires_at > now));
 }
 
 async function fetchPublishedFromNetwork(onPartial: (rows: SponsoredJob[]) => void): Promise<{ rows: SponsoredJob[]; complete: boolean } | null> {
   // One timestamp for every page, so all pages see the same set of
   // unexpired jobs.
   const asOf = nowIso();
-  const baseQuery = (withCount: boolean) =>
-    supabase
-      .from('sponsored_jobs')
-      .select(LIST_COLUMNS, withCount ? { count: 'exact' } : undefined)
-      .eq('status', 'published')
-      .or(`expires_at.is.null,expires_at.gt.${asOf}`)
+  const baseQuery = (withCount: boolean) => {
+    const q = supabase.from('sponsored_jobs').select(closedColumnMissing ? LIST_COLUMNS : LIST_COLUMNS_WITH_CLOSED, withCount ? { count: 'exact' } : undefined);
+    return (closedColumnMissing ? q.eq('status', 'published').or(`expires_at.is.null,expires_at.gt.${asOf}`) : q.or(liveOrRecentlyClosed(asOf)))
       // `id` breaks ties: bulk imports give hundreds of jobs the same
       // created_at, and without a unique tiebreaker the database may
       // order them differently for each page request — so some jobs
@@ -194,8 +206,13 @@ async function fetchPublishedFromNetwork(onPartial: (rows: SponsoredJob[]) => vo
       // a few hundred short (and different on every device / reload).
       .order('created_at', { ascending: false })
       .order('id', { ascending: false });
+  };
 
-  const first = await baseQuery(true).range(0, SUPABASE_MAX_ROWS_PER_REQUEST - 1);
+  let first = await baseQuery(true).range(0, SUPABASE_MAX_ROWS_PER_REQUEST - 1);
+  if (first.error && !closedColumnMissing && /closed_at|column|schema cache/i.test(first.error.message)) {
+    closedColumnMissing = true;
+    first = await baseQuery(true).range(0, SUPABASE_MAX_ROWS_PER_REQUEST - 1);
+  }
   if (first.error) {
     console.error('fetchPublishedSponsoredJobs failed', first.error);
     return null;
@@ -325,12 +342,20 @@ export async function updateMySponsoredJob(
 // keeps working even if the newest migration hasn't been run yet — a
 // missing column must never make jobs disappear again.
 const detailColumns = `${columns.replace(', publisher:', ', last_seen_at, work_arrangement, visa_status, publisher:')}`;
+const detailFullColumns = detailColumns.replace(', publisher:', ', facts, closed_at, publisher:');
 
 type DetailQuery = (cols: string) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
 // Plus the stored detector results (20261007090000 migration).
 const detailWithFactsColumns = detailColumns.replace(', publisher:', ', facts, publisher:');
 const isMissingColumn = (e: { message: string; code?: string }) => /column|schema cache/i.test(e.message) || e.code === '42703';
-async function withDetailColumns(run: DetailQuery) {
+async function withDetailColumns(run: DetailQuery, runLiveOnly?: DetailQuery) {
+  // Newest: facts + closed_at, and recently closed jobs too.
+  if (!closedColumnMissing) {
+    const full = await run(detailFullColumns);
+    if (!full.error || !isMissingColumn(full.error)) return full;
+    closedColumnMissing = true;
+  }
+  run = runLiveOnly ?? run;
   const withFacts = await run(detailWithFactsColumns);
   if (!withFacts.error || !isMissingColumn(withFacts.error)) return withFacts;
   const first = await run(detailColumns);
@@ -341,8 +366,9 @@ async function withDetailColumns(run: DetailQuery) {
 
 /** Fetches one published sponsored job by id — for the public job detail page. */
 export async function fetchSponsoredJobById(id: string): Promise<SponsoredJob | null> {
-  const { data, error } = await withDetailColumns((cols) =>
-    supabase.from('sponsored_jobs').select(cols).eq('id', id).eq('status', 'published').maybeSingle()
+  const { data, error } = await withDetailColumns(
+    (cols) => supabase.from('sponsored_jobs').select(cols).eq('id', id).or(liveOrRecentlyClosed(nowIso())).maybeSingle(),
+    (cols) => supabase.from('sponsored_jobs').select(cols).eq('id', id).eq('status', 'published').maybeSingle()
   );
 
   if (error) {
@@ -362,14 +388,16 @@ export async function fetchSponsoredJobById(id: string): Promise<SponsoredJob | 
 export async function fetchSponsoredJobByShortId(shortId: string, titleSlug?: string): Promise<SponsoredJob | null> {
   if (!/^[0-9a-f]{8}$/i.test(shortId)) return null;
   const prefix = shortId.toLowerCase();
-  const { data, error } = await withDetailColumns((cols) =>
+  const byPrefix = (cols: string) =>
     supabase
       .from('sponsored_jobs')
       .select(cols)
-      .eq('status', 'published')
       .gte('id', `${prefix}-0000-0000-0000-000000000000`)
       .lte('id', `${prefix}-ffff-ffff-ffff-ffffffffffff`)
-      .limit(10)
+      .limit(10);
+  const { data, error } = await withDetailColumns(
+    (cols) => byPrefix(cols).or(liveOrRecentlyClosed(nowIso())),
+    (cols) => byPrefix(cols).eq('status', 'published')
   );
 
   if (error) {
@@ -439,6 +467,8 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     workArrangement: job.work_arrangement ?? null,
     visaStatus: job.visa_status ?? null,
     lastSeenAt: job.last_seen_at ?? null,
+    closedAt: isClosedJob(job) ? job.closed_at ?? null : null,
+    closed: isClosedJob(job),
     sourceType: isDirectListing(job) ? 'company_submitted' : 'company_careers',
   };
 }

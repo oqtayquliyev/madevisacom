@@ -1,4 +1,8 @@
-// "X opportunities" headline numbers, read from the hourly snapshot the
+// Counted on the server every 5 minutes (pg_cron, migration 20261011090000);
+// each visitor's browser also remembers the last number for 5 minutes, so
+// opening pages doesn't ask the database again and again.
+//
+// "X opportunities" headline numbers, read from the snapshot the
 // database keeps in `site_stats` (see migration 20260927090000). One tiny
 // row instead of counting thousands of jobs in the browser, so the landing
 // page and /jobs show the same, steady number on every device.
@@ -13,16 +17,16 @@ export type SiteStats = {
 };
 
 const LOCAL_KEY = 'madevisa:siteStats';
-const MEMORY_TTL_MS = 10 * 60 * 1000;
-const STALE_AFTER_MS = 3 * 60 * 60 * 1000; // snapshot job not running → fall back
+const MEMORY_TTL_MS = 5 * 60 * 1000; // same device: reuse the number for 5 minutes
+const STALE_AFTER_MS = 30 * 60 * 1000; // snapshot not refreshed for 30 min (schedule off) → count directly
 
 let memory: { stats: SiteStats; at: number } | null = null;
 let inflight: Promise<SiteStats | null> | null = null;
 
-function readLocal(): SiteStats | null {
+function readLocal(): (SiteStats & { savedAt?: number }) | null {
   try {
     const raw = localStorage.getItem(LOCAL_KEY);
-    const v = raw ? (JSON.parse(raw) as SiteStats) : null;
+    const v = raw ? (JSON.parse(raw) as SiteStats & { savedAt?: number }) : null;
     return v && typeof v.publishedJobs === 'number' ? v : null;
   } catch {
     return null;
@@ -31,7 +35,7 @@ function readLocal(): SiteStats | null {
 
 function writeLocal(stats: SiteStats) {
   try {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(stats));
+    localStorage.setItem(LOCAL_KEY, JSON.stringify({ ...stats, savedAt: Date.now() }));
   } catch {
     /* optional */
   }
@@ -54,6 +58,13 @@ async function countDirectly(): Promise<SiteStats | null> {
 
 export async function fetchSiteStats(): Promise<SiteStats | null> {
   if (memory && Date.now() - memory.at < MEMORY_TTL_MS) return memory.stats;
+  // Counted on this device in the last 5 minutes (e.g. previous page): reuse it.
+  const local = readLocal();
+  if (local?.savedAt && Date.now() - local.savedAt < MEMORY_TTL_MS) {
+    const { savedAt, ...stats } = local;
+    memory = { stats, at: savedAt };
+    return stats;
+  }
   if (!inflight) {
     inflight = (async () => {
       const { data, error } = await supabase.from('site_stats').select('key, value, computed_at');

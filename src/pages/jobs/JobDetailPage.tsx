@@ -22,6 +22,7 @@ import { formatRelativeTime } from '@/lib/dates';
 import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
 import { EMPTY_FACTS, fetchJobFacts, isCurrentFacts, type JobContact, type StoredJobFacts } from '@/lib/jobFactsClient';
 import { allCountries } from '@/data/allCountries';
+import { ReportJobButton } from '@/components/jobs/ReportJobDialog';
 
 type JobDetailPageProps = {
   id: string;
@@ -266,7 +267,16 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const stillHiringTitle = `Still listed on ${job.company}'s careers page${job.lastSeenAt ? ` (checked ${formatRelativeTime(job.lastSeenAt, '')})` : ''} — they're still looking.`;
   if (job.spotsAvailable != null) details.push({ icon: Users, label: 'Positions available', value: String(job.spotsAvailable) });
 
-  const applyButton = (extra = '') => (
+  // Taken down from the company's careers page: shown greyed for 24 h, no applying.
+  const closed = Boolean(job.closed);
+  const closedAgo = job.closedAt ? formatRelativeTime(job.closedAt, '').toLowerCase() : null;
+
+  const applyButton = (extra = '') =>
+    closed ? (
+      <span className={`inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-full bg-ink-200 px-7 py-3.5 text-sm font-bold text-ink-500 ${extra.includes('flex-1') ? 'flex-1 md:flex-none' : ''}`}>
+        Closed
+      </span>
+    ) : (
     <a
       href={job.url}
       target="_blank"
@@ -281,13 +291,13 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       Apply
       <ArrowUpRight className="h-4 w-4" />
     </a>
-  );
+    );
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
 
-      <section className="bg-brand-700 text-white">
+      <section className={`${closed ? 'bg-ink-500' : 'bg-brand-700'} text-white transition-colors`}>
         <div className="mx-auto max-w-4xl px-5 pb-10 pt-6 sm:px-8 sm:pb-14 sm:pt-8">
           <button
             onClick={() => {
@@ -338,7 +348,12 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
           <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-end md:justify-between md:gap-10">
             <div className="min-w-0">
-              <h1 className="break-words font-slab text-3xl font-bold leading-tight tracking-tight sm:text-5xl sm:leading-[1.1]">{job.title}</h1>
+              {closed && (
+                <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-wider ring-1 ring-white/30">
+                  Closed{closedAgo ? ` ${closedAgo}` : ''}
+                </p>
+              )}
+              <h1 className={`break-words font-slab text-3xl font-bold leading-tight tracking-tight sm:text-5xl sm:leading-[1.1] ${closed ? 'text-white/70' : ''}`}>{job.title}</h1>
               <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/85">
                 {job.remote && (
                   <span className="flex items-center gap-1.5 font-semibold text-white">
@@ -408,7 +423,21 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       </section>
 
       <main className="mx-auto max-w-4xl px-5 py-8 sm:px-8 sm:py-10">
-        <div className="border border-ink-200 bg-white p-6 sm:p-8">
+        {closed && (
+          <div className="mb-5 flex flex-col gap-3 rounded-xl border border-ink-200 bg-white p-4 sm:flex-row sm:items-center">
+            <p className="min-w-0 flex-1 text-sm leading-6 text-ink-700">
+              <strong className="text-ink-950">This job is closed.</strong> {job.company} took it down from their careers page, so it can’t be applied for any more. It will
+              disappear from MadeVisa within a day.
+            </p>
+            <a
+              href={`/jobs?q=${encodeURIComponent(job.company)}`}
+              className="shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-center text-sm font-bold text-white hover:bg-brand-700"
+            >
+              Open jobs at {job.company}
+            </a>
+          </div>
+        )}
+        <div className={`border border-ink-200 bg-white p-6 sm:p-8 ${closed ? 'text-ink-500 opacity-70 grayscale' : ''}`}>
           {(category || job.visaSponsorship || (job.additionalLocations?.length ?? 0) > 1) && (
             <div className="mb-5 flex flex-wrap items-center gap-2">
               {category && <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">{category}</span>}
@@ -469,6 +498,15 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             </p>
           )}
         </div>
+
+        {raw && (
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-ink-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs leading-5 text-ink-500">
+              <strong className="text-ink-700">We’re a new platform</strong> — still improving how job descriptions read and adding more details. Something wrong or missing? Let us know.
+            </p>
+            <ReportJobButton jobId={raw.id} className="shrink-0 self-start sm:self-auto" />
+          </div>
+        )}
       </main>
 
       <LandingFooter go={go} onAuth={onAuth} />

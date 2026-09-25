@@ -34,7 +34,7 @@ export type SyncSummary = {
   removed: number;
   duplicatesRemoved: number;
   adopted: number;
-  removalMode?: 'delete' | 'expire';
+  removalMode?: 'delete' | 'expire' | 'close';
   error?: string;
   blockedRemovals?: number;
 };
@@ -190,7 +190,8 @@ export async function fetchWholeSource(
 
 export type SyncOptions = {
   countries: ImportCountryLookup[];
-  removal: 'delete' | 'expire';
+  /** Jobs gone from the source: delete now, mark expired (kept), or close — shown greyed for 24 h, then deleted by cleanup with their stats kept. */
+  removal: 'delete' | 'expire' | 'close';
   refreshContent: boolean;
   /** Allow removing more than MAX_REMOVAL_SHARE of a company's jobs in one sync. */
   allowLargeRemoval?: boolean;
@@ -213,6 +214,7 @@ type ExistingRow = {
   import_source_id: string | null;
   created_at: string;
   work_arrangement?: string | null;
+  closed_reason?: string | null;
 };
 
 async function inChunks<T>(items: T[], size: number, fn: (chunk: T[]) => PromiseLike<{ error: { message: string } | null }>): Promise<string | null> {
@@ -290,10 +292,14 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
     );
   try {
     try {
-      existing = await loadExisting('id, title, status, external_id, official_url, import_source_id, created_at, work_arrangement');
+      existing = await loadExisting('id, title, status, external_id, official_url, import_source_id, created_at, work_arrangement, closed_reason');
     } catch {
-      hasWorkArrangement = false;
-      existing = await loadExisting('id, title, status, external_id, official_url, import_source_id, created_at');
+      try {
+        existing = await loadExisting('id, title, status, external_id, official_url, import_source_id, created_at, work_arrangement');
+      } catch {
+        hasWorkArrangement = false;
+        existing = await loadExisting('id, title, status, external_id, official_url, import_source_id, created_at');
+      }
     }
   } catch (e) {
     summary.error = e instanceof Error ? e.message : 'Could not load existing jobs.';
@@ -387,6 +393,12 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
     if (error) summary.error = error.message;
     else if (row.import_source_id !== source.id) summary.adopted++;
   });
+  // Closed by an earlier sync but back on the careers page: reopen.
+  const reopen = stillLive.filter(({ row }) => row.status === 'expired' && row.closed_reason === 'source').map(({ row }) => row.id);
+  if (reopen.length) {
+    const e = await inChunks(reopen, CHUNK, (ids) => supabase.from('sponsored_jobs').update({ status: 'published', expires_at: extendTo }).in('id', ids));
+    if (e) summary.error = e;
+  }
   summary.refreshed = stillLive.length;
   pct(0.8);
 
@@ -412,13 +424,27 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
     const dupIds = new Set(duplicates.map((d) => d.id));
     const goneIds = ids.filter((id) => !dupIds.has(id));
     const e1 = await inChunks([...dupIds], CHUNK, (chunk) => supabase.from('sponsored_jobs').delete().in('id', chunk));
-    const e2 =
-      opts.removal === 'delete'
-        ? await inChunks(goneIds, CHUNK, (chunk) => supabase.from('sponsored_jobs').delete().in('id', chunk))
-        : await inChunks(goneIds, CHUNK, (chunk) => supabase.from('sponsored_jobs').update({ status: 'expired' }).in('id', chunk));
+    let removedN = goneIds.length;
+    let e2: string | null;
+    if (opts.removal === 'close') {
+      // Live jobs → closed (greyed for 24 h, then cleanup deletes them and keeps their stats).
+      // Pending ones were never public → deleted. Already closed/expired → left alone.
+      const statusOf = new Map(toRemove.map((r) => [r.id, r.status]));
+      const toClose = goneIds.filter((id) => statusOf.get(id) === 'published');
+      const toDelete = goneIds.filter((id) => statusOf.get(id) !== 'published' && statusOf.get(id) !== 'expired');
+      removedN = toClose.length + toDelete.length;
+      e2 =
+        (await inChunks(toClose, CHUNK, (chunk) => supabase.from('sponsored_jobs').update({ status: 'expired', closed_reason: 'source' }).in('id', chunk))) ??
+        (await inChunks(toDelete, CHUNK, (chunk) => supabase.from('sponsored_jobs').delete().in('id', chunk)));
+    } else {
+      e2 =
+        opts.removal === 'delete'
+          ? await inChunks(goneIds, CHUNK, (chunk) => supabase.from('sponsored_jobs').delete().in('id', chunk))
+          : await inChunks(goneIds, CHUNK, (chunk) => supabase.from('sponsored_jobs').update({ status: 'expired' }).in('id', chunk));
+    }
     if (e1 || e2) summary.error = e1 ?? e2 ?? undefined;
     else {
-      summary.removed = goneIds.length;
+      summary.removed = removedN;
       summary.duplicatesRemoved = dupIds.size;
     }
   }
@@ -437,7 +463,7 @@ export function describeSyncSummary(s: SyncSummary | null | undefined): string {
   if (!s) return 'Never synced';
   const parts = [`${s.fetched} on source`];
   if (s.added) parts.push(`+${s.added} new`);
-  if (s.removed) parts.push(`−${s.removed} ${s.removalMode === 'expire' ? 'expired' : 'removed'}`);
+  if (s.removed) parts.push(`−${s.removed} ${s.removalMode === 'expire' ? 'expired' : s.removalMode === 'close' ? 'closed' : 'removed'}`);
   if (s.duplicatesRemoved) parts.push(`${s.duplicatesRemoved} duplicates cleaned`);
   if (s.adopted) parts.push(`${s.adopted} linked`);
   return parts.join(' · ');

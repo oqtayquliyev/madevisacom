@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Loader2, Play, RefreshCw, ScanSearch, Square, X } from 'lucide-react';
+import { Check, ChevronDown, Infinity as InfinityIcon, Loader2, Play, RefreshCw, ScanSearch, Square, X } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 import { syncImportSource, type ImportSource } from '@/lib/importSync';
 import { backfillJobFacts, type ImportCountryLookup } from '@/lib/admin';
 import { countLiveJobs, fetchRecentRuns, saveRun, startRun, type JobUpdateRun } from '@/lib/jobUpdateRuns';
@@ -18,6 +19,15 @@ type SourceState = 'waiting' | 'running' | 'done' | 'failed';
 type Phase = 'idle' | 'sync' | 'detect' | 'finished';
 
 const CONCURRENCY = 3;
+const AUTO_KEY = 'madevisa:autoUpdate';
+const GAPS = [
+  { min: 30, label: 'every 30 min' },
+  { min: 60, label: 'every hour' },
+  { min: 180, label: 'every 3 hours' },
+  { min: 360, label: 'every 6 hours' },
+];
+
+type WakeLockLike = { release: () => Promise<void> };
 
 function fmtDuration(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -74,10 +84,41 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
   const [result, setResult] = useState<JobUpdateRun | null>(null);
   const [runs, setRuns] = useState<JobUpdateRun[] | null>(null);
   const [showOptions, setShowOptions] = useState(false);
-  const [removal, setRemoval] = useState<'delete' | 'expire'>('delete');
+  const [removal, setRemoval] = useState<'delete' | 'expire' | 'close'>('close');
   const [refreshText, setRefreshText] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const stop = useRef(false);
+
+  // ---- Keep jobs updated (auto mode) ----
+  // Runs a full update, cleans up jobs closed over 24 h ago, waits, repeats —
+  // for as long as this tab stays open. Only a click starts it.
+  const [auto, setAuto] = useState(false);
+  const autoRef = useRef(false);
+  const [gapMin, setGapMin] = useState(() => {
+    try {
+      return Number(JSON.parse(localStorage.getItem(AUTO_KEY) ?? '{}').gap) || 60;
+    } catch {
+      return 60;
+    }
+  });
+  const [wasAuto] = useState(() => {
+    try {
+      return Boolean(JSON.parse(localStorage.getItem(AUTO_KEY) ?? '{}').on);
+    } catch {
+      return false;
+    }
+  });
+  const [nextRunAt, setNextRunAt] = useState<number | null>(null);
+  const [cycles, setCycles] = useState(0);
+  const [lastCleanup, setLastCleanup] = useState<string | null>(null);
+  const wake = useRef<WakeLockLike | null>(null);
+  const saveAuto = (on: boolean, gap = gapMin) => {
+    try {
+      localStorage.setItem(AUTO_KEY, JSON.stringify({ on, gap }));
+    } catch {
+      /* optional */
+    }
+  };
 
   // Only companies with a source; one entry per source, stable order.
   const list = useMemo(() => [...sources].sort((a, b) => (a.publisher?.name ?? '').localeCompare(b.publisher?.name ?? '')), [sources]);
@@ -90,21 +131,21 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
 
   // Clock for the elapsed timer.
   useEffect(() => {
-    if (!running) return;
+    if (!running && !auto) return;
     const t = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(t);
-  }, [running]);
+  }, [running, auto]);
 
   // Closing the tab mid-run would cut it off — ask first.
   useEffect(() => {
-    if (!running) return;
+    if (!running && !auto) return;
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = '';
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [running]);
+  }, [running, auto]);
 
   const runAll = async () => {
     if (running || !list.length) return;
@@ -204,12 +245,62 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
       ...final,
     } as JobUpdateRun);
     if (detectError) setError(detectError);
+
+    // Jobs closed over 24 hours ago → deleted (their numbers stay in company stats).
+    if (!stop.current) {
+      const { data, error: cleanErr } = await supabase.rpc('cleanup_closed_jobs');
+      if (!cleanErr && typeof data === 'number') setLastCleanup(data ? `${data.toLocaleString()} closed job${data === 1 ? '' : 's'} older than 24 h removed` : 'No closed jobs older than 24 h');
+    }
+
     setPhase('finished');
     setCurrent([]);
     setDetail('');
     loadRuns();
     onChange();
+    if (autoRef.current) {
+      if (stop.current) stopAuto();
+      else {
+        setCycles((c) => c + 1);
+        setNextRunAt(Date.now() + gapMinRef.current * 60_000);
+      }
+    }
   };
+
+  const runAllRef = useRef(runAll);
+  runAllRef.current = runAll;
+  const gapMinRef = useRef(gapMin);
+  gapMinRef.current = gapMin;
+
+  const startAuto = async () => {
+    autoRef.current = true;
+    setAuto(true);
+    setCycles(0);
+    saveAuto(true);
+    try {
+      const wl = (navigator as unknown as { wakeLock?: { request: (t: 'screen') => Promise<WakeLockLike> } }).wakeLock;
+      if (wl) wake.current = await wl.request('screen');
+    } catch {
+      /* the screen may still sleep; the tab keeps working while open */
+    }
+    void runAllRef.current();
+  };
+
+  function stopAuto() {
+    autoRef.current = false;
+    setAuto(false);
+    setNextRunAt(null);
+    saveAuto(false);
+    void wake.current?.release().catch(() => undefined);
+    wake.current = null;
+  }
+
+  // Next cycle when the wait is over.
+  useEffect(() => {
+    if (auto && nextRunAt && !running && now >= nextRunAt) {
+      setNextRunAt(null);
+      void runAllRef.current();
+    }
+  }, [auto, nextRunAt, running, now]);
 
   const last = runs?.find((r) => r.status !== 'running') ?? null;
   const syncPct = list.length ? syncDone / list.length : 0;
@@ -233,6 +324,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
           <button
             onClick={() => {
               stop.current = true;
+              if (autoRef.current) stopAuto();
               setDetail('Stopping after the current step…');
             }}
             className="flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/10"
@@ -247,6 +339,54 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
           >
             <Play className="h-4 w-4 fill-current transition group-hover:scale-110" /> Run full update
           </button>
+        )}
+      </div>
+
+      {/* Keep jobs updated */}
+      <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-5 py-3 text-xs sm:px-6 ${auto ? 'border-brand-500/40 bg-brand-600/15' : 'border-white/10'}`}>
+        <InfinityIcon className={`h-4 w-4 shrink-0 ${auto ? 'text-brand-300' : 'text-white/40'}`} />
+        {auto ? (
+          <>
+            <span className="font-semibold text-white">
+              Keeping jobs updated {GAPS.find((g) => g.min === gapMin)?.label ?? `every ${gapMin} min`}
+            </span>
+            <span className="text-white/60">
+              {running ? `Cycle ${cycles + 1} running…` : nextRunAt ? `Next update in ${fmtDuration(nextRunAt - now)}` : 'Starting…'}
+              {cycles > 0 && ` · ${cycles} done`}
+              {lastCleanup && ` · ${lastCleanup}`}
+            </span>
+            <button onClick={stopAuto} className="ml-auto flex items-center gap-1.5 rounded-md border border-white/20 px-3 py-1.5 font-semibold text-white hover:bg-white/10">
+              <Square className="h-3 w-3 fill-current" /> Stop auto-update
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="min-w-0 flex-1 text-white/60">
+              <strong className="text-white">Keep jobs updated:</strong> runs the full update again and again while this tab is open. Jobs gone from a careers page show as “Closed” for 24 h, then are removed.
+              {wasAuto && !running && <span className="text-amber-300"> It was on last time — click Start to continue.</span>}
+            </span>
+            <select
+              value={gapMin}
+              onChange={(e) => {
+                setGapMin(Number(e.target.value));
+                saveAuto(false, Number(e.target.value));
+              }}
+              className="rounded bg-white/10 px-2 py-1.5 text-white"
+            >
+              {GAPS.map((g) => (
+                <option key={g.min} value={g.min} className="text-ink-900">
+                  {g.label}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={startAuto}
+              disabled={running || !list.length}
+              className="flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 font-bold text-ink-950 hover:bg-brand-50 disabled:opacity-40"
+            >
+              <Play className="h-3 w-3 fill-current" /> Start
+            </button>
+          </>
         )}
       </div>
 
@@ -281,9 +421,10 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
         <div className="flex flex-wrap items-center gap-5 border-t border-white/10 bg-white/[0.03] px-5 py-3 text-xs text-white/80 sm:px-6">
           <label className="flex items-center gap-2">
             Jobs gone from the source:
-            <select value={removal} onChange={(e) => setRemoval(e.target.value as 'delete' | 'expire')} className="rounded bg-white/10 px-2 py-1 text-white">
-              <option value="delete" className="text-ink-900">Delete</option>
-              <option value="expire" className="text-ink-900">Mark closed</option>
+            <select value={removal} onChange={(e) => setRemoval(e.target.value as 'delete' | 'expire' | 'close')} className="rounded bg-white/10 px-2 py-1 text-white">
+              <option value="close" className="text-ink-900">Close (greyed 24 h, then deleted)</option>
+              <option value="delete" className="text-ink-900">Delete now</option>
+              <option value="expire" className="text-ink-900">Mark expired (keep)</option>
             </select>
           </label>
           <label className="flex items-center gap-2">

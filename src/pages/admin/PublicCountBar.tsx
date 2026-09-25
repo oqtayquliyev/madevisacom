@@ -60,7 +60,7 @@ export function PublicCountBar({ refreshKey }: { refreshKey: string | null }) {
             {' '}
             · counted {ago(shown.computedAt)}
             {shown.newJobs24h > 0 && <> · {shown.newJobs24h.toLocaleString()} new in 24 h</>}
-            {Date.now() - new Date(shown.computedAt).getTime() > 3 * 3600_000 && <> (over 3 h old, so visitors get a direct count instead)</>}
+            {Date.now() - new Date(shown.computedAt).getTime() > 30 * 60_000 && <> (over 30 min old — the 5-minute schedule isn’t running, so visitors get a direct count)</>}
           </>
         )}
       </span>

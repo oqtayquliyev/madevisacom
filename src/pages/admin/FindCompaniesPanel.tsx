@@ -231,6 +231,7 @@ export function FindCompaniesPanel({
     setError(null);
     setPhase('adding');
     const created: ImportSource[] = [];
+    const rowOf = new Map<string, string>(); // source id → row key
     let failed = 0;
     for (let i = 0; i < chosen.length; i++) {
       if (stop.current) break;
@@ -241,6 +242,7 @@ export function FindCompaniesPanel({
       const res = await addFoundCompany({ name: r.name, website: r.company.website, countryId, logoUrl }, r.proven!);
       if (res.ok) {
         created.push(res.source);
+        rowOf.set(res.source.id, r.key);
         patch(r.key, { state: 'added', selected: false, note: logoUrl ? 'Added with logo' : 'Added — no square logo found' });
       } else {
         failed++;
@@ -251,13 +253,34 @@ export function FindCompaniesPanel({
       setPhase('importing');
       let next = 0;
       let done = 0;
+      // What each running import is doing — big companies (1,000+ jobs) take several minutes.
+      const live = new Map<string, string>();
+      const show = () =>
+        setMessage(`Importing jobs: ${done} of ${created.length} companies done${live.size ? ` — ${[...live.values()].join(' · ')}` : ''}`);
+      show();
       await Promise.all(
         Array.from({ length: 2 }, async () => {
           while (next < created.length && !stop.current) {
             const src = created[next++];
-            await syncImportSource(src, { countries, removal: 'expire', refreshContent: false });
+            const key = rowOf.get(src.id);
+            const name = src.publisher?.name ?? 'Company';
+            live.set(src.id, `${name}: starting…`);
+            show();
+            if (key) patch(key, { note: 'Importing jobs…' });
+            const res = await syncImportSource(src, {
+              countries,
+              removal: 'expire',
+              refreshContent: false,
+              shouldStop: () => stop.current,
+              onProgress: (m) => {
+                live.set(src.id, m.replace(/…$/, ''));
+                show();
+              },
+            });
+            live.delete(src.id);
             done++;
-            setMessage(`Importing jobs: ${done} of ${created.length} companies…`);
+            if (key) patch(key, { note: res.summary.added ? `Added with ${res.summary.added.toLocaleString()} jobs (pending)` : res.summary.error ? `Added — import: ${res.summary.error}` : 'Added — no new jobs imported' });
+            show();
           }
         })
       );

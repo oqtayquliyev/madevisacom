@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { allCountries } from '@/data/allCountries';
 import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/costEstimates';
-import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { fetchPublishedSponsoredJobs, isClosedJob, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { useSiteStats } from '@/lib/siteStats';
 import { fetchSponsoredPrograms } from '@/lib/programs';
@@ -54,7 +54,8 @@ function buildMatchItems(
   jobs: Awaited<ReturnType<typeof fetchPublishedSponsoredJobs>>,
   programs: Awaited<ReturnType<typeof fetchSponsoredPrograms>>
 ): MatchItem[] {
-  const jobItems: MatchItem[] = jobs.map((j) => {
+  // Closed jobs (greyed on /jobs for 24 h) don't count as opportunities here.
+  const jobItems: MatchItem[] = jobs.filter((j) => !isClosedJob(j)).map((j) => {
     const board: Job = sponsoredJobToBoardJob(j);
     return {
       kind: 'job',

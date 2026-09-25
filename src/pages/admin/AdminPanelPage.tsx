@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EvidenceReviewSection } from '@/pages/admin/EvidenceReviewSection';
 import { ListingRequestsSection } from '@/pages/admin/ListingRequestsSection';
+import { JobReportsSection } from '@/pages/admin/JobReportsSection';
+import { countNewJobReports } from '@/lib/jobReports';
 import { listTotpFactors } from '@/lib/mfa';
 import { UpdateAllJobsPanel } from '@/pages/admin/UpdateAllJobsPanel';
 import { FindCompaniesPanel } from '@/pages/admin/FindCompaniesPanel';
@@ -139,6 +141,14 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
   const [allPrograms, setAllPrograms] = useState<AdminProgram[]>([]);
   const [allJobs, setAllJobs] = useState<AdminSponsoredJob[]>([]);
   const [jobsLoadError, setJobsLoadError] = useState<string | null>(null);
+  // New "Report this job" reports, for the Requests tab badge.
+  const [newReports, setNewReports] = useState(0);
+  useEffect(() => {
+    const check = () => countNewJobReports().then(setNewReports).catch(() => undefined);
+    check();
+    const t = window.setInterval(check, 60_000);
+    return () => window.clearInterval(t);
+  }, []);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [requests, setRequests] = useState<{ jobs: DirectRequest[]; programs: DirectRequest[] }>({ jobs: [], programs: [] });
   const [sources, setSources] = useState<ImportSource[]>([]);
@@ -319,7 +329,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
   }
 
   const tabBadge = (key: AdminTab): { count: number; hot: boolean } | null => {
-    if (key === 'inbox') return openRequestCount ? { count: openRequestCount, hot: newRequestCount > 0 } : null;
+    if (key === 'inbox') return openRequestCount + newReports ? { count: openRequestCount + newReports, hot: newRequestCount > 0 || newReports > 0 } : null;
     if (key === 'listings') return importedPendingJobs.length + otherPendingPrograms.length ? { count: importedPendingJobs.length + otherPendingPrograms.length, hot: false } : null;
     if (key === 'imports') {
       const failing = sources.filter((x) => x.last_sync_status === 'error').length;
@@ -402,6 +412,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                 />
 
                 <ListingRequestsSection />
+
+                <JobReportsSection />
 
                 <EvidenceReviewSection />
 

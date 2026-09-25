@@ -106,7 +106,7 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
   const [logoOverrides, setLogoOverrides] = useState<Record<string, string>>({});
 
   // ---- sync options ----
-  const [removal, setRemoval] = useState<'delete' | 'expire'>('delete');
+  const [removal, setRemoval] = useState<'delete' | 'expire' | 'close'>('close');
   const [refreshContent, setRefreshContent] = useState(false);
   const [allowLarge, setAllowLarge] = useState(false);
 
@@ -441,9 +441,10 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
           <span className="mx-1 h-5 w-px bg-ink-200" />
           <label className="flex items-center gap-1 text-[11px] text-ink-600">
             Gone from source:
-            <select value={removal} onChange={(e) => setRemoval(e.target.value as 'delete' | 'expire')} className="h-7 rounded border border-ink-200 px-1">
-              <option value="delete">Delete</option>
-              <option value="expire">Mark expired</option>
+            <select value={removal} onChange={(e) => setRemoval(e.target.value as 'delete' | 'expire' | 'close')} className="h-7 rounded border border-ink-200 px-1">
+              <option value="close">Close 24 h, then delete</option>
+              <option value="delete">Delete now</option>
+              <option value="expire">Mark expired (keep)</option>
             </select>
           </label>
           <label className="flex items-center gap-1 text-[11px] text-ink-600" title="Overwrites manual edits to titles/descriptions">

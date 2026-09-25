@@ -198,9 +198,16 @@ function SourceLabel({ job }: { job: Job }) {
   );
 }
 
+/** Jobs the company has closed (still shown for 24 h) go after every open job. */
+function withClosedLast(jobs: Job[]): Job[] {
+  if (!jobs.some((j) => j.closed)) return jobs;
+  return [...jobs.filter((j) => !j.closed), ...jobs.filter((j) => j.closed)];
+}
+
 function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void }) {
   const isExternal = job.sourceType === 'live_feed';
   const viewed = isJobViewed(job.id);
+  const closed = Boolean(job.closed);
 
   const inner = (
     <>
@@ -230,8 +237,12 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
       {job.salary && <p className="mt-3 font-slab text-lg font-bold leading-snug text-ink-950">{job.salary}</p>}
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3.5">
-        <DateTag job={job} />
-        {viewed && (
+        {closed ? (
+          <span className="rounded border border-ink-300 bg-ink-100 px-1.5 py-[3px] text-[10px] font-bold uppercase tracking-wide text-ink-600">Closed</span>
+        ) : (
+          <DateTag job={job} />
+        )}
+        {viewed && !closed && (
           <span className="rounded border border-ink-200 bg-white px-1.5 py-[3px] text-[10px] font-bold uppercase tracking-wide text-ink-600">Viewed</span>
         )}
         <SourceLabel job={job} />
@@ -242,7 +253,11 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
   // Already-viewed jobs turn grey (muted background + softened content)
   // so it's easy to spot what you haven't opened yet.
   const cardClass = `group relative block rounded-lg border p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg sm:p-6 ${
-    viewed ? 'border-ink-200 bg-ink-100/70 opacity-75 grayscale-[40%] hover:opacity-100' : 'border-ink-900/15 bg-white'
+    closed
+      ? 'border-ink-200 bg-ink-50 opacity-60 grayscale hover:opacity-80'
+      : viewed
+        ? 'border-ink-200 bg-ink-100/70 opacity-75 grayscale-[40%] hover:opacity-100'
+        : 'border-ink-900/15 bg-white'
   }`;
 
   if (isExternal) {
@@ -488,7 +503,11 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   const viewedAtLoad = useMemo(() => new Set(allJobs.filter((j) => isJobViewed(j.id)).map((j) => j.id)), [allJobs]);
   const shownBefore = useMemo(() => recentlyShownIds('jobs'), []);
 
-  const filteredJobs = useMemo(() => {
+  const filteredJobs = useMemo(() => withClosedLast(filterAndSort()), // eslint-disable-next-line react-hooks/exhaustive-deps
+  [allJobs, search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly, shownBefore, viewedAtLoad]);
+  const openCount = useMemo(() => filteredJobs.filter((j) => !j.closed).length, [filteredJobs]);
+
+  function filterAndSort(): Job[] {
     const normalizedSearch = search.trim().toLowerCase();
     const normalizedCity = city.trim().toLowerCase();
     const normalizedCompany = company.trim().toLowerCase();
@@ -569,7 +588,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       );
     }
     return rotate(matched, 'relevant');
-  }, [allJobs, search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly, shownBefore, viewedAtLoad]);
+  }
 
   // Remember what led the list this visit, so next visit leads with other jobs.
   const unfiltered = !search && country === 'All countries' && category === 'All categories' && !studentOnly && !visaOnly && !directOnly;
@@ -582,9 +601,9 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   // once the full list is in, never a partial number that climbs.
   const noFilters = activeFilterCountFor({ country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, directOnly, studentOnly, visaOnly }) === 0 && !search.trim();
   const headlineCount: number | null = noFilters
-    ? siteStats?.publishedJobs ?? (sponsoredComplete ? filteredJobs.length : null)
+    ? siteStats?.publishedJobs ?? (sponsoredComplete ? openCount : null)
     : sponsoredComplete
-      ? filteredJobs.length
+      ? openCount
       : null;
 
   const visibleJobs = filteredJobs.slice(0, visibleCount);
