@@ -87,8 +87,21 @@ export async function fetchAllRows<T>(
   // round-trips and roughly one round-trip's worth of wait, however
   // many pages it actually takes. `buildQuery` is called fresh for each
   // page (not reused) since a Supabase query builder is single-use.
-  const first = await buildQuery().range(0, SUPABASE_PAGE_SIZE - 1);
-  if (first.error) throw new Error(first.error.message);
+  // Each page is retried (a busy database can time out one request), and
+  // pages go 3 at a time rather than all at once, so 15+ pages don't
+  // compete with each other and trip the database's time limit.
+  const page = async (from: number) => {
+    let last = '';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, 800 * attempt));
+      const r = await buildQuery().range(from, from + SUPABASE_PAGE_SIZE - 1);
+      if (!r.error) return r;
+      last = r.error.message;
+    }
+    throw new Error(last || 'Could not load rows.');
+  };
+
+  const first = await page(0);
   const firstPage = first.data ?? [];
   const total = first.count ?? firstPage.length;
 
@@ -97,14 +110,22 @@ export async function fetchAllRows<T>(
   const pageStarts: number[] = [];
   for (let from = SUPABASE_PAGE_SIZE; from < total; from += SUPABASE_PAGE_SIZE) pageStarts.push(from);
 
-  const restResults = await Promise.all(pageStarts.map((from) => buildQuery().range(from, from + SUPABASE_PAGE_SIZE - 1)));
-  const rest: T[] = [];
-  for (const r of restResults) {
-    if (r.error) throw new Error(r.error.message);
-    rest.push(...(r.data ?? []));
-  }
-  return [...firstPage, ...rest];
+  const results: T[][] = new Array(pageStarts.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(3, pageStarts.length) }, async () => {
+      while (next < pageStarts.length) {
+        const i = next++;
+        results[i] = (await page(pageStarts[i])).data ?? [];
+      }
+    })
+  );
+  return [firstPage, ...results].flat();
 }
+
+/** Set when the full job list couldn't be loaded (the admin panel then keeps what it had and says so). */
+let jobsLoadError: string | null = null;
+export const getJobsLoadError = () => jobsLoadError;
 
 export async function fetchPendingPublishers(): Promise<PendingPublisher[]> {
   const { data, error } = await supabase
@@ -152,12 +173,14 @@ export async function fetchPendingSponsoredJobs(): Promise<PendingSponsoredJob[]
         .from('sponsored_jobs')
         .select(sponsoredJobColumns, { count: 'exact' })
         .eq('status', 'pending')
-        .order('created_at', { ascending: true }) as unknown as {
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true }) as unknown as {
         range: (from: number, to: number) => PromiseLike<{ data: PendingSponsoredJob[] | null; error: { message: string } | null; count?: number | null }>;
       }
     );
   } catch (error) {
     console.error('fetchPendingSponsoredJobs failed', error);
+    jobsLoadError = error instanceof Error ? error.message : 'Could not load pending jobs.';
     return [];
   }
 }
@@ -320,17 +343,20 @@ export async function fetchAllPrograms(): Promise<AdminProgram[]> {
 }
 
 export async function fetchAllSponsoredJobs(): Promise<AdminSponsoredJob[]> {
+  jobsLoadError = null;
   try {
     return await fetchAllRows<AdminSponsoredJob>(() =>
       supabase
         .from('sponsored_jobs')
         .select(adminSponsoredJobListColumns, { count: 'exact' })
-        .order('created_at', { ascending: false }) as unknown as {
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false }) as unknown as {
         range: (from: number, to: number) => PromiseLike<{ data: AdminSponsoredJob[] | null; error: { message: string } | null; count?: number | null }>;
       }
     );
   } catch (error) {
     console.error('fetchAllSponsoredJobs failed', error);
+    jobsLoadError = error instanceof Error ? error.message : 'Could not load jobs.';
     return [];
   }
 }

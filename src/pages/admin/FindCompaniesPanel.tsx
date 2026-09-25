@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
-import { Building2, Check, ChevronDown, ChevronRight, ExternalLink, Globe, Loader2, Search, Sparkles, Square, X } from 'lucide-react';
+import { ArrowRight, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Globe, Loader2, Search, Sparkles, Square, X } from 'lucide-react';
 import type { PendingPublisher, ImportCountryLookup } from '@/lib/admin';
 import { syncImportSource, type ImportSource } from '@/lib/importSync';
 import {
   addFoundCompany,
+  companyDetails,
   coreName,
-  findTopCompanies,
   hostOf,
+  listCountryCompanies,
   lookupCompanies,
   makeCompanyLogo,
   probeCompany,
@@ -15,6 +16,7 @@ import {
   type CareerCandidate,
   type FoundCompany,
   type ProvenSource,
+  type RankedCompany,
 } from '@/lib/companyFinder';
 
 /**
@@ -34,12 +36,36 @@ type Row = {
   name: string;
   state: RowState;
   note?: string;
+  /** Why nothing was found: the site had no career page with jobs, or it didn't let us in. */
+  reason?: 'nopage' | 'blocked';
+  deepTried?: boolean;
   icons: string[];
   proven: ProvenSource | null;
   selected: boolean;
 };
 
 const CONCURRENCY = 3;
+const PROGRESS_KEY = 'madevisa:companyFinder:progress';
+
+type Filter = 'all' | 'found' | 'nopage' | 'blocked' | 'existing' | 'added';
+
+/** How far down each country's list you've checked, remembered on this device. */
+function readProgress(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(PROGRESS_KEY) ?? '{}') ?? {};
+  } catch {
+    return {};
+  }
+}
+function saveProgress(country: string, upTo: number) {
+  try {
+    const p = readProgress();
+    p[country] = Math.max(p[country] ?? 0, upTo);
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
+  } catch {
+    /* optional */
+  }
+}
 const COUNTRY_NAME = Object.fromEntries(WAVES.flatMap((w) => w.countries.map((c) => [c.code, c])));
 
 function fmtEmployees(n: number | null) {
@@ -69,7 +95,11 @@ export function FindCompaniesPanel({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importNow, setImportNow] = useState(true);
-  const [showExisting, setShowExisting] = useState(false);
+  const [filter, setFilter] = useState<Filter>('all');
+  // Each country's full ranked list (ids only), so paging is exact and the total is known.
+  const [ranked, setRanked] = useState<Record<string, RankedCompany[]>>({});
+  const [loadedCountry, setLoadedCountry] = useState<string | null>(null);
+  const [progress, setProgressState] = useState<Record<string, number>>(() => readProgress());
   const stop = useRef(false);
   const busy = phase !== 'idle';
 
@@ -88,17 +118,32 @@ export function FindCompaniesPanel({
 
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
 
-  const loadCompanies = async (nextOffset = 0) => {
+  const loadCompanies = async (start = 0) => {
     setError(null);
     setMessage(null);
+    setFilter('all');
     stop.current = false;
     setPhase('loading');
     let found: FoundCompany[] = [];
     const missing: string[] = [];
     try {
       if (mode === 'country') {
-        found = await findTopCompanies(country, limit, nextOffset);
-        setOffset(nextOffset);
+        let list = ranked[country];
+        if (!list) {
+          setMessage(`Getting ${COUNTRY_NAME[country]?.name}’s companies from Wikidata…`);
+          list = await listCountryCompanies(country);
+          setRanked((r) => ({ ...r, [country]: list! }));
+        }
+        const from = Math.min(Math.max(start, 0), Math.max(list.length - 1, 0));
+        const slice = list.slice(from, from + limit);
+        setMessage(`Loading companies #${from + 1}–${from + slice.length} of ${list.length.toLocaleString()}…`);
+        found = slice.length ? await companyDetails(slice.map((c) => c.qid)) : [];
+        setOffset(from);
+        setLoadedCountry(country);
+        if (slice.length) {
+          saveProgress(country, from + slice.length);
+          setProgressState(readProgress());
+        }
       } else {
         const list = [...new Set(names.split(/\r?\n/).map((n) => n.trim()).filter(Boolean))].slice(0, 200);
         for (let i = 0; i < list.length; i += 25) {
@@ -113,6 +158,7 @@ export function FindCompaniesPanel({
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load companies.');
+      setMessage(null);
       setPhase('idle');
       return;
     }
@@ -121,41 +167,57 @@ export function FindCompaniesPanel({
       .filter((c) => (seen.has(c.qid) ? false : (seen.add(c.qid), true)))
       .map((c) => ({ key: c.qid, company: c, name: c.name, state: isExisting(c) ? 'existing' : 'queued', icons: [], proven: null, selected: false }));
     setRows(newRows);
+    if (!newRows.length) {
+      setMessage(mode === 'country' ? 'None of these companies has a website on Wikidata — go to the next ones.' : 'No companies found.');
+      setPhase('idle');
+      return;
+    }
     const fresh = newRows.filter((r) => r.state === 'queued').length;
     setMessage(
       `${newRows.length} companies · ${fresh} new · ${newRows.length - fresh} already on MadeVisa${missing.length ? ` · not found on Wikidata: ${missing.slice(0, 8).join(', ')}${missing.length > 8 ? '…' : ''}` : ''}`
     );
-    await searchCareerPages(newRows);
+    await searchCareerPages(newRows.filter((r) => r.state === 'queued'));
   };
 
-  const searchCareerPages = async (list: Row[]) => {
-    const queue = list.filter((r) => r.state === 'queued');
+  const searchCareerPages = async (queue: Row[], deep = false) => {
     if (!queue.length) {
       setPhase('idle');
       return;
     }
+    stop.current = false;
     setPhase('searching');
+    if (deep) for (const r of queue) patch(r.key, { state: 'queued', note: 'Waiting for a deeper search…' });
     let next = 0;
     await Promise.all(
-      Array.from({ length: CONCURRENCY }, async () => {
+      Array.from({ length: deep ? 2 : CONCURRENCY }, async () => {
         while (next < queue.length && !stop.current) {
           const r = queue[next++];
-          patch(r.key, { state: 'searching', note: 'Reading website…' });
+          patch(r.key, { state: 'searching', note: deep ? 'Searching deeper: other addresses, Workday…' : 'Reading website…' });
           try {
-            const p = await probeCompany(r.company.name, r.company.website);
-            patch(r.key, { icons: p.icons, note: p.candidates.length ? `Checking ${p.candidates.length} possible career page${p.candidates.length === 1 ? '' : 's'}…` : undefined });
+            const p = await probeCompany(r.company.name, r.company.website, deep);
+            patch(r.key, {
+              icons: p.icons.length && !(deep && r.icons.length > p.icons.length) ? p.icons : r.icons,
+              note: p.candidates.length ? `Checking ${p.candidates.length} possible career page${p.candidates.length === 1 ? '' : 's'}…` : undefined,
+            });
             const proven = p.candidates.length
               ? await proveCareerSource(p.candidates, (c: CareerCandidate) => patch(r.key, { note: `Trying ${c.platform ?? hostOf(c.url)}…` }))
               : null;
+            const reason = proven ? undefined : p.websiteReachable ? 'nopage' : 'blocked';
             patch(r.key, {
               state: proven ? 'found' : 'notfound',
               proven,
+              reason,
+              deepTried: r.deepTried || deep,
               // Pre-select only pages linked from the company's site or matching its name.
               selected: Boolean(proven && proven.confidence !== 'low'),
-              note: proven ? undefined : p.websiteReachable ? 'No career page with jobs found' : 'Website didn’t load',
+              note: proven
+                ? undefined
+                : reason === 'nopage'
+                  ? deep ? 'Still no career page with jobs' : 'No career page with jobs found'
+                  : deep ? 'Website still blocks us' : 'Website didn’t load',
             });
           } catch (e) {
-            patch(r.key, { state: 'error', note: e instanceof Error ? e.message : 'Search failed' });
+            patch(r.key, { state: 'error', reason: 'nopage', note: e instanceof Error ? e.message : 'Search failed' });
           }
         }
       })
@@ -205,17 +267,41 @@ export function FindCompaniesPanel({
     onChange();
   };
 
-  const visible = rows.filter((r) => showExisting || r.state !== 'existing');
+  const matches = (r: Row, f: Filter) =>
+    f === 'all'
+      ? r.state !== 'existing'
+      : f === 'found'
+        ? r.state === 'found'
+        : f === 'nopage'
+          ? (r.state === 'notfound' || r.state === 'error') && r.reason !== 'blocked'
+          : f === 'blocked'
+            ? r.state === 'notfound' && r.reason === 'blocked'
+            : f === 'existing'
+              ? r.state === 'existing'
+              : r.state === 'added' || r.state === 'failed';
+  const visible = rows.filter((r) => matches(r, filter));
   const counts = {
     existing: rows.filter((r) => r.state === 'existing').length,
     searching: rows.filter((r) => r.state === 'queued' || r.state === 'searching').length,
     found: rows.filter((r) => r.state === 'found').length,
-    notfound: rows.filter((r) => r.state === 'notfound' || r.state === 'error').length,
+    nopage: rows.filter((r) => matches(r, 'nopage')).length,
+    blocked: rows.filter((r) => matches(r, 'blocked')).length,
     added: rows.filter((r) => r.state === 'added').length,
     selected: rows.filter((r) => r.selected && r.state === 'found').length,
   };
   const totalNew = rows.length - counts.existing;
-  const progress = totalNew ? (totalNew - counts.searching) / totalNew : 0;
+  const doneShare = totalNew ? (totalNew - counts.searching) / totalNew : 0;
+  const notFoundRows = rows.filter((r) => (r.state === 'notfound' || r.state === 'error') && !r.deepTried);
+
+  // Paging through the country's list.
+  const list = ranked[country];
+  const total = list?.length ?? null;
+  const onThisCountry = mode === 'country' && loadedCountry === country;
+  const checkedUpTo = progress[country] ?? 0;
+  const nextStart = onThisCountry ? offset + limit : checkedUpTo;
+  const atEnd = total != null && nextStart >= total;
+  const range = (from: number) => `#${(from + 1).toLocaleString()}–${(total != null ? Math.min(from + limit, total) : from + limit).toLocaleString()}`;
+  const cname = COUNTRY_NAME[country]?.name ?? country;
 
   return (
     <section className="mb-8 overflow-hidden rounded-xl border border-ink-200 bg-white">
@@ -257,7 +343,9 @@ export function FindCompaniesPanel({
                       disabled={busy}
                       onClick={() => {
                         setCountry(c.code);
-                        setOffset(0);
+                        setRows([]);
+                        setMessage(null);
+                        setError(null);
                       }}
                       className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
                         country === c.code ? 'border-brand-600 bg-brand-600 text-white' : 'border-ink-200 bg-white text-ink-700 hover:border-brand-300'
@@ -268,31 +356,66 @@ export function FindCompaniesPanel({
                   ))}
                 </div>
               ))}
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <select value={limit} disabled={busy} onChange={(e) => setLimit(Number(e.target.value))} className="h-9 rounded-md border border-ink-200 bg-white px-2 text-sm">
-                  {[25, 50, 100].map((n) => (
-                    <option key={n} value={n}>
-                      {n} companies
-                    </option>
-                  ))}
-                </select>
-                <button
-                  disabled={busy}
-                  onClick={() => loadCompanies(0)}
-                  className="flex h-9 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
-                >
-                  <Search className="h-4 w-4" /> Find in {COUNTRY_NAME[country]?.name}
-                </button>
-                {rows.length > 0 && !busy && (
-                  <button onClick={() => loadCompanies(offset + limit)} className="h-9 rounded-lg border border-ink-200 px-3 text-sm font-semibold text-ink-700 hover:bg-ink-50">
-                    Next {limit} →
+              <div className="rounded-lg border border-ink-200 bg-ink-50/50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select value={limit} disabled={busy} onChange={(e) => setLimit(Number(e.target.value))} className="h-10 rounded-md border border-ink-200 bg-white px-2 text-sm">
+                    {[25, 50, 100].map((n) => (
+                      <option key={n} value={n}>
+                        {n} at a time
+                      </option>
+                    ))}
+                  </select>
+                  {onThisCountry && offset > 0 && (
+                    <button
+                      disabled={busy}
+                      onClick={() => loadCompanies(Math.max(offset - limit, 0))}
+                      className="flex h-10 items-center gap-1 rounded-lg border border-ink-200 bg-white px-3 text-sm font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50"
+                    >
+                      <ChevronLeft className="h-4 w-4" /> {range(Math.max(offset - limit, 0))}
+                    </button>
+                  )}
+                  <button
+                    disabled={busy || atEnd}
+                    onClick={() => loadCompanies(nextStart)}
+                    className="flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
+                  >
+                    <Search className="h-4 w-4" />
+                    {atEnd
+                      ? `End of ${cname}’s list`
+                      : onThisCountry
+                        ? `Next in ${cname}: ${range(nextStart)}`
+                        : checkedUpTo > 0
+                          ? `Continue in ${cname}: ${range(checkedUpTo)}`
+                          : `Find in ${cname}: ${range(0)}`}
+                    {!atEnd && <ArrowRight className="h-4 w-4" />}
                   </button>
-                )}
-                {rows.length > 0 && mode === 'country' && (
-                  <span className="text-xs text-ink-400">
-                    Showing #{offset + 1}–{offset + limit} by size
-                  </span>
-                )}
+                  {!onThisCountry && checkedUpTo > 0 && (
+                    <button disabled={busy} onClick={() => loadCompanies(0)} className="text-xs font-semibold text-ink-500 underline decoration-ink-300 underline-offset-2 hover:text-ink-800">
+                      or start again from #1
+                    </button>
+                  )}
+                </div>
+                <p className="mt-2 text-xs text-ink-500">
+                  {total != null ? (
+                    <>
+                      <strong className="text-ink-800">{total.toLocaleString()}</strong> companies in {cname} have a website on Wikidata, biggest first.{' '}
+                      {onThisCountry && (
+                        <>
+                          Showing <strong className="text-ink-800">{range(offset)}</strong>.{' '}
+                        </>
+                      )}
+                      {checkedUpTo > 0 && (
+                        <>
+                          Checked so far: #1–{Math.min(checkedUpTo, total).toLocaleString()} · <strong className="text-ink-800">{Math.max(total - checkedUpTo, 0).toLocaleString()}</strong> left.
+                        </>
+                      )}
+                    </>
+                  ) : checkedUpTo > 0 ? (
+                    <>You’ve checked {cname}’s companies #1–{checkedUpTo.toLocaleString()} on this device. The total shows after the first search.</>
+                  ) : (
+                    <>Companies come from Wikidata, biggest first. The total for {cname} shows after the first search.</>
+                  )}
+                </p>
               </div>
             </div>
           ) : (
@@ -321,7 +444,7 @@ export function FindCompaniesPanel({
           {error && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">{error}</p>}
 
           {/* Status */}
-          {(rows.length > 0 || phase === 'loading') && (
+          {(rows.length > 0 || phase === 'loading' || message) && (
             <div className="mt-5 rounded-lg border border-ink-200 bg-ink-50/60 px-4 py-3">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
                 {busy && <Loader2 className="h-4 w-4 animate-spin text-brand-600" />}
@@ -335,27 +458,50 @@ export function FindCompaniesPanel({
               {rows.length > 0 && (
                 <>
                   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-ink-200">
-                    <div className="h-full rounded-full bg-brand-600 transition-[width] duration-500" style={{ width: `${progress * 100}%` }} />
+                    <div className="h-full rounded-full bg-brand-600 transition-[width] duration-500" style={{ width: `${doneShare * 100}%` }} />
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-ink-500">
-                    <span>
-                      <strong className="text-emerald-700">{counts.found}</strong> career pages proven
-                    </span>
-                    <span>
-                      <strong className="text-ink-800">{counts.notfound}</strong> not found
-                    </span>
-                    {counts.searching > 0 && <span>{counts.searching} still searching</span>}
-                    {counts.added > 0 && (
-                      <span>
-                        <strong className="text-brand-700">{counts.added}</strong> added
-                      </span>
-                    )}
-                    {counts.existing > 0 && (
-                      <button onClick={() => setShowExisting((v) => !v)} className="font-semibold text-ink-600 underline decoration-ink-300 underline-offset-2">
-                        {showExisting ? 'Hide' : 'Show'} {counts.existing} already on MadeVisa
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    {(
+                      [
+                        ['all', 'All new', totalNew],
+                        ['found', 'Career page found', counts.found],
+                        ['nopage', 'No career page with jobs', counts.nopage],
+                        ['blocked', 'Website didn’t load', counts.blocked],
+                        ['added', 'Added', counts.added],
+                        ['existing', 'Already on MadeVisa', counts.existing],
+                      ] as [Filter, string, number][]
+                    )
+                      .filter(([f, , n]) => f === 'all' || n > 0)
+                      .map(([f, label, n]) => (
+                        <button
+                          key={f}
+                          onClick={() => setFilter(f)}
+                          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                            filter === f ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300'
+                          }`}
+                        >
+                          {label} <span className={filter === f ? 'text-white/70' : 'text-ink-400'}>{n}</span>
+                        </button>
+                      ))}
+                    {counts.searching > 0 && <span className="ml-1 text-[11px] text-ink-500">{counts.searching} still searching</span>}
+                  </div>
+                  {!busy && notFoundRows.length > 0 && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-200 pt-3">
+                      <button
+                        onClick={() => {
+                          const pick = filter === 'nopage' || filter === 'blocked' ? notFoundRows.filter((r) => matches(r, filter)) : notFoundRows;
+                          void searchCareerPages(pick, true);
+                        }}
+                        className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-100"
+                      >
+                        <Search className="h-3.5 w-3.5" /> Search deeper for{' '}
+                        {filter === 'nopage' || filter === 'blocked' ? notFoundRows.filter((r) => matches(r, filter)).length : notFoundRows.length} not found
                       </button>
-                    )}
-                  </div>
+                      <span className="text-[11px] text-ink-500">
+                        Tries the site with and without www, more careers addresses, careers sites like tesco-careers.com, and Workday boards named after the company. Slower — about 20–40 seconds each.
+                      </span>
+                    </div>
+                  )}
                 </>
               )}
             </div>

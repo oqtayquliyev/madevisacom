@@ -14,6 +14,7 @@ import {
   fetchAdmins,
   fetchAllPrograms,
   fetchAllSponsoredJobs,
+  getJobsLoadError,
   fetchPendingAgencies,
   fetchPendingPrograms,
   fetchPendingPublishers,
@@ -137,6 +138,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
   const [admins, setAdmins] = useState<AdminProfile[]>([]);
   const [allPrograms, setAllPrograms] = useState<AdminProgram[]>([]);
   const [allJobs, setAllJobs] = useState<AdminSponsoredJob[]>([]);
+  const [jobsLoadError, setJobsLoadError] = useState<string | null>(null);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [requests, setRequests] = useState<{ jobs: DirectRequest[]; programs: DirectRequest[] }>({ jobs: [], programs: [] });
   const [sources, setSources] = useState<ImportSource[]>([]);
@@ -181,12 +183,15 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
       setPendingPublishers(pp);
       setVerifiedPublishers(vp);
       setPendingPrograms(prog);
-      setPendingJobs(jobs);
+      // If the job list didn't load, keep what's on screen instead of showing zeros.
+      const jobsError = getJobsLoadError();
+      setJobsLoadError(jobsError);
+      if (!jobsError || !hasLoadedOnce.current) setPendingJobs(jobs);
       setPendingAgencies(pa);
       setVerifiedAgencies(va);
       setAdmins(adm);
       setAllPrograms(allProg);
-      setAllJobs(allJ);
+      if (!jobsError || !hasLoadedOnce.current) setAllJobs(allJ);
       setCountries(ctys);
       setRequests(reqs);
       setSources(srcs);
@@ -345,6 +350,16 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
           </button>
         </div>
 
+        {jobsLoadError && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <span className="min-w-0 flex-1">
+              <strong>The job list didn’t fully load</strong>, so job counts may be out of date. Your jobs are safe — this is only the admin view. <span className="text-amber-700">({jobsLoadError})</span>
+            </span>
+            <button type="button" onClick={loadAll} className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700">
+              Load again
+            </button>
+          </div>
+        )}
         {!dataLoading && <UpdateAllJobsPanel sources={sources} countries={countries} onChange={loadAll} />}
 
         <nav className="sticky top-0 z-10 -mx-5 mt-6 flex gap-1 overflow-x-auto border-b border-ink-200 bg-[#f8fafc] px-5 sm:mx-0 sm:px-0">

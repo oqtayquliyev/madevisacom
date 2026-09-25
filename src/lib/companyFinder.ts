@@ -94,12 +94,32 @@ export const WAVES: { label: string; countries: { code: string; name: string; fl
 async function call<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('company-finder', { body });
   if (error) {
-    const msg = /Failed to send a request/i.test(error.message) ? 'The company-finder function isn’t deployed yet.' : error.message;
-    throw new Error(msg);
+    if (/Failed to send a request/i.test(error.message)) throw new Error('The company-finder function isn’t deployed yet.');
+    // The function explains what went wrong in its reply — show that, not "non-2xx status code".
+    const res = (error as { context?: Response }).context;
+    let detail: string | null = null;
+    try {
+      const j = res && typeof res.json === 'function' ? await res.clone().json() : null;
+      detail = j?.error ?? null;
+    } catch {
+      /* not JSON */
+    }
+    const status = res?.status;
+    if (detail) throw new Error(detail);
+    if (status === 546 || status === 504) throw new Error('That took too long (the search is limited to about 2 minutes). Try again, or use fewer companies.');
+    throw new Error(status ? `company-finder answered ${status}. Try again in a minute.` : error.message);
   }
   if (!data?.ok) throw new Error(data?.error ?? 'company-finder failed');
   return data as T;
 }
+
+export type RankedCompany = { qid: string; employees: number | null };
+
+/** Every company in the country with a website, biggest first (ids only). */
+export const listCountryCompanies = (country: string) => call<{ companies: RankedCompany[] }>({ action: 'list', country }).then((r) => r.companies);
+
+/** Names, websites and details for up to 100 of those ids. */
+export const companyDetails = (qids: string[]) => call<{ companies: FoundCompany[] }>({ action: 'details', qids }).then((r) => r.companies);
 
 export const findTopCompanies = (country: string, limit: number, offset: number) =>
   call<{ companies: FoundCompany[] }>({ action: 'top', country, limit, offset }).then((r) => r.companies);
@@ -107,8 +127,8 @@ export const findTopCompanies = (country: string, limit: number, offset: number)
 export const lookupCompanies = (names: string[]) =>
   call<{ results: { query: string; match: FoundCompany | null }[] }>({ action: 'lookup', names }).then((r) => r.results);
 
-export const probeCompany = (name: string, website: string) =>
-  call<{ domain: string; websiteReachable: boolean; candidates: CareerCandidate[]; icons: string[] }>({ action: 'probe', name, website });
+export const probeCompany = (name: string, website: string, deep = false) =>
+  call<{ domain: string; websiteReachable: boolean; candidates: CareerCandidate[]; icons: string[] }>({ action: 'probe', name, website, deep });
 
 export const makeCompanyLogo = (icons: string[], name: string) => call<{ logoUrl: string | null }>({ action: 'logo', icons, name }).then((r) => r.logoUrl);
 
@@ -130,15 +150,19 @@ export async function proveCareerSource(candidates: CareerCandidate[], onTry?: (
     }
     const res = await withTimeout(fetchJobsFromCareersUrl(c.url), 90_000, { ok: false as const, error: 'timeout' });
     if (res.ok && res.jobs.length) {
+      const jobs = Math.max(res.jobs.length, res.totalHits ?? 0);
+      // A handful of links scraped from a page (not a real job board) is
+      // often not the company's full list — leave it unticked to check.
+      const weak = jobs < 5 && /job links|sitemap|generic/i.test(`${res.source ?? ''} ${res.strategy ?? ''}`);
       return {
         kind: 'careers_url',
         url: c.url,
         platform: res.source ?? c.platform,
-        jobs: Math.max(res.jobs.length, res.totalHits ?? 0),
+        jobs,
         more: res.nextFrom != null,
         resolvedUrl: res.resolvedUrl ?? null,
         strategy: res.strategy ?? null,
-        confidence,
+        confidence: weak ? 'low' : confidence,
       };
     }
   }

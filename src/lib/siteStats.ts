@@ -82,6 +82,40 @@ export async function fetchSiteStats(): Promise<SiteStats | null> {
   return inflight;
 }
 
+/**
+ * Admin "Update now": recounts live jobs on the server and saves the numbers
+ * every visitor reads. Falls back to a direct count if the migration
+ * (20261010090000_refresh_site_stats.sql) hasn't been run yet.
+ */
+export async function refreshSiteStats(): Promise<{ stats: SiteStats | null; saved: boolean; error?: string }> {
+  const { data, error } = await supabase.rpc('admin_refresh_site_stats');
+  let stats: SiteStats | null = null;
+  let saved = false;
+  const d = data as { published_jobs?: number; new_jobs_24h?: number; computed_at?: string } | null;
+  if (!error && d && typeof d.published_jobs === 'number' && d.computed_at) {
+    stats = { publishedJobs: d.published_jobs, newJobs24h: Number(d.new_jobs_24h ?? 0), computedAt: d.computed_at };
+    saved = true;
+  } else {
+    stats = await countDirectly();
+  }
+  if (stats) {
+    memory = { stats, at: Date.now() };
+    writeLocal(stats);
+  }
+  const missing = error && /admin_refresh_site_stats|schema cache|does not exist/i.test(error.message);
+  return { stats, saved, error: error ? (missing ? 'Run the site-stats SQL file first — until then visitors see a count that can be a few hours old.' : error.message) : undefined };
+}
+
+/** What visitors currently see (the saved snapshot), for the admin panel. */
+export async function readSavedSiteStats(): Promise<SiteStats | null> {
+  const { data, error } = await supabase.from('site_stats').select('key, value, computed_at');
+  if (error || !data?.length) return null;
+  const byKey = new Map(data.map((r) => [r.key as string, r]));
+  const jobs = byKey.get('published_jobs');
+  if (!jobs) return null;
+  return { publishedJobs: Number(jobs.value), newJobs24h: Number(byKey.get('new_jobs_24h')?.value ?? 0), computedAt: jobs.computed_at as string };
+}
+
 /** Last known stats right away (from this device), then the current snapshot. */
 export function useSiteStats(): SiteStats | null {
   const [stats, setStats] = useState<SiteStats | null>(() => memory?.stats ?? readLocal());

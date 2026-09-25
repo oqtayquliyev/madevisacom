@@ -79,14 +79,50 @@ export function coreName(name: string): string {
 }
 
 async function sparql(query: string): Promise<Record<string, { value: string }>[]> {
-  const res = await fetchWithTimeout(
-    `https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(query)}`,
-    { headers: { Accept: 'application/sparql-results+json', 'User-Agent': UA } },
-    40000
-  );
-  if (!res || !res.ok) throw new Error(`Wikidata didn't answer (${res?.status ?? 'timeout'}). Try again in a minute.`);
-  const json = await res.json();
-  return json?.results?.bindings ?? [];
+  // Wikidata is shared and sometimes busy: retry twice, waiting if it asks us to.
+  let status = 'timeout';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetchWithTimeout(
+      `https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(query)}`,
+      { headers: { Accept: 'application/sparql-results+json', 'User-Agent': UA } },
+      45000
+    );
+    if (res?.ok) {
+      const json = await res.json();
+      return json?.results?.bindings ?? [];
+    }
+    status = res ? String(res.status) : 'timeout';
+    if (res && res.status < 429 && res.status !== 408) break; // a real error, not "busy"
+    const wait = Number(res?.headers.get('retry-after')) || 3 * (attempt + 1);
+    await new Promise((r) => setTimeout(r, Math.min(wait, 10) * 1000));
+  }
+  throw new Error(`Wikidata is busy right now (${status}). Wait a minute and click again.`);
+}
+
+// How legal forms are usually written, for official names stored in CAPITALS.
+const FORM_CASE: Record<string, string> = {
+  plc: 'plc', ltd: 'Ltd', limited: 'Limited', inc: 'Inc.', corporation: 'Corporation', corp: 'Corp.', llc: 'LLC',
+  ag: 'AG', se: 'SE', sa: 'S.A.', nv: 'N.V.', bv: 'B.V.', gmbh: 'GmbH', kgaa: 'KGaA', spa: 'S.p.A.', ab: 'AB', asa: 'ASA', as: 'A/S', oyj: 'Oyj',
+};
+
+/**
+ * The name to show: the legal name when Wikidata has one that is the same
+ * company plus its legal form ("Tesco" + "Tesco PLC" → "Tesco plc",
+ * "HSBC" + "HSBC Holdings plc" → "HSBC Holdings plc"), else the English
+ * Wikipedia title ("Bayer AG" already is one).
+ */
+export function legalName(wikiTitle: string | null, official: string | null): string | null {
+  if (!official || !wikiTitle) return wikiTitle ?? official;
+  const o = official.trim();
+  const latin = /^[A-Za-z0-9\u00C0-\u024F\s&.,'’()\-/+]+$/.test(o);
+  const plain = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const hasForm = (x: string) => coreName(x) !== plain(x);
+  if (!latin || o.length > 80 || coreName(o) !== coreName(wikiTitle) || !hasForm(o) || hasForm(wikiTitle)) return wikiTitle;
+  if (o !== o.toUpperCase()) return o;
+  // "TESCO PLC": keep Wikipedia's spelling and add the form, written normally.
+  const last = plain(o).split(' ').pop() ?? '';
+  const form = FORM_CASE[last.replace(/\s/g, '')];
+  return form ? `${wikiTitle} ${form}` : wikiTitle;
 }
 
 function rowsToCandidates(rows: Record<string, { value: string }>[]): Candidate[] {
@@ -99,7 +135,7 @@ function rowsToCandidates(rows: Record<string, { value: string }>[]): Candidate[
     if (!qid || !domain || seen.has(qid)) continue;
     seen.add(qid);
     const wikiTitle = titleFromArticle(r.article?.value ?? null);
-    const name = wikiTitle ?? r.officialName?.value ?? r.label?.value ?? '';
+    const name = legalName(wikiTitle, r.officialName?.value ?? null) ?? r.label?.value ?? '';
     if (!name || /^Q\d+$/.test(name)) continue;
     out.push({
       qid,
@@ -138,6 +174,71 @@ GROUP BY ?item
 ORDER BY DESC(?employees)
 LIMIT ${Math.min(Math.max(limit, 1), 200)} OFFSET ${Math.max(offset, 0)}`;
   return rowsToCandidates(await sparql(query));
+}
+
+export type RankedCompany = { qid: string; employees: number | null };
+
+/**
+ * Every company in a country that has a website on Wikidata, biggest first
+ * (by employees; ones without an employee count after, by how well known
+ * they are). Just ids — cheap, so the admin page knows the total and can
+ * page through it without asking Wikidata to re-sort each time.
+ */
+export async function listCompanies(country: string): Promise<RankedCompany[]> {
+  const qid = COUNTRY_QID[country];
+  if (!qid) throw new Error('Unsupported country.');
+  const types = COMPANY_TYPES.map((t) => `wd:${t}`).join(' ');
+  const full = `
+SELECT ?item (MAX(?emp) AS ?employees) (MAX(?links) AS ?sitelinks) WHERE {
+  { SELECT DISTINCT ?item WHERE {
+      VALUES ?type { ${types} }
+      ?item wdt:P31 ?type ; wdt:P17 wd:${qid} ; wdt:P856 ?web .
+      FILTER NOT EXISTS { ?item wdt:P576 ?dissolved . }
+    } LIMIT 6000 }
+  OPTIONAL { ?item wdt:P1128 ?emp . }
+  OPTIONAL { ?item wikibase:sitelinks ?links . }
+}
+GROUP BY ?item`;
+  let rows: Record<string, { value: string }>[];
+  try {
+    rows = await sparql(full);
+  } catch {
+    // Big countries can be too much for Wikidata: fall back to companies with an employee count.
+    rows = await sparql(`
+SELECT ?item (MAX(?emp) AS ?employees) WHERE {
+  VALUES ?type { ${types} }
+  ?item wdt:P31 ?type ; wdt:P17 wd:${qid} ; wdt:P856 ?web ; wdt:P1128 ?emp .
+  FILTER NOT EXISTS { ?item wdt:P576 ?dissolved . }
+}
+GROUP BY ?item ORDER BY DESC(?employees) LIMIT 3000`);
+  }
+  const list = rows
+    .map((r) => ({
+      qid: r.item?.value.split('/').pop() ?? '',
+      employees: r.employees ? Math.round(Number(r.employees.value)) || null : null,
+      links: r.sitelinks ? Number(r.sitelinks.value) || 0 : 0,
+    }))
+    .filter((r) => /^Q\d+$/.test(r.qid));
+  list.sort((a, b) => (b.employees ?? -1) - (a.employees ?? -1) || b.links - a.links);
+  return list.slice(0, 3000).map(({ qid, employees }) => ({ qid, employees }));
+}
+
+/** Names, websites and details for up to 100 companies, in the order given. */
+export async function companyDetails(qids: string[]): Promise<Candidate[]> {
+  const ids = qids.filter((q) => /^Q\d+$/.test(q)).slice(0, 100);
+  if (!ids.length) return [];
+  const rows = await sparql(`
+SELECT ?item (MAX(?emp) AS ?employees) (SAMPLE(?web) AS ?website) (SAMPLE(?article) AS ?article)
+       (SAMPLE(?officialName) AS ?officialName) (SAMPLE(?label) AS ?label) (SAMPLE(?industry) AS ?industry) (SAMPLE(?countryCode) AS ?countryCode)
+WHERE {
+  VALUES ?item { ${ids.map((i) => `wd:${i}`).join(' ')} }
+  ?item wdt:P856 ?web .
+  OPTIONAL { ?item wdt:P1128 ?emp . }
+  ${SELECT_FIELDS}
+}
+GROUP BY ?item`);
+  const byId = new Map(rowsToCandidates(rows).map((c) => [c.qid, c]));
+  return ids.map((i) => byId.get(i)).filter((c): c is Candidate => Boolean(c));
 }
 
 export async function lookupNames(names: string[]): Promise<{ query: string; match: Candidate | null }[]> {
@@ -348,43 +449,135 @@ export function findCareerLinks(html: string, base: string, domain: string): { a
   return { ats: [...ats].slice(0, 5), pages: [...new Set(pages.map((p) => p.url))].slice(0, 3) };
 }
 
-export async function probe(name: string, website: string) {
+/** Workday boards named after the company, e.g. tesco.wd3.myworkdayjobs.com/External. */
+async function probeWorkday(name: string, domain: string): Promise<CareerCandidate[]> {
+  const tenants = [...new Set(slugGuesses(name, domain).map((t) => t.replace(/-/g, '')))].slice(0, 2);
+  const out: CareerCandidate[] = [];
+  const tries: Promise<void>[] = [];
+  for (const tenant of tenants) {
+    const cap = tenant[0].toUpperCase() + tenant.slice(1);
+    const sites = [...new Set(['External', 'Careers', `${cap}Careers`, `${cap}_Careers`, `${cap}External`, 'ExternalCareerSite', `${cap}_External_Careers`, 'careers'])];
+    for (const wd of [1, 3, 5, 103]) {
+      for (const site of sites) {
+        tries.push(
+          (async () => {
+            const origin = `https://${tenant}.wd${wd}.myworkdayjobs.com`;
+            const res = await fetchWithTimeout(
+              `${origin}/wday/cxs/${tenant}/${site}/jobs`,
+              { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': BROWSER_UA }, body: JSON.stringify({ appliedFacets: {}, limit: 1, offset: 0, searchText: '' }) },
+              7000
+            );
+            if (!res?.ok) return;
+            const json = await res.json().catch(() => null);
+            const n = typeof json?.total === 'number' ? json.total : 0;
+            if (n > 0 && !out.some((c) => c.url.startsWith(origin))) {
+              out.push({ kind: 'careers_url', url: `${origin}/${site}`, platform: 'Workday', evidence: 'name', jobs: n });
+            }
+          })()
+        );
+      }
+    }
+  }
+  await Promise.all(tries);
+  return out;
+}
+
+const CAREER_PATHS = ['/careers', '/jobs', '/en/careers', '/careers/jobs', '/about-us/careers', '/about/careers', '/work-with-us', '/join-us', '/karriere', '/werken-bij', '/vacatures', '/en/jobs'];
+
+/**
+ * Finds career page candidates for one company.
+ * deep = second pass for companies the first pass missed: tries www / no-www
+ * versions of the site, more careers addresses, careers sites on their own
+ * domain name (e.g. tesco-careers.com) and Workday boards named after them.
+ */
+export async function probe(name: string, website: string, deep = false) {
   const domain = hostOf(website);
-  const [boards, home] = await Promise.all([probeBoards(name, domain), readPage(website)]);
+  const root = domain.split('.')[0];
+  const tld = domain.slice(root.length + 1) || 'com';
+
+  let home = await readPage(website);
+  if (!home && deep) {
+    for (const alt of [`https://www.${domain}`, `https://${domain}`, `http://www.${domain}`]) {
+      if (alt.replace(/\/$/, '') === website.replace(/\/$/, '')) continue;
+      home = await readPage(alt);
+      if (home) break;
+    }
+  }
+  const boardsP = probeBoards(name, domain);
+  const workdayP = deep ? probeWorkday(name, domain) : Promise.resolve([] as CareerCandidate[]);
+
   const candidates: CareerCandidate[] = [];
+  const seen = new Set<string>();
+  const add = (c: CareerCandidate) => {
+    const k = c.token ? `gh:${c.token}` : c.url.replace(/\/$/, '').toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    candidates.push(c);
+  };
+  const addAts = (url: string, evidence: CareerCandidate['evidence']) => {
+    const gh = /greenhouse\.io\/([a-z0-9_-]+)/i.exec(url);
+    if (gh && !['embed', 'job_board'].includes(gh[1].toLowerCase())) add({ kind: 'greenhouse', url, token: gh[1].toLowerCase(), platform: 'Greenhouse', evidence, jobs: null });
+    else add({ kind: 'careers_url', url, platform: platformOf(url), evidence, jobs: null });
+  };
   let icons: string[] = [`https://www.google.com/s2/favicons?domain=${domain}&sz=256`];
 
   if (home) {
     icons = findIcons(home.html, home.finalUrl);
     const first = findCareerLinks(home.html, home.finalUrl, domain);
     let ats = first.ats;
-    const pages = first.pages;
-    // One hop: the careers page usually links to the real job board.
-    if (pages[0]) {
-      const careers = await readPage(pages[0]);
+    // One hop (two when searching deeper): the careers page usually links to the real job board.
+    for (const page of first.pages.slice(0, deep ? 2 : 1)) {
+      const careers = await readPage(page);
       if (careers) ats = [...new Set([...ats, ...findCareerLinks(careers.html, careers.finalUrl, domain).ats])];
     }
-    for (const url of ats) {
-      const gh = /greenhouse\.io\/([a-z0-9_-]+)/i.exec(url);
-      if (gh && !['embed', 'job_board'].includes(gh[1].toLowerCase())) {
-        candidates.push({ kind: 'greenhouse', url, token: gh[1].toLowerCase(), platform: 'Greenhouse', evidence: 'website', jobs: null });
-      } else candidates.push({ kind: 'careers_url', url, platform: platformOf(url), evidence: 'website', jobs: null });
-    }
-    for (const url of pages) candidates.push({ kind: 'careers_url', url, platform: platformOf(url), evidence: 'website', jobs: null });
+    for (const url of ats) addAts(url, 'website');
+    for (const url of first.pages) add({ kind: 'careers_url', url, platform: platformOf(url), evidence: 'website', jobs: null });
   }
 
-  // Board guesses last; drop ones already found via the website.
-  for (const b of boards) {
-    const dup = candidates.find((c) => (b.token && c.token === b.token) || hostOf(c.url) + new URL(c.url).pathname.toLowerCase() === hostOf(b.url) + new URL(b.url).pathname.toLowerCase());
-    if (dup) {
-      dup.jobs = b.jobs;
-      continue;
-    }
-    candidates.push(b);
+  // Nothing linked (or the homepage blocked us): the usual careers addresses on the company's own domain.
+  if (!candidates.length) {
+    const origin = (() => {
+      try {
+        return new URL(home?.finalUrl ?? website).origin;
+      } catch {
+        return `https://www.${domain}`;
+      }
+    })();
+    const own = [`https://careers.${domain}`, `https://jobs.${domain}`, ...(deep ? CAREER_PATHS : CAREER_PATHS.slice(0, 2)).map((p) => origin + p)];
+    if (deep) own.push(`https://karriere.${domain}`, `https://werkenbij.${domain}`);
+    // Separate careers sites named after the company: tesco-careers.com, shelljobs.com …
+    const roots = [...new Set([coreName(name).replace(/\s+/g, ''), root])].filter((r) => r.length >= 3 && r.length <= 30).slice(0, 2);
+    const named = deep
+      ? roots.flatMap((r) => [`https://www.${r}-careers.com`, `https://www.${r}careers.com`, `https://www.${r}jobs.com`, `https://careers.${r}.${tld === 'com' ? 'co.uk' : 'com'}`])
+      : [];
+    const read = await Promise.all([...own, ...named].map((u) => readPage(u)));
+    read.forEach((pg, i) => {
+      if (!pg) return;
+      const isNamed = i >= own.length;
+      const h = hostOf(pg.finalUrl);
+      if (!isNamed && !ownHost(h, domain) && !platformOf(pg.finalUrl)) return;
+      // A careers site on another domain must name the company in its title or link its website.
+      if (isNamed) {
+        const title = (/<title[^>]*>([\s\S]{0,200}?)<\/title>/i.exec(pg.html)?.[1] ?? '').toLowerCase();
+        const core = coreName(name);
+        if (!(core && title.includes(core.split(' ')[0])) && !pg.html.toLowerCase().includes(domain)) return;
+      }
+      const evidence: CareerCandidate['evidence'] = isNamed ? 'name' : 'website';
+      for (const url of findCareerLinks(pg.html, pg.finalUrl, isNamed ? h : domain).ats) addAts(url, evidence);
+      add({ kind: 'careers_url', url: pg.finalUrl.replace(/\/$/, ''), platform: platformOf(pg.finalUrl), evidence, jobs: null });
+    });
+  }
+
+  // Job boards found by name last; ones already found keep their place but get the job count.
+  for (const b of [...(await boardsP), ...(await workdayP)]) {
+    const k = b.token ? `gh:${b.token}` : b.url.replace(/\/$/, '').toLowerCase();
+    const dup = candidates.find((c) => (c.token ? `gh:${c.token}` : c.url.replace(/\/$/, '').toLowerCase()) === k);
+    if (dup) dup.jobs = b.jobs;
+    else add(b);
   }
   const rank = { website: 0, name: 1, guess: 2 } as const;
   candidates.sort((a, b) => rank[a.evidence] - rank[b.evidence] || (platformOf(b.url) ? 1 : 0) - (platformOf(a.url) ? 1 : 0));
-  return { domain, websiteReachable: Boolean(home), candidates: candidates.slice(0, 6), icons };
+  return { domain, websiteReachable: Boolean(home), candidates: candidates.slice(0, deep ? 8 : 6), icons };
 }
 
 // ---------------------------------------------------------------------------

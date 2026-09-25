@@ -8,9 +8,14 @@
 //   { action: "top", country: "DE", limit: 100, offset: 0 }
 //       Largest companies in a country, from Wikidata: legal name (English
 //       Wikipedia title, e.g. "Bayer AG"), website, employees, industry.
+//   { action: "list", country: "GB" }
+//       Every company in the country with a website, biggest first — ids
+//       only, so the admin page knows the total and pages through it.
+//   { action: "details", qids: ["Q…", …] }   (max 100)
+//       Legal name, website, employees and industry for those companies.
 //   { action: "lookup", names: ["Bayer", "ASML", ...] }   (max 25)
 //       Same details for companies you name (e.g. from a sponsor register).
-//   { action: "probe", name, website }
+//   { action: "probe", name, website, deep?: true }
 //       Finds career page candidates: job-board links on the company's own
 //       website, its careers page, and job boards matching its name
 //       (Greenhouse, Lever, Ashby, SmartRecruiters). Plus square icon URLs.
@@ -22,7 +27,7 @@
 // Deploy: supabase functions deploy company-finder
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { CORS_HEADERS, lookupNames, makeLogo, probe, topCompanies } from './finder.ts';
+import { CORS_HEADERS, companyDetails, listCompanies, lookupNames, makeLogo, probe, topCompanies } from './finder.ts';
 
 // ---------------------------------------------------------------------------
 
@@ -42,12 +47,16 @@ Deno.serve(async (req) => {
     switch (body?.action) {
       case 'top':
         return reply({ ok: true, companies: await topCompanies(String(body.country ?? '').toUpperCase(), Number(body.limit ?? 100), Number(body.offset ?? 0)) });
+      case 'list':
+        return reply({ ok: true, companies: await listCompanies(String(body.country ?? '').toUpperCase()) });
+      case 'details':
+        return reply({ ok: true, companies: await companyDetails(Array.isArray(body.qids) ? body.qids.map(String) : []) });
       case 'lookup':
         return reply({ ok: true, results: await lookupNames(Array.isArray(body.names) ? body.names.map(String) : []) });
       case 'probe': {
         const website = String(body.website ?? '');
         if (!/^https?:\/\//i.test(website)) return reply({ ok: false, error: 'Website must start with http(s)://' }, 400);
-        return reply({ ok: true, ...(await probe(String(body.name ?? ''), website)) });
+        return reply({ ok: true, ...(await probe(String(body.name ?? ''), website, body.deep === true)) });
       }
       case 'logo': {
         const service = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);

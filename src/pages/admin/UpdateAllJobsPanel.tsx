@@ -3,6 +3,7 @@ import { Check, ChevronDown, Loader2, Play, RefreshCw, ScanSearch, Square, X } f
 import { syncImportSource, type ImportSource } from '@/lib/importSync';
 import { backfillJobFacts, type ImportCountryLookup } from '@/lib/admin';
 import { countLiveJobs, fetchRecentRuns, saveRun, startRun, type JobUpdateRun } from '@/lib/jobUpdateRuns';
+import { PublicCountBar } from '@/pages/admin/PublicCountBar';
 
 /**
  * Admin → "Update all jobs": one click that
@@ -274,6 +275,8 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
           </button>
         </div>
       )}
+      <PublicCountBar refreshKey={result?.finished_at ?? null} />
+
       {phase === 'idle' && showOptions && (
         <div className="flex flex-wrap items-center gap-5 border-t border-white/10 bg-white/[0.03] px-5 py-3 text-xs text-white/80 sm:px-6">
           <label className="flex items-center gap-2">
