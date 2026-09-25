@@ -500,7 +500,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
           )}
         </div>
 
-        {raw?.publisher_id && <JobInsights publisherId={raw.publisher_id} company={job.company} />}
+        {raw?.publisher_id && (
+          <JobInsights publisherId={raw.publisher_id} company={job.company} onTrack={(signedIn) => (signedIn ? go('profile') : onAuth?.('register'))} />
+        )}
 
         {raw && (
           <div className="mt-4 flex flex-col gap-3 rounded-xl border border-ink-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
