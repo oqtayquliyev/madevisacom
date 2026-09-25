@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EvidenceReviewSection } from '@/pages/admin/EvidenceReviewSection';
 import { ListingRequestsSection } from '@/pages/admin/ListingRequestsSection';
 import { listTotpFactors } from '@/lib/mfa';
+import { UpdateAllJobsPanel } from '@/pages/admin/UpdateAllJobsPanel';
 import { PublisherFilterChips, RegisteredCompanyPanel, type PublisherFilter } from '@/pages/admin/RegisteredCompanyPanel';
 import { Bell, Briefcase, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Inbox, Landmark, Mail, Pencil, RefreshCw, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -342,6 +343,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
             {newRequestCount > 0 && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500" />}
           </button>
         </div>
+
+        {!dataLoading && <UpdateAllJobsPanel sources={sources} countries={countries} onChange={loadAll} />}
 
         <nav className="sticky top-0 z-10 -mx-5 mt-6 flex gap-1 overflow-x-auto border-b border-ink-200 bg-[#f8fafc] px-5 sm:mx-0 sm:px-0">
           {ADMIN_TABS.map(({ key, label, icon: Icon }) => {

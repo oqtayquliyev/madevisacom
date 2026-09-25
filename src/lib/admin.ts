@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { isPlaceholderValue, splitSourceLocation } from '@/lib/jobText';
-import { detectFactsForItems, EMPTY_FACTS, refreshJobFacts, type DetectedFacts, type WorkArrangement } from '@/lib/jobFactsClient';
+import { detectFactsForItems, EMPTY_FACTS, FACTS_VERSION, refreshJobFacts, type DetectedFacts, type WorkArrangement } from '@/lib/jobFactsClient';
 import type { OrgType } from '@/lib/programs';
 import type { ListingStatus, SalaryStatus, SalaryPeriod, CostStatus } from '@/lib/listingCategories';
 import { JOB_CATEGORIES, isMeaningfulSalary, type JobCategory } from '@/lib/listingCategories';
@@ -990,7 +990,7 @@ type FactRow = {
 export async function backfillJobFacts(
   onProgress?: (done: number, total: number) => void,
   shouldStop?: () => boolean,
-  options: { refetchThin?: boolean } = {}
+  options: { refetchThin?: boolean; onlyMissing?: boolean } = {}
 ): Promise<{ ok: boolean; scanned: number; updated: number; counts: Record<string, number>; error?: string; migrationMissing?: boolean }> {
   const counts: Record<string, number> = { refetched: 0, compensation: 0, experience: 0, employment: 0, workType: 0, visa: 0, posted: 0, department: 0, location: 0 };
   const baseCols =
@@ -1001,7 +1001,19 @@ export async function backfillJobFacts(
   // Small keyset-paginated batches (by primary key): loading every
   // description at once is what hit the database statement timeout.
   const BATCH = 100;
-  const { count: total } = await supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true });
+  // onlyMissing: just jobs the server hasn't analysed yet (new, edited, or
+  // analysed by an older detector version) — what the daily update needs.
+  const missingFilter = `facts.is.null,facts->>v.neq.${FACTS_VERSION}`;
+  let onlyMissing = options.onlyMissing ?? false;
+  let countRes = await (onlyMissing
+    ? supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).or(missingFilter)
+    : supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }));
+  if (countRes.error && onlyMissing) {
+    // `facts` column not there yet (migration not run) — scan everything.
+    onlyMissing = false;
+    countRes = await supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true });
+  }
+  const total = countRes.count;
   let hasNewCols = true;
   let lastId: string | null = null;
   let scanned = 0;
@@ -1010,6 +1022,7 @@ export async function backfillJobFacts(
 
   const fetchBatch = async (cols: string) => {
     let q = supabase.from('sponsored_jobs').select(cols).order('id', { ascending: true }).limit(BATCH);
+    if (onlyMissing) q = q.or(missingFilter);
     if (lastId) q = q.gt('id', lastId);
     return q;
   };
