@@ -48,8 +48,8 @@ export function SponsoredAdsSection() {
           <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.35fr]">
             {/* PATH 1 — FREE */}
             <div className="flex flex-col rounded-lg border border-ink-200 bg-white p-5">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink-400">Post for free</p>
-              <p className="mt-1 text-lg font-bold text-ink-950">List a job</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">Free</p>
+              <p className="mt-1 text-lg font-bold text-ink-950">Post a job for free</p>
               <ol className="mt-4 space-y-3">
                 {STEPS.map((s, i) => (
                   <li key={s.label} className="flex gap-3">

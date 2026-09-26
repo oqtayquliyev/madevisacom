@@ -196,6 +196,31 @@ function FlagSwitcher({
 }
 
 /**
+ * Landing preview: the most recently shared jobs that show a salary — one
+ * per company first. Topped up with other fresh items if there aren't enough.
+ */
+function pickRecentWithSalary(items: MatchItem[], count: number, shownBefore: Set<string>): MatchItem[] {
+  const when = (i: MatchItem) => new Date(i.kind === 'job' ? i.postedDate ?? i.createdAt : i.createdAt).getTime() || 0;
+  const salaried = items
+    .filter((i) => i.kind === 'job' && Boolean(i.salary && i.salary.trim()))
+    .sort((a, b) => when(b) - when(a));
+  const picked: MatchItem[] = [];
+  const orgs = new Set<string>();
+  for (const i of salaried) {
+    if (orgs.has(i.org)) continue;
+    orgs.add(i.org);
+    picked.push(i);
+    if (picked.length >= count) return picked;
+  }
+  for (const i of salaried) {
+    if (picked.length >= count) return picked;
+    if (!picked.includes(i)) picked.push(i);
+  }
+  const rest = pickFreshDiverse(items.filter((i) => !picked.includes(i) && i.kind === 'job'), count - picked.length, shownBefore);
+  return [...picked, ...rest].slice(0, count);
+}
+
+/**
  * Picks up to `count` items for the landing page's small preview:
  *  - from the freshest items (posted in the last few days, or the newest
  *    60 if there are fewer), in a different random order every visit;
@@ -289,7 +314,7 @@ export function LocationMatchSection({
     [items, destinationCode]
   );
   const shownBefore = useMemo(() => recentlyShownIds('landing'), []);
-  const shownItems = useMemo(() => (visibleItems ? pickFreshDiverse(visibleItems, 4, shownBefore) : null), [visibleItems, shownBefore]);
+  const shownItems = useMemo(() => (visibleItems ? pickRecentWithSalary(visibleItems, 4, shownBefore) : null), [visibleItems, shownBefore]);
   useEffect(() => {
     if (shownItems?.length && !destinationCode) rememberShown('landing', shownItems.map((i) => i.id));
   }, [shownItems, destinationCode]);

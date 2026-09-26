@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Building2, CheckCircle2, ChevronDown, Loader2, Lock, MessageSquarePlus, Search, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -15,6 +15,9 @@ import {
   type ExperienceChannel,
   type ExperienceOutcome,
 } from '@/lib/companyExperiences';
+
+/** Short answers only — nothing here needs a paragraph. */
+const LIMITS = { company: 80, role: 60, website: 100 };
 
 export type PickCompany = { id: string; name: string; logo_url?: string | null };
 
@@ -45,7 +48,7 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
   const [when, setWhen] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<ExperienceOutcome | null>(null);
   const [more, setMore] = useState(false);
-  const [channel, setChannel] = useState<ExperienceChannel>('company_site');
+  const [channel, setChannel] = useState<ExperienceChannel | ''>('');
   const [role, setRole] = useState('');
   const [reply, setReply] = useState<string | null>(null);
   const [website, setWebsite] = useState('');
@@ -63,7 +66,7 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
     setWhen(null);
     setOutcome(null);
     setMore(false);
-    setChannel('company_site');
+    setChannel('');
     setRole('');
     setReply(null);
     setWebsite('');
@@ -103,7 +106,8 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
   const whenDays = APPLIED_WHEN.find((w) => w.key === when)?.days ?? null;
   const tooSoon = outcome === 'no_response' && whenDays != null && whenDays < 7;
   const name = picked?.name ?? typed.trim();
-  const canSend = name.length >= 2 && whenDays != null && outcome && !tooSoon && !busy;
+  const websiteOk = !website || /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(\/\S*)?$/i.test(website);
+  const canSend = name.length >= 2 && whenDays != null && outcome && !tooSoon && websiteOk && !busy;
 
   const send = async () => {
     if (!canSend || !outcome || whenDays == null) return;
@@ -116,7 +120,7 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
       countryId: countryId || null,
       roleTitle: role,
       appliedOn: isoDaysAgo(whenDays),
-      channel,
+      channel: channel || 'other',
       outcome,
       replyDays: REPLY_AFTER.find((x) => x.key === reply)?.days ?? null,
       publisherId: picked?.id ?? null,
@@ -222,7 +226,7 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
                     }}
                     onFocus={() => setListOpen(true)}
                     onBlur={() => window.setTimeout(() => setListOpen(false), 150)}
-                    maxLength={120}
+                    maxLength={LIMITS.company}
                     placeholder="Search or type a company"
                     className={`${field} h-11 pl-9`}
                   />
@@ -319,37 +323,37 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
                       </div>
                     </div>
                   )}
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-1.5 block text-[12px] font-semibold text-ink-600">Applied via</span>
-                      <select value={channel} onChange={(e) => setChannel(e.target.value as ExperienceChannel)} className={field}>
-                        {EXPERIENCE_CHANNELS.map((c) => (
-                          <option key={c.value} value={c.value}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block">
-                      <span className="mb-1.5 block text-[12px] font-semibold text-ink-600">Role</span>
-                      <input value={role} onChange={(e) => setRole(e.target.value)} maxLength={120} placeholder="e.g. Data Analyst" className={field} />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1.5 block text-[12px] font-semibold text-ink-600">Your country</span>
-                      <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className={field}>
-                        <option value="">—</option>
-                        {countries.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    <select aria-label="Applied via" value={channel} onChange={(e) => setChannel(e.target.value as ExperienceChannel | '')} className={`${field} ${channel ? '' : 'text-ink-400'}`}>
+                      <option value="">Applied via…</option>
+                      {EXPERIENCE_CHANNELS.map((c) => (
+                        <option key={c.value} value={c.value} className="text-ink-900">
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Limited value={role} max={LIMITS.role}>
+                      <input aria-label="Role" value={role} onChange={(e) => setRole(e.target.value.replace(/\s{2,}/g, ' '))} maxLength={LIMITS.role} placeholder="Role — e.g. Data Analyst" className={field} />
+                    </Limited>
+                    <select aria-label="Your country" value={countryId} onChange={(e) => setCountryId(e.target.value)} className={`${field} ${countryId ? '' : 'text-ink-400'}`}>
+                      <option value="">Your country…</option>
+                      {countries.map((c) => (
+                        <option key={c.id} value={c.id} className="text-ink-900">
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
                     {!picked && (
-                      <label className="block">
-                        <span className="mb-1.5 block text-[12px] font-semibold text-ink-600">Company website</span>
-                        <input value={website} onChange={(e) => setWebsite(e.target.value)} maxLength={200} placeholder="company.com" className={field} />
-                      </label>
+                      <Limited value={website} max={LIMITS.website}>
+                        <input
+                          aria-label="Company website"
+                          value={website}
+                          onChange={(e) => setWebsite(e.target.value.trim())}
+                          maxLength={LIMITS.website}
+                          placeholder="Company website — company.com"
+                          className={`${field} ${website && !websiteOk ? 'border-rose-300' : ''}`}
+                        />
+                      </Limited>
                     )}
                   </div>
                 </div>
@@ -453,6 +457,17 @@ function MatchSlider({ value, onChange }: { value: number | null; onChange: (v: 
         <span>Long shot</span>
         <span>Made for it</span>
       </div>
+    </div>
+  );
+}
+
+/** Input with a small "12/60" counter that appears near the limit. */
+function Limited({ value, max, children }: { value: string; max: number; children: ReactNode }) {
+  const near = value.length >= max * 0.8;
+  return (
+    <div className="relative">
+      {children}
+      {near && <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-ink-400">{value.length}/{max}</span>}
     </div>
   );
 }

@@ -195,12 +195,12 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
               </a>
             )}
 
-            {/* Account menu — name + avatar sit in one soft blue (10%) box.
-                The name links to the person's profile; the avatar + arrow open the menu. */}
+            {/* Account menu — the name links to the person's profile; the avatar +
+                arrow sit in a soft grey box and open the menu. */}
             <div className="relative">
               <div
-                className={`group/acct flex items-center rounded-lg bg-[#2563EB]/10 transition-colors hover:bg-[#2563EB]/[0.14] ${
-                  profile ? "gap-1.5 py-1 pl-2.5 pr-1 sm:gap-2 sm:pl-3.5" : "gap-1 p-1"
+                className={`group/acct flex items-center ${
+                  profile ? "gap-1.5 sm:gap-2" : "gap-1"
                 }`}
               >
                 {profile && (
@@ -224,7 +224,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                   aria-label="Account menu"
                   aria-haspopup="menu"
                   aria-expanded={openProfile}
-                  className="flex items-center gap-1 rounded-md"
+                  className="flex items-center gap-1 rounded-lg bg-ink-100 p-1 transition-colors hover:bg-ink-200/80"
                 >
                   <span className="transition-transform duration-300 ease-out group-hover/acct:scale-[1.06]">
                     {profile ? (
@@ -310,7 +310,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                           className={menuItemClass}
                         >
                           <LayoutDashboard className={menuIconClass} />
-                          My profile & applications
+                          Profile & Dashboard
                         </a>
                         {managedCompanyName && (
                           <a

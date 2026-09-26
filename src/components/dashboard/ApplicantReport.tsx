@@ -233,7 +233,7 @@ export function ApplicantReport({
             Your applications
           </h2>
           <span className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-600">
-            <Lock className="h-3 w-3" /> Private unless you share it
+            <Globe className="h-3 w-3" /> Shown on your profile — switch any off
           </span>
           <div className="ml-auto flex rounded-lg bg-[#2563EB]/10 p-0.5">
             {(["all", "waiting", "responded"] as const).map((f) => (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EvidenceReviewSection } from '@/pages/admin/EvidenceReviewSection';
 import { ListingRequestsSection } from '@/pages/admin/ListingRequestsSection';
+import { VacancyImageGenerator } from '@/pages/admin/VacancyImageGenerator';
 import { ExperienceReportsSection } from '@/pages/admin/ExperienceReportsSection';
 import { JobReportsSection } from '@/pages/admin/JobReportsSection';
 import { countNewJobReports } from '@/lib/jobReports';
@@ -8,7 +9,7 @@ import { listTotpFactors } from '@/lib/mfa';
 import { UpdateAllJobsPanel } from '@/pages/admin/UpdateAllJobsPanel';
 import { FindCompaniesPanel } from '@/pages/admin/FindCompaniesPanel';
 import { PublisherFilterChips, RegisteredCompanyPanel, type PublisherFilter } from '@/pages/admin/RegisteredCompanyPanel';
-import { Bell, Briefcase, CheckCircle2, Loader2, XCircle, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Inbox, Landmark, Mail, Pencil, RefreshCw, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
+import { Bell, Briefcase, CheckCircle2, Loader2, XCircle, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ImageIcon, Inbox, Landmark, Mail, Pencil, RefreshCw, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { ImportCenter } from '@/pages/admin/ImportCenter';
@@ -110,12 +111,13 @@ const orgIcon: Record<OrgType, typeof Building2> = {
   expert: UserRound,
 };
 
-type AdminTab = 'inbox' | 'listings' | 'imports' | 'companies' | 'settings';
+type AdminTab = 'inbox' | 'listings' | 'imports' | 'companies' | 'images' | 'settings';
 const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Inbox }[] = [
   { key: 'inbox', label: 'Requests', icon: Inbox },
   { key: 'listings', label: 'Listings', icon: Briefcase },
   { key: 'imports', label: 'Import & sync', icon: RefreshCw },
   { key: 'companies', label: 'Companies & access', icon: Building2 },
+  { key: 'images', label: 'Social images', icon: ImageIcon },
   { key: 'settings', label: 'Settings', icon: Settings },
 ];
 const INBOX_SEEN_KEY = 'mv_admin_inbox_seen_at';
@@ -631,6 +633,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                 />
               </>
             )}
+
+            {tab === 'images' && <VacancyImageGenerator />}
 
             {tab === 'settings' && (
               <>
