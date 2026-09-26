@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, ArrowUp, Building2, ChevronDown, Loader2, MessageSquarePlus, Search, SlidersHorizontal, TrendingDown, TrendingUp, X } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
@@ -81,7 +81,7 @@ function growthOf(c: DirectoryCompany): number | null {
 
 export function CompaniesPage({ go, onAuth }: Props) {
   useSeo({
-    title: 'Companies — hiring activity & applicant response',
+    title: 'Company Scores — hiring activity & applicant response',
     description: 'Search companies by where they hire, how much they are hiring and how often they reply to applicants — based on real data on MadeVisa.',
     path: '/companies',
   });
@@ -196,12 +196,12 @@ export function CompaniesPage({ go, onAuth }: Props) {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
-      <LandingHeader go={go} onAuth={onAuth} active="jobs" />
+      <LandingHeader go={go} onAuth={onAuth} active="companies" />
 
       {/* HERO + SEARCH */}
       <section className="bg-brand-700 text-white">
         <div className="mx-auto max-w-[1440px] px-5 pb-8 pt-8 sm:px-8 lg:px-10">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Companies</h1>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Company Scores</h1>
           <p className="mt-2 max-w-2xl text-[15px] leading-6 text-white/80">Who's hiring, where, and how fast — from real listings and applicant data.</p>
           {rows && rows.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-white/85">
@@ -530,15 +530,27 @@ function Highlight({ c, tone, title, note }: { c: DirectoryCompany; tone: 'up' |
 function SharePromo({ companies, onPick }: { companies: DirectoryCompany[]; onPick: (c: { id?: string | null; name: string; logo_url?: string | null } | null) => void }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
-  // A fresh handful of well-known logos each visit.
-  const quick = useMemo(() => {
-    const withLogo = companies.filter((c) => c.logo_url).slice(0, 60);
-    for (let i = withLogo.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [withLogo[i], withLogo[j]] = [withLogo[j], withLogo[i]];
-    }
-    return withLogo.slice(0, 8);
-  }, [companies]);
+  // Quick pick: the biggest companies (most open listings) that have a logo,
+  // as many as fill two full rows of the box.
+  const pickRef = useRef<HTMLDivElement>(null);
+  const [perRow, setPerRow] = useState(8);
+  useEffect(() => {
+    const el = pickRef.current;
+    if (!el) return;
+    const measure = () => setPerRow(Math.max(4, Math.floor((el.clientWidth + 8) / (40 + 8))));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const quick = useMemo(
+    () =>
+      companies
+        .filter((c) => c.logo_url)
+        .sort((a, b) => b.active_jobs + b.active_programs - (a.active_jobs + a.active_programs))
+        .slice(0, perRow * 2),
+    [companies, perRow],
+  );
   const matches = useMemo(() => {
     const t = q.trim().toLowerCase();
     return (t ? companies.filter((c) => c.name.toLowerCase().includes(t)) : companies).slice(0, 8);
@@ -550,9 +562,12 @@ function SharePromo({ companies, onPick }: { companies: DirectoryCompany[]; onPi
   };
 
   return (
-    <section className="relative mb-8 overflow-hidden rounded-xl bg-brand-700 p-5 text-white sm:p-7">
-      <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10" />
-      <div className="pointer-events-none absolute -bottom-20 right-40 h-40 w-40 rounded-full bg-white/5" />
+    <section className="relative z-20 mb-8 rounded-xl bg-brand-700 p-5 text-white sm:p-7">
+      {/* Decoration is clipped on its own layer, so the company list can drop below the box. */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+        <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10" />
+        <div className="absolute -bottom-20 right-40 h-40 w-40 rounded-full bg-white/5" />
+      </div>
       <div className="relative grid gap-6 lg:grid-cols-[1fr_minmax(0,460px)] lg:items-center">
         <div>
           <p className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[12px] font-semibold">
@@ -583,7 +598,7 @@ function SharePromo({ companies, onPick }: { companies: DirectoryCompany[]; onPi
               />
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
               {open && (
-                <ul className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-ink-200 bg-white py-1 shadow-xl">
+                <ul className="absolute inset-x-0 top-full z-30 mt-1 max-h-72 overflow-y-auto overscroll-contain rounded-lg border border-ink-200 bg-white py-1 shadow-xl">
                   {matches.map((c) => (
                     <li key={c.id}>
                       <button onMouseDown={(e) => e.preventDefault()} onClick={() => pick(c)} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-[#1D4ED8]/5">
@@ -610,23 +625,23 @@ function SharePromo({ companies, onPick }: { companies: DirectoryCompany[]; onPi
               Share
             </button>
           </div>
-          {quick.length > 0 && (
-            <div className="mt-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">Quick pick</p>
-              <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-3" ref={pickRef}>
+            {quick.length > 0 && <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">Quick pick · top companies</p>}
+            {quick.length > 0 && (
+              <div className="mt-2 grid gap-2" style={{ gridTemplateColumns: `repeat(${perRow}, minmax(0, 1fr))` }}>
                 {quick.map((c) => (
                   <button
                     key={c.id}
                     onClick={() => pick(c)}
                     title={c.name}
-                    className="grid h-10 w-10 place-items-center rounded-lg border border-ink-100 bg-white p-1 transition hover:-translate-y-0.5 hover:border-[#1D4ED8]/40 hover:shadow-md"
+                    className="grid aspect-square w-full max-w-[48px] place-items-center justify-self-center rounded-lg border border-ink-100 bg-white p-1 transition hover:-translate-y-0.5 hover:border-[#1D4ED8]/40 hover:shadow-md"
                   >
                     <img src={c.logo_url!} alt={c.name} className="max-h-full max-w-full object-contain" />
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </section>

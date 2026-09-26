@@ -147,7 +147,7 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
 
   const shell = (children: ReactNode) => (
     <div className="min-h-screen bg-white text-ink-900">
-      <LandingHeader go={go} onAuth={onAuth} active="jobs" />
+      <LandingHeader go={go} onAuth={onAuth} active="companies" />
       {children}
       {company && <ShareExperienceDialog open={shareOpen} onClose={() => setShareOpen(false)} company={{ id: company.id, name: company.name, logo_url: company.logo_url }} onAuth={onAuth} />}
       <LandingFooter go={go} onAuth={onAuth} />
@@ -233,7 +233,7 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
       <section ref={heroRef} className="bg-brand-700 text-white">
         <div className={`${WRAP} pb-10 pt-6 sm:pb-12`}>
           <button onClick={() => nav('/companies')} className="flex items-center gap-1.5 text-[14px] font-semibold text-white/80 hover:text-white">
-            <ArrowLeft className="h-4 w-4" /> All companies
+            <ArrowLeft className="h-4 w-4" /> Company Scores
           </button>
           <div className="mt-5 flex flex-col gap-6 sm:flex-row sm:items-start">
             <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-white p-3 shadow-lg shadow-black/10 transition-transform duration-300 hover:scale-[1.03] sm:h-[128px] sm:w-[128px]">

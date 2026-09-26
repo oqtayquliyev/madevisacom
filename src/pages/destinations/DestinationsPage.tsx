@@ -24,7 +24,7 @@ const OPEN: RouteStatus[] = ['citizen', 'free', 'eligible', 'likely'];
 
 export function DestinationsPage({ go, onAuth }: DestinationsPageProps) {
   useSeo({
-    title: 'Destinations — visa routes, sponsorship rates and companies hiring by country',
+    title: 'Visas by Country — visa routes, sponsorship rates and companies hiring by country',
     description: `Compare ${visaGuides.length} countries: visa routes you qualify for, live visa-sponsored job counts, companies hiring, and years to permanent residence and citizenship.`,
     path: '/destinations',
   });

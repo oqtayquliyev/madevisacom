@@ -1,21 +1,6 @@
 import { useEffect, useState } from "react";
 import { SoonChip, SOON_VIEWS } from "@/components/common/SoonChip";
-import {
-  BookOpen,
-  ChevronDown,
-  Building2,
-  Briefcase,
-  GraduationCap,
-  LayoutDashboard,
-  LogIn,
-  LogOut,
-  MapPin,
-  Menu,
-  ShieldCheck,
-  UserPlus,
-  Users,
-  X,
-} from "lucide-react";
+import { BookOpen, ChevronDown, Building2, Briefcase, GraduationCap, LayoutDashboard, LogIn, LogOut, Menu, ShieldCheck, UserPlus, Users, X, Gauge } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { CheckInReminder } from "@/components/jobs/CheckInReminder";
 import { fetchMyManagedPublishers } from "@/lib/companyManager";
@@ -173,17 +158,17 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             </a>
 
             <a
-              href="/destinations"
+              href="/companies"
               onClick={(event) =>
                 handleNavClick(event, () => {
-                  go("destinations");
+                  go("companies");
                   setOpenMenu(false);
                 })
               }
-              className={linkClass("destinations")}
+              className={linkClass("companies")}
             >
-              <MapPin className="h-4 w-4" />
-              Destinations
+              <Gauge className="h-4 w-4" />
+              Company Scores
             </a>
 
             <div className="my-1 h-px bg-ink-100 md:hidden" />
