@@ -80,6 +80,7 @@ export type View =
   | 'admin'
   | 'company'
   | 'companies'
+  | 'feedback'
   | 'official-partners'
   | 'agencies'
   | 'network';

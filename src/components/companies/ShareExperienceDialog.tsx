@@ -26,6 +26,8 @@ type Props = {
   initial?: { id?: string | null; name: string; logo_url?: string | null } | null;
   /** Companies to pick from. */
   companies?: PickCompany[];
+  /** Answer to "What happened?" already chosen (quick buttons on /feedback). */
+  initialOutcome?: ExperienceOutcome | null;
   onAuth?: (page: 'login' | 'register') => void;
 };
 
@@ -34,7 +36,7 @@ type Props = {
  * what happened); the rest is optional and folded away. Every report is
  * reviewed before it counts, and is only ever shown as a total.
  */
-export function ShareExperienceDialog({ open, onClose, company, initial, companies = [], onAuth }: Props) {
+export function ShareExperienceDialog({ open, onClose, company, initial, companies = [], initialOutcome, onAuth }: Props) {
   const { session } = useAuth();
   const [picked, setPicked] = useState<PickCompany | null>(null);
   const [typed, setTyped] = useState('');
@@ -68,6 +70,7 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
   useEffect(() => {
     if (!open) return;
     reset();
+    if (initialOutcome) setOutcome(initialOutcome);
     setDone(false);
     const start = company ?? (initial?.id ? { id: initial.id, name: initial.name, logo_url: initial.logo_url } : null);
     setPicked(start);
@@ -76,7 +79,7 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, company, initial]);
+  }, [open, company, initial, initialOutcome]);
 
   useEffect(() => {
     if (more && !countries.length) fetchCountryOptions().then(setCountries);

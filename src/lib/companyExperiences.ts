@@ -4,6 +4,7 @@
 // See supabase/migrations/20261020090000_company_experience_reports.sql.
 
 import { supabase } from '@/lib/supabase';
+import { companyPath } from '@/lib/companies';
 
 export type ExperienceOutcome = 'no_response' | 'rejected' | 'responded' | 'interview' | 'offer';
 export type ExperienceChannel = 'company_site' | 'linkedin' | 'job_board' | 'referral' | 'recruiter' | 'other';
@@ -198,4 +199,38 @@ export async function reviewExperience(
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true, publisherId: (data as string | null) ?? null };
+}
+
+// ---------------------------------------------------------------------------
+// /feedback page
+// ---------------------------------------------------------------------------
+
+export type FeedbackCompany = { id: string; name: string; logo_url: string | null; n: number; pct: number; avg_reply_days?: number | null };
+
+export type HiringFeedbackOverview = {
+  total: number;
+  shared: number;
+  tracked: number;
+  companies: number;
+  people: number;
+  last_7d: number;
+  no_response: number;
+  rejected: number;
+  responded: number;
+  interview: number;
+  offer: number;
+  avg_reply_days: number | null;
+  most_responsive: FeedbackCompany[];
+  most_silent: FeedbackCompany[];
+};
+
+export async function fetchHiringFeedbackOverview(): Promise<HiringFeedbackOverview | null> {
+  const { data, error } = await supabase.rpc('hiring_feedback_overview');
+  if (error || !data) return null;
+  return data as HiringFeedbackOverview;
+}
+
+/** A company's own feedback link — companies/HR share it with applicants. */
+export function feedbackPath(c: { id: string; name: string }): string {
+  return companyPath(c).replace(/^\/companies\//, '/feedback/');
 }

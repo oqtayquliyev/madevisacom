@@ -22,7 +22,7 @@ import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { HireCountries } from '@/components/companies/HireCountries';
 import { ShareExperienceDialog } from '@/components/companies/ShareExperienceDialog';
-import { fetchExperienceSummary, type ExperienceSummary } from '@/lib/companyExperiences';
+import { feedbackPath, fetchExperienceSummary, type ExperienceSummary } from '@/lib/companyExperiences';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { fetchCompanyBySlug, fetchCompanyInsights, type CompanyInsights, type CompanyProfile } from '@/lib/companies';
 import { fetchPublishedJobsByPublisher, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
@@ -496,6 +496,19 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
               </button>
             }
           >
+            <p className="-mt-2 mb-4 text-[13px] text-ink-500">
+              Hiring at {company.name}?{' '}
+              <a
+                href={feedbackPath(company)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  nav(feedbackPath(company));
+                }}
+                className="font-semibold text-[#1D4ED8] hover:underline"
+              >
+                Get your feedback link for candidates
+              </a>
+            </p>
             {shared && shared.total > 0 && !shared.hidden ? (
               <SharedOutcomes s={shared} />
             ) : shared && shared.total > 0 ? (

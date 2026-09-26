@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CompaniesPage } from '@/pages/companies/CompaniesPage';
 import { CompanyProfilePage } from '@/pages/companies/CompanyProfilePage';
+import { FeedbackPage } from '@/pages/feedback/FeedbackPage';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -53,6 +54,7 @@ const pathForView: Partial<Record<View, string>> = {
   admin: '/admin',
   company: '/company',
   companies: '/companies',
+  feedback: '/feedback',
   'official-partners': '/official-partners',
 };
 
@@ -255,6 +257,12 @@ export default function App() {
 
   if (path.startsWith('/companies/')) {
     return <CompanyProfilePage slug={path.slice('/companies/'.length)} go={go} onAuth={goToAuth} />;
+  }
+
+  // Hiring Feedback — /feedback, and a company's own link /feedback/<company>.
+  if (path === '/feedback' || path.startsWith('/feedback/')) {
+    const fslug = path.startsWith('/feedback/') ? path.slice('/feedback/'.length).replace(/\/$/, '') : '';
+    return <FeedbackPage key={fslug || 'all'} slug={fslug || undefined} go={go} onAuth={goToAuth} />;
   }
 
   if (path === '/company') {
