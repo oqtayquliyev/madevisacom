@@ -15,6 +15,16 @@
   ::selection {
     @apply bg-brand-200 text-brand-900;
   }
+  /* iOS Safari zooms the page when a focused field's text is under 16px.
+     Keep form text at 16px on phones so tapping a field never zooms;
+     larger screens keep each field's own size. */
+  @media (max-width: 767px) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
 }
 
 @layer utilities {

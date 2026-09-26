@@ -25,6 +25,12 @@ export type Profile = {
   email_verified_at?: string | null;
   /** The address that was verified — a later email change no longer counts. */
   verified_email?: string | null;
+  /** Network directory (20261018090000 migration). Listed only when network_visible. */
+  network_visible?: boolean;
+  network_role?: 'job_seeker' | 'hiring_manager' | 'recruiter' | 'visa_expert' | null;
+  network_intent?: 'hiring' | 'looking' | null;
+  network_headline?: string | null;
+  has_sponsored?: boolean;
 };
 
 /**
@@ -65,8 +71,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const cols =
         'id, full_name, email, phone, role, avatar_url, country_id, nationality_country_id, languages, occupation, education, specialization, experience, preferred_destination_country_id, username';
-      let { data, error } = await supabase.from('profiles').select(`${cols}, linkedin_url, email_verified_at, verified_email`).eq('id', userId).maybeSingle();
+      const network = 'network_visible, network_role, network_intent, network_headline, has_sponsored';
+      let { data, error } = await supabase.from('profiles').select(`${cols}, linkedin_url, email_verified_at, verified_email, ${network}`).eq('id', userId).maybeSingle();
       // Older databases: drop the newest columns first, then everything optional.
+      if (error && /column|schema cache/i.test(error.message)) {
+        ({ data, error } = await supabase.from('profiles').select(`${cols}, linkedin_url, email_verified_at, verified_email`).eq('id', userId).maybeSingle());
+      }
       if (error && /column|schema cache/i.test(error.message)) {
         ({ data, error } = await supabase.from('profiles').select(`${cols}, linkedin_url`).eq('id', userId).maybeSingle());
       }
@@ -78,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!error && data && (data as Profile).email_verified_at === null) {
         const { data: res } = await supabase.rpc('mark_email_verified');
         if ((res as { verified?: boolean } | null)?.verified) {
-          const again = await supabase.from('profiles').select(`${cols}, linkedin_url, email_verified_at, verified_email`).eq('id', userId).maybeSingle();
+          const again = await supabase.from('profiles').select(`${cols}, linkedin_url, email_verified_at, verified_email, ${network}`).eq('id', userId).maybeSingle();
           if (!again.error && again.data) data = again.data;
         }
       }

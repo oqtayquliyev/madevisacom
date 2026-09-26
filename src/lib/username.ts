@@ -55,6 +55,11 @@ export type PublicProfile = {
   publisher_name: string | null;
   publisher_org_type: string | null;
   publisher_verification_status: string | null;
+  /** Network fields — only filled when the person chose to be listed (20261018090000). */
+  network_role?: 'job_seeker' | 'hiring_manager' | 'recruiter' | 'visa_expert' | null;
+  network_intent?: 'hiring' | 'looking' | null;
+  network_headline?: string | null;
+  has_sponsored?: boolean;
 };
 
 export async function fetchPublicProfileByUsername(username: string): Promise<PublicProfile | null> {

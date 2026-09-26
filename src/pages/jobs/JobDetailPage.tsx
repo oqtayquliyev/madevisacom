@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Chec
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
+import { HiringBriefCallout } from '@/components/briefs/HiringBriefCallout';
 import { fetchSponsoredJobById, fetchSponsoredJobByShortId, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { jobPath, parseJobPath } from '@/lib/jobUrl';
 import { getGuestJobViewCount, markJobViewed } from '@/lib/viewedJobs';
@@ -516,6 +517,21 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             </p>
           )}
         </div>
+
+        {raw && (
+          <HiringBriefCallout
+            jobId={raw.id}
+            publisherId={raw.publisher_id ?? null}
+            jobTitle={job.title}
+            companyName={job.company}
+            jobFunction={raw.job_function ?? null}
+            jobCity={cityOk ? job.city : null}
+            countryCode={raw.country?.iso_code ?? (countryOk ? job.countryCode : null)}
+            visa={visa ?? null}
+            closed={closed}
+            onAuth={onAuth}
+          />
+        )}
 
         {raw?.publisher_id && (
           <JobInsights

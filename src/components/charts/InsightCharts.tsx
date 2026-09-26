@@ -23,7 +23,7 @@ export function InsightPanel({ title, right, children, foot }: { title: ReactNod
 }
 
 export function InsightGrid({ count, children }: { count: number; children: ReactNode }) {
-  return <div className={`mt-4 grid gap-3 ${count >= 3 ? 'md:grid-cols-3' : count === 2 ? 'md:grid-cols-2' : ''}`}>{children}</div>;
+  return <div className={`mt-4 grid grid-cols-1 gap-3 ${count >= 3 ? 'md:grid-cols-3' : count === 2 ? 'md:grid-cols-2' : ''}`}>{children}</div>;
 }
 
 export function InsightCard({ title, children, foot, muted, tag }: { title: string; children: ReactNode; foot?: ReactNode; muted?: boolean; tag?: ReactNode }) {

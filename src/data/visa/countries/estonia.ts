@@ -1,0 +1,58 @@
+import type { VisaGuide } from '../types';
+import { SCHENGEN_SHORT } from '../shared';
+
+export const estonia: VisaGuide = {
+  code: 'EE',
+  name: 'Estonia',
+  slug: 'estonia',
+  region: 'Northern Europe',
+  blurb: 'Small, digital-first country with a well-known start-up visa and a digital nomad visa.',
+  freeMovement: true,
+  schengen: true,
+  currency: 'EUR',
+  languages: 'Estonian (English common in tech)',
+  prYears: 5,
+  prNote: 'Long-term residence after 5 years with B1 Estonian.',
+  citizenshipYears: 8,
+  citizenshipNote: '8 years of residence, 5 of them on a permanent basis, with a language exam. Dual nationality isn\'t allowed for naturalised citizens.',
+  dualCitizenship: 'no',
+  shortStay: SCHENGEN_SHORT,
+  routes: [
+    {
+      id: 'ee-work',
+      name: 'Residence permit for employment',
+      kind: 'work',
+      summary: 'Job offer paying at least the Estonian average salary (higher for most roles); top specialists and start-up hires have simpler rules.',
+      validity: 'Up to 5 years',
+      leadsToPR: true,
+      requires: ['job-offer', 'salary-threshold'],
+      url: 'https://www.politsei.ee/en',
+    },
+    {
+      id: 'ee-nomad',
+      name: 'Digital nomad visa',
+      kind: 'remote',
+      summary: 'Live in Estonia while working remotely, with gross income of at least €4,500 a month over the past 6 months.',
+      validity: 'Up to 1 year',
+      fee: '€100',
+      leadsToPR: false,
+      requires: ['remote-income'],
+      url: 'https://www.politsei.ee/en',
+    },
+    {
+      id: 'ee-startup',
+      name: 'Start-up visa',
+      kind: 'business',
+      summary: 'For founders whose company is approved by the Startup Estonia committee, and for hires of eligible start-ups.',
+      validity: 'Up to 5 years',
+      leadsToPR: true,
+      requires: ['business'],
+      url: 'https://startupestonia.ee/visa/',
+    },
+  ],
+  officialLinks: [
+    { label: 'Police and Border Guard Board', url: 'https://www.politsei.ee/en' },
+    { label: 'Work in Estonia', url: 'https://www.workinestonia.com/' },
+  ],
+  reviewed: '2026-06',
+};

@@ -11,8 +11,10 @@ import { LandingPage } from '@/pages/landing/LandingPage';
 import { JobsPage } from '@/pages/landing/jobs/JobsPage';
 import { ProgramsPage } from '@/pages/landing/programs/ProgramsPage';
 import { SponsoredProgramsPage } from '@/pages/programs/SponsoredProgramsPage';
-import { ExpertsMarketplacePage } from '@/pages/experts/ExpertsMarketplacePage';
 import { DestinationsPage } from '@/pages/destinations/DestinationsPage';
+import { CountryPage } from '@/pages/destinations/CountryPage';
+import { BriefPage } from '@/pages/brief/BriefPage';
+import { NetworkPage } from '@/pages/network/NetworkPage';
 import { ProgramDetailPage } from '@/pages/programs/ProgramDetailPage';
 import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
 import { AdminPanelPage } from '@/pages/admin/AdminPanelPage';
@@ -44,7 +46,8 @@ const pathForView: Partial<Record<View, string>> = {
   'sponsored-programs': '/sponsored-programs',
   'submit-job': '/submit-job',
   profile: '/profile',
-  experts: '/experts',
+  experts: '/network',
+  network: '/network',
   destinations: '/destinations',
   dashboard: '/dashboard',
   admin: '/admin',
@@ -212,12 +215,23 @@ export default function App() {
     return <SubmitJobPage go={go} onAuth={goToAuth} />;
   }
 
-  if (path === '/experts') {
-    return <ExpertsMarketplacePage go={go} onAuth={goToAuth} />;
+  // Network replaced "Agencies & Experts"; /experts stays as an alias for old links.
+  if (path === '/network' || path === '/experts') {
+    return <NetworkPage go={go} onAuth={goToAuth} />;
+  }
+
+  // Hiring Briefs: public, unlisted pages a candidate sends to an employer.
+  if (path.startsWith('/brief/')) {
+    return <BriefPage shareId={path.slice('/brief/'.length).replace(/\/+$/, '')} go={go} onAuth={goToAuth} />;
   }
 
   if (path === '/destinations') {
     return <DestinationsPage go={go} onAuth={goToAuth} />;
+  }
+
+  // Country guides: /destinations/<country-slug> (see src/data/visa/).
+  if (path.startsWith('/destinations/')) {
+    return <CountryPage slug={path.slice('/destinations/'.length)} go={go} onAuth={goToAuth} />;
   }
 
   if (path.startsWith('/programs/')) {
@@ -341,7 +355,8 @@ function renderPublicView(view: View, go: (view: View) => void) {
     // 'agencies' is kept as an alias: old "Find a visa expert" links land on the real experts page.
     case 'experts':
     case 'agencies':
-      return <ExpertsMarketplacePage go={go} />;
+    case 'network':
+      return <NetworkPage go={go} />;
     case 'destinations':
       return <DestinationsPage go={go} />;
     // /dashboard is a safe alias — the dashboard lives inside Profile as tabs.

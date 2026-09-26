@@ -81,6 +81,7 @@ export type View =
   | 'company'
   | 'companies'
   | 'official-partners'
-  | 'agencies';
+  | 'agencies'
+  | 'network';
 
   

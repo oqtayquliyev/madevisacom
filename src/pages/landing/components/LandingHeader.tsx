@@ -159,17 +159,17 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             })}
 
             <a
-              href="/experts"
+              href="/network"
               onClick={(event) =>
                 handleNavClick(event, () => {
-                  go("experts");
+                  go("network");
                   setOpenMenu(false);
                 })
               }
-              className={linkClass("experts")}
+              className={linkClass("network")}
             >
               <Users className="h-4 w-4" />
-              Community
+              Network
             </a>
 
             <a

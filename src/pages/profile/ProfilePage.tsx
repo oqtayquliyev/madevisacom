@@ -34,6 +34,8 @@ import {
 import { isEmailVerified, useAuth, type Profile } from '@/lib/auth';
 import { VerifyEmailCard } from '@/components/common/VerifyEmailCard';
 import { TwoFactorSettings } from '@/components/auth/TwoFactorSettings';
+import { NetworkSettingsCard } from '@/components/network/NetworkSettingsCard';
+import { MyBriefsSection } from '@/components/briefs/MyBriefsSection';
 import { supabase } from '@/lib/supabase';
 import {
   createPublisherProfile,
@@ -117,6 +119,18 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
     const t = new URLSearchParams(window.location.search).get('tab');
     return t === 'partner' || t === 'settings' ? t : 'dashboard';
   });
+  // Phones: the profile card sits above the content, so switching section
+  // scrolls to it — otherwise a tap looks like it did nothing.
+  const firstTabRender = useRef(true);
+  useEffect(() => {
+    if (firstTabRender.current) {
+      firstTabRender.current = false;
+      return;
+    }
+    if (window.innerWidth >= 1024) return;
+    const el = document.getElementById('profile-section');
+    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 84, behavior: 'smooth' });
+  }, [tab]);
   // /profile?track=<listing id> (from "I applied — track this job"): open that application's check-in.
   const [trackFocus] = useState(() => new URLSearchParams(window.location.search).get('track'));
   const [countries, setCountries] = useState<CountryOption[]>([]);
@@ -297,9 +311,9 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
       <div className="relative">
       {/* Blue band behind the top of both columns */}
       <div className="absolute inset-x-0 top-0 h-[200px] bg-brand-700 lg:h-[230px]" aria-hidden="true" />
-      <main className="relative mx-auto grid w-full max-w-7xl gap-8 px-5 pb-12 pt-10 sm:px-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:pt-12">
+      <main className="relative mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 px-4 pb-12 pt-8 sm:px-8 sm:pt-10 lg:grid-cols-[320px_minmax(0,1fr)] lg:pt-12">
         {/* LEFT — the person */}
-        <aside className="space-y-4">
+        <aside className="min-w-0 space-y-4">
           <div className="rounded-xl bg-white shadow-xl shadow-brand-900/10 ring-1 ring-ink-200">
             <div className="p-5">
               <div className="w-fit rounded-lg p-[3px] ring-[3px] ring-[#1D4ED8] transition-transform duration-300 hover:scale-[1.03]">
@@ -386,16 +400,16 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
           </div>
 
           {/* Section nav — vertical on desktop, scrolling chips on mobile */}
-          <nav className="flex gap-1 overflow-x-auto rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-ink-200 [scrollbar-width:none] lg:flex-col" aria-label="Profile sections">
+          <nav className="grid grid-cols-3 gap-1 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-ink-200 lg:flex lg:flex-col" aria-label="Profile sections">
             <SideTab active={tab === 'dashboard'} onClick={() => setTab('dashboard')} icon={Sparkles} label="Dashboard" />
-            <SideTab active={tab === 'partner'} onClick={() => setTab('partner')} icon={Award} label={publisher ? 'Organization' : 'For organizations'} />
+            <SideTab active={tab === 'partner'} onClick={() => setTab('partner')} icon={Award} label={publisher ? 'Organization' : 'For organizations'} short={publisher ? 'Organization' : 'Organizations'} />
             <SideTab active={tab === 'settings'} onClick={() => setTab('settings')} icon={SettingsIcon} label="Settings" />
           </nav>
         </aside>
 
         {/* RIGHT — data & infographics */}
         <div className="min-w-0">
-        <h2 className="text-[26px] font-bold text-ink-950 lg:flex lg:h-[92px] lg:items-start lg:text-white">{tab === 'dashboard' ? 'Dashboard' : tab === 'partner' ? (publisher ? 'Organization' : 'For organizations') : 'Settings'}</h2>
+        <h2 id="profile-section" className="text-[26px] font-bold text-ink-950 lg:flex lg:h-[92px] lg:items-start lg:text-white">{tab === 'dashboard' ? 'Dashboard' : tab === 'partner' ? (publisher ? 'Organization' : 'For organizations') : 'Settings'}</h2>
 
         {!isEmailConfirmed && profile.email && <VerifyEmailCard email={profile.email} className="mb-6" />}
 
@@ -415,6 +429,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
                 accountCreatedAt: user?.created_at ?? null,
               }}
             />
+            <MyBriefsSection />
             <RecentlyViewedSection items={recentlyViewedJobs} onBrowse={() => go('jobs')} />
           </div>
         )}
@@ -436,6 +451,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {/* SETTINGS */}
         {tab === 'settings' && (
           <div className="mt-6 space-y-6">
+            <NetworkSettingsCard onNeedUsername={() => window.setTimeout(() => document.getElementById('profile-link')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)} />
             <TwoFactorSettings isAdmin={profile.role === 'admin'} />
             <div className="border border-ink-200 bg-white p-6">
               <h2 className="text-sm font-bold text-ink-900">Profile photo</h2>
@@ -668,16 +684,20 @@ function SideInfo({ icon: Icon, label, value }: { icon: typeof Briefcase; label:
   );
 }
 
-function SideTab({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof Sparkles; label: string }) {
+function SideTab({ active, onClick, icon: Icon, label, short }: { active: boolean; onClick: () => void; icon: typeof Sparkles; label: string; short?: string }) {
+  // Mobile: three equal tiles (icon over label) that always fit the screen.
+  // Desktop: the vertical side menu.
   return (
     <button
       onClick={onClick}
-      className={`flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-lg px-3.5 py-2.5 text-left text-[15px] transition-colors lg:w-full ${
+      aria-current={active ? 'page' : undefined}
+      className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1.5 py-2.5 text-center text-[13px] leading-tight transition-colors lg:w-full lg:flex-row lg:justify-start lg:gap-2.5 lg:px-3.5 lg:text-left lg:text-[15px] ${
         active ? 'bg-[#1D4ED8]/10 font-semibold text-[#1D4ED8]' : 'font-medium text-ink-600 hover:bg-ink-50 hover:text-ink-900'
       }`}
     >
-      <Icon className="h-[18px] w-[18px]" />
-      {label}
+      <Icon className="h-[18px] w-[18px] shrink-0" />
+      <span className="max-w-full truncate lg:hidden">{short ?? label}</span>
+      <span className="hidden lg:inline">{label}</span>
     </button>
   );
 }

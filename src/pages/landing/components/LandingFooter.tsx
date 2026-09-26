@@ -23,7 +23,8 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
       { label: 'Programs', view: 'programs' },
       { label: 'Study & scholarships', view: 'study' },
       { label: 'Companies', view: 'companies' },
-      { label: 'Visa experts', view: 'experts' },
+      { label: 'Destinations', view: 'destinations' },
+      { label: 'Network', view: 'network' },
     ],
   },
   {
@@ -44,7 +45,8 @@ const FOOTER_HREF: Record<string, string> = {
   programs: '/programs',
   study: '/study',
   companies: '/companies',
-  experts: '/experts',
+  destinations: '/destinations',
+  network: '/network',
   'submit-job': '/submit-job',
   'official-partners': '/official-partners',
 };

@@ -5,6 +5,7 @@ import { Roadmap, ScoreStat, SoftCard, SoftPanel, StepFlow, TrendChart, TrendLeg
 import type { View } from '@/types';
 import { useAuth } from '@/lib/auth';
 import { fetchPublicProfileByUsername, type PublicProfile } from '@/lib/username';
+import { INTENT_LABEL, ROLE_LABEL } from '@/lib/network';
 import { TravelerAvatar } from '@/components/common/TravelerAvatar';
 import { LinkedInLogo } from '@/components/common/LinkedInLogo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -95,6 +96,22 @@ export function PublicProfilePage({ username, go, onAuth }: { username: string; 
                 )}
               </h1>
               <p className="text-[15px] text-ink-500">@{profile.username}</p>
+              {profile.network_headline && <p className="mt-2 text-[15px] leading-6 text-ink-700">{profile.network_headline}</p>}
+              {(profile.network_intent || profile.network_role || profile.has_sponsored) && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {profile.network_intent && (
+                    <span className={`rounded-full px-2.5 py-1 text-[12px] font-bold ${profile.network_intent === 'hiring' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`}>
+                      {INTENT_LABEL[profile.network_intent]}
+                    </span>
+                  )}
+                  {profile.network_role && <span className="rounded-full bg-[#1D4ED8]/10 px-2.5 py-1 text-[12px] font-bold text-[#1D4ED8]">{ROLE_LABEL[profile.network_role]}</span>}
+                  {profile.has_sponsored && (
+                    <span title="Self-reported" className="rounded-full bg-ink-100 px-2.5 py-1 text-[12px] font-bold text-ink-700">
+                      Has sponsored visas
+                    </span>
+                  )}
+                </div>
+              )}
 
               {isVerifiedPublisher && (
                 <div className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-[14px] font-semibold text-emerald-700">
