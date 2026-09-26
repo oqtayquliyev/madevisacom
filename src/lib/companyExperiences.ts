@@ -143,6 +143,7 @@ export type ExperienceReport = {
   created_at: string;
   match_pct?: number | null;
   email_verified?: boolean;
+  form_ms?: number | null;
   country?: { name: string; iso_code: string } | null;
   publisher?: { id: string; name: string } | null;
 };
@@ -264,4 +265,41 @@ export function scoreWord(score: number): string {
   if (score >= 55) return 'Good';
   if (score >= 40) return 'Mixed';
   return 'Often silent';
+}
+
+// ---------------------------------------------------------------------------
+// Admin: who sent a report
+// ---------------------------------------------------------------------------
+
+export type ExperienceReporter = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  username: string | null;
+  avatar_url: string | null;
+  linkedin_url: string | null;
+  country_name: string | null;
+  occupation: string | null;
+  role: string | null;
+  joined_at: string | null;
+  last_sign_in_at: string | null;
+  email_verified: boolean;
+  shared_total: number;
+  shared_pending: number;
+  shared_approved: number;
+  shared_rejected: number;
+  shared_24h: number;
+  tracked_total: number;
+  recent_companies: string[] | null;
+};
+
+export async function fetchExperienceReporters(userIds: string[]): Promise<{ rows: ExperienceReporter[]; error?: string }> {
+  const ids = [...new Set(userIds)].filter(Boolean);
+  if (!ids.length) return { rows: [] };
+  const { data, error } = await supabase.rpc('admin_experience_reporters', { uids: ids });
+  if (error) {
+    const missing = /function .* does not exist|schema cache/i.test(error.message);
+    return { rows: [], error: missing ? 'Run the 20261025090000_admin_experience_reporters migration to see who sent each report.' : error.message };
+  }
+  return { rows: (data ?? []) as ExperienceReporter[] };
 }
