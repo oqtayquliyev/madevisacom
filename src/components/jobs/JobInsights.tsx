@@ -48,9 +48,9 @@ export function JobInsights({
   const accuracy = data?.accuracy && data.accuracy.answers >= 3 && data.accuracy.ok / data.accuracy.answers >= 0.7 ? data.accuracy : null;
 
   const cards: ReactNode[] = [];
-  if (response !== 'hide') cards.push(response === 'invite' ? <ResponseInvite key="r" company={company} /> : <ResponseCard key="r" r={response} />);
+  if (response !== 'hide') cards.push(response === 'invite' ? <ResponseInvite key="r" /> : <ResponseCard key="r" r={response} />);
   cards.push(international === 'invite' ? <InternationalInvite key="i" company={company} /> : <InternationalCard key="i" d={international} />);
-  if (live) cards.push(<LiveCard key="l" l={live} accuracy={accuracy} company={company} />);
+  if (live) cards.push(<LiveCard key="l" l={live} accuracy={accuracy} />);
 
   return (
     <div className="mt-4">
@@ -61,10 +61,10 @@ export function JobInsights({
             Measured on <Logo style={{ height: 16 }} />
           </p>
         }
-        foot={`Based on what people report on MadeVisa and our own checks of ${company}’s careers page. It may not be 100% accurate — use it as a guide, not a guarantee.`}
+        foot="From MadeVisa reports and careers-page checks. A guide, not a guarantee."
       >
         <InsightGrid count={cards.length}>{cards}</InsightGrid>
-        <TrackCta company={company} publisherId={publisherId} listing={listing} onOpenTracking={onOpenTracking} onSignUp={onSignUp} />
+        <TrackCta publisherId={publisherId} listing={listing} onOpenTracking={onOpenTracking} onSignUp={onSignUp} />
       </InsightPanel>
     </div>
   );
@@ -75,13 +75,11 @@ export function JobInsights({
 // ---------------------------------------------------------------------------
 
 function TrackCta({
-  company,
   publisherId,
   listing,
   onOpenTracking,
   onSignUp,
 }: {
-  company: string;
   publisherId: string;
   listing: { id: string; title: string; kind: 'job' | 'program' };
   onOpenTracking: () => void;
@@ -99,16 +97,16 @@ function TrackCta({
     else onSignUp();
   };
   return (
-    <div className="mt-3 flex flex-col items-start gap-3 rounded-lg bg-white p-4 ring-1 ring-[#2563EB]/20 sm:flex-row sm:items-center">
+    <div className="mt-3 flex flex-col items-start gap-3 rounded-lg bg-[#1D4ED8]/5 p-4 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold text-ink-950">Applied to this job?</p>
-        <p className="text-xs leading-5 text-ink-600">Track it on MadeVisa. We’ll check in with 3 quick questions — your answers help the next person applying to {company}.</p>
+        <p className="text-xs leading-5 text-ink-600">Track it — 3 quick check-ins help the next applicant.</p>
         {error && <p className="mt-1 text-xs font-medium text-rose-600">{error}</p>}
       </div>
       <button
         onClick={go}
         disabled={busy}
-        className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#2563EB] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700 disabled:opacity-60"
+        className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#1D4ED8] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700 disabled:opacity-60"
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} I applied — track this job <ArrowRight className="h-4 w-4" />
       </button>
@@ -130,7 +128,7 @@ function ResponseCard({ r }: { r: NonNullable<JobPageInsights['response']> }) {
           {early ? 'Early data' : 'Reliable'} · {r.people ?? r.tracked} people
         </Tag>
       }
-      foot={`From ${r.tracked} applications people tracked on MadeVisa. Newer and incomplete accounts count a little less.`}
+      foot={`${r.tracked} tracked applications`}
     >
       <div className="mt-3 flex flex-col items-center gap-2 text-center">
         <Gauge value={r.rate} />
@@ -150,13 +148,13 @@ function ResponseCard({ r }: { r: NonNullable<JobPageInsights['response']> }) {
   );
 }
 
-function ResponseInvite({ company }: { company: string }) {
+function ResponseInvite() {
   return (
     <InsightCard title="Will they answer you?" muted>
       <div className="mt-3 flex flex-col items-center gap-1 text-center">
         <Gauge value={22} placeholder />
         <p className="text-sm font-bold text-ink-900">No answers tracked yet</p>
-        <p className="text-xs leading-5 text-ink-600">Once a few applicants tell us whether {company} replied, everyone sees it here.</p>
+        <p className="text-xs leading-5 text-ink-600">Appears once applicants report back.</p>
       </div>
     </InsightCard>
   );
@@ -172,7 +170,7 @@ function InternationalCard({ d }: { d: NonNullable<JobPageInsights['internationa
     <InsightCard
       title="Do they hire people from abroad?"
       tag={<Tag tone={d.people < 15 ? 'amber' : 'blue'}>{d.people < 15 ? 'Early data' : 'Reliable'}</Tag>}
-      foot="People who reported an interview or offer here, by nationality. Small numbers are grouped."
+      foot="Interviews and offers by nationality"
     >
       <p className="mt-2 text-sm text-ink-600">
         <strong className="text-2xl font-bold tabular-nums text-ink-950">{d.people}</strong> people from <strong className="text-ink-950">{d.countries} countries</strong> got interviews
@@ -193,7 +191,7 @@ function InternationalInvite({ company }: { company: string }) {
       <p className="mt-2 text-sm font-bold text-ink-900">Be one of the first to show it</p>
       <Bars rows={sample} placeholder />
       <p className="mt-3 text-xs leading-5 text-ink-600">
-        Got an interview at {company}? With your nationality on your profile, people from your country can see that {company} hires from abroad.
+        Got an interview at {company}? Add your nationality to show it.
       </p>
     </InsightCard>
   );
@@ -203,7 +201,7 @@ function InternationalInvite({ company }: { company: string }) {
 // 3. Live-checked jobs
 // ---------------------------------------------------------------------------
 
-function LiveCard({ l, accuracy, company }: { l: NonNullable<JobPageInsights['live']>; accuracy: { answers: number; ok: number } | null; company: string }) {
+function LiveCard({ l, accuracy }: { l: NonNullable<JobPageInsights['live']>; accuracy: { answers: number; ok: number } | null }) {
   const pct = Math.round((l.checked / l.open) * 100);
   // A trend needs at least 3 weeks with new jobs; a first import lands in one week.
   const hasHistory = l.weeks.filter((n) => n > 0).length >= 3;
@@ -211,7 +209,7 @@ function LiveCard({ l, accuracy, company }: { l: NonNullable<JobPageInsights['li
     <InsightCard
       title="Is this job real?"
       tag={<Tag>Checked by MadeVisa</Tag>}
-      foot={`MadeVisa checks every job against ${company}’s own careers page.${l.avg_open_days ? ` Their jobs usually stay open about ${l.avg_open_days} days.` : ''}`}
+      foot={l.avg_open_days ? `Jobs stay open ~${l.avg_open_days} days` : undefined}
     >
       <p className="mt-2 text-sm text-ink-600">
         <strong className="text-2xl font-bold tabular-nums text-ink-950">{pct}%</strong> of {l.open.toLocaleString()} open jobs checked live in the last 48 h
@@ -222,12 +220,12 @@ function LiveCard({ l, accuracy, company }: { l: NonNullable<JobPageInsights['li
         <div className="mt-4">
           <Meter value={pct} />
           <p className="mt-2 text-xs text-ink-600">
-            <strong className="text-ink-950">{l.checked.toLocaleString()}</strong> of {l.open.toLocaleString()} jobs found on the careers page. A weekly hiring trend appears here after a few weeks.
+            <strong className="text-ink-950">{l.checked.toLocaleString()}</strong> of {l.open.toLocaleString()} found on the careers page
           </p>
         </div>
       )}
       {accuracy && (
-        <p className="mt-3 rounded-md bg-[#2563EB]/[0.06] px-2.5 py-1.5 text-xs text-ink-700">
+        <p className="mt-3 rounded-md bg-[#1D4ED8]/[0.06] px-2.5 py-1.5 text-xs text-ink-700">
           <strong className="text-ink-950">
             {accuracy.ok} of {accuracy.answers}
           </strong>{' '}

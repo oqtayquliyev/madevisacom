@@ -3,15 +3,15 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 
 /**
  * The MadeVisa insight graphics, shared by job pages and the profile:
- * a light panel (#2563EB at 20%), white cards, #2563EB lines with soft
+ * a white panel, 5% blue cards, #1D4ED8 lines with soft
  * gradients, Inter numbers.
  */
 
-export const BLUE = '#2563EB';
+export const BLUE = '#1D4ED8';
 
 export function InsightPanel({ title, right, children, foot }: { title: ReactNode; right?: ReactNode; children: ReactNode; foot?: ReactNode }) {
   return (
-    <section className="rounded-xl bg-[#2563EB]/20 p-4 text-ink-950 sm:p-6">
+    <section className="rounded-xl border border-ink-200 bg-white p-4 text-ink-950 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-bold tracking-tight">{title}</h2>
         {right}
@@ -28,7 +28,7 @@ export function InsightGrid({ count, children }: { count: number; children: Reac
 
 export function InsightCard({ title, children, foot, muted, tag }: { title: string; children: ReactNode; foot?: ReactNode; muted?: boolean; tag?: ReactNode }) {
   return (
-    <div className={`flex flex-col rounded-lg p-4 shadow-sm ring-1 ${muted ? 'bg-white/60 ring-[#2563EB]/15' : 'bg-white ring-[#2563EB]/20'}`}>
+    <div className={`flex flex-col rounded-lg p-4 transition duration-300 ease-out hover:-translate-y-0.5 ${muted ? 'bg-[#1D4ED8]/[0.03]' : 'bg-[#1D4ED8]/5 hover:bg-[#1D4ED8]/[0.07]'}`}>
       <p className="text-sm font-bold text-ink-950">{title}</p>
       {tag && <div className="mt-1.5 flex">{tag}</div>}
       <div className="flex-1">{children}</div>
@@ -39,7 +39,7 @@ export function InsightCard({ title, children, foot, muted, tag }: { title: stri
 
 /** Small pill for "Early data · 6 people" style labels. */
 export function Tag({ children, tone = 'blue' }: { children: ReactNode; tone?: 'blue' | 'amber' | 'grey' }) {
-  const cls = tone === 'amber' ? 'bg-amber-50 text-amber-700' : tone === 'grey' ? 'bg-ink-100 text-ink-600' : 'bg-[#2563EB]/10 text-[#2563EB]';
+  const cls = tone === 'amber' ? 'bg-amber-50 text-amber-700' : tone === 'grey' ? 'bg-ink-100 text-ink-600' : 'bg-[#1D4ED8]/10 text-[#1D4ED8]';
   return <span className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ${cls}`}>{children}</span>;
 }
 
@@ -89,23 +89,23 @@ export function Bars({ rows, placeholder = false, unit }: { rows: BarRow[]; plac
       {rows.map((r) => (
         <li
           key={r.key}
-          className="grid grid-cols-[minmax(0,7.5rem)_1fr_auto] items-center gap-2 text-xs"
+          className="group/bar grid grid-cols-[minmax(0,7.5rem)_1fr_auto] items-center gap-2 text-xs"
           title={placeholder || !unit ? undefined : `${r.label}: ${r.n} ${r.n === 1 ? unit[0] : unit[1]}`}
         >
           <span className={`flex min-w-0 items-center gap-1.5 ${placeholder ? 'text-ink-400' : 'text-ink-700'}`}>
             {r.code ? (
               <CircleFlag countryCode={r.code} label={r.label} size={14} />
             ) : (
-              <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: r.dot ?? 'rgba(37,99,235,0.15)' }} />
+              <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: r.dot ?? 'rgba(29,78,216,0.15)' }} />
             )}
             <span className="truncate">{r.label}</span>
           </span>
-          <span className="h-2.5 overflow-hidden rounded-full bg-[#2563EB]/10">
+          <span className="h-2.5 overflow-hidden rounded-full bg-[#1D4ED8]/10">
             <span
-              className="block h-full rounded-full"
+              className="block h-full origin-left rounded-full transition-transform duration-300 group-hover/bar:scale-y-125"
               style={{
                 width: `${r.n ? Math.max(8, (r.n / max) * 100) : 0}%`,
-                background: placeholder ? 'rgba(37,99,235,0.18)' : `linear-gradient(90deg, ${BLUE}, rgba(37,99,235,0.55))`,
+                background: placeholder ? 'rgba(29,78,216,0.18)' : `linear-gradient(90deg, ${BLUE}, rgba(29,78,216,0.55))`,
               }}
             />
           </span>
@@ -171,8 +171,8 @@ export function AreaTrend({ values, label, noun = ['item', 'items'] }: { values:
 /** Thin progress meter. */
 export function Meter({ value }: { value: number }) {
   return (
-    <div className="h-3 overflow-hidden rounded-full bg-[#2563EB]/10">
-      <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: `linear-gradient(90deg, rgba(37,99,235,0.55), ${BLUE})` }} />
+    <div className="h-3 overflow-hidden rounded-full bg-[#1D4ED8]/10">
+      <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: `linear-gradient(90deg, rgba(29,78,216,0.55), ${BLUE})` }} />
     </div>
   );
 }

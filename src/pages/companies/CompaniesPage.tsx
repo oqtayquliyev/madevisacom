@@ -86,7 +86,7 @@ export function CompaniesPage({ go, onAuth }: Props) {
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
       <section className="bg-brand-700 text-white">
-        <div className="mx-auto max-w-5xl px-5 pb-10 pt-8 sm:px-8">
+        <div className="mx-auto max-w-7xl px-5 pb-10 pt-8 sm:px-8">
           <h1 className="font-slab text-3xl font-bold tracking-tight sm:text-4xl">Companies</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-white/80">
             Real hiring activity and applicant response data, based on verified interactions on MadeVisa. Compare companies before you apply.
@@ -103,7 +103,7 @@ export function CompaniesPage({ go, onAuth }: Props) {
         </div>
       </section>
 
-      <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8">
+      <main className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
         {/* COMPARE */}
         {compared.length > 0 && (
           <section className="mb-8 rounded-lg border border-brand-200 bg-white p-4 sm:p-5">

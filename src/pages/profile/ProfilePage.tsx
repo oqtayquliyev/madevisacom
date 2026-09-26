@@ -13,7 +13,9 @@ import {
   Copy,
   Download,
   ExternalLink,
+  Flag,
   GraduationCap,
+  Languages,
   Landmark,
   Link2,
   Loader2,
@@ -289,116 +291,117 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   const canPost = publisher?.verification_status === 'verified';
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-ink-900">
+    <div className="min-h-screen bg-white text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="home" />
 
-      <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
-        {/* HEADER — compact */}
-        <div className="flex flex-wrap items-center gap-4 rounded-lg border border-ink-200 bg-white p-5">
-          <span className="rounded-md p-[3px] ring-[3px] ring-[#2563EB]">
-            <TravelerAvatar avatarUrl={profile.avatar_url} size={64} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-xl font-bold tracking-tight text-ink-950 sm:text-2xl">{profile.full_name || 'Your profile'}</h1>
-              <LinkedInConnect userId={profile.id} url={profile.linkedin_url ?? null} onSaved={refreshProfile} />
-              {isEmailConfirmed && (
-                <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Verified
-                </span>
-              )}
-              {partnerBadge && (
-                <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${partnerBadge.className}`}>
-                  {orgTypeLabel[publisher!.org_type]} · {partnerBadge.label}
-                </span>
-              )}
+      <div className="relative">
+      {/* Blue band behind the top of both columns */}
+      <div className="absolute inset-x-0 top-0 h-[200px] bg-brand-700 lg:h-[230px]" aria-hidden="true" />
+      <main className="relative mx-auto grid w-full max-w-7xl gap-8 px-5 pb-12 pt-10 sm:px-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:pt-12">
+        {/* LEFT — the person */}
+        <aside className="space-y-4">
+          <div className="rounded-xl bg-white shadow-xl shadow-brand-900/10 ring-1 ring-ink-200">
+            <div className="p-5">
+              <div className="w-fit rounded-lg p-[3px] ring-[3px] ring-[#1D4ED8] transition-transform duration-300 hover:scale-[1.03]">
+                <TravelerAvatar avatarUrl={profile.avatar_url} size={88} />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <h1 className="min-w-0 break-words text-[24px] font-semibold leading-tight tracking-tight text-ink-950">{profile.full_name || 'Your profile'}</h1>
+                <LinkedInConnect userId={profile.id} url={profile.linkedin_url ?? null} onSaved={refreshProfile} />
+              </div>
+              {profile.username && <p className="text-[15px] text-ink-500">@{profile.username}</p>}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {isEmailConfirmed && (
+                  <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Verified
+                  </span>
+                )}
+                {partnerBadge && (
+                  <span className={`rounded-full border px-2.5 py-1 text-[12px] font-semibold ${partnerBadge.className}`}>
+                    {orgTypeLabel[publisher!.org_type]} · {partnerBadge.label}
+                  </span>
+                )}
+              </div>
+
+              <dl className="mt-5 space-y-3 border-t border-ink-100 pt-4 text-[15px]">
+                <SideInfo icon={MapPin} label="Lives in" value={profileCountry?.name ?? originName ?? 'Not set'} />
+                <SideInfo icon={Flag} label="Citizenship" value={countries.find((c) => c.id === profile.nationality_country_id)?.name ?? 'Not set'} />
+                {profile.occupation && <SideInfo icon={Briefcase} label="Occupation" value={profile.occupation} />}
+                {profile.education && <SideInfo icon={GraduationCap} label="Education" value={profile.education} />}
+                {profile.languages && profile.languages.length > 0 && <SideInfo icon={Languages} label="Languages" value={profile.languages.join(', ')} />}
+              </dl>
+
+              <div className="mt-5 space-y-2">
+                {profile.username ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={async () => {
+                        const url = `${window.location.origin}/u/${profile.username}`;
+                        if (navigator.share) {
+                          try {
+                            await navigator.share({ title: `${profile.full_name ?? profile.username} on MadeVisa`, url });
+                            return;
+                          } catch {
+                            /* cancelled — fall back to copying */
+                          }
+                        }
+                        await navigator.clipboard.writeText(url);
+                        setShareMsg('Link copied');
+                        window.setTimeout(() => setShareMsg(null), 2000);
+                      }}
+                      className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-ink-200 px-3 py-2.5 text-[14px] font-semibold text-ink-700 transition-colors hover:border-[#2563EB]/40 hover:text-[#2563EB]"
+                    >
+                      {shareMsg ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
+                      {shareMsg ?? 'Share'}
+                    </button>
+                    <a href={`/u/${profile.username}`} target="_blank" rel="noopener noreferrer" className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-ink-200 px-3 py-2.5 text-[14px] font-semibold text-ink-700 transition-colors hover:border-[#2563EB]/40 hover:text-[#2563EB]">
+                      <ExternalLink className="h-4 w-4" />
+                      Public view
+                    </a>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setTab('settings');
+                      window.setTimeout(() => document.getElementById('profile-link')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+                    }}
+                    className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-ink-200 px-3 py-2.5 text-[14px] font-semibold text-ink-700 transition-colors hover:border-[#2563EB]/40 hover:text-[#2563EB]"
+                  >
+                    <Share2 className="h-4 w-4" />
+                    Create a shareable profile link
+                  </button>
+                )}
+                {canPost && (
+                  <button
+                    onClick={() => go('company')}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#2563EB] px-3.5 py-2.5 text-[14px] font-semibold text-white hover:bg-brand-700"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Post a job
+                  </button>
+                )}
+              </div>
             </div>
-            <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-500">
-              <span className="flex items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5 text-ink-400" />
-                {profileCountry?.name ?? originName ?? 'Location not set'}
-              </span>
-              {profile.occupation && (
-                <span className="flex items-center gap-1.5">
-                  <Briefcase className="h-3.5 w-3.5 text-ink-400" />
-                  {profile.occupation}
-                </span>
-              )}
-            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {profile.username ? (
-              <>
-                <button
-                  onClick={async () => {
-                    const url = `${window.location.origin}/u/${profile.username}`;
-                    if (navigator.share) {
-                      try {
-                        await navigator.share({ title: `${profile.full_name ?? profile.username} on MadeVisa`, url });
-                        return;
-                      } catch {
-                        /* cancelled — fall back to copying */
-                      }
-                    }
-                    await navigator.clipboard.writeText(url);
-                    setShareMsg('Link copied');
-                    window.setTimeout(() => setShareMsg(null), 2000);
-                  }}
-                  className="flex items-center gap-1.5 rounded border border-ink-200 px-3.5 py-2 text-xs font-semibold text-ink-700 transition-colors hover:border-brand-300 hover:text-[#2563EB]"
-                >
-                  {shareMsg ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Share2 className="h-3.5 w-3.5" />}
-                  {shareMsg ?? 'Share profile'}
-                </button>
-                <a
-                  href={`/u/${profile.username}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 rounded border border-ink-200 px-3.5 py-2 text-xs font-semibold text-ink-700 transition-colors hover:border-brand-300 hover:text-[#2563EB]"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  View as visitor
-                </a>
-              </>
-            ) : (
-              <button
-                onClick={() => {
-                  setTab('settings');
-                  window.setTimeout(() => document.getElementById('profile-link')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
-                }}
-                className="flex items-center gap-1.5 rounded border border-ink-200 px-3.5 py-2 text-xs font-semibold text-ink-700 transition-colors hover:border-brand-300 hover:text-[#2563EB]"
-              >
-                <Share2 className="h-3.5 w-3.5" />
-                Create a shareable profile link
-              </button>
-            )}
-            {canPost && (
-              <button
-                onClick={() => go('company')}
-                className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-brand-700"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Post a job
-              </button>
-            )}
-            <button onClick={() => setTab('settings')} className="rounded-lg border border-ink-200 px-3.5 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50">
-              Edit profile
-            </button>
-          </div>
-        </div>
 
-        {!isEmailConfirmed && profile.email && <VerifyEmailCard email={profile.email} className="mt-4" />}
+          {/* Section nav — vertical on desktop, scrolling chips on mobile */}
+          <nav className="flex gap-1 overflow-x-auto rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-ink-200 [scrollbar-width:none] lg:flex-col" aria-label="Profile sections">
+            <SideTab active={tab === 'dashboard'} onClick={() => setTab('dashboard')} icon={Sparkles} label="Dashboard" />
+            <SideTab active={tab === 'partner'} onClick={() => setTab('partner')} icon={Award} label={publisher ? 'Organization' : 'For organizations'} />
+            <SideTab active={tab === 'settings'} onClick={() => setTab('settings')} icon={SettingsIcon} label="Settings" />
+          </nav>
+        </aside>
 
-        {/* TABS */}
-        <div className="mt-6 flex gap-2 overflow-x-auto border-b border-ink-200 pb-3 [scrollbar-width:none]">
-          <TabButton active={tab === 'dashboard'} onClick={() => setTab('dashboard')} icon={Sparkles} label="Dashboard" />
-          <TabButton active={tab === 'partner'} onClick={() => setTab('partner')} icon={Award} label={publisher ? 'Organization' : 'For organizations'} />
-          <TabButton active={tab === 'settings'} onClick={() => setTab('settings')} icon={SettingsIcon} label="Settings" />
-        </div>
+        {/* RIGHT — data & infographics */}
+        <div className="min-w-0">
+        <h2 className="text-[26px] font-bold text-ink-950 lg:flex lg:h-[92px] lg:items-start lg:text-white">{tab === 'dashboard' ? 'Dashboard' : tab === 'partner' ? (publisher ? 'Organization' : 'For organizations') : 'Settings'}</h2>
+
+        {!isEmailConfirmed && profile.email && <VerifyEmailCard email={profile.email} className="mb-6" />}
 
         {/* DASHBOARD — applications at a glance + recently viewed */}
         {tab === 'dashboard' && (
-          <div className="mt-6 space-y-8">
+          <div className="mt-5 space-y-8">
             <ApplicantReport
               viewedCount={recentlyViewedJobs.length}
               hasPublicProfile={Boolean(profile.username)}
@@ -642,12 +645,40 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             </div>
           </div>
         )}
+        </div>
       </main>
+      </div>
 
       <LandingFooter go={go} onAuth={onAuth} />
 
       {deleteOpen && <DeleteAccountDialog onClose={() => setDeleteOpen(false)} hasPublisher={Boolean(publisher)} />}
     </div>
+  );
+}
+
+function SideInfo({ icon: Icon, label, value }: { icon: typeof Briefcase; label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
+      <div className="min-w-0">
+        <dt className="text-[12px] font-medium uppercase tracking-wide text-ink-400">{label}</dt>
+        <dd className="break-words font-medium text-ink-900">{value}</dd>
+      </div>
+    </div>
+  );
+}
+
+function SideTab({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof Sparkles; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-lg px-3.5 py-2.5 text-left text-[15px] transition-colors lg:w-full ${
+        active ? 'bg-[#1D4ED8]/10 font-semibold text-[#1D4ED8]' : 'font-medium text-ink-600 hover:bg-ink-50 hover:text-ink-900'
+      }`}
+    >
+      <Icon className="h-[18px] w-[18px]" />
+      {label}
+    </button>
   );
 }
 
@@ -658,21 +689,6 @@ function CircleFlagInline({ countryCode }: { countryCode: string }) {
       alt=""
       className="h-[18px] w-[18px] rounded-full object-cover"
     />
-  );
-}
-
-function TabButton({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof Sparkles; label: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition ${
-        active ? 'bg-ink-900 text-white' : 'text-ink-500 hover:bg-ink-100'
-      }`}
-    >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-    </button>
   );
 }
 

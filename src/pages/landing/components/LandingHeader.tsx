@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { SoonChip, SOON_VIEWS } from "@/components/common/SoonChip";
 import {
   BookOpen,
+  ChevronDown,
   Building2,
   Briefcase,
   GraduationCap,
@@ -103,9 +104,24 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
         : "text-ink-600 hover:text-[#2563EB]"
     }`;
 
+  // The name in the menu bar links to the public profile (/u/username) when
+  // one is set up, otherwise to the profile dashboard.
+  const myProfileHref = profile?.username ? `/u/${profile.username}` : "/profile";
+
   const closeAll = () => {
     setOpenMenu(false);
     setOpenProfile(false);
+  };
+
+  const goToMyProfile = () => {
+    closeAll();
+    if (profile?.username) {
+      window.history.pushState({}, "", myProfileHref);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      window.scrollTo({ top: 0 });
+    } else {
+      go("profile");
+    }
   };
 
   return (
@@ -194,38 +210,65 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
               </a>
             )}
 
-            {/* Account menu */}
+            {/* Account menu — name + avatar sit in one soft blue (10%) box.
+                The name links to the person's profile; the avatar + arrow open the menu. */}
             <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenProfile((v) => !v);
-                  setOpenMenu(false); // one menu at a time, otherwise they overlap on mobile
-                }}
-                aria-label="Account menu"
-                aria-expanded={openProfile}
-                className={`flex items-center rounded-md transition ${
-                  profile
-                    ? "gap-2.5 py-1 pl-3 pr-1 hover:bg-ink-50"
-                    : "p-0.5 hover:opacity-90"
+              <div
+                className={`group/acct flex items-center rounded-lg bg-[#2563EB]/10 transition-colors hover:bg-[#2563EB]/[0.14] ${
+                  profile ? "gap-1.5 py-1 pl-2.5 pr-1 sm:gap-2 sm:pl-3.5" : "gap-1 p-1"
                 }`}
               >
-                {profile ? (
-                  <>
-                    <span className="hidden max-w-[9rem] truncate text-[15px] font-semibold text-ink-800 sm:block">
-                      {profile.full_name?.split(" ")[0] || "Profile"}
-                    </span>
-                    <span className="rounded-md p-[2px] ring-2 ring-[#2563EB]">
-                      <TravelerAvatar
-                        avatarUrl={profile.avatar_url}
-                        size={36}
-                      />
-                    </span>
-                  </>
-                ) : (
-                  <GuestAvatar size={40} />
+                {profile && (
+                  <a
+                    href={myProfileHref}
+                    onClick={(event) =>
+                      handleNavClick(event, goToMyProfile)
+                    }
+                    title="Go to your profile"
+                    className="max-w-[5.5rem] origin-right truncate text-[14px] font-semibold text-ink-800 transition-[transform,color] duration-300 ease-out hover:text-[#2563EB] group-hover/acct:scale-[1.04] sm:max-w-[9rem] sm:text-[15px]"
+                  >
+                    {profile.full_name?.split(" ")[0] || "Profile"}
+                  </a>
                 )}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenProfile((v) => !v);
+                    setOpenMenu(false); // one menu at a time, otherwise they overlap on mobile
+                  }}
+                  aria-label="Account menu"
+                  aria-haspopup="menu"
+                  aria-expanded={openProfile}
+                  className="flex items-center gap-1 rounded-md"
+                >
+                  <span className="transition-transform duration-300 ease-out group-hover/acct:scale-[1.06]">
+                    {profile ? (
+                      <span className="block rounded-md p-[2px] ring-2 ring-[#2563EB]">
+                        <span className="block sm:hidden">
+                          <TravelerAvatar avatarUrl={profile.avatar_url} size={28} />
+                        </span>
+                        <span className="hidden sm:block">
+                          <TravelerAvatar avatarUrl={profile.avatar_url} size={34} />
+                        </span>
+                      </span>
+                    ) : (
+                      <>
+                        <span className="block sm:hidden">
+                          <GuestAvatar size={28} />
+                        </span>
+                        <span className="hidden sm:block">
+                          <GuestAvatar size={36} />
+                        </span>
+                      </>
+                    )}
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 text-ink-500 transition-transform duration-300 group-hover/acct:text-[#2563EB] ${
+                      openProfile ? "rotate-180 text-[#2563EB]" : ""
+                    }`}
+                  />
+                </button>
+              </div>
 
               {openProfile && (
                 <>
@@ -250,11 +293,21 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">
                           {profile ? "Account" : "Guest"}
                         </p>
-                        <p className="mt-0.5 truncate text-[15px] font-semibold text-ink-900">
-                          {profile
-                            ? (profile.full_name ?? profile.email)
-                            : "Browsing as guest"}
-                        </p>
+                        {profile ? (
+                          <a
+                            href={myProfileHref}
+                            onClick={(event) =>
+                              handleNavClick(event, goToMyProfile)
+                            }
+                            className="mt-0.5 block truncate text-[15px] font-semibold text-ink-900 hover:text-[#2563EB]"
+                          >
+                            {profile.full_name ?? profile.email}
+                          </a>
+                        ) : (
+                          <p className="mt-0.5 truncate text-[15px] font-semibold text-ink-900">
+                            Browsing as guest
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="my-1 h-px bg-ink-100" />
