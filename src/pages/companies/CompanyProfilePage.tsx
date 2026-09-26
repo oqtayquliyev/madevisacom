@@ -149,7 +149,7 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
     <div className="min-h-screen bg-white text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
       {children}
-      {company && <ShareExperienceDialog open={shareOpen} onClose={() => setShareOpen(false)} company={{ id: company.id, name: company.name }} onAuth={onAuth} />}
+      {company && <ShareExperienceDialog open={shareOpen} onClose={() => setShareOpen(false)} company={{ id: company.id, name: company.name, logo_url: company.logo_url }} onAuth={onAuth} />}
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );
@@ -486,7 +486,7 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
           <SoftPanel
             id="response-shared"
             title="Shared by applicants"
-            sub="Applications made elsewhere — careers site, LinkedIn, referrals. Each report is reviewed by MadeVisa."
+            sub="Applications made elsewhere — careers site, LinkedIn, referrals. Reviewed by MadeVisa, private, and counted once per person."
             right={
               <button
                 onClick={() => setShareOpen(true)}
@@ -496,7 +496,13 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
               </button>
             }
           >
-            {shared && shared.total > 0 ? <SharedOutcomes s={shared} /> : <EmptyNote text={`No shared experiences yet. Applied to ${company.name}? Be the first to tell others how it went.`} />}
+            {shared && shared.total > 0 && !shared.hidden ? (
+              <SharedOutcomes s={shared} />
+            ) : shared && shared.total > 0 ? (
+              <EmptyNote text={`${shared.total} ${shared.total === 1 ? 'person has' : 'people have'} shared so far. The breakdown appears once 3 different people have shared — applied to ${company.name}? Add yours.`} />
+            ) : (
+              <EmptyNote text={`No shared experiences yet. Applied to ${company.name}? Be the first to tell others how it went.`} />
+            )}
           </SoftPanel>
 
           {/* TRUST */}
@@ -775,7 +781,7 @@ function SharedOutcomes({ s }: { s: ExperienceSummary }) {
         <p className="text-[13px] text-ink-600">Heard back</p>
         <p className="mt-1 text-[34px] font-bold leading-none text-ink-950">{Math.round((heard / s.total) * 100)}%</p>
         <p className="mt-2 text-[12px] text-ink-500">
-          {s.total} report{s.total === 1 ? '' : 's'} from {s.reporters} applicant{s.reporters === 1 ? '' : 's'}
+          shared by {s.total} applicant{s.total === 1 ? '' : 's'}
           {s.avg_reply_days != null ? ` · first reply in ~${s.avg_reply_days} days` : ''}
         </p>
       </SoftCard>

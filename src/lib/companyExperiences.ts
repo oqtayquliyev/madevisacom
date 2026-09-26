@@ -41,6 +41,26 @@ export type ExperienceInput = {
   publisherId?: string | null;
 };
 
+/** "When did you apply?" as quick choices — stored as an approximate date. */
+export const APPLIED_WHEN: { key: string; label: string; days: number }[] = [
+  { key: 'week', label: 'This week', days: 3 },
+  { key: 'month', label: '1–4 weeks ago', days: 14 },
+  { key: 'q', label: '1–3 months ago', days: 45 },
+  { key: 'half', label: '3–6 months ago', days: 120 },
+  { key: 'year', label: '6–12 months ago', days: 270 },
+  { key: 'older', label: 'Over a year ago', days: 500 },
+];
+
+/** "How fast did they first reply?" quick choices, in days. */
+export const REPLY_AFTER: { key: string; label: string; days: number }[] = [
+  { key: 'w1', label: 'Within a week', days: 4 },
+  { key: 'w2', label: '1–2 weeks', days: 10 },
+  { key: 'w4', label: '2–4 weeks', days: 21 },
+  { key: 'm1', label: 'Over a month', days: 45 },
+];
+
+export const isoDaysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+
 export async function submitCompanyExperience(input: ExperienceInput): Promise<{ ok: boolean; error?: string }> {
   const website = input.companyWebsite?.trim();
   const { error } = await supabase.from('company_experience_reports').insert({
@@ -62,7 +82,10 @@ export async function submitCompanyExperience(input: ExperienceInput): Promise<{
 }
 
 export type ExperienceSummary = {
+  /** People who shared (each counts once per company). */
   total: number;
+  /** True until 3 different people have shared — only the count is public then. */
+  hidden?: boolean;
   reporters: number;
   no_response: number;
   rejected: number;

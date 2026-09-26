@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ArrowRight, ArrowUp, Building2, Loader2, MessageSquarePlus, Search, SlidersHorizontal, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { ArrowRight, ArrowUp, Building2, ChevronDown, Loader2, MessageSquarePlus, Search, SlidersHorizontal, TrendingDown, TrendingUp, X } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -91,6 +91,7 @@ export function CompaniesPage({ go, onAuth }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [sharePick, setSharePick] = useState<{ id?: string | null; name: string; logo_url?: string | null } | null>(null);
   const set = <K extends keyof Filters>(k: K, v: Filters[K]) => setF((prev) => ({ ...prev, [k]: v }));
 
   useEffect(() => {
@@ -102,6 +103,7 @@ export function CompaniesPage({ go, onAuth }: Props) {
   }, [f]);
 
   const all = rows ?? [];
+  const pickList = useMemo(() => all.map((c) => ({ id: c.id, name: c.name, logo_url: c.logo_url })), [all]);
   const hasV2 = all.some((r) => r.weekly !== undefined);
 
   // Options come from the data, with counts.
@@ -199,18 +201,8 @@ export function CompaniesPage({ go, onAuth }: Props) {
       {/* HERO + SEARCH */}
       <section className="bg-brand-700 text-white">
         <div className="mx-auto max-w-[1440px] px-5 pb-8 pt-8 sm:px-8 lg:px-10">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Companies</h1>
-              <p className="mt-2 max-w-2xl text-[15px] leading-6 text-white/80">Who's hiring, where, and how fast — from real listings and applicant data.</p>
-            </div>
-            <button
-              onClick={() => setShareOpen(true)}
-              className="flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-bold text-brand-700 shadow-sm transition hover:scale-[1.03] hover:bg-brand-50"
-            >
-              <MessageSquarePlus className="h-4 w-4" /> Share your application experience
-            </button>
-          </div>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Companies</h1>
+          <p className="mt-2 max-w-2xl text-[15px] leading-6 text-white/80">Who's hiring, where, and how fast — from real listings and applicant data.</p>
           {rows && rows.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-white/85">
               <span>
@@ -311,6 +303,9 @@ export function CompaniesPage({ go, onAuth }: Props) {
           </div>
         )}
 
+        {/* SHARE YOUR EXPERIENCE */}
+        {!chips.length && all.length > 0 && <SharePromo companies={all} onPick={(c) => { setSharePick(c); setShareOpen(true); }} />}
+
         {/* RESULTS BAR */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -361,7 +356,7 @@ export function CompaniesPage({ go, onAuth }: Props) {
               <button onClick={() => setF({ ...EMPTY })} className="text-sm font-semibold text-[#1D4ED8] hover:underline">
                 Clear filters
               </button>
-              <button onClick={() => setShareOpen(true)} className="text-sm font-semibold text-[#1D4ED8] hover:underline">
+              <button onClick={() => { setSharePick(f.q.trim() ? { name: f.q.trim() } : null); setShareOpen(true); }} className="text-sm font-semibold text-[#1D4ED8] hover:underline">
                 Company missing? Share your experience with it
               </button>
             </div>
@@ -389,7 +384,7 @@ export function CompaniesPage({ go, onAuth }: Props) {
           </div>
         )}
       </main>
-      <ShareExperienceDialog open={shareOpen} onClose={() => setShareOpen(false)} onAuth={onAuth} />
+      <ShareExperienceDialog open={shareOpen} onClose={() => setShareOpen(false)} initial={sharePick} companies={pickList} onAuth={onAuth} />
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );
@@ -525,6 +520,126 @@ function Highlight({ c, tone, title, note }: { c: DirectoryCompany; tone: 'up' |
         )}
       </div>
     </a>
+  );
+}
+
+/**
+ * "Applied and heard nothing?" — invites people to share how an application
+ * went: pick a company from the list (or type one), or tap a logo.
+ */
+function SharePromo({ companies, onPick }: { companies: DirectoryCompany[]; onPick: (c: { id?: string | null; name: string; logo_url?: string | null } | null) => void }) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  // A fresh handful of well-known logos each visit.
+  const quick = useMemo(() => {
+    const withLogo = companies.filter((c) => c.logo_url).slice(0, 60);
+    for (let i = withLogo.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [withLogo[i], withLogo[j]] = [withLogo[j], withLogo[i]];
+    }
+    return withLogo.slice(0, 8);
+  }, [companies]);
+  const matches = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return (t ? companies.filter((c) => c.name.toLowerCase().includes(t)) : companies).slice(0, 8);
+  }, [companies, q]);
+  const pick = (c: DirectoryCompany) => {
+    onPick({ id: c.id, name: c.name, logo_url: c.logo_url });
+    setQ('');
+    setOpen(false);
+  };
+
+  return (
+    <section className="relative mb-8 overflow-hidden rounded-xl bg-brand-700 p-5 text-white sm:p-7">
+      <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10" />
+      <div className="pointer-events-none absolute -bottom-20 right-40 h-40 w-40 rounded-full bg-white/5" />
+      <div className="relative grid gap-6 lg:grid-cols-[1fr_minmax(0,460px)] lg:items-center">
+        <div>
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[12px] font-semibold">
+            <MessageSquarePlus className="h-3.5 w-3.5" /> 20 seconds · private
+          </p>
+          <h2 className="mt-3 text-2xl font-bold leading-tight sm:text-[28px]">Applied and heard nothing? Make it count.</h2>
+          <p className="mt-2 max-w-xl text-[15px] leading-6 text-white/80">
+            Share how your application went — silence, rejection or interview. It stays private and only adds to the totals, so the next applicant knows where their time is well spent.
+          </p>
+        </div>
+        <div className="rounded-xl bg-white p-3 text-ink-900 shadow-lg shadow-black/10">
+          <div className="relative flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
+              <input
+                value={q}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  setOpen(true);
+                }}
+                onFocus={() => setOpen(true)}
+                onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && q.trim().length >= 2) matches[0] && matches[0].name.toLowerCase() === q.trim().toLowerCase() ? pick(matches[0]) : (onPick({ name: q.trim() }), setQ(''));
+                }}
+                placeholder="Which company did you apply to?"
+                className="h-11 w-full rounded-lg border border-ink-200 pl-9 pr-8 text-sm outline-none transition focus:border-[#1D4ED8]"
+              />
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
+              {open && (
+                <ul className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-ink-200 bg-white py-1 shadow-xl">
+                  {matches.map((c) => (
+                    <li key={c.id}>
+                      <button onMouseDown={(e) => e.preventDefault()} onClick={() => pick(c)} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-[#1D4ED8]/5">
+                        <MiniLogo url={c.logo_url} />
+                        <span className="min-w-0 flex-1 truncate font-medium">{c.name}</span>
+                        <span className="text-[11px] text-ink-400">{c.active_jobs.toLocaleString()} jobs</span>
+                      </button>
+                    </li>
+                  ))}
+                  {q.trim().length >= 2 && (
+                    <li className="border-t border-ink-100">
+                      <button onMouseDown={(e) => e.preventDefault()} onClick={() => (onPick({ name: q.trim() }), setQ(''), setOpen(false))} className="w-full px-3 py-2 text-left text-[13px] text-[#1D4ED8] hover:bg-[#1D4ED8]/5">
+                        Not listed? Share about “{q.trim()}”
+                      </button>
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
+            <button
+              onClick={() => (q.trim().length >= 2 ? (onPick({ name: q.trim() }), setQ('')) : onPick(null))}
+              className="shrink-0 rounded-lg bg-[#1D4ED8] px-4 text-sm font-semibold text-white transition hover:bg-brand-800"
+            >
+              Share
+            </button>
+          </div>
+          {quick.length > 0 && (
+            <div className="mt-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">Quick pick</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {quick.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => pick(c)}
+                    title={c.name}
+                    className="grid h-10 w-10 place-items-center rounded-lg border border-ink-100 bg-white p-1 transition hover:-translate-y-0.5 hover:border-[#1D4ED8]/40 hover:shadow-md"
+                  >
+                    <img src={c.logo_url!} alt={c.name} className="max-h-full max-w-full object-contain" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MiniLogo({ url }: { url: string | null }) {
+  return url ? (
+    <img src={url} alt="" className="h-6 w-6 shrink-0 rounded border border-ink-100 bg-white object-contain p-0.5" />
+  ) : (
+    <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-[#1D4ED8]/10">
+      <Building2 className="h-3 w-3 text-[#1D4ED8]/60" />
+    </span>
   );
 }
 
