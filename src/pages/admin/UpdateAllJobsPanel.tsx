@@ -305,7 +305,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
     t.filled = res.updated;
     t.removed += res.counts.junkRemoved ?? 0;
     setTotals({ ...t });
-    const err = res.error ?? junk.error;
+    const err = res.error ?? null;
     if (err) setError(err);
     setResult({
       id: 'detect-only',

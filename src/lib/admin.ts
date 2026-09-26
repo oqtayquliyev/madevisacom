@@ -1032,11 +1032,17 @@ export async function backfillJobFacts(
   const BATCH = 100;
   // onlyMissing: just jobs the server hasn't analysed yet (new, edited, or
   // analysed by an older detector version) — what the daily update needs.
-  const missingFilter = `facts.is.null,facts->>v.neq.${FACTS_VERSION}`;
+  // facts_v (migration 20261017090000) is a small copy of facts->>'v' — fast.
+  // Without it, fall back to reading inside facts (slow on big tables).
+  let missingFilter = `facts_v.is.null,facts_v.neq.${FACTS_VERSION}`;
   let onlyMissing = options.onlyMissing ?? false;
   let countRes = await (onlyMissing
     ? supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).or(missingFilter)
     : supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }));
+  if (countRes.error && onlyMissing && /facts_v/.test(countRes.error.message)) {
+    missingFilter = `facts.is.null,facts->>v.neq.${FACTS_VERSION}`;
+    countRes = await supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).or(missingFilter);
+  }
   if (countRes.error && onlyMissing) {
     // `facts` column not there yet (migration not run) — scan everything.
     onlyMissing = false;
@@ -1201,7 +1207,9 @@ export async function backfillJobFacts(
       })
     );
     onProgress?.(scanned, total ?? scanned);
-    if (rows.length < BATCH) break;
+    // Judge "end of the table" by what the database returned, not by what's
+    // left after junk rows were removed (that stopped runs early at 5,900).
+    if (batchRows.length < BATCH) break;
   }
 
   return { ok: !firstError, scanned, updated, counts, error: firstError, migrationMissing: !hasNewCols };
@@ -1265,20 +1273,22 @@ export async function deleteCompany(
  * here, so a long real description that mentions JavaScript is kept.
  */
 export async function purgeJunkJobs(): Promise<{ removed: number; error?: string }> {
-  const like = (col: string) => JUNK_PHRASES.map((p) => `${col}.ilike.*${p.replace(/ /g, '*')}*`);
-  const filter = [...like('title'), ...like('description'), 'title.ilike.just*a*moment*', 'title.ilike.page*not*found', 'title.ilike.security*check'].join(',');
+  // Titles only: searching every description for phrases in one query hits
+  // the database statement timeout on 50k+ jobs. Junk found in descriptions
+  // is deleted batch by batch while details are detected (backfillJobFacts).
+  const filter = [...JUNK_PHRASES.map((p) => `title.ilike.*${p.replace(/ /g, '*')}*`), 'title.ilike.just*a*moment*', 'title.ilike.page*not*found', 'title.ilike.security*check'].join(',');
   const ids: string[] = [];
   let lastId: string | null = null;
-  for (let guard = 0; guard < 200; guard++) {
-    let q = supabase.from('sponsored_jobs').select('id, title, description').or(filter).order('id', { ascending: true }).limit(200);
+  for (let guard = 0; guard < 100; guard++) {
+    let q = supabase.from('sponsored_jobs').select('id, title').or(filter).order('id', { ascending: true }).limit(500);
     if (lastId) q = q.gt('id', lastId);
     const { data, error } = await q;
     if (error) return { removed: 0, error: error.message };
-    const rows = (data ?? []) as { id: string; title: string; description: string | null }[];
+    const rows = (data ?? []) as { id: string; title: string }[];
     if (rows.length === 0) break;
     lastId = rows[rows.length - 1].id;
-    for (const r of rows) if (isJunkJob(r.title, r.description)) ids.push(r.id);
-    if (rows.length < 200) break;
+    for (const r of rows) if (isJunkJob(r.title, null)) ids.push(r.id);
+    if (rows.length < 500) break;
   }
   if (ids.length === 0) return { removed: 0 };
   const err = await runChunkedInClause(ids, async (chunk) => await supabase.from('sponsored_jobs').delete().in('id', chunk));
