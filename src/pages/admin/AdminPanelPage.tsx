@@ -7,7 +7,7 @@ import { listTotpFactors } from '@/lib/mfa';
 import { UpdateAllJobsPanel } from '@/pages/admin/UpdateAllJobsPanel';
 import { FindCompaniesPanel } from '@/pages/admin/FindCompaniesPanel';
 import { PublisherFilterChips, RegisteredCompanyPanel, type PublisherFilter } from '@/pages/admin/RegisteredCompanyPanel';
-import { Bell, Briefcase, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Inbox, Landmark, Mail, Pencil, RefreshCw, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
+import { Bell, Briefcase, CheckCircle2, Loader2, XCircle, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Inbox, Landmark, Mail, Pencil, RefreshCw, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { ImportCenter } from '@/pages/admin/ImportCenter';
@@ -170,42 +170,60 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
 
   const isAdmin = profile?.role === 'admin';
 
-  const loadAll = () => {
+  // Per-part load status, so a slow or failing request is visible (and
+  // can't hold the whole panel on "Loading…" forever).
+  const [loadParts, setLoadParts] = useState<Record<string, LoadPart>>({});
+  const [loadStartedAt, setLoadStartedAt] = useState(0);
+
+  const loadAll = (only?: string[]) => {
     // Only blank the whole panel on the very first load — later refreshes
     // update in place so the page doesn't look like it's reloading.
     if (!hasLoadedOnce.current) setDataLoading(true);
-
-    Promise.all([
-      fetchPendingPublishers(),
-      fetchVerifiedPublishers(),
-      fetchPendingPrograms(),
-      fetchPendingSponsoredJobs(),
-      fetchPendingAgencies(),
-      fetchVerifiedAgencies(),
-      fetchAdmins(),
-      fetchAllPrograms(),
-      fetchAllSponsoredJobs(),
-      fetchCountries(),
-      fetchDirectRequests(),
-      fetchImportSources(),
-      fetchPublisherMembers(),
-    ]).then(([pp, vp, prog, jobs, pa, va, adm, allProg, allJ, ctys, reqs, srcs, mems]) => {
-      setPendingPublishers(pp);
-      setVerifiedPublishers(vp);
-      setPendingPrograms(prog);
-      // If the job list didn't load, keep what's on screen instead of showing zeros.
+    const applyJobs = (set: () => void) => {
       const jobsError = getJobsLoadError();
       setJobsLoadError(jobsError);
-      if (!jobsError || !hasLoadedOnce.current) setPendingJobs(jobs);
-      setPendingAgencies(pa);
-      setVerifiedAgencies(va);
-      setAdmins(adm);
-      setAllPrograms(allProg);
-      if (!jobsError || !hasLoadedOnce.current) setAllJobs(allJ);
-      setCountries(ctys);
-      setRequests(reqs);
-      setSources(srcs);
-      setMembers(mems);
+      // If the job list didn't load, keep what's on screen instead of showing zeros.
+      if (!jobsError || !hasLoadedOnce.current) set();
+    };
+    const tasks: { key: string; label: string; run: () => Promise<unknown>; apply: (v: never) => void }[] = [
+      { key: 'pendingPublishers', label: 'Company requests', run: fetchPendingPublishers, apply: setPendingPublishers },
+      { key: 'verifiedPublishers', label: 'Verified companies', run: fetchVerifiedPublishers, apply: setVerifiedPublishers },
+      { key: 'pendingPrograms', label: 'Pending programs', run: fetchPendingPrograms, apply: setPendingPrograms },
+      { key: 'pendingJobs', label: 'Pending jobs', run: fetchPendingSponsoredJobs, apply: (v: PendingSponsoredJob[]) => applyJobs(() => setPendingJobs(v)) },
+      { key: 'pendingAgencies', label: 'Agency requests', run: fetchPendingAgencies, apply: setPendingAgencies },
+      { key: 'verifiedAgencies', label: 'Verified agencies', run: fetchVerifiedAgencies, apply: setVerifiedAgencies },
+      { key: 'admins', label: 'Admins', run: fetchAdmins, apply: setAdmins },
+      { key: 'allPrograms', label: 'All programs', run: fetchAllPrograms, apply: setAllPrograms },
+      { key: 'allJobs', label: 'All jobs (largest)', run: fetchAllSponsoredJobs, apply: (v: AdminSponsoredJob[]) => applyJobs(() => setAllJobs(v)) },
+      { key: 'countries', label: 'Countries', run: fetchCountries, apply: setCountries },
+      { key: 'requests', label: 'Listing requests', run: fetchDirectRequests, apply: setRequests },
+      { key: 'sources', label: 'Import sources', run: fetchImportSources, apply: setSources },
+      { key: 'members', label: 'Company access', run: fetchPublisherMembers, apply: setMembers },
+    ];
+    const run = only ? tasks.filter((t) => only.includes(t.key)) : tasks;
+    const now = Date.now();
+    setLoadStartedAt(now);
+    setLoadParts((prev) => {
+      const next = only ? { ...prev } : {};
+      for (const t of run) next[t.key] = { label: t.label, state: 'loading' };
+      return next;
+    });
+    const mark = (key: string, patch: Partial<LoadPart>) => setLoadParts((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+
+    Promise.all(
+      run.map((t) =>
+        withTimeout(t.run(), LOAD_TIMEOUT_MS)
+          .then((v) => {
+            t.apply(v as never);
+            mark(t.key, { state: 'done', ms: Date.now() - now });
+          })
+          .catch((err: unknown) => {
+            console.error(`Admin load failed: ${t.label}`, err);
+            mark(t.key, { state: 'failed', ms: Date.now() - now, error: err instanceof Error ? err.message : String(err) });
+          }),
+      ),
+    ).then(() => {
+      // Every part has finished or failed — never leave the panel stuck.
       setDataLoading(false);
       hasLoadedOnce.current = true;
     });
@@ -365,12 +383,12 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
             <span className="min-w-0 flex-1">
               <strong>The job list didn’t fully load</strong>, so job counts may be out of date. Your jobs are safe — this is only the admin view. <span className="text-amber-700">({jobsLoadError})</span>
             </span>
-            <button type="button" onClick={loadAll} className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700">
+            <button type="button" onClick={() => loadAll()} className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700">
               Load again
             </button>
           </div>
         )}
-        {!dataLoading && <UpdateAllJobsPanel sources={sources} countries={countries} onChange={loadAll} />}
+        {!dataLoading && <UpdateAllJobsPanel sources={sources} countries={countries} onChange={() => loadAll()} />}
 
         <nav className="sticky top-0 z-10 -mx-5 mt-6 flex gap-1 overflow-x-auto border-b border-ink-200 bg-[#f8fafc] px-5 sm:mx-0 sm:px-0">
           {ADMIN_TABS.map(({ key, label, icon: Icon }) => {
@@ -396,9 +414,10 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
         </nav>
 
         {dataLoading ? (
-          <p className="mt-8 text-sm text-ink-400">Loading…</p>
+          <AdminLoadingPanel parts={loadParts} startedAt={loadStartedAt} onRetry={() => loadAll()} />
         ) : (
           <>
+            <FailedPartsBanner parts={loadParts} onRetry={(keys) => loadAll(keys)} />
             {tab === 'inbox' && (
               <>
                 <RequestsInboxSection
@@ -422,7 +441,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                   items={pendingPublishers}
                   searchText={(p) => `${p.name} ${p.contact_email}`}
                   renderRow={(p) => (
-                    <PublisherRow key={p.id} p={p} onChange={loadAll}>
+                    <PublisherRow key={p.id} p={p} onChange={() => loadAll()}>
                       {p.created_at > inboxSeenAt && <NewPill />}
                       <Actions
                         onApprove={async () => { const r = await setPublisherStatus(p.id, 'verified'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
@@ -437,7 +456,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                   items={pendingAgencies}
                   searchText={(a) => a.name}
                   renderRow={(a) => (
-                    <AgencyRow key={a.id} a={a} onChange={loadAll}>
+                    <AgencyRow key={a.id} a={a} onChange={() => loadAll()}>
                       {a.created_at > inboxSeenAt && <NewPill />}
                       <Actions
                         onApprove={async () => { const r = await setAgencyStatus(a.id, 'verified'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
@@ -484,17 +503,17 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                   )}
                 />
 
-                <GroupedPendingJobsSection jobs={importedPendingJobs} onChange={loadAll} />
+                <GroupedPendingJobsSection jobs={importedPendingJobs} onChange={() => loadAll()} />
 
-                <ManagedProgramsSection programs={allPrograms} onChange={loadAll} />
+                <ManagedProgramsSection programs={allPrograms} onChange={() => loadAll()} />
 
-                <ManagedJobsSection jobs={allJobs} onChange={loadAll} />
+                <ManagedJobsSection jobs={allJobs} onChange={() => loadAll()} />
               </>
             )}
 
             {tab === 'imports' && (
               <>
-                <FindCompaniesPanel publishers={[...verifiedPublishers, ...pendingPublishers]} sources={sources} countries={countries} onChange={loadAll} />
+                <FindCompaniesPanel publishers={[...verifiedPublishers, ...pendingPublishers]} sources={sources} countries={countries} onChange={() => loadAll()} />
 
                 <ImportCenter
                   sources={sources}
@@ -502,22 +521,22 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                   publishers={verifiedPublishers}
                   countries={countries}
                   userId={profile?.id ?? ''}
-                  onChange={loadAll}
+                  onChange={() => loadAll()}
                 />
 
                 <AddJobsTools>
-                  <ImportFromCareersUrlSection countries={countries} onImported={loadAll} />
-                  <ImportFromAtsSection countries={countries} onImported={loadAll} />
-                  <BulkGreenhouseImportSection countries={countries} allJobs={allJobs} onImported={loadAll} />
+                  <ImportFromCareersUrlSection countries={countries} onImported={() => loadAll()} />
+                  <ImportFromAtsSection countries={countries} onImported={() => loadAll()} />
+                  <BulkGreenhouseImportSection countries={countries} allJobs={allJobs} onImported={() => loadAll()} />
                 </AddJobsTools>
 
-                <BackfillJobFactsSection onChange={loadAll} compact />
+                <BackfillJobFactsSection onChange={() => loadAll()} compact />
               </>
             )}
 
             {tab === 'companies' && (
               <>
-                <CompanyAccessSection publishers={verifiedPublishers} members={members} onChange={loadAll} />
+                <CompanyAccessSection publishers={verifiedPublishers} members={members} onChange={() => loadAll()} />
 
                 {deletingCompany && (
                   <div className="mt-6 rounded-lg border border-rose-100 bg-rose-50/40 p-3">
@@ -540,7 +559,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                   searchText={(p) => `${p.name} ${p.contact_email} ${p.owner_id ? ownerEmails.get(p.owner_id) ?? '' : ''}`}
                   renderRow={(p) => (
                     <div key={p.id}>
-                    <PublisherRow p={p} onChange={loadAll} allowLogo stats={jobStatsByPublisher.get(p.id) ?? { total: 0, live: 0, pending: 0 }}>
+                    <PublisherRow p={p} onChange={() => loadAll()} allowLogo stats={jobStatsByPublisher.get(p.id) ?? { total: 0, live: 0, pending: 0 }}>
                       {p.owner_id ? (
                         <button
                           onClick={() => setOpenCompany(openCompany === p.id ? null : p.id)}
@@ -584,7 +603,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                         members={members.filter((m) => m.publisher_id === p.id)}
                         jobs={allJobs.filter((j) => j.publisher_id === p.id)}
                         programs={allPrograms.filter((x) => x.publisher_id === p.id)}
-                        onChange={loadAll}
+                        onChange={() => loadAll()}
                       />
                     )}
                     </div>
@@ -596,7 +615,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                   items={verifiedAgencies}
                   searchText={(a) => a.name}
                   renderRow={(a) => (
-                    <AgencyRow key={a.id} a={a} onChange={loadAll}>
+                    <AgencyRow key={a.id} a={a} onChange={() => loadAll()}>
                       <button
                         onClick={async () => { const r = await setAgencyStatus(a.id, 'pending'); if (r.ok) loadAll(); else window.alert(r.error ?? 'Failed.'); }}
                         className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-rose-50 hover:text-rose-700"
@@ -611,10 +630,10 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
 
             {tab === 'settings' && (
               <>
-                <AdminAccessSection admins={admins} currentEmail={profile?.email ?? ''} onChange={loadAll} />
+                <AdminAccessSection admins={admins} currentEmail={profile?.email ?? ''} onChange={() => loadAll()} />
                 <DesktopNotificationsSection />
-                <BackfillJobFactsSection onChange={loadAll} />
-                <BackfillJobFunctionsSection onChange={loadAll} />
+                <BackfillJobFactsSection onChange={() => loadAll()} />
+                <BackfillJobFunctionsSection onChange={() => loadAll()} />
               </>
             )}
           </>
@@ -3206,6 +3225,112 @@ function AdminMfaReminder({ onOpen }: { onOpen: () => void }) {
       <button onClick={onOpen} className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700">
         Set it up (Profile → Settings)
       </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Loading status
+
+type LoadPart = { label: string; state: 'loading' | 'done' | 'failed'; ms?: number; error?: string };
+
+const LOAD_TIMEOUT_MS = 45_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = window.setTimeout(() => reject(new Error(`No response after ${Math.round(ms / 1000)} seconds`)), ms);
+    p.then(
+      (v) => {
+        window.clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        window.clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
+/** Shows what is loading, what finished and what failed — instead of a bare "Loading…". */
+function AdminLoadingPanel({ parts, startedAt, onRetry }: { parts: Record<string, LoadPart>; startedAt: number; onRetry: () => void }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 500);
+    return () => window.clearInterval(t);
+  }, []);
+  const list = Object.values(parts);
+  const done = list.filter((p) => p.state !== 'loading').length;
+  const total = list.length || 1;
+  const seconds = startedAt ? Math.floor((now - startedAt) / 1000) : 0;
+  const slow = seconds >= 15;
+  const pct = Math.round((done / total) * 100);
+
+  return (
+    <div className="mt-8 rounded-xl border border-ink-200 bg-white p-5 sm:p-6" role="status" aria-live="polite">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-[15px] font-bold text-ink-950">
+          Loading admin data · {done} of {list.length} ready
+        </p>
+        <p className="text-[13px] tabular-nums text-ink-500">{seconds}s</p>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#1D4ED8]/10">
+        <div className="h-full rounded-full bg-[#1D4ED8] transition-[width] duration-500" style={{ width: `${Math.max(4, pct)}%` }} />
+      </div>
+      <ul className="mt-4 grid gap-x-6 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
+        {list.map((p) => (
+          <li key={p.label} className="flex items-center gap-2 text-[13px]">
+            {p.state === 'loading' ? (
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#1D4ED8]" />
+            ) : p.state === 'done' ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+            ) : (
+              <XCircle className="h-3.5 w-3.5 shrink-0 text-rose-600" />
+            )}
+            <span className={p.state === 'loading' ? 'text-ink-800' : p.state === 'failed' ? 'text-rose-700' : 'text-ink-500'}>{p.label}</span>
+            {p.ms != null && <span className="ml-auto tabular-nums text-ink-400">{(p.ms / 1000).toFixed(1)}s</span>}
+          </li>
+        ))}
+      </ul>
+      {slow && (
+        <div className="mt-5 flex flex-col gap-3 rounded-lg bg-amber-50 px-4 py-3 text-[13px] leading-5 text-amber-900 sm:flex-row sm:items-center">
+          <p className="min-w-0 flex-1">
+            This is taking longer than usual. The panel opens automatically when every part has loaded or given up (after {LOAD_TIMEOUT_MS / 1000} seconds). If it keeps happening,
+            check the Supabase dashboard for slow queries.
+          </p>
+          <button onClick={onRetry} className="shrink-0 rounded-lg bg-white px-3 py-1.5 font-semibold text-amber-900 ring-1 ring-amber-300 hover:bg-amber-100">
+            Start again
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** After loading: which parts failed, with a one-click retry for just those. */
+function FailedPartsBanner({ parts, onRetry }: { parts: Record<string, LoadPart>; onRetry: (keys: string[]) => void }) {
+  const failed = Object.entries(parts).filter(([, p]) => p.state === 'failed');
+  const retrying = Object.values(parts).some((p) => p.state === 'loading');
+  if (failed.length === 0 && !retrying) return null;
+  return (
+    <div className="mt-6 flex flex-col gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] text-rose-900 sm:flex-row sm:items-center">
+      <p className="min-w-0 flex-1">
+        {retrying ? (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Retrying…
+          </span>
+        ) : (
+          <>
+            <strong>Some data didn't load:</strong> {failed.map(([, p]) => p.label).join(', ')}. Everything else below is up to date.
+            <span className="mt-0.5 block text-rose-700/80">{failed[0][1].error}</span>
+          </>
+        )}
+      </p>
+      {!retrying && (
+        <button onClick={() => onRetry(failed.map(([k]) => k))} className="shrink-0 rounded-lg bg-white px-3 py-1.5 font-semibold text-rose-900 ring-1 ring-rose-300 hover:bg-rose-100">
+          Retry these
+        </button>
+      )}
     </div>
   );
 }
