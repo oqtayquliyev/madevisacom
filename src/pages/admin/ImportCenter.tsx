@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Clock, ExternalLink, ImageIcon, Link2, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { ProgressBar } from '@/components/common/ProgressBar';
+import { CompanyLeadsSection } from '@/pages/admin/CompanyLeadsSection';
 import { ImageUploadField } from '@/components/common/ImageUploadField';
 import {
   bulkDeleteJobs,
@@ -98,7 +99,7 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
   // ---- filters ----
   const [search, setSearch] = useState('');
   const [platform, setPlatform] = useState<'all' | 'greenhouse' | 'careers' | 'none'>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'never' | 'ok' | 'error' | 'due' | 'pending' | 'unlinked'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'never' | 'ok' | 'error' | 'due' | 'pending' | 'unlinked' | 'nologo'>('all');
   const [sort, setSort] = useState<'name' | 'jobs' | 'pending' | 'lastSync'>('name');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -189,6 +190,7 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
       if (statusFilter === 'due' && !r.due) return false;
       if (statusFilter === 'pending' && r.pending === 0) return false;
       if (statusFilter === 'unlinked' && r.unlinked === 0) return false;
+      if (statusFilter === 'nologo' && r.logo) return false;
       return true;
     });
     list.sort((a, b) =>
@@ -385,6 +387,7 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
             <option value="due">Due for sync ({totals.due})</option>
             <option value="pending">Has pending jobs</option>
             <option value="unlinked">Has unlinked older jobs</option>
+            <option value="nologo">No logo</option>
           </select>
           <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="h-8 rounded-md border border-ink-200 px-1.5 text-xs">
             <option value="name">Sort: name</option>
@@ -511,6 +514,8 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
             </tbody>
           </table>
         </div>
+
+        <CompanyLeadsSection countries={countries} onChange={onChange} />
 
         <BulkAddCompanies
           busy={busy}

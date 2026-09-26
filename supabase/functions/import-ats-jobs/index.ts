@@ -1344,6 +1344,15 @@ function isLikelyJobUrl(raw: string): boolean {
   // /details/200123456/title (Apple), /detail/123
   const detIdx = segs.findIndex((s) => ["details", "detail", "job-details", "jobdetails"].includes(s));
   if (detIdx >= 0 && segs.slice(detIdx + 1).some((s) => /\d{3,}/.test(s))) return true;
+  // /job-search-v2/fp-a-business-partner-ecco-hq-bredebro-3563 — a job/career path ending in a title slug with a numeric id
+  const lastSeg = segs[segs.length - 1] ?? "";
+  if (
+    segs.length >= 2 &&
+    /job|career|vacanc|stellen|position|opening/i.test(segs.slice(0, -1).join("/")) &&
+    /^[a-z0-9]+(-[a-z0-9]+){2,}-\d{3,}$/i.test(lastSeg) &&
+    !NAV_WORDS.has(lastSeg)
+  )
+    return true;
   // careers.example.com/…/12345
   if (
     /career|job|talent|recruit|hiring/i.test(u.hostname + "/" + segs.slice(0, -1).join("/")) &&

@@ -1,7 +1,9 @@
-import { useMemo, useRef, useState } from 'react';
-import { ArrowRight, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Globe, Loader2, Search, Sparkles, Square, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, Bookmark, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Globe, Loader2, Rocket, Search, Sparkles, Square, X, Zap } from 'lucide-react';
 import type { PendingPublisher, ImportCountryLookup } from '@/lib/admin';
-import { syncImportSource, type ImportSource } from '@/lib/importSync';
+import { type ImportSource } from '@/lib/importSync';
+import { deleteCompanyLeadsByQid, saveCompanyLeads } from '@/lib/companyLeads';
+import { importDetectPublish } from '@/lib/autoPipeline';
 import {
   addFoundCompany,
   companyDetails,
@@ -44,12 +46,15 @@ type Row = {
   selected: boolean;
   /** A career-page link typed in by hand. */
   manualUrl?: string;
+  /** Saved to the Import Center's "Waiting for a career page" list. */
+  savedForLater?: boolean;
+  published?: boolean;
 };
 
 const CONCURRENCY = 3;
 const PROGRESS_KEY = 'madevisa:companyFinder:progress';
 
-type Filter = 'all' | 'found' | 'nopage' | 'blocked' | 'existing' | 'added';
+type Filter = 'all' | 'found' | 'nopage' | 'blocked' | 'existing' | 'added' | 'nologo';
 
 /** How far down each country's list you've checked, remembered on this device. */
 function readProgress(): Record<string, number> {
@@ -181,53 +186,63 @@ export function FindCompaniesPanel({
     await searchCareerPages(newRows.filter((r) => r.state === 'queued'));
   };
 
-  const searchCareerPages = async (queue: Row[], deep = false) => {
+  /** Finds and proves each company's career page. Returns the finished rows; companies with none are saved for later. */
+  const searchCareerPages = async (queue: Row[], deep = false): Promise<Row[]> => {
+    const results = new Map<string, Row>(queue.map((r) => [r.key, r]));
+    const upd = (r: Row, p: Partial<Row>) => {
+      const cur = { ...(results.get(r.key) ?? r), ...p };
+      results.set(r.key, cur);
+      patch(r.key, p);
+    };
     if (!queue.length) {
-      setPhase('idle');
-      return;
+      if (!autoRef.current) setPhase('idle');
+      return [];
     }
-    stop.current = false;
+    stop.current = autoRef.current ? stop.current : false;
     setPhase('searching');
-    if (deep) for (const r of queue) patch(r.key, { state: 'queued', note: 'Waiting for a deeper search…' });
+    if (deep) for (const r of queue) upd(r, { state: 'queued', note: 'Waiting for a deeper search…' });
     let next = 0;
     await Promise.all(
       Array.from({ length: deep ? 2 : CONCURRENCY }, async () => {
         while (next < queue.length && !stop.current) {
           const r = queue[next++];
-          patch(r.key, { state: 'searching', note: deep ? 'Searching deeper: other addresses, Workday…' : 'Reading website…' });
+          upd(r, { state: 'searching', note: deep ? 'Searching deeper: other addresses, Workday…' : 'Reading website…' });
           try {
             const p = await probeCompany(r.company.name, r.company.website, deep);
-            patch(r.key, {
-              icons: p.icons.length && !(deep && r.icons.length > p.icons.length) ? p.icons : r.icons,
-              note: p.candidates.length ? `Checking ${p.candidates.length} possible career page${p.candidates.length === 1 ? '' : 's'}…` : undefined,
-            });
-            const proven = p.candidates.length
-              ? await proveCareerSource(p.candidates, (c: CareerCandidate) => patch(r.key, { note: `Trying ${c.platform ?? hostOf(c.url)}…` }))
-              : null;
+            const icons = p.icons.length && !(deep && r.icons.length > p.icons.length) ? p.icons : r.icons;
+            upd(r, { icons, note: p.candidates.length ? `Checking ${p.candidates.length} possible career page${p.candidates.length === 1 ? '' : 's'}…` : undefined });
+            const proven = p.candidates.length ? await proveCareerSource(p.candidates, (c: CareerCandidate) => patch(r.key, { note: `Trying ${c.platform ?? hostOf(c.url)}…` })) : null;
             const reason = proven ? undefined : p.websiteReachable ? 'nopage' : 'blocked';
-            patch(r.key, {
+            upd(r, {
               state: proven ? 'found' : 'notfound',
               proven,
               reason,
               deepTried: r.deepTried || deep,
               // Pre-select only pages linked from the company's site or matching its name.
               selected: Boolean(proven && proven.confidence !== 'low'),
-              note: proven
-                ? undefined
-                : reason === 'nopage'
-                  ? deep ? 'Still no career page with jobs' : 'No career page with jobs found'
-                  : deep ? 'Website still blocks us' : 'Website didn’t load',
+              note: proven ? undefined : reason === 'nopage' ? (deep ? 'Still no career page with jobs' : 'No career page with jobs found') : deep ? 'Website still blocks us' : 'Website didn’t load',
             });
           } catch (e) {
-            patch(r.key, { state: 'error', reason: 'nopage', note: e instanceof Error ? e.message : 'Search failed' });
+            upd(r, { state: 'error', reason: 'nopage', note: e instanceof Error ? e.message : 'Search failed' });
           }
         }
       })
     );
-    setPhase('idle');
+    const done = [...results.values()];
+    // Keep every company we couldn't place, for adding by hand later (Import Center).
+    const lost = done.filter((r) => r.state === 'notfound' || r.state === 'error');
+    if (lost.length) {
+      const saved = await saveCompanyLeads(
+        lost.map((r) => ({ company: r.company, name: r.name, icons: r.icons, reason: r.state === 'error' ? 'error' : r.reason === 'blocked' ? 'blocked' : 'nopage', note: r.note ?? null }))
+      );
+      if (!saved.ok && saved.error) setError(`Couldn’t save companies for later: ${saved.error}`);
+      else for (const r of lost) patch(r.key, { savedForLater: true });
+    }
+    if (!autoRef.current) setPhase('idle');
+    return done;
   };
 
-  const addSelected = () => addRows(rows.filter((r) => r.selected && r.proven && r.state === 'found'), importNow);
+  const addSelected = (publish = false) => addRows(rows.filter((r) => r.selected && r.proven && r.state === 'found'), publish ? true : importNow, publish);
 
   /** A career-page link you pasted: proven with the real importer before it counts. */
   const tryManualLink = async (r: Row, raw: string) => {
@@ -245,8 +260,12 @@ export function FindCompaniesPanel({
       : { state: 'notfound', proven: null, note: 'No jobs found at that link — try the page that lists the jobs.' });
   };
 
-  const addRows = async (chosen: Row[], withImport: boolean) => {
-    if (!chosen.length) return;
+  /**
+   * Adds companies with their proven career page. `withImport` imports their
+   * jobs to pending; `publish` also detects job details and publishes them.
+   */
+  const addRows = async (chosen: Row[], withImport: boolean, publish = false): Promise<{ added: number; published: number }> => {
+    if (!chosen.length) return { added: 0, published: 0 };
     setError(null);
     setPhase('adding');
     const created: ImportSource[] = [];
@@ -255,59 +274,167 @@ export function FindCompaniesPanel({
     for (let i = 0; i < chosen.length; i++) {
       if (stop.current) break;
       const r = chosen[i];
-      setMessage(`Adding ${i + 1} of ${chosen.length}: ${r.name}`);
+      setMessage(`${autoLabel()}Adding ${i + 1} of ${chosen.length}: ${r.name}`);
       const logoUrl = r.icons.length ? await makeCompanyLogo(r.icons, r.name).catch(() => null) : null;
       const countryId = countries.find((c) => c.iso_code === (r.company.country ?? (mode === 'country' ? country : '')))?.id ?? null;
       const res = await addFoundCompany({ name: r.name, website: r.company.website, countryId, logoUrl }, r.proven!);
       if (res.ok) {
         created.push(res.source);
         rowOf.set(res.source.id, r.key);
+        addedHere.current.add(coreName(r.name));
+        if (r.company.domain) addedHere.current.add(r.company.domain);
         patch(r.key, { state: 'added', selected: false, note: logoUrl ? 'Added with logo' : 'Added — no square logo found' });
       } else {
         failed++;
         patch(r.key, { state: 'failed', note: res.error });
       }
     }
+    await deleteCompanyLeadsByQid(chosen.filter((r) => r.state !== 'failed').map((r) => r.company.qid));
+    let published = 0;
     if (withImport && created.length && !stop.current) {
       setPhase('importing');
-      let next = 0;
-      let done = 0;
-      // What each running import is doing — big companies (1,000+ jobs) take several minutes.
-      const live = new Map<string, string>();
-      const show = () =>
-        setMessage(`Importing jobs: ${done} of ${created.length} companies done${live.size ? ` — ${[...live.values()].join(' · ')}` : ''}`);
-      show();
-      await Promise.all(
-        Array.from({ length: 2 }, async () => {
-          while (next < created.length && !stop.current) {
-            const src = created[next++];
-            const key = rowOf.get(src.id);
-            const name = src.publisher?.name ?? 'Company';
-            live.set(src.id, `${name}: starting…`);
-            show();
-            if (key) patch(key, { note: 'Importing jobs…' });
-            const res = await syncImportSource(src, {
-              countries,
-              removal: 'expire',
-              refreshContent: false,
-              shouldStop: () => stop.current,
-              onProgress: (m) => {
-                live.set(src.id, m.replace(/…$/, ''));
-                show();
-              },
-            });
-            live.delete(src.id);
-            done++;
-            if (key) patch(key, { note: res.summary.added ? `Added with ${res.summary.added.toLocaleString()} jobs (pending)` : res.summary.error ? `Added — import: ${res.summary.error}` : 'Added — no new jobs imported' });
-            show();
-          }
-        })
-      );
+      const res = await importDetectPublish(created, {
+        countries,
+        publish,
+        shouldStop: () => stop.current,
+        onProgress: (m) => setMessage(`${autoLabel()}${m}`),
+        onSourceDone: (src, added, err) => {
+          const key = rowOf.get(src.id);
+          if (key) patch(key, { note: added ? `Added with ${added.toLocaleString()} jobs${publish ? '' : ' (pending)'}` : err ? `Added — import: ${err}` : 'Added — no new jobs imported' });
+        },
+      });
+      published = res.published;
+      if (publish) for (const key of rowOf.values()) patch(key, { published: true });
     }
-    setMessage(`Added ${created.length} compan${created.length === 1 ? 'y' : 'ies'}${failed ? ` · ${failed} failed` : ''}${withImport && created.length ? ' · jobs imported to pending' : ''}.`);
-    setPhase('idle');
-    onChange();
+    if (!autoRef.current) {
+      setMessage(
+        `Added ${created.length} compan${created.length === 1 ? 'y' : 'ies'}${failed ? ` · ${failed} failed` : ''}${
+          publish ? ` · ${published.toLocaleString()} jobs published` : withImport && created.length ? ' · jobs imported to pending' : ''
+        }.`
+      );
+      setPhase('idle');
+      onChange();
+    }
+    return { added: created.length, published };
   };
+
+  // ---------------------------------------------------------------------------
+  // Auto-pilot: every country, page by page → find → import → detect → publish
+  // ---------------------------------------------------------------------------
+  const autoRef = useRef(false);
+  const addedHere = useRef(new Set<string>());
+  const [auto, setAuto] = useState<{ country: string; index: number; page: string; checked: number; added: number; published: number; later: number } | null>(null);
+  const autoStats = useRef({ checked: 0, added: 0, published: 0, later: 0 });
+  const autoCountry = useRef<string | null>(null);
+  const autoLabel = () => (autoRef.current && autoCountry.current ? `${COUNTRY_NAME[autoCountry.current]?.name ?? autoCountry.current}: ` : '');
+  const allCountries = useMemo(() => WAVES.flatMap((w) => w.countries.map((c) => c.code)), []);
+
+  const runAutopilot = async () => {
+    if (busy) return;
+    if (!window.confirm(`Auto-pilot goes through all ${allCountries.length} countries, ${limit} companies at a time, from where you left off. It adds companies with a clear career page, imports, detects and PUBLISHES their jobs. Companies it can’t place are saved for later. Keep this tab open. Start?`)) return;
+    autoRef.current = true;
+    stop.current = false;
+    setError(null);
+    setMode('country');
+    setFilter('all');
+    autoStats.current = { checked: 0, added: 0, published: 0, later: 0 };
+    let wake: { release: () => Promise<void> } | null = null;
+    try {
+      const wl = (navigator as unknown as { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock;
+      if (wl) wake = await wl.request('screen');
+    } catch {
+      /* optional */
+    }
+    const cache: Record<string, RankedCompany[]> = { ...ranked };
+    try {
+      for (let ci = 0; ci < allCountries.length && !stop.current; ci++) {
+        const code = allCountries[ci];
+        setCountry(code);
+        setPhase('loading');
+        autoCountry.current = code;
+        const show = (page: string) => setAuto({ country: code, index: ci, page, ...autoStats.current });
+        show('getting the list…');
+        let list = cache[code];
+        if (!list) {
+          try {
+            list = await listCountryCompanies(code);
+          } catch (e) {
+            setError(`${COUNTRY_NAME[code]?.name ?? code}: ${e instanceof Error ? e.message : 'could not load companies'} — skipped.`);
+            continue;
+          }
+          cache[code] = list;
+          setRanked((r) => ({ ...r, [code]: list! }));
+        }
+        let start = readProgress()[code] ?? 0;
+        while (start < list.length && !stop.current) {
+          const slice = list.slice(start, start + limit);
+          const pageLabel = `#${start + 1}–${start + slice.length} of ${list.length.toLocaleString()}`;
+          show(pageLabel);
+          setMessage(`${COUNTRY_NAME[code]?.name ?? code} ${pageLabel}: loading companies…`);
+          setPhase('loading');
+          let found: FoundCompany[] = [];
+          try {
+            found = await companyDetails(slice.map((c) => c.qid));
+          } catch (e) {
+            setError(`${COUNTRY_NAME[code]?.name ?? code} ${pageLabel}: ${e instanceof Error ? e.message : 'failed'} — skipped this page.`);
+          }
+          const seen = new Set<string>();
+          const pageRows: Row[] = found
+            .filter((c) => (seen.has(c.qid) ? false : (seen.add(c.qid), true)))
+            .map((c) => {
+              const company = { ...c, country: c.country ?? code };
+              const exists = isExisting(company) || addedHere.current.has(coreName(c.name)) || Boolean(c.domain && addedHere.current.has(c.domain));
+              return { key: c.qid, company, name: c.name, state: exists ? 'existing' : 'queued', icons: [], proven: null, selected: false } as Row;
+            });
+          setRows(pageRows);
+          setLoadedCountry(code);
+          setOffset(start);
+          setMessage(`${COUNTRY_NAME[code]?.name ?? code} ${pageLabel}: finding career pages…`);
+          const results = await searchCareerPages(pageRows.filter((r) => r.state === 'queued'));
+          if (stop.current) break;
+          autoStats.current.checked += results.length;
+          // Only clear matches go live automatically; guesses are saved to check by hand.
+          const sure = results.filter((r) => r.state === 'found' && r.proven && r.proven.confidence !== 'low');
+          const unsure = results.filter((r) => r.state === 'found' && r.proven?.confidence === 'low');
+          if (unsure.length) {
+            await saveCompanyLeads(unsure.map((r) => ({ company: r.company, name: r.name, icons: r.icons, reason: 'lowconf' as const, note: `${r.proven!.jobs} jobs at ${hostOf(r.proven!.url)}`, candidateUrl: r.proven!.url })));
+            for (const r of unsure) patch(r.key, { savedForLater: true, selected: false });
+          }
+          autoStats.current.later += results.filter((r) => r.state === 'notfound' || r.state === 'error').length + unsure.length;
+          const res = await addRows(sure, true, true);
+          autoStats.current.added += res.added;
+          autoStats.current.published += res.published;
+          saveProgress(code, start + slice.length);
+          setProgressState(readProgress());
+          start += limit;
+          show(pageLabel);
+          // No full admin reload per page — it downloads every job. One refresh at the end.
+        }
+      }
+      setMessage(
+        stop.current
+          ? `Auto-pilot stopped. ${autoStats.current.added} companies added · ${autoStats.current.published.toLocaleString()} jobs published · ${autoStats.current.later} saved for later. Press it again to continue where it stopped.`
+          : `Auto-pilot finished all countries. ${autoStats.current.added} companies added · ${autoStats.current.published.toLocaleString()} jobs published · ${autoStats.current.later} saved for later.`
+      );
+    } finally {
+      autoRef.current = false;
+      setAuto(null);
+      setPhase('idle');
+      void wake?.release().catch(() => undefined);
+      onChange();
+    }
+  };
+
+  // Closing the tab mid-run would cut it off — ask first.
+  useEffect(() => {
+    if (!auto) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [auto]);
 
   const matches = (r: Row, f: Filter) =>
     f === 'all'
@@ -320,7 +447,9 @@ export function FindCompaniesPanel({
             ? r.state === 'notfound' && r.reason === 'blocked'
             : f === 'existing'
               ? r.state === 'existing'
-              : r.state === 'added' || r.state === 'failed';
+              : f === 'nologo'
+                ? r.state !== 'existing' && r.state !== 'queued' && r.state !== 'searching' && r.icons.length === 0
+                : r.state === 'added' || r.state === 'failed';
   const visible = rows.filter((r) => matches(r, filter));
   const counts = {
     existing: rows.filter((r) => r.state === 'existing').length,
@@ -329,6 +458,7 @@ export function FindCompaniesPanel({
     nopage: rows.filter((r) => matches(r, 'nopage')).length,
     blocked: rows.filter((r) => matches(r, 'blocked')).length,
     added: rows.filter((r) => r.state === 'added').length,
+    nologo: rows.filter((r) => matches(r, 'nologo')).length,
     selected: rows.filter((r) => r.selected && r.state === 'found').length,
   };
   const totalNew = rows.length - counts.existing;
@@ -376,6 +506,50 @@ export function FindCompaniesPanel({
 
           {mode === 'country' ? (
             <div className="mt-4 space-y-3">
+              {/* AUTO-PILOT — the one big button */}
+              <div className={`overflow-hidden rounded-xl border ${auto ? 'border-brand-500 bg-brand-600 text-white' : 'border-brand-200 bg-gradient-to-r from-brand-600 to-brand-700 text-white'}`}>
+                <div className="flex flex-wrap items-center gap-4 p-4">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/15">
+                    {auto ? <Loader2 className="h-6 w-6 animate-spin" /> : <Rocket className="h-6 w-6" />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-base font-bold">Auto-pilot: all {allCountries.length} countries</p>
+                    <p className="text-xs text-white/75">
+                      Country by country, {limit} companies at a time, from where you left off: finds career pages → imports jobs → detects details → publishes. Unsure matches and
+                      companies without a career page are saved to the Import Center for later.
+                    </p>
+                  </div>
+                  {auto ? (
+                    <button onClick={() => (stop.current = true)} className="flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-bold text-brand-700 hover:bg-brand-50">
+                      <Square className="h-4 w-4 fill-current" /> Stop after this step
+                    </button>
+                  ) : (
+                    <button
+                      disabled={busy}
+                      onClick={runAutopilot}
+                      className="flex items-center gap-2 rounded-lg bg-white px-6 py-3.5 text-base font-extrabold text-brand-700 shadow-lg transition hover:scale-[1.02] hover:bg-brand-50 disabled:opacity-50"
+                    >
+                      <Zap className="h-5 w-5 fill-current" /> Run everything
+                    </button>
+                  )}
+                </div>
+                {auto && (
+                  <div className="grid grid-cols-2 gap-px border-t border-white/15 bg-white/10 text-center sm:grid-cols-5">
+                    {[
+                      [`${COUNTRY_NAME[auto.country]?.flag ?? ''} ${COUNTRY_NAME[auto.country]?.name ?? auto.country}`, `Country ${auto.index + 1} of ${allCountries.length} · ${auto.page}`],
+                      [auto.checked.toLocaleString(), 'Companies checked'],
+                      [auto.added.toLocaleString(), 'Companies added'],
+                      [auto.published.toLocaleString(), 'Jobs published'],
+                      [auto.later.toLocaleString(), 'Saved for later'],
+                    ].map(([v, l]) => (
+                      <div key={l} className="bg-brand-700/60 px-3 py-2.5">
+                        <p className="truncate text-sm font-bold">{v}</p>
+                        <p className="truncate text-[10px] text-white/70">{l}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               {WAVES.map((w) => (
                 <div key={w.label} className="flex flex-wrap items-center gap-1.5">
                   <span className={`w-16 shrink-0 text-[10px] font-bold uppercase tracking-wider ${w.label === 'Wave 1' ? 'text-brand-700' : 'text-ink-400'}`}>{w.label}</span>
@@ -510,6 +684,7 @@ export function FindCompaniesPanel({
                         ['nopage', 'No career page with jobs', counts.nopage],
                         ['blocked', 'Website didn’t load', counts.blocked],
                         ['added', 'Added', counts.added],
+                        ['nologo', 'No logo', counts.nologo],
                         ['existing', 'Already on MadeVisa', counts.existing],
                       ] as [Filter, string, number][]
                     )
@@ -576,11 +751,20 @@ export function FindCompaniesPanel({
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <button
                 disabled={busy || counts.selected === 0}
-                onClick={addSelected}
+                onClick={() => addSelected()}
                 className="flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
               >
                 {phase === 'adding' || phase === 'importing' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 Add {counts.selected} selected
+              </button>
+              <button
+                disabled={busy || counts.selected === 0}
+                onClick={() => addSelected(true)}
+                title="Adds the companies, imports their jobs, detects job details and publishes them — in one go."
+                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <Zap className="h-4 w-4 fill-current" />
+                Add, detect &amp; publish {counts.selected}
               </button>
               <label className="flex items-center gap-1.5 text-xs text-ink-600">
                 <input type="checkbox" checked={importNow} onChange={(e) => setImportNow(e.target.checked)} /> Import their jobs now (to pending)
@@ -660,6 +844,12 @@ function ResultRow({ row: r, busy, onPatch, onLink, onAdd }: { row: Row; busy: b
         ) : (
           <span className={r.state === 'failed' || r.state === 'error' ? 'text-rose-600' : 'text-ink-400'}>{r.note ?? '—'}</span>
         )}
+        {r.savedForLater && (
+          <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+            <Bookmark className="h-3 w-3" /> Saved for later in the Import Center
+          </p>
+        )}
+        {r.published && <p className="mt-1 text-[11px] font-semibold text-emerald-700">Jobs published</p>}
         {canEditLink && <ManualLink initial={r.manualUrl ?? ''} onCheck={onLink} />}
         {(r.state === 'added' || r.state === 'failed') && r.note && <p className={r.state === 'failed' ? 'text-rose-600' : 'text-emerald-700'}>{r.note}</p>}
       </td>
