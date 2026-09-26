@@ -1154,6 +1154,11 @@ export async function backfillJobFacts(
         counts.workType++;
       }
       if (!r.remote && f.workArrangement === 'remote') patch.remote = true;
+      // Marked remote by an older import but the posting says hybrid/on-site → correct it.
+      if (r.remote && !r.work_arrangement && (f.workArrangement === 'hybrid' || f.workArrangement === 'onsite')) {
+        patch.remote = false;
+        if (hasNewCols) patch.work_arrangement = f.workArrangement;
+      }
       if (hasNewCols && !r.visa_status && f.visa) {
         patch.visa_status = f.visa;
         counts.visa++;

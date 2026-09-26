@@ -391,7 +391,8 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
       opts.refreshContent ||
       row.import_source_id !== source.id ||
       (!row.external_id && job.externalId) ||
-      (hasWorkArrangement && !row.work_arrangement && job.workArrangement)
+      // The source states on-site/hybrid/remote itself → it wins over older guesses.
+      (hasWorkArrangement && job.workArrangement && row.work_arrangement !== job.workArrangement)
   );
   const ownWriteSet = new Set(needsOwnWrite);
   const bulk = stillLive.filter((x) => !ownWriteSet.has(x));
@@ -411,7 +412,10 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
     const patch: Record<string, unknown> = { last_seen_at: now, import_source_id: source.id };
     if (job.externalId) patch.external_id = String(job.externalId);
     if (row.status === 'published') patch.expires_at = extendTo;
-    if (hasWorkArrangement && !row.work_arrangement && job.workArrangement) patch.work_arrangement = job.workArrangement;
+    if (hasWorkArrangement && job.workArrangement && row.work_arrangement !== job.workArrangement) {
+      patch.work_arrangement = job.workArrangement;
+      patch.remote = job.workArrangement === 'remote';
+    }
     if (opts.refreshContent) {
       patch.title = job.title;
       if (job.description) patch.description = job.description;

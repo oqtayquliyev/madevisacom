@@ -16,7 +16,7 @@ import {
   type PublicAgency,
   type VerifiedExpert,
 } from '@/lib/programs';
-import { fetchPublishedSponsoredJobs, type SponsoredJob } from '@/lib/sponsoredJobs';
+import { fetchPublishedSponsoredJobs, type SponsoredJob, companyNameFromUrl } from '@/lib/sponsoredJobs';
 import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -56,7 +56,7 @@ export function ExpertsMarketplacePage({ go, onAuth }: ExpertsMarketplacePagePro
   const employers = useMemo(() => {
     const map = new Map<string, { name: string; roles: number; countries: Set<string> }>();
     for (const job of jobs) {
-      const name = job.publisher?.name ?? 'Verified sponsor';
+      const name = job.publisher?.name ?? companyNameFromUrl(job.official_url) ?? 'Company';
       const existing = map.get(name);
       if (existing) {
         existing.roles += 1;

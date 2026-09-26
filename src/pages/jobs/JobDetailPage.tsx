@@ -3,7 +3,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { isMeaningfulSalary } from '@/lib/listingCategories';
 import { companyPath, recordApplication } from '@/lib/companies';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
-import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Check, ChevronDown, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Phone, Plane, Share2, UserRound, Users } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Check, ChevronDown, FileText, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Navigation, Phone, Plane, Share2, UserRound, Users } from 'lucide-react';
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
@@ -187,7 +187,8 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const detected = detectedFacts ?? EMPTY_FACTS;
   // Importers sometimes store placeholder values ("All", "Various") —
   // the source's own labeled fields are more accurate then.
-  const category = displayJobCategory({ title: job.title, category: isPlaceholder(job.category) ? detected.department : job.category });
+  const rawCategory = isPlaceholder(job.category) || isCodeLike(job.category) ? detected.department : job.category;
+  const category = isCodeLike(rawCategory) ? null : displayJobCategory({ title: job.title, category: rawCategory });
   const postedDate = pickPostedDate(job.postedDate, detected.postedAt);
   const postedLabel = postedDate ? formatRelativeTime(postedDate, '') : '';
   const sourcePlace = parseSourceLocation(detected.location);
@@ -217,7 +218,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // While the server is still reading the description (first view only),
   // show a placeholder bar instead of a premature "See on source".
   const pendingBar = <span className="inline-block h-4 w-20 animate-pulse rounded bg-ink-100 align-middle" aria-label="Loading" />;
-  const see = factsPending ? pendingBar : isDirect ? <span className="font-medium text-ink-400">Not listed</span> : <SourceLink url={hasSourceUrl ? job.url : null} />;
+  const see = factsPending ? pendingBar : isDirect ? <span className="font-medium text-ink-400">Not mentioned</span> : <SourceLink url={hasSourceUrl ? job.url : null} />;
+  // The place as the posting states it ("Chicago, Illinois, United States"), else the listing's own.
+  const locationValue = sourcePlace?.label ?? (placeLabel !== 'Location on source' ? placeLabel : null);
   // Stored fields win; anything still missing is read from the
   // description itself ("8–12 years of experience", "$126,000—$136,000
   // CAD", "Work Type: Onsite", "unable to sponsor visas", ...).
@@ -245,7 +248,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       icon: Briefcase,
       label: 'Employment type',
       value: employmentType ? (
-        <WithDetail main={employmentType} detail={employmentDetail(employmentType, detected.schedule, detected.contractTerm)} />
+        <WithDetail main={employmentType} detail={employmentDetail(employmentType, detected.schedule, null)} />
       ) : (
         // The Remote box already covers on-site/hybrid/remote.
         see
@@ -255,7 +258,17 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
     {
       icon: Plane,
       label: 'Visa sponsorship',
-      value: visa === 'offered' ? 'Offered' : visa === 'not_offered' ? 'Not offered' : isDirect || factsPending ? see : <SourceLink url={hasSourceUrl ? job.url : null} label="Ask on source" />,
+      value: visa === 'offered' ? 'Offered' : visa === 'not_offered' ? 'Not offered' : see,
+    },
+    {
+      icon: Navigation,
+      label: 'Location',
+      value: locationValue ? <span className="font-semibold text-ink-800">{locationValue}</span> : see,
+    },
+    {
+      icon: FileText,
+      label: 'Contract type',
+      value: detected.contractTerm ? detected.contractTerm : see,
     },
   ];
 
@@ -356,10 +369,10 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               )}
               <h1 className={`break-words font-slab text-3xl font-bold leading-tight tracking-tight sm:text-5xl sm:leading-[1.1] ${closed ? 'text-white/70' : ''}`}>{job.title}</h1>
               <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/85">
-                {job.remote && (
+                {arrangement && (
                   <span className="flex items-center gap-1.5 font-semibold text-white">
                     <MapPin className="h-4 w-4" />
-                    Remote
+                    {arrangement === 'remote' ? 'Remote' : arrangement === 'hybrid' ? 'Hybrid' : 'On-site'}
                   </span>
                 )}
                 <span className="flex items-center gap-1.5">
@@ -370,7 +383,11 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                   <span className="flex items-center gap-1.5">
                     <Calendar className="h-4 w-4" />
                     Posted {postedLabel}
-                    {isImported ? ` on ${job.company}` : ''}
+                    {isImported && (
+                      <>
+                        {' '}on <strong className="font-bold text-white">{job.company}</strong>
+                      </>
+                    )}
                   </span>
                 )}
                 {stillHiring && (
@@ -544,19 +561,28 @@ function HeaderLogo({ job, SponsorIcon }: { job: Job; SponsorIcon: typeof Buildi
   );
 }
 
-/** Underlined link back to the original posting, used wherever a detail isn't in our data. */
-function SourceLink({ url, label = 'See on source' }: { url: string | null; label?: string }) {
-  if (!url) return <span className="font-medium text-ink-500">Check the original listing</span>;
+/** "Not mentioned · Source ↗" — the detail isn't in the posting we have; the original may say more. */
+function SourceLink({ url }: { url: string | null }) {
+  if (!url) return <span className="font-medium text-ink-400">Not mentioned</span>;
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="font-semibold text-brand-700 underline decoration-brand-300 underline-offset-2 hover:decoration-brand-700"
-    >
-      {label}
-    </a>
+    <span className="font-medium text-ink-400">
+      Not mentioned ·{' '}
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-0.5 font-semibold text-brand-700 underline decoration-brand-300 underline-offset-2 hover:decoration-brand-700"
+      >
+        Source
+        <ArrowUpRight className="h-3.5 w-3.5" />
+      </a>
+    </span>
   );
+}
+
+/** Internal codes used as a category ("SW Eng - Applications-674"). */
+function isCodeLike(v: string | null | undefined): boolean {
+  return Boolean(v && (/[-_ ]\d{2,}$|^\d+$|\b[A-Z]{1,4}\d{2,}\b|\d{3,}/.test(v.trim())));
 }
 
 const COLLAPSED_HEIGHT = 360;
@@ -658,7 +684,8 @@ function ContactBox({ contact }: { contact: JobContact }) {
   );
 }
 
-const PLACEHOLDER_RE = /^(?:all|any|various|multiple(?: locations)?|n\/?a|none|other|-|–)$/i;
+const PLACEHOLDER_RE =
+  /^(?:all|any|various|multiple(?: locations)?|n\/?a|none|other|-|–|tbd|tbc|location on source|(?:more |advanced )?search(?: options)?|more search options|filters?|select(?: a)? location|view all|see all|show more|loading\.*)$/i;
 
 function isPlaceholder(value: string | null | undefined): boolean {
   return !value || PLACEHOLDER_RE.test(value.trim());

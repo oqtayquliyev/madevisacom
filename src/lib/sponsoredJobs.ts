@@ -421,11 +421,38 @@ export function isDirectListing(job: Pick<SponsoredJob, 'origin' | 'publisher'>)
   return Boolean(job.publisher?.owner_id);
 }
 
+/**
+ * Company name from the job's own link, for when the company record can't
+ * be read (e.g. not verified): boards.greenhouse.io/okta → "Okta",
+ * eaton.eightfold.ai → "Eaton", careers.bosch.com → "Bosch".
+ */
+export function companyNameFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.toLowerCase().replace(/^www\./, '');
+  const seg = u.pathname.split('/').filter(Boolean)[0] ?? '';
+  let name: string | null = null;
+  if (/(^|\.)(greenhouse\.io|lever\.co|ashbyhq\.com|smartrecruiters\.com|workable\.com|recruitee\.com|teamtailor\.com|breezy\.hr|jobvite\.com)$/.test(host)) name = seg;
+  else if (/\.(myworkdayjobs|myworkdaysite|eightfold|wd\d+|icims|taleo|successfactors|personio|bamboohr|jobs\.personio)\b/.test(host) || /\.(eightfold\.ai|icims\.com|bamboohr\.com)$/.test(host)) name = host.split('.')[0];
+  else {
+    const parts = host.split('.').filter((p) => !/^(careers?|jobs?|job-boards|boards|apply|recruiting|talent|join|work|en|www\d?)$/.test(p));
+    name = parts.length >= 2 ? parts[parts.length - 2] : parts[0] ?? null;
+  }
+  if (!name || name.length < 2 || /^\d+$/.test(name)) return null;
+  return name.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs').Job {
+  const companyName = job.publisher?.name ?? companyNameFromUrl(job.official_url ?? job.application_url) ?? 'Company';
   return {
     id: `sponsored-${job.id}`,
     title: job.title,
-    company: job.publisher?.name ?? 'Verified sponsor',
+    company: companyName,
     country: job.country?.name ?? 'Various',
     countryCode: job.country?.iso_code ?? '',
     // Was falling back to the country name for every non-remote job,
@@ -448,7 +475,7 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     // findOrCreateImportedPublisher (the admin ATS-import path) creates
     // publishers (see src/lib/admin.ts) — so this is a real signal, not
     // a guess, for which of the two the job actually is.
-    source: job.publisher?.name ?? 'Verified sponsor',
+    source: companyName,
     published: isDirectListing(job) ? 'Posted by company' : 'Added by MadeVisa',
     url: job.official_url ?? '#',
     verified: true,

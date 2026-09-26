@@ -14,7 +14,7 @@
 // Requests (POST, JSON):
 //   { ids: ["<job uuid>", ...] }            → results for those jobs
 //       Anyone: up to 3 published jobs, computed only if not stored yet.
-//       Admins: up to 200 jobs, any status; add "force": true to recompute.
+//       Admins: up to 50 jobs, any status; add "force": true to recompute.
 //   { items: [{ title, description }, ...] } → facts only, nothing stored
 //       Admins only (used by the importer before inserting new jobs).
 //
@@ -25,7 +25,7 @@ import { detectJobFacts, cleanJobDescriptionHtml } from './detector.ts';
 import { sanitizeJobHtml } from './sanitize.ts';
 
 /** Bump when the detector changes, so stored results are recomputed. */
-const FACTS_VERSION = 1;
+const FACTS_VERSION = 2;
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
     if (!Array.isArray(body?.ids)) return reply({ ok: false, error: 'Send { ids: [...] } or { items: [...] }.' }, 400);
     const ids = (body.ids as unknown[])
       .filter((x): x is string => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x))
-      .slice(0, isAdmin ? 200 : 3);
+      .slice(0, isAdmin ? 50 : 3);
     if (!ids.length) return reply({ ok: true, results: {} });
     const force = isAdmin && body?.force === true;
 
@@ -84,17 +84,25 @@ Deno.serve(async (req) => {
     if (error) return reply({ ok: false, error: error.message }, 500);
 
     const results: Record<string, Payload> = {};
+    const saves: PromiseLike<unknown>[] = [];
     for (const r of (rows ?? []) as { id: string; title: string; description: string | null; facts: Payload | null; updated_at: string }[]) {
       if (!force && r.facts && r.facts.v === FACTS_VERSION) {
         results[r.id] = r.facts;
         continue;
       }
-      const payload = analyse(r.title ?? '', r.description);
+      let payload: Payload;
+      try {
+        payload = analyse(r.title ?? '', r.description);
+      } catch {
+        // One odd description must not fail the whole batch.
+        payload = { v: FACTS_VERSION, facts: detectJobFacts(null, r.title ?? ''), html: r.description ?? '', contact: {} };
+      }
       results[r.id] = payload;
       // Save for next time — only if the job wasn't edited in the meantime
       // (saving results alone doesn't change updated_at; see migration).
-      await service.from('sponsored_jobs').update({ facts: payload }).eq('id', r.id).eq('updated_at', r.updated_at);
+      saves.push(service.from('sponsored_jobs').update({ facts: payload }).eq('id', r.id).eq('updated_at', r.updated_at));
     }
+    await Promise.all(saves);
     return reply({ ok: true, results });
   } catch (e) {
     return reply({ ok: false, error: e instanceof Error ? e.message : 'Unexpected error.' }, 500);

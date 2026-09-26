@@ -22,7 +22,8 @@ export function experienceBucket(raw: string | null | undefined): string | null 
   return raw;
 }
 
-const PLACEHOLDER_VALUE_RE = /^(?:all|any|various|multiple(?: locations)?|n\/?a|none|other|-|–)$/i;
+const PLACEHOLDER_VALUE_RE =
+  /^(?:all|any|various|multiple(?: locations)?|n\/?a|none|other|-|–|tbd|tbc|location on source|(?:more |advanced )?search(?: options)?|more search options|filters?|select(?: a)? location|view all|see all|show more|apply(?: now)?|click here|loading\.*)$/i;
 
 /** True for importer placeholders like "All" / "Various" that aren't real data. */
 export function isPlaceholderValue(value: string | null | undefined): boolean {
