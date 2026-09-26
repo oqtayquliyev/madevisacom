@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { SoonChip, SOON_VIEWS } from "@/components/common/SoonChip";
-import { BookOpen, ChevronDown, Building2, Briefcase, GraduationCap, LayoutDashboard, LogIn, LogOut, Menu, ShieldCheck, UserPlus, Users, X, Gauge } from "lucide-react";
+import { BookOpen, ChevronDown, Building2, Briefcase, GraduationCap, LayoutDashboard, LogIn, LogOut, ShieldCheck, UserPlus, Users, X, Gauge } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { CheckInReminder } from "@/components/jobs/CheckInReminder";
 import { fetchMyManagedPublishers } from "@/lib/companyManager";
@@ -189,7 +189,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                 onClick={(event) =>
                   handleNavClick(event, () => onAuth?.("login"))
                 }
-                className="hidden rounded-md bg-[#2563EB] px-5 py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-700 sm:block"
+                className="block whitespace-nowrap rounded-md bg-[#2563EB] px-3.5 py-2 text-[14px] font-semibold text-white transition-colors hover:bg-brand-700 sm:px-5 sm:py-2.5 sm:text-[15px]"
               >
                 Get started
               </a>
@@ -197,6 +197,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
 
             {/* Account menu — the name links to the person's profile; the avatar +
                 arrow sit in a soft grey box and open the menu. */}
+            {profile && (
             <div className="relative">
               <div
                 className={`group/acct flex items-center ${
@@ -389,6 +390,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                 </>
               )}
             </div>
+            )}
 
             <button
               onClick={() => {
@@ -402,7 +404,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
               {openMenu ? (
                 <X className="h-5 w-5" />
               ) : (
-                <Menu className="h-5 w-5" />
+                <CandyBoxIcon />
               )}
             </button>
           </div>
@@ -411,5 +413,14 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
       {/* Outside the header: its backdrop blur would trap a fixed-position child. */}
       <CheckInReminder />
     </>
+  );
+}
+
+/** 3×3 dots ("candy box") menu icon. */
+function CandyBoxIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+      {[3, 10, 17].flatMap((y) => [3, 10, 17].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="2" />))}
+    </svg>
   );
 }
