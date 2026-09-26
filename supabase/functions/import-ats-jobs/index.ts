@@ -1233,7 +1233,7 @@ async function enrichFromDetailPages(ctx: Ctx, jobs: NormalizedJob[], listingUrl
     const page = await get(job.url, { ctx, timeoutMs: 10_000 });
     if (!page.ok) return;
     const d = jobFromDetailHtml(page.text, page.url);
-    if (!d) return;
+    if (!d || isBlockedPage(d.title, d.descriptionHtml)) return;
     if (plainLength(d.descriptionHtml) > plainLength(job.descriptionHtml)) job.descriptionHtml = d.descriptionHtml;
     if (d.title.length > job.title.length && d.title.toLowerCase().startsWith(job.title.toLowerCase())) job.title = d.title;
     if (d.offices.length && (job.offices.length === 0 || job.offices.every((o) => /various|multiple/i.test(o)))) {
@@ -1246,6 +1246,13 @@ async function enrichFromDetailPages(ctx: Ctx, jobs: NormalizedJob[], listingUrl
     job.remote = job.remote ?? d.remote;
     job.salaryText = job.salaryText ?? d.salaryText;
   });
+}
+
+/** A bot-check / "JavaScript is disabled" / error page, not a job. */
+const BLOCKED_RE = /javascript\s+is\s+(disabled|required)|enable\s+javascript|requires\s+javascript|not\s+a\s+robot|checking\s+your\s+browser|verify\s+you\s+are\s+human|attention\s+required|access\s+denied|request\s+unsuccessful/i;
+function isBlockedPage(title: string, html: string): boolean {
+  if (/^\s*(just a moment\.*|access denied|page not found|not found|40[134]\b.*|error|forbidden|security check|captcha)\s*$/i.test(title) || BLOCKED_RE.test(title)) return true;
+  return plainLength(html) < 600 && BLOCKED_RE.test(html.replace(/<[^>]+>/g, " "));
 }
 
 /** Builds jobs purely from detail-page URLs (link-scan, TalentBrew and sitemap strategies). */
@@ -1266,7 +1273,11 @@ async function jobsFromDetailUrls(ctx: Ctx, links: string[]): Promise<Normalized
         return;
       }
       const job = jobFromDetailHtml(page.text, page.url);
-      if (job) jobs.push({ job, order: i });
+      if (job && !isBlockedPage(job.title, job.descriptionHtml)) jobs.push({ job, order: i });
+      else if (job) {
+        failures++;
+        lastFailure = "the site showed a bot check instead of the job";
+      }
     },
     200
   );
@@ -1312,7 +1323,7 @@ function isLikelyJobUrl(raw: string): boolean {
   } catch {
     segs = u.pathname.split("/").filter(Boolean).map((s) => s.toLowerCase());
   }
-  if (segs.some((s) => ["apply", "login", "signin", "sign-in", "register", "share", "print", "email-job", "refer"].includes(s))) return false;
+  if (segs.some((s) => ["apply", "login", "logout", "logoutp", "signin", "sign-in", "signout", "sign-out", "register", "share", "print", "email-job", "refer", "security"].includes(s))) return false;
 
   for (const [k, v] of u.searchParams) {
     if (ID_PARAM_RE.test(k) && /^[\w-]{3,}$/.test(v) && /\d/.test(v)) {

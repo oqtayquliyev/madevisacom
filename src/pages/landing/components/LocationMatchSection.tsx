@@ -1,3 +1,4 @@
+import { JobAgeBadge } from '@/components/common/JobAgeBadge';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { jobPath } from '@/lib/jobUrl';
 import { isJobViewed } from '@/lib/viewedJobs';
@@ -27,7 +28,6 @@ import { useSiteStats } from '@/lib/siteStats';
 import { fetchSponsoredPrograms } from '@/lib/programs';
 import { formatCost } from '@/lib/listingCategories';
 import { stripHtml } from '@/lib/atsImport';
-import { formatRelativeTime } from '@/lib/dates';
 import type { Job } from '@/data/jobs';
 import { CircleFlag } from '@/components/common/CircleFlag';
 
@@ -574,7 +574,7 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
         {snippet && <p className="mt-2 line-clamp-2 text-xs leading-5 text-ink-500">{snippet}</p>}
 
         <div className="mt-auto pt-2">
-          {item.postedDate && <p className="mb-2 text-xs font-semibold text-ink-800">Posted {formatRelativeTime(item.postedDate)}</p>}
+          {item.postedDate && <JobAgeBadge iso={item.postedDate} className="mb-2" />}
           {showCostPill && (
             <div className="flex items-center gap-1 border-t border-ink-100 pt-2">
               <span className="truncate rounded bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">

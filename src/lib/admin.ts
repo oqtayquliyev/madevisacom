@@ -6,7 +6,7 @@ import type { ListingStatus, SalaryStatus, SalaryPeriod, CostStatus } from '@/li
 import { JOB_CATEGORIES, isMeaningfulSalary, type JobCategory } from '@/lib/listingCategories';
 import { matchCountriesFromOfficeNames } from '@/lib/officeLocations';
 import { classifyJobFunctionFromTitle } from '@/lib/jobCategories';
-import { fetchJobDetail } from '@/lib/atsImport';
+import { fetchJobDetail, isJunkJob, JUNK_PHRASES } from '@/lib/atsImport';
 
 export type PendingPublisher = {
   id: string;
@@ -687,6 +687,9 @@ function isMissingColumnError(error: { message?: string; code?: string } | null)
 
 /** Inserts rows; if the optional new columns don't exist yet, retries without them instead of failing the import. */
 async function insertJobRows(rows: Record<string, unknown>[]): Promise<{ error: { message: string } | null; ids: string[] }> {
+  // Never store a bot-check / "JavaScript is disabled" page as a job.
+  rows = rows.filter((r) => !isJunkJob(r.title as string, r.description as string | null));
+  if (rows.length === 0) return { error: null, ids: [] };
   const first = await supabase.from('sponsored_jobs').insert(rows, { defaultToNull: false }).select('id');
   if (!isMissingColumnError(first.error)) return { error: first.error, ids: ((first.data ?? []) as { id: string }[]).map((r) => r.id) };
   const stripped = rows.map((r) => {
@@ -1018,7 +1021,7 @@ export async function backfillJobFacts(
   shouldStop?: () => boolean,
   options: { refetchThin?: boolean; onlyMissing?: boolean } = {}
 ): Promise<{ ok: boolean; scanned: number; updated: number; counts: Record<string, number>; error?: string; migrationMissing?: boolean }> {
-  const counts: Record<string, number> = { refetched: 0, compensation: 0, experience: 0, employment: 0, workType: 0, visa: 0, posted: 0, department: 0, location: 0 };
+  const counts: Record<string, number> = { junkRemoved: 0, refetched: 0, compensation: 0, experience: 0, employment: 0, workType: 0, visa: 0, posted: 0, department: 0, location: 0 };
   const baseCols =
     'id, title, description, official_url, compensation_text, salary_status, experience_level, employment_type, job_function, city, country_id, source_posted_at, remote, visa_sponsorship';
   const { data: countryRows } = await supabase.from('countries').select('id, iso_code');
@@ -1064,10 +1067,17 @@ export async function backfillJobFacts(
       firstError = res.error.message;
       break;
     }
-    const rows = (res.data ?? []) as unknown as FactRow[];
-    if (rows.length === 0) break;
-    lastId = rows[rows.length - 1].id;
-    scanned += rows.length;
+    const batchRows = (res.data ?? []) as unknown as FactRow[];
+    if (batchRows.length === 0) break;
+    lastId = batchRows[batchRows.length - 1].id;
+    scanned += batchRows.length;
+    // Bot-check pages ("JavaScript is disabled", "not a robot"…) aren't jobs — delete them.
+    const junkIds = batchRows.filter((r) => isJunkJob(r.title, r.description)).map((r) => r.id);
+    if (junkIds.length) {
+      await supabase.from('sponsored_jobs').delete().in('id', junkIds);
+      counts.junkRemoved = (counts.junkRemoved ?? 0) + junkIds.length;
+    }
+    const rows = batchRows.filter((r) => !junkIds.includes(r.id));
 
     // Jobs whose stored description is only a teaser (often just the page
     // title) get their own page re-read: full description + side-column
@@ -1241,4 +1251,31 @@ export async function deleteCompany(
     };
   }
   return { ok: true, jobsDeleted: jobs.deleted };
+}
+
+/**
+ * Deletes "jobs" that are really a blocked page ("JavaScript is disabled",
+ * "verify that you're not a robot", "Access denied"…). The database finds
+ * candidates by phrase; only those few rows are downloaded and re-checked
+ * here, so a long real description that mentions JavaScript is kept.
+ */
+export async function purgeJunkJobs(): Promise<{ removed: number; error?: string }> {
+  const like = (col: string) => JUNK_PHRASES.map((p) => `${col}.ilike.*${p.replace(/ /g, '*')}*`);
+  const filter = [...like('title'), ...like('description'), 'title.ilike.just*a*moment*', 'title.ilike.page*not*found', 'title.ilike.security*check'].join(',');
+  const ids: string[] = [];
+  let lastId: string | null = null;
+  for (let guard = 0; guard < 200; guard++) {
+    let q = supabase.from('sponsored_jobs').select('id, title, description').or(filter).order('id', { ascending: true }).limit(200);
+    if (lastId) q = q.gt('id', lastId);
+    const { data, error } = await q;
+    if (error) return { removed: 0, error: error.message };
+    const rows = (data ?? []) as { id: string; title: string; description: string | null }[];
+    if (rows.length === 0) break;
+    lastId = rows[rows.length - 1].id;
+    for (const r of rows) if (isJunkJob(r.title, r.description)) ids.push(r.id);
+    if (rows.length < 200) break;
+  }
+  if (ids.length === 0) return { removed: 0 };
+  const err = await runChunkedInClause(ids, async (chunk) => await supabase.from('sponsored_jobs').delete().in('id', chunk));
+  return err.error ? { removed: 0, error: err.error } : { removed: ids.length };
 }

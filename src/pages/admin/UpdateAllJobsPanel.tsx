@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Infinity as InfinityIcon, Loader2, Play, RefreshCw, ScanSearch, Square, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { syncImportSource, type ImportSource } from '@/lib/importSync';
-import { backfillJobFacts, type ImportCountryLookup } from '@/lib/admin';
+import { backfillJobFacts, type ImportCountryLookup, purgeJunkJobs } from '@/lib/admin';
 import { countLiveJobs, fetchRecentRuns, saveRun, startRun, type JobUpdateRun } from '@/lib/jobUpdateRuns';
 import { PublicCountBar } from '@/pages/admin/PublicCountBar';
 
@@ -88,6 +88,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
   const [refreshText, setRefreshText] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const stop = useRef(false);
+  const [detectOnly, setDetectOnly] = useState(false);
 
   // ---- Keep jobs updated (auto mode) ----
   // Runs a full update, cleans up jobs closed over 24 h ago, waits, repeats —
@@ -149,6 +150,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
 
   const runAll = async () => {
     if (running || !list.length) return;
+    setDetectOnly(false);
     stop.current = false;
     setError(null);
     setResult(null);
@@ -217,8 +219,13 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
       );
       t.checked = res.scanned;
       t.filled = res.updated;
+      t.removed += res.counts.junkRemoved ?? 0;
       setTotals({ ...t });
       detectError = res.error;
+      // Bot-check pages ("JavaScript is disabled"…) saved earlier → delete.
+      const junk = await purgeJunkJobs();
+      t.removed += junk.removed;
+      setTotals({ ...t });
     }
 
     const liveAfter = await countLiveJobs();
@@ -266,6 +273,60 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
     }
   };
 
+  /** Step 2 only: re-reads every job's description (and removes bot-check pages). */
+  const runDetectOnly = async () => {
+    if (running) return;
+    setDetectOnly(true);
+    stop.current = false;
+    setError(null);
+    setResult(null);
+    setDetect({ done: 0, total: 0 });
+    const t = { fetched: 0, added: 0, removed: 0, failed: 0, checked: 0, filled: 0 };
+    setTotals({ ...t });
+    const t0 = Date.now();
+    setStartedAt(t0);
+    setNow(t0);
+    setPhase('detect');
+    setDetail('Removing bot-check pages…');
+    const junk = await purgeJunkJobs();
+    t.removed += junk.removed;
+    setTotals({ ...t });
+    setDetail('Reading job descriptions…');
+    const res = await backfillJobFacts(
+      (d, total) => {
+        setDetect({ done: d, total });
+        t.checked = d;
+        setTotals({ ...t });
+      },
+      () => stop.current,
+      { onlyMissing: false }
+    );
+    t.checked = res.scanned;
+    t.filled = res.updated;
+    t.removed += res.counts.junkRemoved ?? 0;
+    setTotals({ ...t });
+    const err = res.error ?? junk.error;
+    if (err) setError(err);
+    setResult({
+      id: 'detect-only',
+      started_at: new Date(t0).toISOString(),
+      finished_at: new Date().toISOString(),
+      status: stop.current ? 'stopped' : err ? 'failed' : 'done',
+      sources_total: 0,
+      sources_ok: 0,
+      sources_failed: 0,
+      jobs_fetched: 0,
+      jobs_added: 0,
+      jobs_removed: t.removed,
+      details_checked: t.checked,
+      details_filled: t.filled,
+      error: err ?? null,
+    } as JobUpdateRun);
+    setPhase('finished');
+    setDetail('');
+    onChange();
+  };
+
   const runAllRef = useRef(runAll);
   runAllRef.current = runAll;
   const gapMinRef = useRef(gapMin);
@@ -305,7 +366,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
   const last = runs?.find((r) => r.status !== 'running') ?? null;
   const syncPct = list.length ? syncDone / list.length : 0;
   const detectPct = detect.total ? detect.done / detect.total : phase === 'finished' ? 1 : 0;
-  const overall = phase === 'sync' ? syncPct * 0.7 : phase === 'detect' ? 0.7 + detectPct * 0.3 : phase === 'finished' ? 1 : 0;
+  const overall = detectOnly ? (phase === 'finished' ? 1 : detectPct) : phase === 'sync' ? syncPct * 0.7 : phase === 'detect' ? 0.7 + detectPct * 0.3 : phase === 'finished' ? 1 : 0;
 
   return (
     <section className="mt-6 overflow-hidden rounded-xl border border-ink-800 bg-ink-950 text-white shadow-lg">
@@ -332,6 +393,14 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
             <Square className="h-3.5 w-3.5 fill-current" /> Stop
           </button>
         ) : (
+          <div className="flex flex-wrap gap-2">
+          <button
+            onClick={runDetectOnly}
+            title="Skips fetching. Re-reads every job's description to fill in details, and removes bot-check pages."
+            className="flex items-center gap-2 rounded-lg border border-white/20 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+          >
+            <ScanSearch className="h-4 w-4" /> Detect job details only
+          </button>
           <button
             onClick={runAll}
             disabled={!list.length}
@@ -339,6 +408,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
           >
             <Play className="h-4 w-4 fill-current transition group-hover:scale-110" /> Run full update
           </button>
+          </div>
         )}
       </div>
 
@@ -457,8 +527,8 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
               n={1}
               icon={RefreshCw}
               title={`Fetch from ${list.length} sources`}
-              state={phase === 'sync' ? 'running' : syncDone === 0 && phase !== 'finished' ? 'waiting' : 'done'}
-              progress={`${syncDone} / ${list.length} companies`}
+              state={detectOnly ? 'waiting' : phase === 'sync' ? 'running' : syncDone === 0 && phase !== 'finished' ? 'waiting' : 'done'}
+              progress={detectOnly ? 'Skipped — detect only' : `${syncDone} / ${list.length} companies`}
               pct={syncPct}
             />
             <Step
@@ -466,13 +536,13 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
               icon={ScanSearch}
               title="Detect job details"
               state={phase === 'detect' ? 'running' : phase === 'finished' && result?.status !== 'stopped' ? 'done' : 'waiting'}
-              progress={detect.total ? `${detect.done.toLocaleString()} / ${detect.total.toLocaleString()} jobs` : phase === 'finished' ? 'All jobs already had details' : 'Waiting for step 1'}
+              progress={detect.total ? `${detect.done.toLocaleString()} / ${detect.total.toLocaleString()} jobs` : phase === 'finished' ? 'All jobs already had details' : detectOnly ? 'Starting…' : 'Waiting for step 1'}
               pct={detectPct}
             />
           </div>
 
           {/* Company strip */}
-          <div className="mt-5 flex flex-wrap gap-1.5" aria-label="Companies">
+          <div className={`mt-5 flex-wrap gap-1.5 ${detectOnly ? 'hidden' : 'flex'}`} aria-label="Companies">
             {list.map((s) => {
               const st = states[s.id] ?? 'waiting';
               return (

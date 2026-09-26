@@ -1,5 +1,49 @@
 import DOMPurify from 'dompurify';
 
+// ---------------------------------------------------------------------------
+// Junk pages — bot checks, "JavaScript is disabled", error pages
+// ---------------------------------------------------------------------------
+
+/** Phrases that only appear on bot-check / blocked / error pages, never in a real job. */
+export const JUNK_PHRASES = [
+  'javascript is disabled',
+  'enable javascript',
+  'javascript is required',
+  'requires javascript',
+  'please turn javascript on',
+  'not a robot',
+  'checking your browser',
+  'verify you are human',
+  'are you a human',
+  'attention required',
+  'access denied',
+  'request unsuccessful',
+];
+const JUNK_RE = new RegExp(JUNK_PHRASES.map((p) => p.replace(/ /g, '\\s+')).join('|'), 'i');
+/** Titles that are an error page's title, not a job. */
+const JUNK_TITLE_RE = /^\s*(just a moment\.*|access denied|attention required.*|page not found|not found|40[134]\b.*|error|forbidden|security check|captcha|javascript is disabled)\s*$/i;
+
+function plainText(html: string | null | undefined): string {
+  return String(html ?? '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z#0-9]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * True for "jobs" that are really a blocked page: the title is an error
+ * title, or the title/short description is a bot-check message like
+ * "JavaScript is disabled … verify that you're not a robot".
+ * A long real description that happens to mention JavaScript is kept.
+ */
+export function isJunkJob(title: string | null | undefined, descriptionHtml?: string | null): boolean {
+  const t = String(title ?? '');
+  if (JUNK_TITLE_RE.test(t) || JUNK_RE.test(t)) return true;
+  const text = plainText(descriptionHtml);
+  return text.length > 0 && text.length < 600 && JUNK_RE.test(text);
+}
+
 export type FetchedJob = {
   externalId: string;
   title: string;

@@ -290,6 +290,9 @@ type CareerCandidate = {
 };
 
 const CAREER_WORDS = /(career|careers|jobs|job-search|join-us|joinus|work-with-us|workwithus|vacanc|karriere|stellenangebote|stellen|jobboerse|vacatures|werken-bij|werkenbij|emplois|carriere|carrieres|empleo|trabaja|lavora|carriera|jobb|karriar|praca|kariera)/i;
+/** Account / session / asset links on a jobs host — never a job listing. */
+const NOT_A_LISTING_RE = /\/(services\/security|logout\w*|log-out|signout|sign-out|login|log-in|signin|sign-in|register|account|profile|cookie\w*|privacy|static|assets?)(\/|\?|$)|\.(js|css|png|jpe?g|svg|ico)(\?|$)/i;
+
 const ATS_RE =
   /https?:\/\/(?:[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com\/[^\s"'<>?#]*|[a-z0-9.-]*myworkdaysite\.com\/[^\s"'<>?#]*|(?:boards|job-boards)(?:\.eu)?\.greenhouse\.io\/[a-z0-9_-]+|jobs\.(?:eu\.)?lever\.co\/[a-z0-9_.-]+|jobs\.ashbyhq\.com\/[a-z0-9_.%-]+|(?:jobs|careers)\.smartrecruiters\.com\/[a-z0-9_-]+|[a-z0-9-]+\.(?:fa\.[a-z0-9-]+\.)?oraclecloud\.com\/hcmUI\/CandidateExperience\/[^\s"'<>]*|[a-z0-9-]+\.eightfold\.ai\/careers[^\s"'<>]*|[a-z0-9-]+\.jobs\.personio\.(?:de|com)[^\s"'<>]*|career\d*\.successfactors\.(?:com|eu)\/[^\s"'<>]*|jobs\.[a-z0-9-]+\.[a-z.]+\/[^\s"'<>]*)/gi;
 
@@ -427,13 +430,13 @@ export function findCareerLinks(html: string, base: string, domain: string): { a
   for (const m of html.matchAll(/greenhouse\.io\/embed\/job_board(?:\/js)?\?for=([a-z0-9_-]+)/gi)) ats.add(`https://boards.greenhouse.io/${m[1].toLowerCase()}`);
   for (const m of html.matchAll(ATS_RE)) {
     const u = m[0].replace(/[),.;]+$/, '');
-    if (/greenhouse\.io\/embed\b/i.test(u)) continue;
+    if (/greenhouse\.io\/embed\b/i.test(u) || NOT_A_LISTING_RE.test(u)) continue;
     if (platformOf(u) || ownHost(hostOf(u), domain)) ats.add(u);
   }
   const pages: { url: string; score: number }[] = [];
   for (const m of html.matchAll(/<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]{0,200}?)<\/a>/gi)) {
     const url = absolute(m[1], base);
-    if (!url) continue;
+    if (!url || NOT_A_LISTING_RE.test(url)) continue;
     const text = m[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     if (!CAREER_WORDS.test(url) && !CAREER_WORDS.test(text)) continue;
     const h = hostOf(url);

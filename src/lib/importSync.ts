@@ -16,7 +16,7 @@
 //     rather than the company closing most of its roles overnight.
 
 import { supabase } from '@/lib/supabase';
-import { fetchGreenhouseJobs, fetchJobsFromCareersUrl, sanitizeJobHtml, type FetchedJob } from '@/lib/atsImport';
+import { fetchGreenhouseJobs, fetchJobsFromCareersUrl, isJunkJob, sanitizeJobHtml, type FetchedJob } from '@/lib/atsImport';
 import {
   fetchAllRows,
   importJobsAsPending,
@@ -132,6 +132,22 @@ type FetchAllResult =
   | { ok: false; error: string; aborted?: boolean };
 
 const MAX_CAREERS_BATCHES = 400;
+/** One source may take at most this long; then the update moves on. */
+const SOURCE_TIME_BUDGET_MS = 12 * 60_000;
+/** One Edge Function call that never answers is given up after this. */
+const REQUEST_TIMEOUT_MS = 170_000;
+
+async function withTimeout<T extends { ok: boolean }>(p: Promise<T>, ms: number): Promise<T | { ok: false; error: string }> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<{ ok: false; error: string }>((resolve) => {
+    t = setTimeout(() => resolve({ ok: false, error: `The source didn't answer within ${Math.round(ms / 1000)} s.` }), ms);
+  });
+  try {
+    return await Promise.race([p, timeout]);
+  } finally {
+    clearTimeout(t);
+  }
+}
 
 export async function fetchWholeSource(
   source: Pick<ImportSource, 'kind' | 'source_url' | 'resolved_url' | 'strategy'>,
@@ -142,7 +158,7 @@ export async function fetchWholeSource(
     const res = await fetchGreenhouseJobs(source.source_url);
     if (!res.ok) return { ok: false, error: res.error ?? 'Greenhouse fetch failed.' };
     onProgress?.(res.jobs.length, res.jobs.length);
-    return { ok: true, jobs: res.jobs.map(fetchedJobToImportInput), platform: 'Greenhouse' };
+    return { ok: true, jobs: res.jobs.filter((j) => !isJunkJob(j.title, j.descriptionHtml)).map(fetchedJobToImportInput), platform: 'Greenhouse' };
   }
 
   const all: ImportJobInput[] = [];
@@ -156,9 +172,15 @@ export async function fetchWholeSource(
   let retriedFresh = !cont;
   let platform: string | null = null;
 
+  const deadline = Date.now() + SOURCE_TIME_BUDGET_MS;
+  let emptyBatches = 0;
   for (let batch = 0; batch < MAX_CAREERS_BATCHES; batch++) {
     if (shouldStop?.()) return { ok: false, error: 'Stopped before the source was fully fetched — nothing was removed.', aborted: true };
-    const res = await fetchJobsFromCareersUrl(source.source_url, from, cont);
+    if (Date.now() > deadline) {
+      // Too slow to finish — keep what we have out of removals and move on to the next company.
+      return { ok: false, error: `Took longer than ${Math.round(SOURCE_TIME_BUDGET_MS / 60_000)} min — skipped (nothing was removed). Check the source link.` };
+    }
+    const res = await withTimeout(fetchJobsFromCareersUrl(source.source_url, from, cont), REQUEST_TIMEOUT_MS);
     if (!res.ok) {
       if (!retriedFresh && batch === 0) {
         retriedFresh = true;
@@ -171,14 +193,22 @@ export async function fetchWholeSource(
     if (res.strategy) cont = { resolvedUrl: res.resolvedUrl, strategy: res.strategy };
     if (res.source) platform = res.source;
     if (res.totalHits != null) total = res.totalHits;
+    let fresh = 0;
     for (const j of res.jobs) {
+      if (isJunkJob(j.title, j.descriptionHtml)) continue;
       const key = j.externalId || normalizeJobUrl(j.url);
       if (seen.has(key)) continue;
       seen.add(key);
       all.push(fetchedJobToImportInput(j));
+      fresh++;
     }
     onProgress?.(all.length, total);
-    if (!res.nextFrom) return { ok: true, jobs: all, resolvedUrl: cont?.resolvedUrl ?? null, strategy: cont?.strategy ?? null, platform };
+    const done = { ok: true as const, jobs: all, resolvedUrl: cont?.resolvedUrl ?? null, strategy: cont?.strategy ?? null, platform };
+    if (!res.nextFrom) return done;
+    // Some sites ignore the page number and return page 1 again. Two
+    // batches in a row with nothing new = we already have everything.
+    emptyBatches = fresh === 0 ? emptyBatches + 1 : 0;
+    if (emptyBatches >= 2 || res.nextFrom <= from) return done;
     from = res.nextFrom;
   }
   return { ok: false, error: `Stopped after ${MAX_CAREERS_BATCHES} batches without reaching the end — nothing was removed.` };

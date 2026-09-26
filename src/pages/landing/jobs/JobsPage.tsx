@@ -1,11 +1,10 @@
+import { JobAgeBadge } from '@/components/common/JobAgeBadge';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   BadgeCheck,
   Briefcase,
   ChevronDown,
-  Clock,
-  Flame,
   Globe2,
   GraduationCap,
   Loader2,
@@ -46,22 +45,6 @@ type DatePostedOption = (typeof DATE_POSTED_OPTIONS)[number];
 type SortOption = 'newest' | 'relevant';
 
 const PAGE_SIZE = 12;
-
-function formatDateTag(iso: string | null | undefined): { text: string; tier: 'today' | 'yesterday' | 'older' } | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-
-  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / (1000 * 60 * 60 * 24));
-
-  if (diffDays <= 0) return { text: 'Added today', tier: 'today' };
-  if (diffDays === 1) return { text: 'Added yesterday', tier: 'yesterday' };
-
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return { text: `${dd}/${mm}/${d.getFullYear()}`, tier: 'older' };
-}
 
 function withinDateWindow(iso: string | null | undefined, window: DatePostedOption): boolean {
   if (window === 'Any time') return true;
@@ -156,31 +139,21 @@ function JobLogo({ job, size = 48 }: { job: Job; size?: number }) {
   );
 }
 
-function DateTag({ job }: { job: Job }) {
-  const tag = formatDateTag(job.postedDate);
-  if (!tag) return null;
-
-  if (tag.tier === 'today') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded bg-orange-600 px-1.5 py-[3px] text-[10px] font-bold tracking-wide text-white">
-        <Flame className="h-3 w-3" strokeWidth={2.5} />
-        {tag.text}
-      </span>
-    );
-  }
-  if (tag.tier === 'yesterday') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded bg-emerald-600 px-1.5 py-[3px] text-[10px] font-bold tracking-wide text-white">
-        {tag.text}
-      </span>
-    );
-  }
+/** A small on/off switch for a quick filter. */
+function FilterSwitch({ on, onChange, icon: Icon, label }: { on: boolean; onChange: (v: boolean) => void; icon: typeof Plane; label: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded bg-ink-100 px-1.5 py-[3px] text-[10px] font-semibold tracking-wide text-ink-600">
-      <Clock className="h-3 w-3" />
-      {tag.text}
-    </span>
+    <button type="button" role="switch" aria-checked={on} onClick={() => onChange(!on)} className="group flex items-center gap-2 text-xs font-semibold">
+      <span className={`relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors duration-200 ${on ? 'bg-[#1D4ED8]' : 'bg-ink-200 group-hover:bg-ink-300'}`}>
+        <span className={`absolute left-0.5 h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${on ? 'translate-x-3.5' : ''}`} />
+      </span>
+      <Icon className={`h-3.5 w-3.5 ${on ? 'text-[#1D4ED8]' : 'text-ink-400'}`} />
+      <span className={on ? 'text-ink-900' : 'text-ink-600 group-hover:text-ink-900'}>{label}</span>
+    </button>
   );
+}
+
+function DateTag({ job }: { job: Job }) {
+  return <JobAgeBadge iso={job.postedDate} />;
 }
 
 function SourceLabel({ job }: { job: Job }) {
@@ -870,63 +843,44 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
             </p>
           </div>
 
-          <div className="flex items-center gap-1 rounded-md border border-ink-200 bg-white p-1">
-            <button
-              type="button"
-              onClick={() => setSortBy('newest')}
-              className={`rounded px-3 py-1.5 text-xs font-semibold transition ${sortBy === 'newest' ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-50'}`}
-            >
-              Newest
-            </button>
-            <button
-              type="button"
-              onClick={() => setSortBy('relevant')}
-              className={`rounded px-3 py-1.5 text-xs font-semibold transition ${sortBy === 'relevant' ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-50'}`}
-            >
-              Most relevant
-            </button>
+          <div className="flex flex-col items-stretch gap-2.5 sm:items-end">
+            <div className="flex items-center gap-1 rounded-md border border-ink-200 bg-white p-1">
+              <button
+                type="button"
+                onClick={() => setSortBy('newest')}
+                className={`rounded px-3 py-1.5 text-xs font-semibold transition ${sortBy === 'newest' ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-50'}`}
+              >
+                Newest
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortBy('relevant')}
+                className={`rounded px-3 py-1.5 text-xs font-semibold transition ${sortBy === 'relevant' ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-50'}`}
+              >
+                Most relevant
+              </button>
+            </div>
+            {/* Quick filters — switches under the sort */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:justify-end">
+              {studentCount > 0 && (
+                <FilterSwitch
+                  on={studentOnly}
+                  onChange={setStudentOnly}
+                  icon={GraduationCap}
+                  label={`Students & interns${sponsoredComplete ? ` (${studentCount.toLocaleString()})` : ''}`}
+                />
+              )}
+              {visaCount > 0 && (
+                <FilterSwitch on={visaOnly} onChange={setVisaOnly} icon={Plane} label={`Visa sponsorship${sponsoredComplete ? ` (${visaCount.toLocaleString()})` : ''}`} />
+              )}
+              {directJobs.length > 0 && (
+                <FilterSwitch on={directOnly} onChange={setDirectOnly} icon={BadgeCheck} label={`Direct from companies (${directJobs.length})`} />
+              )}
+            </div>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {studentCount > 0 && (
-            <button
-              type="button"
-              aria-pressed={studentOnly}
-              onClick={() => setStudentOnly((v) => !v)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                studentOnly ? 'bg-violet-600 text-white' : 'bg-violet-50 text-violet-700 ring-1 ring-violet-200 hover:bg-violet-100'
-              }`}
-            >
-              <GraduationCap className="h-3.5 w-3.5" />
-              Students &amp; interns{sponsoredComplete ? ` (${studentCount.toLocaleString()})` : ''}
-            </button>
-          )}
-          {visaCount > 0 && (
-            <button
-              type="button"
-              aria-pressed={visaOnly}
-              onClick={() => setVisaOnly((v) => !v)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                visaOnly ? 'bg-sky-600 text-white' : 'bg-sky-50 text-sky-700 ring-1 ring-sky-200 hover:bg-sky-100'
-              }`}
-            >
-              <Plane className="h-3.5 w-3.5" />
-              Visa sponsorship{sponsoredComplete ? ` (${visaCount.toLocaleString()})` : ''}
-            </button>
-          )}
-          {directJobs.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setDirectOnly((v) => !v)}
-              className={`flex shrink-0 items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                directOnly ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100'
-              }`}
-            >
-              <BadgeCheck className="h-3.5 w-3.5" />
-              Direct from companies ({directJobs.length})
-            </button>
-          )}
           <button
             type="button"
             onClick={() => setCategory('All categories')}

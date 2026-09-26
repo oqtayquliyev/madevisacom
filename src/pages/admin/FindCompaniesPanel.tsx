@@ -42,6 +42,8 @@ type Row = {
   icons: string[];
   proven: ProvenSource | null;
   selected: boolean;
+  /** A career-page link typed in by hand. */
+  manualUrl?: string;
 };
 
 const CONCURRENCY = 3;
@@ -225,8 +227,25 @@ export function FindCompaniesPanel({
     setPhase('idle');
   };
 
-  const addSelected = async () => {
-    const chosen = rows.filter((r) => r.selected && r.proven && r.state === 'found');
+  const addSelected = () => addRows(rows.filter((r) => r.selected && r.proven && r.state === 'found'), importNow);
+
+  /** A career-page link you pasted: proven with the real importer before it counts. */
+  const tryManualLink = async (r: Row, raw: string) => {
+    const url = /^https?:\/\//i.test(raw.trim()) ? raw.trim() : `https://${raw.trim()}`;
+    try {
+      new URL(url);
+    } catch {
+      patch(r.key, { note: 'That doesn’t look like a web address.' });
+      return;
+    }
+    patch(r.key, { state: 'searching', note: `Checking ${hostOf(url)}…`, manualUrl: url });
+    const proven = await proveCareerSource([{ kind: 'careers_url', url, platform: null, evidence: 'website', jobs: null }]).catch(() => null);
+    patch(r.key, proven
+      ? { state: 'found', proven, reason: undefined, selected: true, note: undefined }
+      : { state: 'notfound', proven: null, note: 'No jobs found at that link — try the page that lists the jobs.' });
+  };
+
+  const addRows = async (chosen: Row[], withImport: boolean) => {
     if (!chosen.length) return;
     setError(null);
     setPhase('adding');
@@ -249,7 +268,7 @@ export function FindCompaniesPanel({
         patch(r.key, { state: 'failed', note: res.error });
       }
     }
-    if (importNow && created.length && !stop.current) {
+    if (withImport && created.length && !stop.current) {
       setPhase('importing');
       let next = 0;
       let done = 0;
@@ -285,7 +304,7 @@ export function FindCompaniesPanel({
         })
       );
     }
-    setMessage(`Added ${created.length} compan${created.length === 1 ? 'y' : 'ies'}${failed ? ` · ${failed} failed` : ''}${importNow && created.length ? ' · jobs imported to pending' : ''}.`);
+    setMessage(`Added ${created.length} compan${created.length === 1 ? 'y' : 'ies'}${failed ? ` · ${failed} failed` : ''}${withImport && created.length ? ' · jobs imported to pending' : ''}.`);
     setPhase('idle');
     onChange();
   };
@@ -545,7 +564,7 @@ export function FindCompaniesPanel({
                 </thead>
                 <tbody className="divide-y divide-ink-100">
                   {visible.map((r) => (
-                    <ResultRow key={r.key} row={r} busy={busy} onPatch={(p) => patch(r.key, p)} />
+                    <ResultRow key={r.key} row={r} busy={busy} onPatch={(p) => patch(r.key, p)} onLink={(u) => tryManualLink(r, u)} onAdd={() => addRows([r], true)} />
                   ))}
                 </tbody>
               </table>
@@ -575,7 +594,8 @@ export function FindCompaniesPanel({
   );
 }
 
-function ResultRow({ row: r, busy, onPatch }: { row: Row; busy: boolean; onPatch: (p: Partial<Row>) => void }) {
+function ResultRow({ row: r, busy, onPatch, onLink, onAdd }: { row: Row; busy: boolean; onPatch: (p: Partial<Row>) => void; onLink: (url: string) => void; onAdd: () => void }) {
+  const canEditLink = (r.state === 'notfound' || r.state === 'error' || (r.state === 'found' && Boolean(r.manualUrl))) && !busy;
   const canSelect = r.state === 'found' && !busy;
   const muted = r.state === 'existing' || r.state === 'added';
   const conf = r.proven?.confidence;
@@ -640,6 +660,7 @@ function ResultRow({ row: r, busy, onPatch }: { row: Row; busy: boolean; onPatch
         ) : (
           <span className={r.state === 'failed' || r.state === 'error' ? 'text-rose-600' : 'text-ink-400'}>{r.note ?? '—'}</span>
         )}
+        {canEditLink && <ManualLink initial={r.manualUrl ?? ''} onCheck={onLink} />}
         {(r.state === 'added' || r.state === 'failed') && r.note && <p className={r.state === 'failed' ? 'text-rose-600' : 'text-emerald-700'}>{r.note}</p>}
       </td>
       <td className="px-2 py-2.5 align-top font-slab text-base font-bold tabular-nums text-ink-950">
@@ -657,6 +678,14 @@ function ResultRow({ row: r, busy, onPatch }: { row: Row; busy: boolean; onPatch
           <span className="flex items-center gap-1 text-xs font-bold text-brand-700">
             <Check className="h-3.5 w-3.5" /> Added
           </span>
+        ) : r.state === 'found' && r.manualUrl ? (
+          <button
+            onClick={onAdd}
+            disabled={busy}
+            className="flex items-center gap-1 whitespace-nowrap rounded-md bg-brand-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-brand-700 disabled:opacity-40"
+          >
+            <Check className="h-3.5 w-3.5" /> Add &amp; sync
+          </button>
         ) : conf ? (
           <span
             title={
@@ -673,5 +702,29 @@ function ResultRow({ row: r, busy, onPatch }: { row: Row; busy: boolean; onPatch
         ) : null}
       </td>
     </tr>
+  );
+}
+
+/** Paste a career-page link for a company the search couldn't place, then check it. */
+function ManualLink({ initial, onCheck }: { initial: string; onCheck: (url: string) => void }) {
+  const [v, setV] = useState(initial);
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (v.trim()) onCheck(v);
+      }}
+      className="mt-1.5 flex items-center gap-1"
+    >
+      <input
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        placeholder="Paste career page link…"
+        className="h-7 w-full min-w-0 rounded border border-ink-200 bg-white px-2 text-[11px] text-ink-800 outline-none focus:border-brand-500"
+      />
+      <button type="submit" disabled={!v.trim()} className="h-7 shrink-0 rounded bg-ink-900 px-2 text-[11px] font-bold text-white hover:bg-ink-700 disabled:opacity-30">
+        Check
+      </button>
+    </form>
   );
 }
