@@ -12,8 +12,6 @@ import {
   ExternalLink,
   Info,
   Landmark,
-  MapPin,
-  Scale,
   Search,
   Users,
 } from 'lucide-react';
@@ -21,6 +19,7 @@ import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
+import { HireCountries } from '@/components/companies/HireCountries';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { fetchCompanyBySlug, fetchCompanyInsights, type CompanyInsights, type CompanyProfile } from '@/lib/companies';
 import { fetchPublishedJobsByPublisher, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
@@ -214,11 +213,11 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
           <p className="truncate text-[20px] font-medium text-ink-900 sm:text-[24px]">{company.name}</p>
           <div className="hidden items-center gap-5 lg:flex">{pills}</div>
           <button
-            onClick={() => nav(`/companies?compare=${company.id}`)}
+            onClick={() => scrollTo('listings')}
             tabIndex={compact ? 0 : -1}
             className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#1D4ED8] px-4 py-2 text-[15px] font-semibold text-white hover:bg-brand-700"
           >
-            <Scale className="h-4 w-4" /> Compare
+            <Briefcase className="h-4 w-4" /> Open jobs
           </button>
         </div>
       </div>
@@ -245,6 +244,9 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
                 </h1>
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-2">{heroPills}</div>
               </div>
+              {i && i.top_countries.length > 0 && (
+                <HireCountries countries={i.top_countries} max={4} tone="dark" size={20} className="mt-2" />
+              )}
               {company.description && <p className="mt-3 line-clamp-3 max-w-5xl text-[16px] leading-7 text-white/85">{company.description}</p>}
               <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-[15px] text-white/90">
                 <span className="flex items-center gap-2">
@@ -258,11 +260,6 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
                 {company.country && (
                   <span className="flex items-center gap-2">
                     <CircleFlag countryCode={company.country.iso_code} label={company.country.name} size={18} /> {company.country.name}
-                  </span>
-                )}
-                {i && i.top_countries.length > 0 && !company.country && (
-                  <span className="flex items-center gap-2">
-                    <MapPin className="h-[18px] w-[18px] text-ink-400" /> Hiring in {i.top_countries.map((c) => c.name).slice(0, 3).join(', ')}
                   </span>
                 )}
                 {i?.first_listed && (
@@ -285,14 +282,6 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
                   ))}
                 </div>
               )}
-            </div>
-            <div className="flex shrink-0 gap-2 self-start">
-              <button
-                onClick={() => nav(`/companies?compare=${company.id}`)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white px-5 py-2.5 text-[15px] font-bold text-brand-700 transition hover:scale-[1.03] hover:bg-brand-50"
-              >
-                <Scale className="h-4 w-4" /> Compare
-              </button>
             </div>
           </div>
         </div>

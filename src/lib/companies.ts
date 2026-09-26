@@ -72,6 +72,13 @@ export type DirectoryCompany = {
   response_rate: number | null;
   avg_response_days: number | null;
   last_listed: string | null;
+  /** v2 fields (20261019090000 migration) — absent on the old RPC. */
+  country_code?: string | null;
+  new_30d?: number;
+  /** Listings posted per week, last 12 weeks, oldest first. */
+  weekly?: number[];
+  countries?: { code: string; name: string; n: number }[];
+  country_count?: number;
 };
 
 export function companyPath(c: { id: string; name: string }): string {
@@ -107,6 +114,9 @@ export async function fetchCompanyInsights(publisherId: string): Promise<Company
 }
 
 export async function fetchCompaniesDirectory(): Promise<DirectoryCompany[] | null> {
+  const v2 = await supabase.rpc('companies_directory_v2');
+  if (!v2.error) return (v2.data ?? []) as DirectoryCompany[];
+  console.warn('companies_directory_v2 unavailable (run the 20261019090000 migration)', v2.error.message);
   const { data, error } = await supabase.rpc('companies_directory');
   if (error) {
     console.warn('companies_directory unavailable (run the 20260928090000 migration)', error.message);

@@ -580,3 +580,32 @@ export function weekLabels(weeks: number): string[] {
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   });
 }
+
+/**
+ * Small area sparkline — the "hiring performance" line on directory cards.
+ * Last point is marked; no axes.
+ */
+export function MiniArea({ values, width = 120, height = 40, className = '' }: { values: number[]; width?: number; height?: number; className?: string }) {
+  const gid = useId().replace(/:/g, '');
+  if (values.length < 2) return null;
+  const max = Math.max(1, ...values);
+  const pad = 3;
+  const step = (width - pad * 2) / (values.length - 1);
+  const pts = values.map((v, i) => [pad + i * step, height - pad - (v / max) * (height - pad * 2)] as const);
+  const line = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const area = `${line} L${pts[pts.length - 1][0].toFixed(1)},${height} L${pts[0][0].toFixed(1)},${height} Z`;
+  const [lx, ly] = pts[pts.length - 1];
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} className={`overflow-visible ${className}`} aria-hidden="true">
+      <defs>
+        <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={MV_BLUE} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={MV_BLUE} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${gid})`} />
+      <path d={line} fill="none" stroke={MV_BLUE} strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={lx} cy={ly} r="2.75" fill="#fff" stroke={MV_BLUE} strokeWidth="1.75" />
+    </svg>
+  );
+}

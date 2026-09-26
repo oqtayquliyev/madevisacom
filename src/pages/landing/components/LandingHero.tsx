@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { SoonChip, SOON_VIEWS } from '@/components/common/SoonChip';
+import { SOON_VIEWS } from '@/components/common/SoonChip';
 import { SponsoredAdsSection } from './SponsoredAdsSection';
 import { createPortal } from 'react-dom';
 import {
@@ -64,6 +64,38 @@ const journeyDescriptions: Record<Journey, string> = {
   family: 'Find pathways for moving with your family.',
   relocation: 'Find real job vacancies abroad.',
 };
+
+const SOON_COPY: Partial<Record<Journey, { title: string; text: string; points: string[] }>> = {
+  programs: {
+    title: 'All official programs, in one place.',
+    text: 'Government, work and talent programs from every country — connected here.',
+    points: ['Official sources only', 'Clear requirements', 'Visa steps included'],
+  },
+  study: {
+    title: 'All study options, in one place.',
+    text: 'Universities, scholarships and courses abroad — connected here.',
+    points: ['Scholarships & funding', 'Entry requirements', 'Student visa steps'],
+  },
+};
+
+function SoonTeaser({ journey }: { journey: Journey }) {
+  const copy = SOON_COPY[journey];
+  if (!copy) return null;
+  return (
+    <div className="px-5 py-10 text-center sm:px-8 sm:py-14">
+      <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-700">Soon</span>
+      <h2 className="mx-auto mt-4 max-w-2xl text-2xl font-bold text-ink-950 sm:text-3xl">{copy.title}</h2>
+      <p className="mx-auto mt-2 max-w-lg text-sm text-ink-500 sm:text-base">{copy.text}</p>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        {copy.points.map((p) => (
+          <span key={p} className="flex items-center gap-1.5 rounded-full border border-brand-100 bg-brand-50/60 px-3 py-1.5 text-xs font-semibold text-brand-700">
+            <CheckCircle2 className="h-3.5 w-3.5" /> {p}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function PortalCountryPicker({
   label,
@@ -473,21 +505,18 @@ export function LandingHero(_props: LandingHeroProps) {
                   className={`flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition sm:px-4 sm:py-2 sm:text-sm ${
                     active
                       ? 'border-brand-600 bg-brand-600 text-white shadow-sm'
-                      : SOON_VIEWS.has(journey.id)
-                        ? 'border-ink-200 bg-white text-ink-400 hover:text-ink-600'
-                        : 'border-ink-200 bg-white text-ink-600 hover:border-brand-300 hover:text-brand-700'
+                      : 'border-ink-200 bg-white text-ink-600 hover:border-brand-300 hover:text-brand-700'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
                   {journey.label}
-                  {SOON_VIEWS.has(journey.id) && <SoonChip className={active ? '!bg-white/20 !text-white' : ''} />}
-                  {journey.id === 'relocation' && new24hCount > 0 && (
+                  {(SOON_VIEWS.has(journey.id) || (journey.id === 'relocation' && new24hCount > 0)) && (
                     <span
                       className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
                         active ? 'bg-white/20 text-white' : 'bg-brand-50 text-brand-700'
                       }`}
                     >
-                      {new24hCount > 10 ? '10+' : new24hCount} new
+                      {SOON_VIEWS.has(journey.id) ? 'Soon' : `${new24hCount > 99 ? '99+' : new24hCount} new`}
                     </span>
                   )}
                 </button>
@@ -496,7 +525,9 @@ export function LandingHero(_props: LandingHeroProps) {
 
           </div>
 
-        {activeJourney === 'relocation' ? (
+        {SOON_VIEWS.has(activeJourney) ? (
+          <SoonTeaser journey={activeJourney} />
+        ) : activeJourney === 'relocation' ? (
           <LocationMatchSection
             items={matchItems}
             itemsComplete={matchItemsComplete}
