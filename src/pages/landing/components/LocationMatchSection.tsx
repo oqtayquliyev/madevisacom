@@ -18,7 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/costEstimates';
-import { countJobsPublishedSince, fetchNewestPublishedJobs, fetchPublishedSponsoredJobs, isClosedJob, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { countJobsPublishedSince, fetchLandingJobs, fetchPublishedSponsoredJobs, isClosedJob, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { fetchSponsoredPrograms } from '@/lib/programs';
 import { formatCost } from '@/lib/listingCategories';
 import { stripHtml } from '@/lib/atsImport';
@@ -38,7 +38,7 @@ export type MatchItem =
  * 5 boxes. The full list is only loaded on /jobs for signed-in visitors.
  */
 export async function fetchLandingItems(): Promise<MatchItem[]> {
-  const jobs = await fetchNewestPublishedJobs(80);
+  const jobs = await fetchLandingJobs(5);
   return buildMatchItems(jobs, []);
 }
 
@@ -452,7 +452,7 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
             src={item.imageUrl!}
             alt=""
             onError={() => setImgFailed(true)}
-            className="h-14 w-14 shrink-0 rounded object-cover"
+            className="h-14 w-14 shrink-0 rounded border border-ink-100 bg-white object-contain p-1"
           />
         ) : (
           <span className="grid h-14 w-14 shrink-0 place-items-center rounded" style={{ backgroundColor: '#2563EB' }}>

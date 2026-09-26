@@ -288,6 +288,36 @@ export async function fetchNewestPublishedJobs(limit = 60): Promise<SponsoredJob
   return (data ?? []) as unknown as SponsoredJob[];
 }
 
+/**
+ * Landing page: 5 jobs from 5 different companies, each with a salary and
+ * a logo (landing_job_ids, migration 20261026090000). Cached for 2 hours
+ * in the browser. Falls back to the newest jobs if the function is missing.
+ */
+export async function fetchLandingJobs(n = 5): Promise<SponsoredJob[]> {
+  const KEY = 'mv:landingJobs';
+  try {
+    const raw = window.localStorage.getItem(KEY);
+    if (raw) {
+      const saved = JSON.parse(raw) as { at: number; rows: SponsoredJob[] };
+      if (Date.now() - saved.at < 2 * 3_600_000 && saved.rows?.length) return stillLive(saved.rows);
+    }
+  } catch {
+    /* ignore */
+  }
+  const { data: ids, error } = await supabase.rpc('landing_job_ids', { n });
+  if (error || !Array.isArray(ids) || !ids.length) return fetchNewestPublishedJobs(80);
+  const { data, error: e2 } = await supabase.from('sponsored_jobs').select(LIST_COLUMNS).in('id', ids as string[]);
+  if (e2 || !data?.length) return fetchNewestPublishedJobs(80);
+  const order = new Map((ids as string[]).map((id, i) => [id, i]));
+  const rows = (data as unknown as SponsoredJob[]).sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), rows }));
+  } catch {
+    /* ignore */
+  }
+  return rows;
+}
+
 /** How many jobs went live on MadeVisa between `fromIso` and `toIso` (indexed count). */
 export async function countJobsPublishedSince(fromIso: string, toIso?: string): Promise<number | null> {
   let q = supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('created_at', fromIso);
