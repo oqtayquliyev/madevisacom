@@ -22,7 +22,8 @@ import { Logo } from '@/components/layout/Logo';
 import { categories, countries, jobTypes, type Job } from '@/data/jobs';
 import { DISCOVERY_CATEGORIES, displayJobCategory, isMeaningfulJobType, isStudentOrInternJob, matchesDiscoveryCategory } from '@/lib/jobCategories';
 import { moveToBack, recencyBucket, recentlyShownIds, rememberShown, visitShuffle } from '@/lib/feedRotation';
-import { useSiteStats } from '@/lib/siteStats';
+import { useAuth } from '@/lib/auth';
+import { rememberAuthIntent } from '@/lib/authIntent';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
@@ -83,35 +84,6 @@ function interleaveByCompany(jobs: Job[]): Job[] {
   return result;
 }
 
-function activeFilterCountFor(f: {
-  country: string;
-  category: string;
-  jobType: string;
-  remoteOnly: boolean;
-  city: string;
-  company: string;
-  salaryOnly: boolean;
-  experienceLevel: string;
-  datePosted: string;
-  directOnly: boolean;
-  studentOnly: boolean;
-  visaOnly: boolean;
-}): number {
-  return (
-    Number(f.country !== 'All countries') +
-    Number(f.category !== 'All categories') +
-    Number(f.jobType !== 'All types') +
-    Number(f.remoteOnly) +
-    Number(Boolean(f.city)) +
-    Number(Boolean(f.company)) +
-    Number(f.salaryOnly) +
-    Number(f.experienceLevel !== 'All levels') +
-    Number(f.datePosted !== 'Any time') +
-    Number(f.directOnly) +
-    Number(f.studentOnly) +
-    Number(f.visaOnly)
-  );
-}
 
 const PLACEHOLDER_PLACE = /^(?:all|any|various|multiple(?: locations)?|n\/?a|none|-)$/i;
 
@@ -374,8 +346,8 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   const [sponsoredJobs, setSponsoredJobs] = useState<Job[]>([]);
   const [loadingSponsored, setLoadingSponsored] = useState(true);
   // False while showing a cached copy / the first page and the full list is still loading.
-  const [sponsoredComplete, setSponsoredComplete] = useState(false);
-  const siteStats = useSiteStats();
+  const [, setSponsoredComplete] = useState(false);
+  const { session } = useAuth();
 
   useEffect(() => {
     let cancelled = false;
@@ -478,7 +450,6 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
 
   const filteredJobs = useMemo(() => withClosedLast(filterAndSort()), // eslint-disable-next-line react-hooks/exhaustive-deps
   [allJobs, search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly, shownBefore, viewedAtLoad]);
-  const openCount = useMemo(() => filteredJobs.filter((j) => !j.closed).length, [filteredJobs]);
 
   function filterAndSort(): Job[] {
     const normalizedSearch = search.trim().toLowerCase();
@@ -569,20 +540,16 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     if (unfiltered && !loadingSponsored) rememberShown('jobs', filteredJobs.slice(0, PAGE_SIZE).map((j) => j.id));
   }, [unfiltered, loadingSponsored, filteredJobs]);
 
-  // Headline number: with no filters, the hourly snapshot (instant and the
-  // same as the landing page). With filters, the real match count — shown
-  // once the full list is in, never a partial number that climbs.
-  const noFilters = activeFilterCountFor({ country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, directOnly, studentOnly, visaOnly }) === 0 && !search.trim();
-  const headlineCount: number | null = noFilters
-    ? siteStats?.publishedJobs ?? (sponsoredComplete ? openCount : null)
-    : sponsoredComplete
-      ? openCount
-      : null;
-
   const visibleJobs = filteredJobs.slice(0, visibleCount);
   const hasMore = visibleCount < filteredJobs.length;
 
   const handleShowMore = () => {
+    // Guests see the first page; more pages need a (free, email-code) account.
+    if (!session) {
+      rememberAuthIntent({ reason: 'more-jobs', next: window.location.pathname + window.location.search });
+      onAuth?.('register');
+      return;
+    }
     setLoadingMore(true);
     window.setTimeout(() => {
       setVisibleCount((v) => v + PAGE_SIZE);
@@ -835,11 +802,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
           <div>
             <h2 className="text-lg font-bold text-ink-900">Jobs in demand</h2>
             <p className="mt-0.5 flex items-center gap-1.5 text-sm text-ink-500">
-              {headlineCount != null ? (
-                <>{headlineCount.toLocaleString()} opportunities</>
-              ) : (
-                <span className="skeleton-shimmer inline-block h-4 w-32 rounded" aria-label="Counting opportunities" />
-              )}
+              Straight from company career pages, updated every day
             </p>
           </div>
 
@@ -867,14 +830,14 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
                   on={studentOnly}
                   onChange={setStudentOnly}
                   icon={GraduationCap}
-                  label={`Students & interns${sponsoredComplete ? ` (${studentCount.toLocaleString()})` : ''}`}
+                  label="Students & interns"
                 />
               )}
               {visaCount > 0 && (
-                <FilterSwitch on={visaOnly} onChange={setVisaOnly} icon={Plane} label={`Visa sponsorship${sponsoredComplete ? ` (${visaCount.toLocaleString()})` : ''}`} />
+                <FilterSwitch on={visaOnly} onChange={setVisaOnly} icon={Plane} label="Visa sponsorship" />
               )}
               {directJobs.length > 0 && (
-                <FilterSwitch on={directOnly} onChange={setDirectOnly} icon={BadgeCheck} label={`Direct from companies (${directJobs.length})`} />
+                <FilterSwitch on={directOnly} onChange={setDirectOnly} icon={BadgeCheck} label="Direct from companies" />
               )}
             </div>
           </div>

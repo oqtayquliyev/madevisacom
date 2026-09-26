@@ -11,20 +11,14 @@ import {
   ArrowLeftRight,
   TrendingUp,
   Building2,
-  ArrowRight,
-  ChevronDown,
   Search,
   ChevronRight,
-  Globe2,
   Info,
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { allCountries } from '@/data/allCountries';
 import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/costEstimates';
 import { fetchPublishedSponsoredJobs, isClosedJob, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
-import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
-import { useSiteStats } from '@/lib/siteStats';
 import { fetchSponsoredPrograms } from '@/lib/programs';
 import { formatCost } from '@/lib/listingCategories';
 import { stripHtml } from '@/lib/atsImport';
@@ -119,81 +113,6 @@ function iconFor(category: string, kind: 'job' | 'program'): LucideIcon {
   return kind === 'job' ? Briefcase : Building2;
 }
 
-/** Compact flag button that opens a searchable country dropdown. */
-function FlagSwitcher({
-  code,
-  placeholder,
-  onSelect,
-  allowAny,
-}: {
-  code: string | null;
-  placeholder: string;
-  onSelect: (code: string | null) => void;
-  allowAny?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const country = allCountries.find((c) => c.code === code);
-  const filtered = allCountries.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-sm font-semibold text-ink-800 hover:border-brand-300"
-      >
-        {country ? (
-          <CircleFlag countryCode={country.code} label={country.name} size={28} />
-        ) : (
-          <span className="grid h-7 w-7 place-items-center rounded-full bg-ink-100 text-ink-400">
-            <Globe2 className="h-4 w-4" />
-          </span>
-        )}
-        {country?.name ?? placeholder}
-        <ChevronDown className="h-3.5 w-3.5 text-ink-400" />
-      </button>
-
-      {open && (
-        <>
-          <button type="button" aria-label="Close" onClick={() => setOpen(false)} className="fixed inset-0 z-30 cursor-default" />
-          <div className="absolute left-0 top-full z-40 mt-2 w-64 rounded-md border border-ink-200 bg-white p-2 shadow-xl">
-            <input
-              autoFocus
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search countries…"
-              className="mb-1 h-9 w-full rounded-md border border-ink-200 px-2 text-sm outline-none focus:border-brand-500"
-            />
-            <div className="max-h-64 overflow-auto">
-              {allowAny && (
-                <button
-                  type="button"
-                  onClick={() => { onSelect(null); setOpen(false); setSearch(''); }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
-                >
-                  <Globe2 className="h-5 w-5 text-ink-400" />
-                  All destinations
-                </button>
-              )}
-              {filtered.map((c) => (
-                <button
-                  key={c.code}
-                  type="button"
-                  onClick={() => { onSelect(c.code); setOpen(false); setSearch(''); }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm font-medium text-ink-700 hover:bg-ink-50"
-                >
-                  <CircleFlag countryCode={c.code} label={c.name} size={20} />
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 /**
  * Landing preview: the most recently shared jobs that show a salary — one
@@ -295,87 +214,53 @@ export function LocationMatchSection({
   items,
   itemsComplete = true,
   originCode,
-  originName,
-  setOriginCountry,
 }: {
   items: MatchItem[] | null;
   /** False while `items` is a cached copy / first page and the full list is still loading. */
   itemsComplete?: boolean;
   originCode: string | null;
-  originName: string | null;
-  setOriginCountry: (code: string) => void;
+  /** No longer used — the landing page has no country pickers. */
+  originName?: string | null;
+  setOriginCountry?: (code: string) => void;
 }) {
-  const [destinationCode, setDestinationCode] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-
-  const destinationCountry = allCountries.find((c) => c.code === destinationCode);
-  const visibleItems = useMemo(
-    () => items?.filter((item) => !destinationCode || item.countryCode === destinationCode) ?? null,
-    [items, destinationCode]
-  );
+  const visibleItems = items;
   const shownBefore = useMemo(() => recentlyShownIds('landing'), []);
-  const shownItems = useMemo(() => (visibleItems ? pickRecentWithSalary(visibleItems, 4, shownBefore) : null), [visibleItems, shownBefore]);
+  const shownItems = useMemo(() => (visibleItems ? pickRecentWithSalary(visibleItems, 5, shownBefore) : null), [visibleItems, shownBefore]);
   useEffect(() => {
-    if (shownItems?.length && !destinationCode) rememberShown('landing', shownItems.map((i) => i.id));
-  }, [shownItems, destinationCode]);
-  const countryParam = destinationCountry ? `?country=${encodeURIComponent(destinationCountry.name)}` : '';
+    if (shownItems?.length) rememberShown('landing', shownItems.map((i) => i.id));
+  }, [shownItems]);
 
-  // The headline number is exactly what /jobs lists: MadeVisa jobs plus
-  // the same live-feed jobs (one shared request) — programs aren't jobs,
-  // so they're not in this count.
-  const [liveJobs, setLiveJobs] = useState<Job[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    fetchArbeitnowJobs(20).then((jobs) => !cancelled && setLiveJobs(jobs));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  // Worldwide: the hourly snapshot (same number /jobs shows, instant, no
-  // climbing while jobs load). For one destination: counted from the list,
-  // but only once the whole list is in, so it never shows a partial number.
-  const stats = useSiteStats();
-  const jobCount = useMemo(() => {
-    if (!destinationCode) return stats?.publishedJobs ?? (items && itemsComplete ? items.filter((i) => i.kind === 'job').length : null);
-    if (!visibleItems || !itemsComplete) return null;
-    const own = visibleItems.filter((i) => i.kind === 'job').length;
-    const live = liveJobs.filter((j) => j.countryCode === destinationCode).length;
-    return own + live;
-  }, [stats, items, itemsComplete, visibleItems, liveJobs, destinationCode]);
-  const animatedCount = useCountUp(jobCount);
+  // "N new jobs published today": jobs that went live (or were first
+  // posted by the company) since midnight, counted once the list is in.
+  const todayCount = useMemo(() => {
+    if (!items || !itemsComplete) return null;
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    const start = midnight.getTime();
+    return items.filter((i) => i.kind === 'job' && new Date(i.postedDate ?? i.createdAt).getTime() >= start).length;
+  }, [items, itemsComplete]);
+  const animatedCount = useCountUp(todayCount);
 
   return (
     <div className="px-4 py-5 sm:px-8 sm:py-8">
-      <div className="flex flex-wrap items-center gap-2">
-        <FlagSwitcher code={originCode} placeholder="Your country" onSelect={(code) => code && setOriginCountry(code)} />
-        <ArrowRight className="h-4 w-4 text-ink-300" />
-        <FlagSwitcher code={destinationCode} placeholder="Any destination" onSelect={setDestinationCode} allowAny />
-      </div>
-
-      <h2 className="mt-3 text-xl font-bold tracking-tight text-ink-950 sm:text-2xl">
-        From <span className="text-brand-600">{originName ?? 'your country'}</span> to{' '}
-        {jobCount != null ? (
-          <a
-            href={`/jobs${countryParam}`}
-            className="tabular-nums text-brand-700 underline decoration-2 underline-offset-4 transition hover:text-brand-800"
-          >
-            {animatedCount.toLocaleString()}
-          </a>
+      <h2 className="text-xl font-bold tracking-tight text-ink-950 sm:text-2xl">
+        {todayCount === 0 ? (
+          // Just after midnight nothing is "today" yet.
+          <>Newest jobs, straight from company career pages</>
         ) : (
-          <span className="skeleton-shimmer inline-block h-[1.1em] w-20 rounded-md align-[-0.2em]" aria-hidden="true" />
-        )}{' '}
-        {destinationCountry ? (
           <>
-            opportunities in <span className="text-brand-600">{destinationCountry.name}</span>
+            {todayCount != null ? (
+              <a href="/jobs" className="tabular-nums text-brand-700 underline decoration-2 underline-offset-4 transition hover:text-brand-800">
+                {animatedCount.toLocaleString()}
+              </a>
+            ) : (
+              <span className="skeleton-shimmer inline-block h-[1.1em] w-12 rounded-md align-[-0.2em]" aria-hidden="true" />
+            )}{' '}
+            new {todayCount === 1 ? 'job' : 'jobs'} published today
           </>
-        ) : (
-          'opportunities worldwide'
         )}
-        <a
-          href={`/jobs${countryParam}`}
-          aria-label="See all jobs"
-          className="group ml-2 inline-flex items-center align-middle text-brand-600 hover:text-brand-700"
-        >
+        <a href="/jobs" aria-label="See all jobs" className="group ml-2 inline-flex items-center align-middle text-brand-600 hover:text-brand-700">
           <GrowingArrow />
         </a>
       </h2>
@@ -385,7 +270,6 @@ export function LocationMatchSection({
           e.preventDefault();
           const params = new URLSearchParams();
           if (query.trim()) params.set('q', query.trim());
-          if (destinationCountry) params.set('country', destinationCountry.name);
           const qs = params.toString();
           // In-app navigation (no reload): App listens for popstate and
           // JobsPage reads q/country from the URL when it opens.
@@ -420,16 +304,15 @@ export function LocationMatchSection({
 
       {shownItems === null ? (
         <div className="mt-6 grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 lg:grid-cols-5" aria-busy="true" aria-label="Loading opportunities">
-          {[0, 1, 2, 3].map((i) => (
+          {[0, 1, 2, 3, 4].map((i) => (
             <MatchCardSkeleton key={i} />
           ))}
-          <div className="skeleton-shimmer h-[360px] rounded-lg" />
         </div>
       ) : shownItems.length === 0 ? (
         <div className="mt-6 flex flex-col items-center justify-center gap-2 rounded border-2 border-dashed border-ink-200 bg-white px-5 py-10 text-center">
           <Briefcase className="h-6 w-6 text-ink-300" />
           <p className="text-sm font-semibold text-ink-500">
-            {destinationCountry ? `No sponsored listings for ${destinationCountry.name} yet` : 'Sponsored jobs and programs will appear here'}
+            New jobs will appear here
           </p>
           <p className="text-xs text-ink-400">Check back soon — new sponsored listings appear here automatically.</p>
         </div>
@@ -438,7 +321,6 @@ export function LocationMatchSection({
           {shownItems.map((item) => (
             <MatchCard key={`${item.kind}-${item.id}`} item={item} originCode={originCode} />
           ))}
-          <ExploreMoreTile countryParam={countryParam} destinationName={destinationCountry?.name} count={jobCount != null ? animatedCount : null} />
         </div>
       )}
     </div>
@@ -467,15 +349,6 @@ function MatchCardSkeleton() {
   );
 }
 
-/** Up arrow (icons8 "up"), colored via currentColor. */
-function UpArrowIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
-      <path d="M 12 2.9296875 L 4.9296875 10 L 6.4296875 11.5 L 11 6.9296875 L 11 21 L 13 21 L 13 6.9296875 L 17.570312 11.5 L 19.070312 10 L 12 2.9296875 z" />
-    </svg>
-  );
-}
-
 /** Arrow whose shaft grows when its parent `group` is hovered/pressed. */
 function GrowingArrow() {
   return (
@@ -483,33 +356,6 @@ function GrowingArrow() {
       <span className="h-[2px] w-2.5 rounded-full bg-current transition-all duration-300 ease-out group-hover:w-6 group-active:w-6" />
       <ChevronRight className="-ml-[10px] h-4 w-4" strokeWidth={2.75} />
     </span>
-  );
-}
-
-function ExploreMoreTile({ countryParam, destinationName, count }: { countryParam: string; destinationName?: string; count: number | null }) {
-  // The whole tile is one link to the Jobs page.
-  return (
-    <a
-      href={`/jobs${countryParam}`}
-      className="group flex h-[360px] flex-col items-center justify-center gap-4 rounded-lg border border-brand-600/20 bg-gradient-to-br from-brand-600/[0.04] via-brand-600/[0.08] to-brand-600/[0.16] p-4 text-center transition hover:-translate-y-0.5 hover:border-brand-600/40 hover:shadow-soft-lg"
-    >
-      <div className="flex flex-col items-center">
-        <p className="flex items-center gap-1.5 text-3xl font-extrabold tracking-tight text-ink-950 tabular-nums">
-          {/* Green up arrow — rises slightly on hover/tap */}
-          <UpArrowIcon className="h-7 w-7 text-emerald-600 transition-transform duration-300 ease-out group-hover:-translate-y-1 group-active:-translate-y-1" />
-          {count != null ? count.toLocaleString() : <span className="skeleton-shimmer inline-block h-[1em] w-20 rounded-md align-[-0.1em]" aria-hidden="true" />}
-        </p>
-        <p className="mt-0.5 text-xs font-medium text-ink-500">
-          {destinationName ? `opportunities in ${destinationName}` : 'opportunities open now'}
-        </p>
-      </div>
-
-      <span className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition group-hover:bg-brand-700">
-        Explore Jobs
-        {/* Arrow whose shaft grows on hover */}
-        <GrowingArrow />
-      </span>
-    </a>
   );
 }
 
