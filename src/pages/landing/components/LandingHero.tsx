@@ -18,7 +18,7 @@ import type { View } from '@/types';
 import { useOriginCountry } from '@/lib/originCountry';
 import { estimateJourneyCostBreakdown } from '@/lib/costEstimates';
 import { supabase } from '@/lib/supabase';
-import { LocationMatchSection, fetchMatchItems, countNewWithin24h, type MatchItem } from './LocationMatchSection';
+import { LocationMatchSection, fetchLandingItems, countNewWithin24h, type MatchItem } from './LocationMatchSection';
 import { useSiteStats } from '@/lib/siteStats';
 import { allCountries, type CountryEntry } from '@/data/allCountries';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -373,8 +373,8 @@ export function LandingHero(_props: LandingHeroProps) {
     const show = (items: MatchItem[]) => {
       if (!cancelled) setMatchItems(items);
     };
-    // Paints from the cached copy / newest page first, then the full list.
-    fetchMatchItems(show).then((items) => {
+    // Only the newest jobs — the landing page shows 5 of them.
+    fetchLandingItems().then((items) => {
       show(items);
       if (!cancelled) setMatchItemsComplete(true);
     });

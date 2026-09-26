@@ -18,7 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/costEstimates';
-import { fetchPublishedSponsoredJobs, isClosedJob, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { countJobsPublishedSince, fetchNewestPublishedJobs, fetchPublishedSponsoredJobs, isClosedJob, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { fetchSponsoredPrograms } from '@/lib/programs';
 import { formatCost } from '@/lib/listingCategories';
 import { stripHtml } from '@/lib/atsImport';
@@ -33,6 +33,15 @@ export type MatchItem =
 /** Fetches every published job + program once. Shared by the landing
  * hero (for the "X new" tab badge) and this section (for the grid) so
  * the two can never disagree — same fetch, same data. */
+/**
+ * Landing page: just the newest jobs (one small request) — enough for the
+ * 5 boxes. The full list is only loaded on /jobs for signed-in visitors.
+ */
+export async function fetchLandingItems(): Promise<MatchItem[]> {
+  const jobs = await fetchNewestPublishedJobs(80);
+  return buildMatchItems(jobs, []);
+}
+
 export async function fetchMatchItems(onPartial?: (items: MatchItem[]) => void): Promise<MatchItem[]> {
   const programsPromise = fetchSponsoredPrograms();
   let programsSoFar: Awaited<typeof programsPromise> = [];
@@ -212,7 +221,6 @@ function useCountUp(target: number | null, duration = 1400): number {
 
 export function LocationMatchSection({
   items,
-  itemsComplete = true,
   originCode,
 }: {
   items: MatchItem[] | null;
@@ -231,15 +239,43 @@ export function LocationMatchSection({
     if (shownItems?.length) rememberShown('landing', shownItems.map((i) => i.id));
   }, [shownItems]);
 
-  // "N new jobs published today": jobs that went live (or were first
-  // posted by the company) since midnight, counted once the list is in.
-  const todayCount = useMemo(() => {
-    if (!items || !itemsComplete) return null;
+  // "N new jobs published today" — a snapshot, not live: counts jobs from
+  // midnight up to the last 2-hour mark (00:00, 02:00, 04:00 …), cached
+  // per visitor, so the number steps up every 2 hours instead of ticking.
+  const [todayCount, setTodayCount] = useState<number | null>(null);
+  useEffect(() => {
     const midnight = new Date();
     midnight.setHours(0, 0, 0, 0);
-    const start = midnight.getTime();
-    return items.filter((i) => i.kind === 'job' && new Date(i.postedDate ?? i.createdAt).getTime() >= start).length;
-  }, [items, itemsComplete]);
+    const TWO_H = 2 * 3_600_000;
+    const upTo = midnight.getTime() + Math.floor((Date.now() - midnight.getTime()) / TWO_H) * TWO_H;
+    if (upTo <= midnight.getTime()) {
+      setTodayCount(0); // before 2 am: nothing to show yet
+      return;
+    }
+    const key = `mv:todayJobs:${upTo}`;
+    try {
+      const saved = window.localStorage.getItem(key);
+      if (saved != null) {
+        setTodayCount(Number(saved));
+        return;
+      }
+    } catch {
+      /* no storage — just ask */
+    }
+    let alive = true;
+    countJobsPublishedSince(midnight.toISOString(), new Date(upTo).toISOString()).then((n) => {
+      if (!alive) return;
+      setTodayCount(n);
+      try {
+        if (n != null) window.localStorage.setItem(key, String(n));
+      } catch {
+        /* ignore */
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const animatedCount = useCountUp(todayCount);
 
   return (

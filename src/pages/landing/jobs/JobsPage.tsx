@@ -25,7 +25,7 @@ import { moveToBack, recencyBucket, recentlyShownIds, rememberShown, visitShuffl
 import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
-import { fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { fetchNewestPublishedJobs, fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
 import { PersonalizationBar } from '@/components/opportunities/PersonalizationBar';
@@ -362,6 +362,19 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     };
   }, []);
 
+  // Guests only see the first page, so they get just the newest jobs (one
+  // small request). The full list loads for signed-in visitors, or as soon
+  // as a guest searches or filters (so results cover every job).
+  const hasQuery = Boolean(
+    search.trim() || country !== 'All countries' || category !== 'All categories' || jobType !== 'All types' || remoteOnly || city || company || salaryOnly ||
+      experienceLevel !== 'All levels' || datePosted !== 'Any time' || directOnly || studentOnly || visaOnly,
+  );
+  // Once the full list is loaded it stays (clearing a search doesn't reload).
+  const [wantFull, setWantFull] = useState(() => Boolean(session) || hasQuery);
+  useEffect(() => {
+    if (session || hasQuery) setWantFull(true);
+  }, [session, hasQuery]);
+
   useEffect(() => {
     let cancelled = false;
     const show = (rows: Parameters<typeof sponsoredJobToBoardJob>[0][]) => {
@@ -369,15 +382,22 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       setSponsoredJobs(rows.map(sponsoredJobToBoardJob));
       setLoadingSponsored(false);
     };
-    // Renders the cached copy / newest page first, then the full list.
-    fetchPublishedSponsoredJobs({ onPartial: show }).then((rows) => {
-      show(rows);
-      if (!cancelled) setSponsoredComplete(true);
-    });
+    if (!wantFull) {
+      fetchNewestPublishedJobs(PAGE_SIZE * 3).then((rows) => {
+        show(rows);
+        if (!cancelled) setSponsoredComplete(true);
+      });
+    } else {
+      // Renders the cached copy / newest page first, then the full list.
+      fetchPublishedSponsoredJobs({ onPartial: show }).then((rows) => {
+        show(rows);
+        if (!cancelled) setSponsoredComplete(true);
+      });
+    }
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [wantFull]);
 
   const allJobs = useMemo(() => [...sponsoredJobs, ...liveJobs], [liveJobs, sponsoredJobs]);
   // OR, not AND: sponsored jobs and the live feed are two independent

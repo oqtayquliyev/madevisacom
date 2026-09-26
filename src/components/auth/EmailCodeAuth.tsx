@@ -44,6 +44,7 @@ export function EmailCodeAuth({ mode, onSwitch, onHome }: Props) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
+  const [slow, setSlow] = useState(false);
   const captcha = useCaptcha();
   const codeRef = useRef<HTMLInputElement>(null);
 
@@ -64,13 +65,24 @@ export function EmailCodeAuth({ mode, onSwitch, onHome }: Props) {
     if (!captcha.ready) return setError('Please complete the quick check below.');
     setSending(true);
     setError(null);
-    const { error: err } = await supabase.auth.signInWithOtp({
+    setSlow(false);
+    // Sending can hang when the mail server is slow — don't leave people
+    // staring at a spinner: after 20 s go to the code step anyway (the email
+    // usually still arrives) and say so.
+    const request = supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
       options: { shouldCreateUser: true, captchaToken: captcha.token, emailRedirectTo: window.location.origin },
     });
+    const timedOut = Symbol('timeout');
+    const result = await Promise.race([request, new Promise<typeof timedOut>((r) => window.setTimeout(() => r(timedOut), 20_000))]);
     captcha.reset();
     setSending(false);
-    if (err) return setError(friendly(err.message));
+    if (result === timedOut) {
+      setSlow(true);
+      request.then(({ error: late }) => late && setError(friendly(late.message)));
+    } else if (result.error) {
+      return setError(friendly(result.error.message));
+    }
     setCode('');
     setStep('code');
     setResendIn(RESEND_SECONDS);
@@ -160,6 +172,11 @@ export function EmailCodeAuth({ mode, onSwitch, onHome }: Props) {
           }}
           className={error ? 'mt-4' : ''}
         >
+          {slow && (
+            <p className="mb-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
+              Sending is taking longer than usual. The email may still arrive in a minute — if not, tap “Send a new code”.
+            </p>
+          )}
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink-600">Code from the email</span>
             <input

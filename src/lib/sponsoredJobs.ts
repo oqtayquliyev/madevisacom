@@ -266,6 +266,37 @@ async function fetchPublishedFromNetwork(onPartial: (rows: SponsoredJob[]) => vo
  * previous visit's cached copy and/or the newest page — so pages can
  * render immediately; the promise resolves with the complete, fresh list.
  */
+/**
+ * The newest published, unexpired jobs — one small request that uses the
+ * (status, created_at) index. For the landing page and for guests on
+ * /jobs, who only see the first page; much lighter than the full list.
+ */
+export async function fetchNewestPublishedJobs(limit = 60): Promise<SponsoredJob[]> {
+  const asOf = nowIso();
+  const { data, error } = await supabase
+    .from('sponsored_jobs')
+    .select(LIST_COLUMNS)
+    .eq('status', 'published')
+    .or(`expires_at.is.null,expires_at.gt.${asOf}`)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error('fetchNewestPublishedJobs failed', error);
+    return [];
+  }
+  return (data ?? []) as unknown as SponsoredJob[];
+}
+
+/** How many jobs went live on MadeVisa between `fromIso` and `toIso` (indexed count). */
+export async function countJobsPublishedSince(fromIso: string, toIso?: string): Promise<number | null> {
+  let q = supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('created_at', fromIso);
+  if (toIso) q = q.lt('created_at', toIso);
+  const { count, error } = await q;
+  if (error) return null;
+  return count ?? 0;
+}
+
 export async function fetchPublishedSponsoredJobs(opts: { onPartial?: (rows: SponsoredJob[]) => void } = {}): Promise<SponsoredJob[]> {
   if (publishedJobsCache && Date.now() - publishedJobsCache.fetchedAt < PUBLISHED_JOBS_CACHE_TTL_MS) {
     return publishedJobsCache.data;
