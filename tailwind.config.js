@@ -5,8 +5,9 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        serif: ['"Instrument Serif"', 'ui-serif', 'Georgia', 'serif'],
-        slab: ['"Roboto Slab"', 'ui-serif', 'Georgia', 'serif'],
+        // Titles: Newsreader. `font-slab` is kept as the class name so existing pages switch automatically.
+        serif: ['Newsreader', 'ui-serif', 'Georgia', 'serif'],
+        slab: ['Newsreader', 'ui-serif', 'Georgia', 'serif'],
       },
       colors: {
         ink: {

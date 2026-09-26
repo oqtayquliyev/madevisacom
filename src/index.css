@@ -15,6 +15,12 @@
   ::selection {
     @apply bg-brand-200 text-brand-900;
   }
+  /* Titles never leave a single word alone on the last line. */
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
   /* iOS Safari zooms the page when a focused field's text is under 16px.
      Keep form text at 16px on phones so tapping a field never zooms;
      larger screens keep each field's own size. */
@@ -93,4 +99,18 @@
       animation: none;
     }
   }
+}
+
+/* Newsreader titles (Tailwind `font-slab` / `font-serif`):
+   - optical sizing: the font draws finer details at large sizes
+   - a touch tighter, like editorial headlines
+   - Semibold instead of Bold — calmer and more premium in Newsreader */
+.font-slab,
+.font-serif {
+  font-optical-sizing: auto;
+  letter-spacing: -0.012em;
+}
+.font-slab.font-bold,
+.font-serif.font-bold {
+  font-weight: 600;
 }
