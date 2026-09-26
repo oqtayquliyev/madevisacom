@@ -22,7 +22,7 @@ import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { HireCountries } from '@/components/companies/HireCountries';
 import { ShareExperienceDialog } from '@/components/companies/ShareExperienceDialog';
-import { feedbackPath, fetchExperienceSummary, type ExperienceSummary } from '@/lib/companyExperiences';
+import { feedbackPath, fetchExperienceSummary, scoreWord, type ExperienceSummary } from '@/lib/companyExperiences';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { fetchCompanyBySlug, fetchCompanyInsights, type CompanyInsights, type CompanyProfile } from '@/lib/companies';
 import { fetchPublishedJobsByPublisher, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
@@ -486,7 +486,7 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
           <SoftPanel
             id="response-shared"
             title="Shared by applicants"
-            sub="Applications made elsewhere — careers site, LinkedIn, referrals. Reviewed by MadeVisa, private, and counted once per person."
+            sub="Applications made elsewhere — careers site, LinkedIn, referrals. Reviewed, private, one voice per person — offers and interviews count more, since they’re rarely reported."
             right={
               <button
                 onClick={() => setShareOpen(true)}
@@ -791,6 +791,15 @@ function SharedOutcomes({ s }: { s: ExperienceSummary }) {
   return (
     <div className="grid gap-5 md:grid-cols-[220px_1fr]">
       <SoftCard>
+        {s.score != null && (
+          <div className="mb-4 border-b border-[#1D4ED8]/10 pb-4">
+            <p className="text-[13px] text-ink-600">Applicant experience</p>
+            <p className="mt-1 flex items-baseline gap-2">
+              <span className="text-[34px] font-bold leading-none text-ink-950">{s.score}</span>
+              <span className="text-[13px] text-ink-500">/ 100 · {scoreWord(s.score)}</span>
+            </p>
+          </div>
+        )}
         <p className="text-[13px] text-ink-600">Heard back</p>
         <p className="mt-1 text-[34px] font-bold leading-none text-ink-950">{Math.round((heard / s.total) * 100)}%</p>
         <p className="mt-2 text-[12px] text-ink-500">

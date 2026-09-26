@@ -11,6 +11,7 @@ import {
   Lock,
   Mail,
   MessageSquarePlus,
+  Scale,
   Search,
   ShieldCheck,
   TrendingDown,
@@ -31,6 +32,7 @@ import {
   feedbackPath,
   fetchExperienceSummary,
   fetchHiringFeedbackOverview,
+  scoreWord,
   type ExperienceOutcome,
   type ExperienceSummary,
   type FeedbackCompany,
@@ -160,11 +162,13 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
         {/* FAIRNESS */}
         <section>
           <SectionHead title="Fair to applicants and to companies" />
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Rule icon={<Lock className="h-4 w-4" />} title="Private" text="Never shown with a name. Companies can’t see who shared." />
             <Rule icon={<ShieldCheck className="h-4 w-4" />} title="Reviewed" text="Every report is checked by MadeVisa before it counts." />
             <Rule icon={<Users className="h-4 w-4" />} title="One voice each" text="One report per company per month; each person counts once." />
             <Rule icon={<EyeOff className="h-4 w-4" />} title="Totals from 3 people" text="A company’s breakdown shows only once 3 different people shared." />
+            <Rule icon={<Scale className="h-4 w-4" />} title="Weighted fairly" text="Offers and interviews count more — they’re rare and seldom reported. Silence after a poor match counts less." />
+            <Rule icon={<BadgeCheck className="h-4 w-4" />} title="Verified counts more" text="Reports from confirmed emails and tracked applications carry more weight." />
           </div>
         </section>
 
@@ -263,7 +267,8 @@ function CompanyNumbers({ company, summary, onShare }: { company: CompanyProfile
           action={<CTA onClick={onShare}>Add yours</CTA>}
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Kpi label="Applicant experience" value={s.score != null ? `${s.score}/100` : '—'} note={s.score != null ? scoreWord(s.score) : undefined} />
           <Kpi label="Heard back" value={`${heard}%`} note={`${s.total} people shared`} />
           <Kpi label="Interview or offer" value={`${Math.round(((s.interview + s.offer) / s.total) * 100)}%`} />
           <Kpi label="First reply" value={s.avg_reply_days != null ? `~${s.avg_reply_days} days` : '—'} />
@@ -358,7 +363,10 @@ function CompanyList({ title, icon, tone, items, unit }: { title: string; icon: 
                 <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink-900">{c.name}</span>
                 <span className="text-right text-[12px] text-ink-500">
                   <strong className={tone === 'up' ? 'text-emerald-600' : 'text-rose-500'}>{c.pct}%</strong> {unit}
-                  <span className="block text-[11px] text-ink-400">{c.n} outcomes</span>
+                  <span className="block text-[11px] text-ink-400">
+                    {c.score != null ? `score ${c.score} · ` : ''}
+                    {c.n} outcomes
+                  </span>
                 </span>
               </a>
             </li>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Building2, CheckCircle2, ChevronDown, Loader2, Lock, MessageSquarePlus, Search, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -9,6 +9,7 @@ import {
   REPLY_AFTER,
   fetchCountryOptions,
   isoDaysAgo,
+  matchWord,
   submitCompanyExperience,
   type CountryOption,
   type ExperienceChannel,
@@ -50,6 +51,9 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
   const [website, setWebsite] = useState('');
   const [countryId, setCountryId] = useState('');
   const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [match, setMatch] = useState<number | null>(null);
+  const [trap, setTrap] = useState(''); // honeypot: people never see or fill this
+  const openedAt = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -64,12 +68,15 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
     setReply(null);
     setWebsite('');
     setCountryId('');
+    setMatch(null);
+    setTrap('');
     setError(null);
   };
 
   useEffect(() => {
     if (!open) return;
     reset();
+    openedAt.current = Date.now();
     if (initialOutcome) setOutcome(initialOutcome);
     setDone(false);
     const start = company ?? (initial?.id ? { id: initial.id, name: initial.name, logo_url: initial.logo_url } : null);
@@ -100,6 +107,7 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
 
   const send = async () => {
     if (!canSend || !outcome || whenDays == null) return;
+    if (trap) return setDone(true); // bot filled the hidden field — pretend it worked
     setBusy(true);
     setError(null);
     const r = await submitCompanyExperience({
@@ -112,6 +120,8 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
       outcome,
       replyDays: REPLY_AFTER.find((x) => x.key === reply)?.days ?? null,
       publisherId: picked?.id ?? null,
+      matchPct: match,
+      formMs: Date.now() - openedAt.current,
     });
     setBusy(false);
     if (!r.ok) setError(r.error ?? 'Something went wrong.');
@@ -143,7 +153,7 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
 
         {!session ? (
           <div className="px-5 pb-8 pt-4 text-center">
-            <p className="text-sm text-ink-600">Sign in with a verified email to share. Your name is never shown.</p>
+            <p className="text-sm text-ink-600">Sign in to share — it keeps reports honest. Your name is never shown.</p>
             <div className="mt-4 flex justify-center gap-2">
               <button onClick={() => (onClose(), onAuth?.('login'))} className="rounded-lg bg-[#1D4ED8] px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-800">
                 Sign in
@@ -269,6 +279,26 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
               {tooSoon && <p className="mt-2 text-[12px] text-amber-700">“No response” can be shared once a week has passed since applying.</p>}
             </div>
 
+            {/* 4. FIT */}
+            <div>
+              <span className={label}>
+                How well did you match the requirements? <span className="font-normal text-ink-400">(optional)</span>
+              </span>
+              <MatchSlider value={match} onChange={setMatch} />
+            </div>
+
+            {/* Honeypot — hidden from people, bots tend to fill every field. */}
+            <input
+              type="text"
+              name="company_url"
+              tabIndex={-1}
+              autoComplete="off"
+              value={trap}
+              onChange={(e) => setTrap(e.target.value)}
+              aria-hidden="true"
+              className="absolute -left-[9999px] h-0 w-0 opacity-0"
+            />
+
             {/* OPTIONAL */}
             <div className="rounded-lg border border-ink-100">
               <button type="button" onClick={() => setMore((v) => !v)} className="flex w-full items-center justify-between px-3 py-2.5 text-[13px] font-semibold text-ink-600 hover:text-ink-900">
@@ -305,7 +335,7 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
                       <input value={role} onChange={(e) => setRole(e.target.value)} maxLength={120} placeholder="e.g. Data Analyst" className={field} />
                     </label>
                     <label className="block">
-                      <span className="mb-1.5 block text-[12px] font-semibold text-ink-600">Job country</span>
+                      <span className="mb-1.5 block text-[12px] font-semibold text-ink-600">Your country</span>
                       <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className={field}>
                         <option value="">—</option>
                         {countries.map((c) => (
@@ -354,5 +384,75 @@ function Logo({ url }: { url?: string | null }) {
     <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-[#1D4ED8]/10">
       <Building2 className="h-3.5 w-3.5 text-[#1D4ED8]/60" />
     </span>
+  );
+}
+
+/**
+ * "How well did you match?" — drag the circle; a word appears above it
+ * ("Decent fit", "Great match"…). Keyboard: arrow keys move 5%.
+ */
+function MatchSlider({ value, onChange }: { value: number | null; onChange: (v: number) => void }) {
+  const track = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const v = value ?? 50;
+  const setFrom = (clientX: number) => {
+    const r = track.current?.getBoundingClientRect();
+    if (!r) return;
+    const pct = Math.round(Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * 100);
+    onChange(Math.round(pct / 5) * 5);
+  };
+  const down = (e: ReactPointerEvent<HTMLDivElement>) => {
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    setDragging(true);
+    setFrom(e.clientX);
+  };
+  return (
+    <div className="select-none pt-9">
+      <div
+        ref={track}
+        role="slider"
+        tabIndex={0}
+        aria-label="How well you matched the job requirements"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={value ?? undefined}
+        aria-valuetext={value == null ? 'Not answered' : `${value}% — ${matchWord(value)}`}
+        onPointerDown={down}
+        onPointerMove={(e) => dragging && setFrom(e.clientX)}
+        onPointerUp={() => setDragging(false)}
+        onPointerCancel={() => setDragging(false)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowRight' || e.key === 'ArrowUp') onChange(Math.min(100, v + 5));
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') onChange(Math.max(0, v - 5));
+        }}
+        className="relative h-3 cursor-pointer touch-none rounded-full bg-ink-100 outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]/40"
+      >
+        <div
+          className={`absolute inset-y-0 left-0 rounded-full ${value == null ? 'bg-transparent' : 'bg-gradient-to-r from-[#1D4ED8]/30 to-[#1D4ED8]'}`}
+          style={{ width: `${v}%` }}
+        />
+        {/* Word bubble */}
+        <div className="pointer-events-none absolute -top-9 -translate-x-1/2 transition-[left] duration-75" style={{ left: `${v}%` }}>
+          <span
+            className={`block whitespace-nowrap rounded-full px-2.5 py-1 text-[12px] font-bold shadow-sm transition-all duration-200 ${
+              value == null ? 'bg-ink-100 text-ink-500' : 'bg-[#1D4ED8] text-white'
+            } ${dragging ? 'scale-110' : ''}`}
+          >
+            {value == null ? 'Drag me' : `${value}% · ${matchWord(value)}`}
+          </span>
+        </div>
+        {/* Circle */}
+        <div
+          className={`absolute top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 bg-white shadow-md transition-transform ${
+            value == null ? 'border-ink-300' : 'border-[#1D4ED8]'
+          } ${dragging ? 'scale-110' : 'hover:scale-105'}`}
+          style={{ left: `${v}%` }}
+        />
+      </div>
+      <div className="mt-2 flex justify-between text-[11px] text-ink-400">
+        <span>Long shot</span>
+        <span>Made for it</span>
+      </div>
+    </div>
   );
 }

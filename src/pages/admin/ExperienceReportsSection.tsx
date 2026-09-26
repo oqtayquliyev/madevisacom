@@ -173,6 +173,12 @@ function ReportRow({ r, onDone }: { r: ExperienceReport; onDone: (patch: Partial
       <div className="flex flex-wrap items-center gap-2">
         <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${OUTCOME_TONE[r.outcome]}`}>{OUTCOME_LABEL[r.outcome]}</span>
         <span className="text-[11px] text-ink-400">sent {when(r.created_at)}</span>
+        {r.email_verified ? (
+          <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">Email verified · full weight</span>
+        ) : (
+          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">Email not verified · half weight</span>
+        )}
+        {r.match_pct != null && <span className="text-[11px] text-ink-500">matched {r.match_pct}%</span>}
         {!pending && <span className="text-[11px] font-semibold capitalize text-ink-500">{r.status}</span>}
       </div>
       <p className="mt-1 text-sm font-bold text-ink-950">
@@ -184,7 +190,7 @@ function ReportRow({ r, onDone }: { r: ExperienceReport; onDone: (patch: Partial
         )}
       </p>
       <p className="mt-0.5 text-[12px] text-ink-600">
-        {[r.role_title, r.country?.name, `applied ${new Date(r.applied_on).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`, CHANNEL_LABEL[r.channel], r.reply_days != null ? `first reply after ${r.reply_days} days` : null]
+        {[r.role_title, r.country?.name ? `from ${r.country.name}` : null, `applied ${new Date(r.applied_on).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`, CHANNEL_LABEL[r.channel], r.reply_days != null ? `first reply after ${r.reply_days} days` : null]
           .filter(Boolean)
           .join(' · ')}
       </p>

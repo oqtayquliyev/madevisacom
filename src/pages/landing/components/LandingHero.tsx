@@ -463,7 +463,7 @@ export function LandingHero(_props: LandingHeroProps) {
 
           <div className="hidden items-center gap-2 text-sm font-medium text-white/70 sm:flex">
             <Sparkles className="h-4 w-4" />
-            All-in-one opportunity library
+            Jobs + hiring insights, in one platform
           </div>
 
           <div className="max-w-4xl sm:mt-5">
@@ -473,7 +473,7 @@ export function LandingHero(_props: LandingHeroProps) {
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75 sm:mt-4 sm:text-lg sm:leading-7">
-              Jobs, programs, study and visas from official sources — in one place.
+              Live jobs straight from company career pages — with insights on who's hiring, who replies and how fast. Plus programs, study and visas.
             </p>
 
           </div>

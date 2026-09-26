@@ -40,6 +40,10 @@ export type ExperienceInput = {
   outcome: ExperienceOutcome;
   replyDays?: number | null;
   publisherId?: string | null;
+  /** "How well did you match the requirements?" 0–100. */
+  matchPct?: number | null;
+  /** Time spent on the form (very fast submissions are refused). */
+  formMs?: number | null;
 };
 
 /** "When did you apply?" as quick choices — stored as an approximate date. */
@@ -74,6 +78,8 @@ export async function submitCompanyExperience(input: ExperienceInput): Promise<{
     outcome: input.outcome,
     reply_days: input.outcome === 'no_response' ? null : input.replyDays ?? null,
     publisher_id: input.publisherId ?? null,
+    match_pct: input.matchPct ?? null,
+    form_ms: input.formMs ?? null,
   });
   if (error) {
     if (/relation .* does not exist|schema cache/i.test(error.message)) return { ok: false, error: 'This feature is not switched on yet. Please try again later.' };
@@ -95,6 +101,10 @@ export type ExperienceSummary = {
   offer: number;
   avg_reply_days: number | null;
   last_applied: string | null;
+  /** 0–100, fairly weighted (see 20261023090000_fair_experience_score.sql). */
+  score?: number | null;
+  avg_match?: number | null;
+  verified?: number | null;
 };
 
 export async function fetchExperienceSummary(publisherId: string): Promise<ExperienceSummary | null> {
@@ -131,6 +141,8 @@ export type ExperienceReport = {
   status: ExperienceStatus;
   admin_note: string | null;
   created_at: string;
+  match_pct?: number | null;
+  email_verified?: boolean;
   country?: { name: string; iso_code: string } | null;
   publisher?: { id: string; name: string } | null;
 };
@@ -205,7 +217,7 @@ export async function reviewExperience(
 // /feedback page
 // ---------------------------------------------------------------------------
 
-export type FeedbackCompany = { id: string; name: string; logo_url: string | null; n: number; pct: number; avg_reply_days?: number | null };
+export type FeedbackCompany = { id: string; name: string; logo_url: string | null; n: number; pct: number; score?: number | null; avg_reply_days?: number | null };
 
 export type HiringFeedbackOverview = {
   total: number;
@@ -220,6 +232,7 @@ export type HiringFeedbackOverview = {
   interview: number;
   offer: number;
   avg_reply_days: number | null;
+  score?: number | null;
   most_responsive: FeedbackCompany[];
   most_silent: FeedbackCompany[];
 };
@@ -233,4 +246,22 @@ export async function fetchHiringFeedbackOverview(): Promise<HiringFeedbackOverv
 /** A company's own feedback link — companies/HR share it with applicants. */
 export function feedbackPath(c: { id: string; name: string }): string {
   return companyPath(c).replace(/^\/companies\//, '/feedback/');
+}
+
+/** The word shown on the "how well did you match?" slider. */
+export function matchWord(pct: number): string {
+  if (pct < 20) return 'Long shot';
+  if (pct < 40) return 'Worth a try';
+  if (pct < 60) return 'Decent fit';
+  if (pct < 80) return 'Strong fit';
+  if (pct < 95) return 'Great match';
+  return 'Made for it';
+}
+
+/** How the score reads in words. */
+export function scoreWord(score: number): string {
+  if (score >= 70) return 'Great for applicants';
+  if (score >= 55) return 'Good';
+  if (score >= 40) return 'Mixed';
+  return 'Often silent';
 }
