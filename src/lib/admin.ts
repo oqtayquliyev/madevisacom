@@ -1330,6 +1330,13 @@ export async function purgeJunkJobs(): Promise<{ removed: number; error?: string
  * to another country, or the city is a well-known city of that state
  * ("Phoenix" + AZ). "Baku" + AZ or "Osnabrück" + DE are left alone.
  */
+/** "Roswell-Georgia-United States of America" / "Marietta, Georgia" → "Roswell" / "Marietta". */
+function cityOnly(city: string | null | undefined): string | null {
+  if (!city) return null;
+  if (!/,|-(?:[A-Z][a-z]+ ?)*-?(?:United States|USA|Georgia|Arizona)/.test(city)) return city;
+  return city.split(/\s*,\s*|-(?=[A-Z])/)[0].trim() || city;
+}
+
 export async function repairAmbiguousJobCountries(
   onProgress?: (done: number, total: number) => void,
   shouldStop?: () => boolean,
@@ -1373,12 +1380,13 @@ export async function repairAmbiguousJobCountries(
     lastId = batch[batch.length - 1].id;
     scanned += batch.length;
 
-    const updates: { id: string; countryId: string; iso: string }[] = [];
+    const updates: { id: string; countryId: string; iso: string; city?: string }[] = [];
     for (const r of batch) {
       const stored = isoById.get(r.country_id);
       if (!stored) continue;
       // Positive evidence only.
-      const texts = [r.facts?.location ?? null, ...(r.additional_locations ?? [])].filter((t): t is string => Boolean(t));
+      // The saved city too: "Roswell-Georgia-United States of America" says US on its own.
+      const texts = [r.facts?.location ?? null, ...(r.additional_locations ?? []), r.city && /[,-]/.test(r.city) ? r.city : null].filter((t): t is string => Boolean(t));
       const titleUS = /\b(?:US|USA|U\.S\.|United States)\s*[-–:]/.test(r.title) ? 'US' : null;
       const votes = new Set<string>();
       for (const t of texts) {
@@ -1388,10 +1396,10 @@ export async function repairAmbiguousJobCountries(
       if (titleUS) votes.add(titleUS);
       let target: string | null = null;
       if (votes.size === 1 && !votes.has(stored)) target = [...votes][0];
-      else if (votes.size === 0) target = knownRegionCity(stored, r.city);
+      else if (votes.size === 0 || (votes.size === 1 && votes.has(stored))) target = knownRegionCity(stored, cityOnly(r.city));
       if (!target || target === stored) continue;
       const countryId = idByIso.get(target);
-      if (countryId) updates.push({ id: r.id, countryId, iso: target });
+      if (countryId) updates.push({ id: r.id, countryId, iso: target, city: r.city && cityOnly(r.city) !== r.city ? cityOnly(r.city) ?? undefined : undefined });
     }
 
     let cursor = 0;
@@ -1399,7 +1407,7 @@ export async function repairAmbiguousJobCountries(
       Array.from({ length: 6 }, async () => {
         while (cursor < updates.length) {
           const u = updates[cursor++];
-          const { error } = await supabase.from('sponsored_jobs').update({ country_id: u.countryId }).eq('id', u.id);
+          const { error } = await supabase.from('sponsored_jobs').update(u.city ? { country_id: u.countryId, city: u.city } : { country_id: u.countryId }).eq('id', u.id);
           if (error) firstError = firstError ?? error.message;
           else {
             fixed++;

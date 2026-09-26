@@ -60,7 +60,7 @@ const US_CITIES: Record<string, Set<string>> = {
   CA: set(['San Francisco', 'Los Angeles', 'San Diego', 'San Jose', 'Sacramento', 'Oakland', 'Palo Alto', 'Mountain View', 'Sunnyvale', 'Santa Clara', 'Menlo Park', 'Cupertino', 'Redwood City', 'Irvine', 'Fremont', 'Berkeley', 'Santa Monica', 'Pasadena', 'Long Beach', 'San Mateo', 'South San Francisco', 'Burbank', 'Culver City', 'El Segundo', 'Emeryville', 'Foster City', 'Milpitas', 'Pleasanton', 'San Ramon', 'Walnut Creek', 'Carlsbad', 'Anaheim', 'Fresno', 'Riverside', 'Santa Barbara', 'Newport Beach', 'Torrance', 'Hayward', 'Livermore']),
   CO: set(['Denver', 'Boulder', 'Colorado Springs', 'Aurora', 'Fort Collins', 'Lakewood', 'Centennial', 'Englewood', 'Broomfield', 'Louisville', 'Golden', 'Littleton', 'Westminster']),
   DE: set(['Wilmington', 'Dover', 'Newark', 'Middletown', 'Lewes']),
-  GA: set(['Atlanta', 'Savannah', 'Augusta', 'Columbus', 'Macon', 'Alpharetta', 'Athens', 'Marietta', 'Norcross', 'Duluth', 'Sandy Springs', 'Roswell', 'Kennesaw', 'Peachtree City']),
+  GA: set(['Atlanta', 'Savannah', 'Augusta', 'Columbus', 'Macon', 'Alpharetta', 'Athens', 'Marietta', 'Norcross', 'Duluth', 'Sandy Springs', 'Roswell', 'Kennesaw', 'Peachtree City', 'Pelham', 'Lawrenceville', 'Suwanee', 'Smyrna', 'Johns Creek', 'Cumming', 'Dalton', 'Gainesville', 'Warner Robins', 'Valdosta', 'Buford', 'McDonough', 'Lithia Springs', 'Fayetteville', 'Albany', 'Conyers', 'Stone Mountain', 'Dunwoody', 'Brookhaven', 'Decatur', 'Douglasville', 'Newnan', 'Carrollton', 'Canton', 'Woodstock', 'Forest Park', 'College Park', 'Union City', 'Fairburn', 'Braselton', 'Statesboro', 'Brunswick', 'Tifton', 'Thomasville', 'Rome', 'Cartersville', 'Covington', 'Loganville', 'Snellville', 'Tucker', 'Chamblee', 'Hapeville', 'East Point', 'Stockbridge', 'Jonesboro', 'Morrow', 'Riverdale', 'Pooler', 'Rincon', 'Richmond Hill', 'Hinesville', 'Kingsland', 'Perry', 'Dublin', 'Moultrie', 'Americus', 'LaGrange', 'Griffin', 'Monroe', 'Winder', 'Commerce', 'Jefferson', 'Calhoun', 'Ringgold']),
   ID: set(['Boise', 'Meridian', 'Nampa', 'Idaho Falls', 'Pocatello', 'Coeur dAlene']),
   IL: set(['Chicago', 'Naperville', 'Aurora', 'Evanston', 'Schaumburg', 'Springfield', 'Peoria', 'Rockford', 'Deerfield', 'Northbrook', 'Oak Brook', 'Champaign', 'Downers Grove', 'Lake Forest', 'Rosemont']),
   IN: set(['Indianapolis', 'Fort Wayne', 'Evansville', 'South Bend', 'Carmel', 'Bloomington', 'Fishers', 'West Lafayette', 'Lafayette']),
@@ -254,7 +254,8 @@ export function createPlaceResolver(countries: PlaceCountry[]): PlaceResolver {
 
 /** Is this code both a US state / CA province / AU state and a country code? */
 export function isAmbiguousRegionCode(code: string): boolean {
-  return code in US_STATES || code in CA_PROVINCES || code in AU_STATES;
+  // GE: the country Georgia shares its name with the US state ("Atlanta, Georgia").
+  return code in US_STATES || code in CA_PROVINCES || code in AU_STATES || code === 'GE';
 }
 
 /**
@@ -265,6 +266,7 @@ export function isAmbiguousRegionCode(code: string): boolean {
 export function knownRegionCity(code: string, city: string | null | undefined): string | null {
   const c = norm(city ?? '');
   if (!c) return null;
+  if (code === 'GE') return US_CITIES.GA?.has(c) ? 'US' : null;
   if (code in AU_STATES && AU_CITIES.has(c)) return 'AU';
   if (code in US_STATES && US_CITIES[code]?.has(c)) return 'US';
   if (code in CA_PROVINCES && COUNTRY_CITIES.CA.has(c)) return 'CA';

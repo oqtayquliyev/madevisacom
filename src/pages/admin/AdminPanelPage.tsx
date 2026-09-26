@@ -3234,9 +3234,9 @@ function RepairCountriesPanel({ onChange }: { onChange: () => void }) {
     <div className="mt-5 border-t border-ink-100 pt-4">
       <p className="font-semibold text-ink-800">Fix countries read from US state codes</p>
       <p className="mt-1">
-        Older imports read “Phoenix, AZ” as Azerbaijan, “San Jose, CA” as Canada, “Chicago, IL” as Israel. This checks every job saved with one of those
+        Older imports read “Phoenix, AZ” as Azerbaijan, “Atlanta, Georgia” as the country Georgia, “San Jose, CA” as Canada, “Chicago, IL” as Israel. This checks every job saved with one of those
         countries and moves it only when its location, office list or title clearly points elsewhere, or its city is a well-known city of that state. Jobs
-        in Baku or Osnabrück are left alone.
+        in Baku, Tbilisi or Osnabrück are left alone.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button
