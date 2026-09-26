@@ -2,6 +2,9 @@
 // description detector itself runs on the server — see jobFactsClient.ts.)
 
 import { allCountries } from '@/data/allCountries';
+import { createPlaceResolver } from '@/lib/placeResolver';
+
+const resolvePlace = createPlaceResolver(allCountries);
 
 /** Groups experience text into the Jobs page filter buckets. */
 export function experienceBucket(raw: string | null | undefined): string | null {
@@ -30,16 +33,18 @@ export function isPlaceholderValue(value: string | null | undefined): boolean {
   return !value || PLACEHOLDER_VALUE_RE.test(value.trim());
 }
 
-/** "Osnabrück, DE" / "Berlin, Germany" → { city: "Osnabrück", countryCode: "DE" }. */
+/** "Osnabrück, DE" / "Berlin, Germany" → { city: "Osnabrück", countryCode: "DE" }. "Phoenix, AZ" → Arizona (US), not Azerbaijan. */
 export function splitSourceLocation(raw: string | null | undefined): { city: string | null; countryCode: string | null } | null {
   if (!raw || isPlaceholderValue(raw)) return null;
-  // Drop postal codes ("843 02", "70173") so the country segment is last.
-  const parts = raw.split(',').map((p) => p.trim()).filter((p) => p && !/^[\d\s-]{3,10}$/.test(p));
+  // Drop postal codes ("843 02", "70173") and a leading "USA - " country prefix.
+  const parts = raw
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p && !/^[\d\s-]{3,10}$/.test(p));
   if (!parts.length) return null;
-  const last = parts[parts.length - 1];
-  const country =
-    (last.length === 2 ? allCountries.find((c) => c.code === last.toUpperCase()) : undefined) ??
-    allCountries.find((c) => c.name.toLowerCase() === last.toLowerCase());
-  const city = country ? (parts.length > 1 ? parts[0] : null) : parts[0];
+  const country = resolvePlace(raw);
+  const first = parts[0].replace(/^(?:USA|US|U\.S\.A?\.?|United States|UK|UAE)\s*[-–:]\s*/i, '').trim();
+  const firstIsCountry = parts.length === 1 && country && (first.length <= 3 || first.toLowerCase() === country.name.toLowerCase());
+  const city = firstIsCountry ? null : first;
   return { city: city && !isPlaceholderValue(city) ? city : null, countryCode: country?.code ?? null };
 }

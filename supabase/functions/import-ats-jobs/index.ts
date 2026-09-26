@@ -39,6 +39,7 @@
 //
 // Deploy with: supabase functions deploy import-ats-jobs
 
+import { pageChromeRemovals } from "./pageChrome.ts";
 import { serve } from "https://deno.land/std@0.192.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
@@ -970,7 +971,29 @@ function extractLabeledFields(lines: string[]): Record<string, string> {
   return found;
 }
 
-function extractDescriptionBody(lines: string[], title: string): string {
+/** Page text without forms, buttons, pickers, dialogs and side columns — for the description only. */
+function htmlToContentLines(html: string): { text: string; li: boolean; heading: boolean }[] {
+  const text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<(nav|header|footer|form|button|select|dialog|aside|template|svg)\b[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<(li)[ >]/gi, "\n\u0001$&")
+    .replace(/<(h[1-6])[ >]/gi, "\n\u0002$&")
+    .replace(/<(tr|p|div|br|dt|dd|section|article)[ >/]/gi, "\n$&")
+    .replace(/<[^>]+>/g, " ");
+  return decodeEntities(text)
+    .split("\n")
+    .map((line) => ({ li: line.includes("\u0001"), heading: line.includes("\u0002"), text: line.replace(/[\u0001\u0002]/g, "").replace(/\s+/g, " ").trim() }))
+    .filter((l) => l.text);
+}
+
+function extractDescriptionBody(lines: string[], title: string, contentLines?: { text: string; li: boolean; heading: boolean }[]): string {
+  // Whole web pages (menus, login, trackers, cookie notices around the ad) → just the ad.
+  if (contentLines?.length) {
+    const drop = pageChromeRemovals(contentLines, title);
+    lines = contentLines.filter((_, i) => !drop.has(i)).map((l) => l.text);
+  }
   const startIdx = lines.findIndex((l) => l.toLowerCase() === title.toLowerCase());
   const body = startIdx >= 0 ? lines.slice(startIdx + 1) : lines;
   const stops = ["equal opportunity employer", "privacy policy", "cookie policy", "terms of use", "recruitment fraud", "e-verify", "similar jobs", "related jobs", "share this job"];
@@ -1119,7 +1142,7 @@ function fallbackJobFromHtml(html: string, detailUrl: string): NormalizedJob | n
     title,
     locationText: fields.location ?? "",
     offices,
-    descriptionHtml: mainDescriptionHtml(html) ?? extractDescriptionBody(lines, title),
+    descriptionHtml: mainDescriptionHtml(html) ?? extractDescriptionBody(lines, title, htmlToContentLines(html)),
     url: detailUrl,
     category: fields.category ?? null,
     employmentTypeRaw: fields.employmentType ?? null,

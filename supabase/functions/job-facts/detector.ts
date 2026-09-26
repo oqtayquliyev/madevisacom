@@ -23,6 +23,8 @@ const DOMParser = LinkeDOMParser as unknown as { new (): { parseFromString(html:
 // null rather than guessing when the text doesn't clearly say.
 
 import { allCountries } from './countries.ts';
+import { createPlaceResolver } from "./placeResolver.ts";
+import { pageChromeRemovals } from "./pageChrome.ts";
 
 export type WorkArrangement = 'onsite' | 'hybrid' | 'remote';
 export type VisaStatus = 'offered' | 'not_offered';
@@ -648,6 +650,28 @@ const phoneDigits = (t: string) => t.replace(/\D/g, '').length;
  *   - dangling lead-ins left at the end ("Curious?", "Find more ...:")
  * Expects already-sanitized HTML. Returns the input unchanged outside a browser.
  */
+/**
+ * Removes website furniture only (menus, login boxes, trackers, notices, and
+ * the page around the job ad when a whole web page was saved), leaving the
+ * job text — facts block included — for detectJobFacts to read.
+ */
+export function stripPageChrome(html: string, title = ''): string {
+  if (!html || !/<(?:p|li|div|h[1-6])\b/i.test(html)) return html;
+  // Cheap check first — most descriptions have no website furniture at all.
+  const hints = html.match(/>\s*(?:log ?in|sign ?in|register|menu|search|click to visit page|select your|track\b|accept all|skip to)|cookie/gi);
+  if (!hints || hints.length < 2) return html;
+  const doc = new DOMParser().parseFromString(`<!doctype html><html><head></head><body>${html}</body></html>`, 'text/html');
+  const leaves = [...doc.body.querySelectorAll(LEAF_TAGS)].filter((el: any) => ![...el.querySelectorAll('*')].some((c: any) => BLOCK_TAGS.has(c.tagName)));
+  const items = leaves.map((el: any) => ({ el, text: squash(el.textContent ?? '') })).filter((it) => it.text);
+  const drop = pageChromeRemovals(
+    items.map(({ el, text }) => ({ text, li: el.tagName === 'LI', heading: /^H[1-6]$/.test(el.tagName) })),
+    title,
+  );
+  if (!drop.size) return html;
+  drop.forEach((i) => items[i].el.remove());
+  return doc.body.innerHTML;
+}
+
 export function cleanJobDescriptionHtml(html: string, title = ''): { html: string; contact: JobContact } {
   const contact: JobContact = {};
   if (!html) return { html, contact };
@@ -710,7 +734,17 @@ export function cleanJobDescriptionHtml(html: string, title = ''): { html: strin
 
   const leaves = [...body.querySelectorAll(LEAF_TAGS)].filter((el) => ![...el.querySelectorAll('*')].some((c) => BLOCK_TAGS.has(c.tagName)));
   const items = leaves.map((el) => ({ el, text: squash(el.textContent ?? '') })).filter((it) => it.text);
-  const removed = new Set<number>();
+  // Website furniture: menus, login boxes, trackers, cookie notices — and,
+  // when the importer saved a whole web page, everything around the job ad.
+  const removed = pageChromeRemovals(
+    items.map(({ el, text }) => ({
+      text,
+      li: el.tagName === 'LI',
+      heading: /^H[1-6]$/.test(el.tagName),
+      link: squash(el.querySelector('a')?.textContent ?? '') === text,
+    })),
+    title,
+  );
   const contactIdx = new Set<number>();
   const seen = new Map<string, number>();
   const titleKey = normKey(title);
@@ -730,6 +764,7 @@ export function cleanJobDescriptionHtml(html: string, title = ''): { html: strin
   };
 
   for (let i = 0; i < items.length; i++) {
+    if (removed.has(i)) continue;
     const { el, text } = items[i];
     const key = normKey(text);
 
@@ -884,16 +919,19 @@ export function isPlaceholderValue(value: string | null | undefined): boolean {
   return !value || PLACEHOLDER_VALUE_RE.test(value.trim());
 }
 
-/** "Osnabrück, DE" / "Berlin, Germany" → { city: "Osnabrück", countryCode: "DE" }. */
+/** "Osnabrück, DE" / "Berlin, Germany" → { city: "Osnabrück", countryCode: "DE" }. "Phoenix, AZ" → Arizona (US), not Azerbaijan. */
+const resolvePlace = createPlaceResolver(allCountries);
+
 export function splitSourceLocation(raw: string | null | undefined): { city: string | null; countryCode: string | null } | null {
   if (!raw || isPlaceholderValue(raw)) return null;
-  // Drop postal codes ("843 02", "70173") so the country segment is last.
-  const parts = raw.split(',').map((p) => p.trim()).filter((p) => p && !/^[\d\s-]{3,10}$/.test(p));
+  const parts = raw
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => p && !/^[\d\s-]{3,10}$/.test(p));
   if (!parts.length) return null;
-  const last = parts[parts.length - 1];
-  const country =
-    (last.length === 2 ? allCountries.find((c) => c.code === last.toUpperCase()) : undefined) ??
-    allCountries.find((c) => c.name.toLowerCase() === last.toLowerCase());
-  const city = country ? (parts.length > 1 ? parts[0] : null) : parts[0];
+  const country = resolvePlace(raw);
+  const first = parts[0].replace(/^(?:USA|US|U\.S\.A?\.?|United States|UK|UAE)\s*[-–:]\s*/i, "").trim();
+  const firstIsCountry = parts.length === 1 && country && (first.length <= 3 || first.toLowerCase() === country.name.toLowerCase());
+  const city = firstIsCountry ? null : first;
   return { city: city && !isPlaceholderValue(city) ? city : null, countryCode: country?.code ?? null };
 }

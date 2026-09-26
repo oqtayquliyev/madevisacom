@@ -21,11 +21,11 @@
 // Deploy: supabase functions deploy job-facts
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { detectJobFacts, cleanJobDescriptionHtml } from './detector.ts';
+import { detectJobFacts, cleanJobDescriptionHtml, stripPageChrome } from './detector.ts';
 import { sanitizeJobHtml } from './sanitize.ts';
 
 /** Bump when the detector changes, so stored results are recomputed. */
-const FACTS_VERSION = 2;
+const FACTS_VERSION = 3;
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -36,8 +36,11 @@ const CORS_HEADERS = {
 type Payload = { v: number; facts: ReturnType<typeof detectJobFacts>; html: string; contact: Record<string, string> };
 
 function analyse(title: string, description: string | null): Payload {
-  const facts = detectJobFacts(description, title);
-  const cleaned = description ? cleanJobDescriptionHtml(sanitizeJobHtml(description), title) : { html: '', contact: {} };
+  // A description that is really a whole web page (menus, login, cookie
+  // notices) is cut down to the job ad first, for both facts and display.
+  const base = description ? stripPageChrome(sanitizeJobHtml(description), title) : '';
+  const facts = detectJobFacts(base || description, title);
+  const cleaned = base ? cleanJobDescriptionHtml(base, title) : { html: '', contact: {} };
   return { v: FACTS_VERSION, facts, html: cleaned.html, contact: cleaned.contact as Record<string, string> };
 }
 
@@ -67,7 +70,13 @@ Deno.serve(async (req) => {
     if (Array.isArray(body?.items)) {
       if (!isAdmin) return reply({ ok: false, error: 'Admin access required.' }, 403);
       const items = (body.items as { title?: string; description?: string | null }[]).slice(0, 500);
-      return reply({ ok: true, facts: items.map((it) => detectJobFacts(it?.description ?? null, it?.title ?? '')) });
+      return reply({
+        ok: true,
+        facts: items.map((it) => {
+          const d = it?.description ? stripPageChrome(sanitizeJobHtml(it.description), it?.title ?? '') : null;
+          return detectJobFacts(d || it?.description || null, it?.title ?? '');
+        }),
+      });
     }
 
     // --- Jobs by id -----------------------------------------------------

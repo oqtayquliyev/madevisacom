@@ -61,6 +61,7 @@ import {
   type DirectRequest,
   type PublisherMember,
   backfillJobFacts,
+  repairAmbiguousJobCountries,
   deleteCompany,
   fetchOwnerEmails,
 } from '@/lib/admin';
@@ -3122,27 +3123,53 @@ function CompanyAccessSection({ publishers, members, onChange }: { publishers: P
 // Detect job details from descriptions (salary, experience, work type, visa)
 // ===========================================================================
 
+type DetectScope = 'recent24' | 'recent168' | 'all';
+const DETECT_SCOPES: { value: DetectScope; label: string; hours?: number }[] = [
+  { value: 'recent24', label: 'Last added (24 h)', hours: 24 },
+  { value: 'recent168', label: 'Last 7 days', hours: 168 },
+  { value: 'all', label: 'All jobs' },
+];
+
 function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () => void; compact?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [refetchThin, setRefetchThin] = useState(true);
+  const [scope, setScope] = useState<DetectScope>('recent24');
   const stop = useRef(false);
+  const hours = DETECT_SCOPES.find((x) => x.value === scope)?.hours;
   return (
     <section className="mt-8">
       <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Detect job details from descriptions</h2>
       <div className="mt-3 border border-ink-200 bg-white p-4 text-xs text-ink-600">
         {compact ? (
-          <p>New imports and syncs do this automatically. Run once to fill in jobs imported earlier (works through them 100 at a time).</p>
+          <p>New imports and syncs do this automatically. Run it on the jobs published most recently, or on everything to fill in jobs imported earlier.</p>
         ) : (
           <p>
-            Reads every job's description and fills in what's missing — compensation (e.g. “$126,000—$136,000 CAD”),
+            Reads each job's description and fills in what's missing — compensation (e.g. “$126,000—$136,000 CAD”),
             experience (“8–12 years”, “Career Level: Apprentices”), employment &amp; work type (“Full time · On-site”,
             “Remote Working: Up to 20%”), visa sponsorship, and the facts block many career sites print (posting date,
             department, location) — which also replaces placeholders like “All” / “Various”. Only empty fields are
-            filled; nothing you set by hand is overwritten.
+            filled, except a country saved from a US state code (“Phoenix, AZ” as Azerbaijan), which is corrected.
           </p>
         )}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-ink-700">Which jobs:</span>
+          <div className="inline-flex rounded-lg bg-ink-100 p-0.5">
+            {DETECT_SCOPES.map((o) => (
+              <button
+                key={o.value}
+                disabled={busy}
+                onClick={() => setScope(o.value)}
+                aria-pressed={scope === o.value}
+                className={`rounded-md px-3 py-1.5 font-semibold transition-colors disabled:opacity-60 ${scope === o.value ? 'bg-white text-brand-700 shadow-sm' : 'text-ink-600 hover:text-ink-900'}`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <span className="text-ink-400">{hours ? 'Published jobs that went live in this window.' : 'Every job — slow on a large catalogue.'}</span>
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <button
             disabled={busy}
@@ -3154,21 +3181,22 @@ function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () =
               const r = await backfillJobFacts(
                 (done, total) => setProgress({ done, total }),
                 () => stop.current,
-                { refetchThin }
+                { refetchThin, recentHours: hours }
               );
               setBusy(false);
               setProgress(null);
               const c = r.counts;
               setResult(
                 (r.ok ? (stop.current ? 'Stopped. ' : 'Done. ') : `Finished with an error: ${r.error}. `) +
-                  `Scanned ${r.scanned.toLocaleString()}, updated ${r.updated.toLocaleString()} — re-read pages ${c.refetched}, salary ${c.compensation}, experience ${c.experience}, employment type ${c.employment}, work type ${c.workType}, visa ${c.visa}, posted date ${c.posted}, department ${c.department}, location ${c.location}.` +
+                  (r.scanned === 0 && hours ? `No jobs were published in the last ${hours === 24 ? '24 hours' : '7 days'}. ` : '') +
+                  `Scanned ${r.scanned.toLocaleString()}, updated ${r.updated.toLocaleString()} — re-read pages ${c.refetched}, salary ${c.compensation}, experience ${c.experience}, employment type ${c.employment}, work type ${c.workType}, visa ${c.visa}, posted date ${c.posted}, department ${c.department}, location ${c.location}${c.countryFixed ? ` (${c.countryFixed} countries corrected)` : ''}.` +
                   (r.migrationMissing ? ' (Run the 20260925090000 migration to also store work type & “visa not offered”.)' : '')
               );
               onChange();
             }}
             className="rounded-lg bg-brand-600 px-4 py-2 font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
           >
-            {busy ? 'Detecting…' : 'Detect job details'}
+            {busy ? 'Detecting…' : hours ? `Detect details · ${DETECT_SCOPES.find((x) => x.value === scope)!.label.toLowerCase()}` : 'Detect details · all jobs'}
           </button>
           <label className="flex items-center gap-2 text-ink-600">
             <input type="checkbox" checked={refetchThin} disabled={busy} onChange={(e) => setRefetchThin(e.target.checked)} />
@@ -3190,8 +3218,71 @@ function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () =
           </div>
         )}
         {result && <p className="mt-2 text-ink-700">{result}</p>}
+        <RepairCountriesPanel onChange={onChange} />
       </div>
     </section>
+  );
+}
+
+/** One-off: jobs an older import saved with a US state (AZ, CA, CO, IN…) as the country. */
+function RepairCountriesPanel({ onChange }: { onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+  const stop = useRef(false);
+  return (
+    <div className="mt-5 border-t border-ink-100 pt-4">
+      <p className="font-semibold text-ink-800">Fix countries read from US state codes</p>
+      <p className="mt-1">
+        Older imports read “Phoenix, AZ” as Azerbaijan, “San Jose, CA” as Canada, “Chicago, IL” as Israel. This checks every job saved with one of those
+        countries and moves it only when its location, office list or title clearly points elsewhere, or its city is a well-known city of that state. Jobs
+        in Baku or Osnabrück are left alone.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          disabled={busy}
+          onClick={async () => {
+            stop.current = false;
+            setBusy(true);
+            setResult(null);
+            setProgress({ done: 0, total: 0 });
+            const r = await repairAmbiguousJobCountries(
+              (done, total) => setProgress({ done, total }),
+              () => stop.current,
+            );
+            setBusy(false);
+            setProgress(null);
+            const moved = Object.entries(r.byCountry)
+              .sort((a, b) => b[1] - a[1])
+              .map(([iso, n]) => `${n} → ${iso}`)
+              .join(', ');
+            setResult(
+              (r.ok ? (stop.current ? 'Stopped. ' : 'Done. ') : `Finished with an error: ${r.error}. `) +
+                `Checked ${r.scanned.toLocaleString()} jobs, corrected ${r.fixed.toLocaleString()}${moved ? ` (${moved})` : ''}.`,
+            );
+            if (r.fixed) onChange();
+          }}
+          className="rounded-lg border border-brand-600 px-4 py-2 font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50"
+        >
+          {busy ? 'Checking…' : 'Fix state-code countries'}
+        </button>
+        {busy && (
+          <button onClick={() => (stop.current = true)} className="rounded-lg border border-ink-200 px-3 py-2 font-semibold text-ink-600 hover:bg-ink-50">
+            Stop
+          </button>
+        )}
+      </div>
+      {busy && progress && (
+        <div className="mt-3">
+          <ProgressBar
+            value={progress.total ? progress.done / progress.total : null}
+            label="Checking saved countries"
+            detail={progress.total ? `${progress.done.toLocaleString()} of ${progress.total.toLocaleString()} jobs` : 'Starting…'}
+          />
+        </div>
+      )}
+      {result && <p className="mt-2 text-ink-700">{result}</p>}
+    </div>
   );
 }
 

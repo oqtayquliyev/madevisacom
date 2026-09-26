@@ -60,11 +60,14 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       setStored(raw.facts);
       return;
     }
+    // Older results (from a previous detector version) are shown right away
+    // while the up-to-date ones are computed.
+    if (raw.facts && (raw.facts as StoredJobFacts).facts) setStored(raw.facts as StoredJobFacts);
     let cancelled = false;
     setFactsPending(true);
     fetchJobFacts(raw.id).then((f) => {
       if (cancelled) return;
-      setStored(f);
+      if (f) setStored(f);
       setFactsPending(false);
     });
     return () => {
