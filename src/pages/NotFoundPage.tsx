@@ -1,9 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { ArrowRight, Briefcase, Home, Plane, Search } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { handleNavClick } from '@/lib/navLink';
-import { supabase } from '@/lib/supabase';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 
@@ -71,16 +70,7 @@ export function NotFoundPage({
   const copy = COPY[kind];
   useSeo({ title: copy.title, description: copy.text, path: window.location.pathname, noindex: true });
   const [q, setQ] = useState('');
-  const [openJobs, setOpenJobs] = useState<number | null>(null);
   const company = kind === 'job' ? companyFromSlug(companySlug) : null;
-
-  useEffect(() => {
-    supabase
-      .from('sponsored_jobs')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'published')
-      .then(({ count }) => setOpenJobs(count ?? null));
-  }, []);
 
   const search = (e: FormEvent) => {
     e.preventDefault();
@@ -136,14 +126,7 @@ export function NotFoundPage({
                 <span className="absolute -left-3 -top-3 hidden h-6 w-6 rounded-full bg-[#f8fafc] sm:block" />
                 <span className="absolute -bottom-3 -left-3 hidden h-6 w-6 rounded-full bg-[#f8fafc] sm:block" />
                 <p className="text-[10px] font-bold uppercase tracking-widest text-ink-400">Next departure</p>
-                {openJobs ? (
-                  <>
-                    <p className="mt-1 font-slab text-3xl font-bold leading-none text-ink-950">{openJobs.toLocaleString()}</p>
-                    <p className="mt-1 text-xs text-ink-500">open jobs right now</p>
-                  </>
-                ) : (
-                  <p className="mt-1 text-sm font-semibold text-ink-900">Thousands of jobs open right now</p>
-                )}
+                <p className="mt-1 text-sm font-semibold text-ink-900">New jobs every day, straight from company career pages</p>
                 <a
                   href="/jobs"
                   onClick={(e) => handleNavClick(e, () => go('jobs'))}

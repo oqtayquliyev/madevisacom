@@ -297,7 +297,7 @@ function Overview({ data }: { data: HiringFeedbackOverview | null | undefined })
       title="What applicants report, across all companies"
       sub={
         t
-          ? `${t.toLocaleString()} application outcomes from ${data.people.toLocaleString()} people about ${data.companies.toLocaleString()} companies${data.last_7d ? ` · ${data.last_7d} this week` : ''}`
+          ? `Real application outcomes shared by applicants${data.last_7d ? ` · ${data.last_7d} new this week` : ''}`
           : 'The first outcomes are coming in — yours could be one of them.'
       }
     >

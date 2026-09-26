@@ -192,8 +192,6 @@ export function CompaniesPage({ go, onAuth }: Props) {
   ].filter(Boolean) as { key: string; label: string; clear: () => void }[];
   const activeCount = chips.length - (f.q.trim() ? 1 : 0);
 
-  const totalOpen = useMemo(() => sum(all.map((r) => r.active_jobs)), [all]);
-  const totalNew = useMemo(() => sum(all.map(newOf)), [all]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
@@ -204,21 +202,6 @@ export function CompaniesPage({ go, onAuth }: Props) {
         <div className="mx-auto max-w-[1440px] px-5 pb-8 pt-8 sm:px-8 lg:px-10">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Company Scores</h1>
           <p className="mt-2 max-w-2xl text-[15px] leading-6 text-white/80">Who's hiring, where, and how fast — from real listings and applicant data.</p>
-          {rows && rows.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-white/85">
-              <span>
-                <strong className="text-white">{all.length.toLocaleString()}</strong> companies
-              </span>
-              <span>
-                <strong className="text-white">{totalOpen.toLocaleString()}</strong> open jobs
-              </span>
-              {totalNew > 0 && (
-                <span>
-                  <strong className="text-white">{totalNew.toLocaleString()}</strong> new in 30 days
-                </span>
-              )}
-            </div>
-          )}
 
           <div className="mt-6 flex flex-col gap-2 rounded-xl bg-white p-2 shadow-lg shadow-black/10 sm:flex-row sm:items-center">
             <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
@@ -322,7 +305,7 @@ export function CompaniesPage({ go, onAuth }: Props) {
         {/* RESULTS BAR */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold text-ink-700">{rows ? `${shown.length.toLocaleString()} ${shown.length === 1 ? 'company' : 'companies'}` : rows === null ? '' : 'Loading…'}</p>
+            <p className="text-sm font-semibold text-ink-700">{rows ? (chips.length ? 'Matching companies' : 'All companies') : rows === null ? '' : 'Loading…'}</p>
             {chips.map((c) => (
               <button
                 key={c.key}

@@ -6,6 +6,8 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { LoginPage } from '@/pages/auth/LoginPage';
+import { AddNameStep, FinishAuth, goToNextAfterAuth, nameSkipped } from '@/components/auth/AfterSignIn';
+import { readAuthIntent } from '@/lib/authIntent';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { LandingPage } from '@/pages/landing/LandingPage';
@@ -176,6 +178,12 @@ export default function App() {
   }, []);
 
 
+  // Google sign-in comes back to "/" — continue to the page saved before it.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (session && path === '/' && readAuthIntent().next) goToNextAfterAuth();
+  }, [session, path]);
+
   if (loading) {
     return (
       <div className="grid min-h-screen place-items-center gap-4 bg-[#f7f9fc]">
@@ -301,6 +309,14 @@ export default function App() {
   const cleanPath = path.replace(/\/+$/, '') || '/';
   if (!KNOWN_PATHS.has(cleanPath)) {
     return <NotFoundPage go={go} onAuth={goToAuth} />;
+  }
+
+  // Just signed in (email code or Google) on the sign-in page: ask for a
+  // name the first time, then go back to where they were.
+  if (session && (path === '/login' || path === '/register')) {
+    if (!profile) return <ProfileMissingScreen />;
+    if (!profile.full_name?.trim() && !nameSkipped()) return <AddNameStep />;
+    return <FinishAuth />;
   }
 
   if (!session) {

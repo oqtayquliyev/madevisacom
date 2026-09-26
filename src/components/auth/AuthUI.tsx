@@ -3,7 +3,6 @@ import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/layout/Logo';
 import { handleNavClick } from '@/lib/navLink';
 import { JobTicker } from '@/components/auth/JobTicker';
-import { useSiteStats } from '@/lib/siteStats';
 
 /**
  * Sign-in / register / reset layout: the form card sits on a light top
@@ -22,7 +21,6 @@ export function AuthCard({
   subtitle?: string;
   onHome?: () => void;
 }) {
-  const stats = useSiteStats();
 
   const goBack = () => {
     // Back to wherever the visitor came from on MadeVisa; home otherwise.
@@ -60,14 +58,7 @@ export function AuthCard({
       {/* Blue band: the card above overlaps into it. */}
       <section className="-mt-24 flex-1 bg-brand-700 pb-10 pt-32 text-white sm:-mt-28 sm:pb-12 sm:pt-36">
         <p className="px-5 text-center text-sm font-semibold text-white/85 sm:text-base">
-          {stats ? (
-            <>
-              <span className="font-slab text-lg font-bold text-white sm:text-xl">{stats.publishedJobs.toLocaleString()}</span> opportunities from company
-              career pages, waiting for you
-            </>
-          ) : (
-            'Jobs and programs from company career pages, waiting for you'
-          )}
+          Jobs straight from company career pages, waiting for you
         </p>
         {/* Phones: no ticker — the moving rows don't run reliably there and
             only push the form's context further down. */}
