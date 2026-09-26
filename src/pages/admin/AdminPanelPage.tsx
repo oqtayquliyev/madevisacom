@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EvidenceReviewSection } from '@/pages/admin/EvidenceReviewSection';
 import { ListingRequestsSection } from '@/pages/admin/ListingRequestsSection';
+import { ExperienceReportsSection } from '@/pages/admin/ExperienceReportsSection';
 import { JobReportsSection } from '@/pages/admin/JobReportsSection';
 import { countNewJobReports } from '@/lib/jobReports';
 import { listTotpFactors } from '@/lib/mfa';
@@ -434,6 +435,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                 <ListingRequestsSection />
 
                 <JobReportsSection />
+
+                <ExperienceReportsSection />
 
                 <EvidenceReviewSection />
 

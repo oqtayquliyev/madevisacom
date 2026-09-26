@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Info,
   Landmark,
+  MessageSquarePlus,
   Search,
   Users,
 } from 'lucide-react';
@@ -20,6 +21,8 @@ import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { HireCountries } from '@/components/companies/HireCountries';
+import { ShareExperienceDialog } from '@/components/companies/ShareExperienceDialog';
+import { fetchExperienceSummary, type ExperienceSummary } from '@/lib/companyExperiences';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { fetchCompanyBySlug, fetchCompanyInsights, type CompanyInsights, type CompanyProfile } from '@/lib/companies';
 import { fetchPublishedJobsByPublisher, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
@@ -68,6 +71,8 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
   const [jobLimit, setJobLimit] = useState(24);
   const [range, setRange] = useState<4 | 12 | 26>(12);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [shared, setShared] = useState<ExperienceSummary | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -77,6 +82,7 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
       setCompany(c);
       if (!c) return;
       fetchCompanyInsights(c.id).then((i) => alive && setInsights(i));
+      fetchExperienceSummary(c.id).then((x) => alive && setShared(x));
       fetchPublishedJobsByPublisher(c.id).then((rows) => alive && setJobs(rows.map(sponsoredJobToBoardJob)));
       fetchPublishedProgramsByPublisher(c.id).then((rows) => {
         if (!alive) return;
@@ -132,17 +138,18 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
   const navItems: NavItem[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'hiring', label: 'Hiring activity', children: [{ id: 'hiring-performance', label: 'Performance' }, { id: 'hiring-locations', label: 'Locations & focus' }] },
-    { id: 'response', label: 'Applicant response', children: [{ id: 'response-funnel', label: 'Response funnel' }] },
+    { id: 'response', label: 'Applicant response', children: [{ id: 'response-funnel', label: 'Response funnel' }, { id: 'response-shared', label: 'Shared by applicants' }] },
     { id: 'trust', label: 'Trust & engagement' },
     { id: 'listings', label: 'Open jobs', count: jobs?.length },
     { id: 'about-metrics', label: 'About these metrics' },
   ];
-  const activeId = useScrollSpy(['overview', 'hiring-performance', 'hiring', 'hiring-locations', 'response', 'response-funnel', 'trust', 'listings', 'about-metrics'], company);
+  const activeId = useScrollSpy(['overview', 'hiring-performance', 'hiring', 'hiring-locations', 'response', 'response-funnel', 'response-shared', 'trust', 'listings', 'about-metrics'], company);
 
   const shell = (children: ReactNode) => (
     <div className="min-h-screen bg-white text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
       {children}
+      {company && <ShareExperienceDialog open={shareOpen} onClose={() => setShareOpen(false)} company={{ id: company.id, name: company.name }} onAuth={onAuth} />}
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );
@@ -475,6 +482,23 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
             </SoftPanel>
           </section>
 
+          {/* SHARED BY APPLICANTS (applications made outside MadeVisa, reviewed) */}
+          <SoftPanel
+            id="response-shared"
+            title="Shared by applicants"
+            sub="Applications made elsewhere — careers site, LinkedIn, referrals. Each report is reviewed by MadeVisa."
+            right={
+              <button
+                onClick={() => setShareOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-[#1D4ED8] px-4 py-2 text-[14px] font-semibold text-white transition hover:scale-[1.03] hover:bg-brand-800"
+              >
+                <MessageSquarePlus className="h-4 w-4" /> Share your experience
+              </button>
+            }
+          >
+            {shared && shared.total > 0 ? <SharedOutcomes s={shared} /> : <EmptyNote text={`No shared experiences yet. Applied to ${company.name}? Be the first to tell others how it went.`} />}
+          </SoftPanel>
+
           {/* TRUST */}
           <section id="trust" className="scroll-mt-40">
             <SectionTitle title="Trust & engagement" badge={<ReliabilityLabel level="records" />} />
@@ -732,6 +756,41 @@ function MiniRing({ label, value }: { label: string; value: number | null | unde
       <RingScore value={value ?? 0} empty={value == null} label={value != null ? `${value}%` : ''} size={64} stroke={6} />
       <span className="text-[13px] font-medium text-ink-600">{label}</span>
     </SoftCard>
+  );
+}
+
+/** Approved outside-MadeVisa reports: one bar per outcome, counts only. */
+function SharedOutcomes({ s }: { s: ExperienceSummary }) {
+  const rows: { label: string; n: number }[] = [
+    { label: 'No response', n: s.no_response },
+    { label: 'Rejected', n: s.rejected },
+    { label: 'Replied', n: s.responded },
+    { label: 'Interview', n: s.interview },
+    { label: 'Offer', n: s.offer },
+  ];
+  const heard = s.total - s.no_response;
+  return (
+    <div className="grid gap-5 md:grid-cols-[220px_1fr]">
+      <SoftCard>
+        <p className="text-[13px] text-ink-600">Heard back</p>
+        <p className="mt-1 text-[34px] font-bold leading-none text-ink-950">{Math.round((heard / s.total) * 100)}%</p>
+        <p className="mt-2 text-[12px] text-ink-500">
+          {s.total} report{s.total === 1 ? '' : 's'} from {s.reporters} applicant{s.reporters === 1 ? '' : 's'}
+          {s.avg_reply_days != null ? ` · first reply in ~${s.avg_reply_days} days` : ''}
+        </p>
+      </SoftCard>
+      <ul className="space-y-2.5">
+        {rows.map((r) => (
+          <li key={r.label} className="grid grid-cols-[96px_1fr_40px] items-center gap-3 text-[13px]">
+            <span className="text-ink-600">{r.label}</span>
+            <span className="h-2.5 overflow-hidden rounded-full bg-[#1D4ED8]/10">
+              <span className="block h-full rounded-full bg-[#1D4ED8] transition-all duration-700" style={{ width: `${s.total ? (r.n / s.total) * 100 : 0}%` }} />
+            </span>
+            <span className="text-right font-semibold tabular-nums text-ink-900">{r.n}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

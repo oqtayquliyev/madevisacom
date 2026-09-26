@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ArrowRight, ArrowUp, Building2, Loader2, Search, SlidersHorizontal, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { ArrowRight, ArrowUp, Building2, Loader2, MessageSquarePlus, Search, SlidersHorizontal, TrendingDown, TrendingUp, X } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -8,6 +8,7 @@ import { companyPath, fetchCompaniesDirectory, type DirectoryCompany } from '@/l
 import { formatRelativeTime } from '@/lib/dates';
 import { MiniArea } from '@/components/charts/SoftCharts';
 import { HireCountries } from '@/components/companies/HireCountries';
+import { ShareExperienceDialog } from '@/components/companies/ShareExperienceDialog';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
@@ -89,6 +90,7 @@ export function CompaniesPage({ go, onAuth }: Props) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const set = <K extends keyof Filters>(k: K, v: Filters[K]) => setF((prev) => ({ ...prev, [k]: v }));
 
   useEffect(() => {
@@ -197,8 +199,18 @@ export function CompaniesPage({ go, onAuth }: Props) {
       {/* HERO + SEARCH */}
       <section className="bg-brand-700 text-white">
         <div className="mx-auto max-w-[1440px] px-5 pb-8 pt-8 sm:px-8 lg:px-10">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Companies</h1>
-          <p className="mt-2 max-w-2xl text-[15px] leading-6 text-white/80">Who's hiring, where, and how fast — from real listings and applicant data.</p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Companies</h1>
+              <p className="mt-2 max-w-2xl text-[15px] leading-6 text-white/80">Who's hiring, where, and how fast — from real listings and applicant data.</p>
+            </div>
+            <button
+              onClick={() => setShareOpen(true)}
+              className="flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-bold text-brand-700 shadow-sm transition hover:scale-[1.03] hover:bg-brand-50"
+            >
+              <MessageSquarePlus className="h-4 w-4" /> Share your application experience
+            </button>
+          </div>
           {rows && rows.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-white/85">
               <span>
@@ -345,9 +357,14 @@ export function CompaniesPage({ go, onAuth }: Props) {
         {rows && shown.length === 0 && (
           <div className="mt-6 rounded-xl border border-dashed border-ink-300 bg-white p-10 text-center">
             <p className="font-semibold text-ink-800">No companies match these filters.</p>
-            <button onClick={() => setF({ ...EMPTY })} className="mt-3 text-sm font-semibold text-[#1D4ED8] hover:underline">
-              Clear filters
-            </button>
+            <div className="mt-3 flex flex-wrap justify-center gap-4">
+              <button onClick={() => setF({ ...EMPTY })} className="text-sm font-semibold text-[#1D4ED8] hover:underline">
+                Clear filters
+              </button>
+              <button onClick={() => setShareOpen(true)} className="text-sm font-semibold text-[#1D4ED8] hover:underline">
+                Company missing? Share your experience with it
+              </button>
+            </div>
           </div>
         )}
 
@@ -372,6 +389,7 @@ export function CompaniesPage({ go, onAuth }: Props) {
           </div>
         )}
       </main>
+      <ShareExperienceDialog open={shareOpen} onClose={() => setShareOpen(false)} onAuth={onAuth} />
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );
