@@ -1086,6 +1086,7 @@ export async function backfillJobFacts(
   let scanned = 0;
   let updated = 0;
   let firstError: string | undefined;
+  let failedBatches = 0; // in a row
 
   const fetchBatch = async (cols: string) => {
     let q = supabase.from('sponsored_jobs').select(cols).order('id', { ascending: true }).limit(BATCH);
@@ -1160,9 +1161,17 @@ export async function backfillJobFacts(
       reread.length ? detectFactsForItems(reread.map((r) => ({ title: r.title, description: r.description }))) : Promise.resolve({ ok: true, facts: [] as DetectedFacts[], error: undefined as string | undefined }),
     ]);
     if (!stored.ok || !fromText.ok) {
+      // Skip this batch and carry on: one job the detector can't handle used
+      // to stop every run at the same place. Give up only when the function
+      // keeps failing (not deployed / down).
       firstError = stored.error ?? fromText.error ?? 'job-facts function failed — is it deployed?';
-      break;
+      failedBatches++;
+      if (failedBatches >= 3) break;
+      onProgress?.(scanned, total ?? scanned);
+      if (batchRows.length < BATCH) break;
+      continue;
     }
+    failedBatches = 0;
     const factsById = new Map<string, DetectedFacts>();
     for (const [id, v] of Object.entries(stored.results)) factsById.set(id, v.facts);
     reread.forEach((r, i) => factsById.set(r.id, fromText.facts[i]));

@@ -124,10 +124,20 @@ const liveOrRecentlyClosed = (asOf: string) =>
 // downloading the whole catalog.
 // ---------------------------------------------------------------------------
 
-let publishedJobsCache: { data: SponsoredJob[]; fetchedAt: number; release: number | null } | null = null;
+// fetchedAt = when the FULL list was last downloaded. releaseAt = the
+// published_at of the release the copy is up to date with (moved forward
+// by small "what's new since" updates — see fetchReleaseDelta).
+type JobsCopy = { data: SponsoredJob[]; fetchedAt: number; release: number | null; releaseAt?: string | null };
+let publishedJobsCache: JobsCopy | null = null;
 const PUBLISHED_JOBS_CACHE_TTL_MS = 60_000; // only when releases aren't available
 const PERSISTED_MAX_AGE_MS = 6 * 60 * 60 * 1000; // copies without a matching release
 const PERSISTED_RELEASE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // copies of the current release
+// Auto-publish releases a few jobs every 3–4 minutes. A saved copy is kept
+// current with tiny "new since" requests; the full list is re-downloaded
+// at most every 48 h (picks up edits and deleted jobs).
+const DELTA_FULL_REFRESH_MS = 48 * 60 * 60 * 1000;
+const DELTA_OVERLAP_MS = 5 * 60 * 1000; // re-ask a few minutes back; merging by id drops repeats
+const DELTA_MAX_ROWS = 3000; // more changed than this → a full download is simpler
 
 // --- Releases -----------------------------------------------------------------
 // Imported jobs go public in batches when an admin presses "Publish update"
@@ -190,14 +200,14 @@ function openCacheDb(): Promise<IDBDatabase | null> {
   });
 }
 
-async function readPersistedJobs(): Promise<{ data: SponsoredJob[]; fetchedAt: number; release?: number | null } | null> {
+async function readPersistedJobs(): Promise<(Omit<JobsCopy, 'release'> & { release?: number | null }) | null> {
   const db = await openCacheDb();
   if (!db) return null;
   return new Promise((resolve) => {
     try {
       const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(IDB_KEY);
       req.onsuccess = () => {
-        const v = req.result as { data: SponsoredJob[]; fetchedAt: number; release?: number | null } | undefined;
+        const v = req.result as (Omit<JobsCopy, 'release'> & { release?: number | null }) | undefined;
         resolve(v && Array.isArray(v.data) && Date.now() - v.fetchedAt < PERSISTED_RELEASE_MAX_AGE_MS ? v : null);
       };
       req.onerror = () => resolve(null);
@@ -207,13 +217,13 @@ async function readPersistedJobs(): Promise<{ data: SponsoredJob[]; fetchedAt: n
   });
 }
 
-function writePersistedJobs(data: SponsoredJob[], release: number | null) {
+function writePersistedJobs(copy: JobsCopy) {
   // Deferred so saving never competes with the first render.
   const save = async () => {
     const db = await openCacheDb();
     if (!db) return;
     try {
-      db.transaction(IDB_STORE, 'readwrite').objectStore(IDB_STORE).put({ data, fetchedAt: Date.now(), release }, IDB_KEY);
+      db.transaction(IDB_STORE, 'readwrite').objectStore(IDB_STORE).put(copy, IDB_KEY);
     } catch {
       /* quota / private mode — caching is optional */
     }
@@ -230,6 +240,54 @@ function stillLive(rows: SponsoredJob[]): SponsoredJob[] {
   const now = nowIso();
   const closedSince = new Date(Date.now() - CLOSED_VISIBLE_MS).toISOString();
   return rows.filter((r) => (isClosedJob(r) ? Boolean(r.closed_at && r.closed_at > closedSince) : !r.expires_at || r.expires_at > now));
+}
+
+/**
+ * What changed since a release: jobs that went live after it, and jobs
+ * closed after it. Two small indexed requests (released_at / closed_at) —
+ * usually a handful of rows. null = couldn't (or too much changed); the
+ * caller then downloads the full list as before.
+ */
+async function fetchReleaseDelta(sinceIso: string): Promise<{ added: SponsoredJob[]; closed: SponsoredJob[] } | null> {
+  const since = new Date(Date.parse(sinceIso) - DELTA_OVERLAP_MS).toISOString();
+  const cols = closedColumnMissing ? LIST_COLUMNS : LIST_COLUMNS_WITH_CLOSED;
+  try {
+    const [added, closed] = await Promise.all([
+      supabase.from('sponsored_jobs').select(cols).eq('status', 'published').gte('released_at', since).order('released_at', { ascending: false }).limit(DELTA_MAX_ROWS + 1),
+      closedColumnMissing
+        ? Promise.resolve({ data: [] as unknown[], error: null })
+        : supabase.from('sponsored_jobs').select(cols).eq('status', 'expired').gte('closed_at', since).limit(DELTA_MAX_ROWS + 1),
+    ]);
+    if (added.error || closed.error) return null;
+    const a = (added.data ?? []) as unknown as SponsoredJob[];
+    const c = (closed.data ?? []) as unknown as SponsoredJob[];
+    if (a.length > DELTA_MAX_ROWS || c.length > DELTA_MAX_ROWS) return null;
+    return { added: a, closed: c };
+  } catch {
+    return null;
+  }
+}
+
+/** A copy of the list with the delta merged in (new jobs first, closed ones updated in place). */
+function mergeDelta(rows: SponsoredJob[], delta: { added: SponsoredJob[]; closed: SponsoredJob[] }): SponsoredJob[] {
+  const changed = new Map<string, SponsoredJob>();
+  for (const j of delta.added) changed.set(j.id, j);
+  for (const j of delta.closed) changed.set(j.id, j);
+  if (!changed.size) return rows;
+  const known = new Set(rows.map((r) => r.id));
+  const fresh = [...changed.values()].filter((j) => !known.has(j.id)).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  return stillLive([...fresh, ...rows.map((r) => changed.get(r.id) ?? r)]);
+}
+
+/**
+ * Brings a saved copy up to the current release with a small delta, when
+ * the copy is recent enough. null = not possible → full download.
+ */
+async function catchUpCopy(copy: { data: SponsoredJob[]; fetchedAt: number; releaseAt?: string | null }, release: JobRelease): Promise<JobsCopy | null> {
+  if (!copy.releaseAt || Date.now() - copy.fetchedAt > DELTA_FULL_REFRESH_MS) return null;
+  const delta = await fetchReleaseDelta(copy.releaseAt);
+  if (!delta) return null;
+  return { data: mergeDelta(copy.data, delta), fetchedAt: copy.fetchedAt, release: release.id, releaseAt: release.published_at };
 }
 
 /**
@@ -415,6 +473,16 @@ export async function fetchPublishedSponsoredJobs(opts: { onPartial?: (rows: Spo
     const rel = await fetchCurrentRelease();
     const sameRelease = rel && publishedJobsCache.release === rel.id;
     if (sameRelease || (!rel && Date.now() - publishedJobsCache.fetchedAt < PUBLISHED_JOBS_CACHE_TTL_MS)) return publishedJobsCache.data;
+    // A newer release (auto-publish adds a few jobs every few minutes):
+    // fetch just what changed instead of the whole list.
+    if (rel && !inflight) {
+      const caught = await catchUpCopy(publishedJobsCache, rel);
+      if (caught) {
+        publishedJobsCache = caught;
+        writePersistedJobs(caught);
+        return caught.data;
+      }
+    }
   }
   if (opts.onPartial) {
     partialListeners.add(opts.onPartial);
@@ -436,12 +504,28 @@ export async function fetchPublishedSponsoredJobs(opts: { onPartial?: (rows: Spo
       // 1. Saved copy of the current release: exactly right — no download at all.
       if (persisted && release && persisted.release === release.id) {
         const rows = stillLive(persisted.data);
-        publishedJobsCache = { data: rows, fetchedAt: Date.now(), release: release.id };
+        publishedJobsCache = { data: rows, fetchedAt: persisted.fetchedAt, release: release.id, releaseAt: persisted.releaseAt ?? release.published_at };
         emit(rows);
         return rows;
       }
+      // 1b. Saved copy of an earlier release: show it at once, then add only
+      //     what was published / closed since (a few small rows).
+      if (persisted && release && persisted.releaseAt) {
+        const shown = stillLive(persisted.data);
+        shownCount = shown.length;
+        emit(shown);
+        const caught = await catchUpCopy(persisted, release);
+        if (caught) {
+          publishedJobsCache = caught;
+          emit(caught.data);
+          writePersistedJobs(caught);
+          return caught.data;
+        }
+      }
       // 2. An older saved copy: show it at once, refresh behind it.
-      if (persisted && Date.now() - persisted.fetchedAt < PERSISTED_MAX_AGE_MS) {
+      if (shownCount > 0) {
+        // Already showing the saved copy (1b) — refresh behind it.
+      } else if (persisted && Date.now() - persisted.fetchedAt < PERSISTED_MAX_AGE_MS) {
         const rows = stillLive(persisted.data);
         shownCount = rows.length;
         emit(rows);
@@ -469,8 +553,8 @@ export async function fetchPublishedSponsoredJobs(opts: { onPartial?: (rows: Spo
       // An incomplete load (a page kept failing) is shown if there's
       // nothing better, but never saved as the reference copy.
       if (!fresh.complete) return fallback && fallback.length > fresh.rows.length ? fallback : fresh.rows;
-      publishedJobsCache = { data: fresh.rows, fetchedAt: Date.now(), release: release?.id ?? null };
-      writePersistedJobs(fresh.rows, release?.id ?? null);
+      publishedJobsCache = { data: fresh.rows, fetchedAt: Date.now(), release: release?.id ?? null, releaseAt: release?.published_at ?? null };
+      writePersistedJobs(publishedJobsCache);
       return fresh.rows;
     })().finally(() => {
       inflight = null;
