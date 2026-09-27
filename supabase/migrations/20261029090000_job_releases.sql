@@ -1,44 +1,51 @@
 /*
-# Job releases — publish imported jobs in batches ("Publish update")
+# Job releases — publish imported jobs in batches ("Publish update")  · v2
 
-Why: every sync used to change the live site immediately, so browsers
-could never keep a copy and had to re-download all jobs every minute.
-Now imported jobs wait until an admin presses **Publish update**; each
-release is a version. Browsers keep their saved copy until a new release
-exists, and each release stores its own numbers ("N new jobs published
-today") so the site never counts jobs live.
+v2 replaces the first version, which back-filled every existing job in
+one UPDATE and could hold a table lock for minutes on a large catalogue.
+This version changes NO existing rows, so it runs in seconds:
 
-1. sponsored_jobs.released_at — when a job went public. Existing live jobs
-   are backfilled, so nothing disappears.
-2. Jobs added by hand, by companies or by admins (no import source) are
-   released the moment they're published. Imported jobs wait for the next
-   release.
-3. Public visibility: published AND released (admins and company
-   managers still see everything of theirs).
-4. publish_job_release() — admin: releases all waiting jobs, records the
-   release with its numbers. current_job_release() — public, one row.
-5. landing_job_ids / newest_diverse_job_ids: released jobs only.
+- awaiting_release (boolean, default false): existing jobs stay visible
+  exactly as they are. Only NEW imported jobs start as "waiting".
+- released_at: set when a job goes public (new jobs only; old jobs keep
+  NULL and count as released at creation).
+- lock_timeout: if the table is busy, this migration stops after 5 s
+  instead of blocking the site. Just run it again a minute later.
 
-Safe to run more than once. Run after 20261028090000_jobs_30_day_rule.sql.
+Imported jobs wait for "Publish update" in the admin panel; jobs added by
+hand / by companies / by admins go live at once. Each release stores its
+"new jobs today" number so the site never counts live.
+Safe to run more than once.
 */
 
+SET lock_timeout = '5s';
+
+-- Adding columns with constant defaults doesn't rewrite the table (instant).
+ALTER TABLE public.sponsored_jobs ADD COLUMN IF NOT EXISTS awaiting_release boolean NOT NULL DEFAULT false;
 ALTER TABLE public.sponsored_jobs ADD COLUMN IF NOT EXISTS released_at timestamptz;
 
-UPDATE public.sponsored_jobs
-SET released_at = coalesce(approved_at, created_at)
-WHERE released_at IS NULL AND status IN ('published', 'expired');
+-- In case the first version of this migration left rows half-updated: nothing to fix —
+-- visibility no longer depends on released_at.
 
-CREATE INDEX IF NOT EXISTS sponsored_jobs_released_idx ON public.sponsored_jobs (released_at DESC) WHERE status = 'published';
-CREATE INDEX IF NOT EXISTS sponsored_jobs_unreleased_idx ON public.sponsored_jobs (created_at) WHERE status = 'published' AND released_at IS NULL;
+CREATE INDEX IF NOT EXISTS sponsored_jobs_awaiting_idx ON public.sponsored_jobs (created_at) WHERE awaiting_release;
+CREATE INDEX IF NOT EXISTS sponsored_jobs_released_idx ON public.sponsored_jobs (released_at) WHERE released_at IS NOT NULL;
 
--- Hand-made jobs go live at once; imported ones wait for "Publish update".
+-- New imported jobs wait; everything else is released immediately.
 CREATE OR REPLACE FUNCTION public.sponsored_jobs_release_guard()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF NEW.status = 'published' AND NEW.released_at IS NULL AND NEW.import_source_id IS NULL THEN
-    NEW.released_at := now();
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.import_source_id IS NOT NULL THEN
+      NEW.awaiting_release := true;
+      NEW.released_at := NULL;
+    ELSE
+      NEW.awaiting_release := false;
+      IF NEW.status = 'published' THEN NEW.released_at := coalesce(NEW.released_at, now()); END IF;
+    END IF;
+  ELSIF NEW.status = 'published' AND OLD.status IS DISTINCT FROM 'published' AND NOT NEW.awaiting_release THEN
+    NEW.released_at := coalesce(NEW.released_at, now());
   END IF;
   RETURN NEW;
 END;
@@ -53,7 +60,7 @@ CREATE POLICY "sponsored_jobs_select_published_or_owner"
   ON public.sponsored_jobs FOR SELECT
   TO anon, authenticated
   USING (
-    (status = 'published' AND released_at IS NOT NULL)
+    (status = 'published' AND NOT awaiting_release)
     OR (status = 'expired' AND closed_at > now() - interval '24 hours')
     OR (SELECT public.is_admin())
     OR public.can_manage_publisher(publisher_id)
@@ -71,6 +78,21 @@ ALTER TABLE public.job_releases ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "job_releases_read" ON public.job_releases;
 CREATE POLICY "job_releases_read" ON public.job_releases FOR SELECT TO anon, authenticated USING (true);
 
+-- "New jobs today" for a release: released in the last 24 h, plus older-style
+-- jobs (no released_at) created in the last 24 h. Two small indexed counts.
+CREATE OR REPLACE FUNCTION public.count_new_today()
+RETURNS integer
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT (
+    (SELECT count(*) FROM public.sponsored_jobs WHERE released_at > now() - interval '24 hours' AND status = 'published' AND NOT awaiting_release)
+    + (SELECT count(*) FROM public.sponsored_jobs WHERE released_at IS NULL AND created_at > now() - interval '24 hours' AND status = 'published' AND NOT awaiting_release)
+  )::int;
+$$;
+
 CREATE OR REPLACE FUNCTION public.publish_job_release(p_note text DEFAULT NULL)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -86,11 +108,9 @@ BEGIN
   IF NOT public.is_admin() THEN
     RAISE EXCEPTION 'Only admins can publish.' USING ERRCODE = '42501';
   END IF;
-  UPDATE public.sponsored_jobs SET released_at = now()
-  WHERE status = 'published' AND released_at IS NULL;
+  UPDATE public.sponsored_jobs SET awaiting_release = false, released_at = now() WHERE awaiting_release;
   GET DIAGNOSTICS released = ROW_COUNT;
-  SELECT count(*) INTO today FROM public.sponsored_jobs
-  WHERE status = 'published' AND released_at > now() - interval '24 hours';
+  today := public.count_new_today();
   INSERT INTO public.job_releases (jobs_released, new_today, note) VALUES (released, today, p_note) RETURNING id INTO rid;
   RETURN jsonb_build_object('id', rid, 'jobs_released', released, 'new_today', today, 'published_at', now());
 END;
@@ -110,7 +130,6 @@ AS $$
 $$;
 GRANT EXECUTE ON FUNCTION public.current_job_release() TO anon, authenticated;
 
--- How many imported jobs are waiting for the next release (admin panel).
 CREATE OR REPLACE FUNCTION public.unreleased_job_count()
 RETURNS integer
 LANGUAGE sql
@@ -118,13 +137,13 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT CASE WHEN public.is_admin() THEN (SELECT count(*)::int FROM public.sponsored_jobs WHERE status = 'published' AND released_at IS NULL) ELSE 0 END;
+  SELECT CASE WHEN public.is_admin() THEN (SELECT count(*)::int FROM public.sponsored_jobs WHERE awaiting_release AND status = 'published') ELSE 0 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.unreleased_job_count() TO authenticated;
 
--- First release, so the site has numbers straight away.
+-- A first release so the site has its "new today" number straight away.
 INSERT INTO public.job_releases (jobs_released, new_today, note)
-SELECT 0, (SELECT count(*) FROM public.sponsored_jobs WHERE status = 'published' AND released_at > now() - interval '24 hours'), 'Initial release'
+SELECT 0, public.count_new_today(), 'Initial release'
 WHERE NOT EXISTS (SELECT 1 FROM public.job_releases);
 
 -- Landing cards and the quick "newest" list: released jobs only.
@@ -145,7 +164,7 @@ AS $$
       (coalesce(btrim(p.logo_url), '') <> '' OR coalesce(btrim(j.image_url), '') <> '') AS has_logo
     FROM public.sponsored_jobs j
     JOIN public.program_publishers p ON p.id = j.publisher_id
-    WHERE j.status = 'published' AND j.released_at IS NOT NULL
+    WHERE j.status = 'published' AND NOT j.awaiting_release
       AND public.job_posted_at(j.source_posted_at, j.created_at) > now() - interval '7 days'
       AND (j.expires_at IS NULL OR j.expires_at > now())
   ),
@@ -174,7 +193,7 @@ AS $$
       j.created_at,
       row_number() OVER (PARTITION BY j.publisher_id ORDER BY j.created_at DESC, j.id DESC) AS rn
     FROM public.sponsored_jobs j
-    WHERE j.status = 'published' AND j.released_at IS NOT NULL
+    WHERE j.status = 'published' AND NOT j.awaiting_release
       AND j.created_at > now() - interval '3 days'
       AND (j.expires_at IS NULL OR j.expires_at > now())
   ) t

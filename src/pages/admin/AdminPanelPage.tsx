@@ -205,7 +205,9 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
       { key: 'sources', label: 'Import sources', run: fetchImportSources, apply: setSources },
       { key: 'members', label: 'Company access', run: fetchPublisherMembers, apply: setMembers },
     ];
-    const run = only ? tasks.filter((t) => only.includes(t.key)) : tasks;
+    // The full job list is by far the heaviest read: only load it on the
+    // tabs that use it (Listings, Import & sync), not on every admin visit.
+    const run = only ? tasks.filter((t) => only.includes(t.key)) : tasks.filter((t) => t.key !== 'allJobs' || jobsTabRef.current);
     const now = Date.now();
     setLoadStartedAt(now);
     setLoadParts((prev) => {
@@ -246,6 +248,17 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
     if (isAdmin) loadAll();
     else setDataLoading(false);
   }, [isAdmin]);
+
+  // Load the full job list the first time a tab that needs it is opened.
+  const jobsTabRef = useRef(false);
+  jobsTabRef.current = tab === 'listings' || tab === 'imports';
+  const jobsLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!isAdmin || !jobsTabRef.current || jobsLoadedRef.current) return;
+    jobsLoadedRef.current = true;
+    loadAll(['allJobs']);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, isAdmin]);
 
   // New-request notifications: poll a cheap count query; when something
   // newer arrives, refresh the inbox and (if allowed) show a desktop
