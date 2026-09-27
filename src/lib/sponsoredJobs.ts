@@ -129,7 +129,7 @@ const PUBLISHED_JOBS_CACHE_TTL_MS = 60_000;
 const PERSISTED_MAX_AGE_MS = 6 * 60 * 60 * 1000; // older copies are ignored
 const IDB_NAME = 'madevisa-cache';
 const IDB_STORE = 'kv';
-const IDB_KEY = 'publishedJobs:v2'; // v1 copies could be missing jobs (see fetchPublishedFromNetwork)
+const IDB_KEY = 'publishedJobs:v3'; // v1 copies could be missing jobs (see fetchPublishedFromNetwork)
 
 let inflight: Promise<SponsoredJob[]> | null = null;
 const partialListeners = new Set<(rows: SponsoredJob[]) => void>();
@@ -192,73 +192,86 @@ function stillLive(rows: SponsoredJob[]): SponsoredJob[] {
   return rows.filter((r) => (isClosedJob(r) ? Boolean(r.closed_at && r.closed_at > closedSince) : !r.expires_at || r.expires_at > now));
 }
 
+/**
+ * Every live job, loaded one day at a time (jobs live at most 30 days, so
+ * 31 day-windows cover them all). Each request is small and uses the
+ * created_at index — no slow "count everything" query and no deep page
+ * offsets, which timed out for signed-out visitors (their database time
+ * limit is shorter) and left them with only the first 1,000 jobs.
+ */
 async function fetchPublishedFromNetwork(onPartial: (rows: SponsoredJob[]) => void): Promise<{ rows: SponsoredJob[]; complete: boolean } | null> {
-  // One timestamp for every page, so all pages see the same set of
-  // unexpired jobs.
   const asOf = nowIso();
-  const baseQuery = (withCount: boolean) => {
-    const q = supabase.from('sponsored_jobs').select(closedColumnMissing ? LIST_COLUMNS : LIST_COLUMNS_WITH_CLOSED, withCount ? { count: 'exact' } : undefined);
+  const end = Date.parse(asOf) + 60_000;
+  const DAY = 86_400_000;
+  const windows: [string, string][] = [];
+  for (let k = 0; k < 31; k++) windows.push([new Date(end - (k + 1) * DAY).toISOString(), new Date(end - k * DAY).toISOString()]);
+
+  const query = (from: string, to: string) => {
+    const q = supabase.from('sponsored_jobs').select(closedColumnMissing ? LIST_COLUMNS : LIST_COLUMNS_WITH_CLOSED);
     return (closedColumnMissing ? q.eq('status', 'published').or(`expires_at.is.null,expires_at.gt.${asOf}`) : q.or(liveOrRecentlyClosed(asOf)))
-      // `id` breaks ties: bulk imports give hundreds of jobs the same
-      // created_at, and without a unique tiebreaker the database may
-      // order them differently for each page request — so some jobs
-      // appeared on two pages and others on none, and the total came out
-      // a few hundred short (and different on every device / reload).
+      .gte('created_at', from)
+      .lt('created_at', to)
+      // `id` breaks ties so pages never overlap or skip rows.
       .order('created_at', { ascending: false })
       .order('id', { ascending: false });
   };
 
-  let first = await baseQuery(true).range(0, SUPABASE_MAX_ROWS_PER_REQUEST - 1);
-  if (first.error && !closedColumnMissing && /closed_at|column|schema cache/i.test(first.error.message)) {
-    closedColumnMissing = true;
-    first = await baseQuery(true).range(0, SUPABASE_MAX_ROWS_PER_REQUEST - 1);
-  }
-  if (first.error) {
-    console.error('fetchPublishedSponsoredJobs failed', first.error);
-    return null;
-  }
+  /** One day-window, page by page (retried). null = gave up. */
+  const loadWindow = async ([from, to]: [string, string]): Promise<SponsoredJob[] | null> => {
+    const out: SponsoredJob[] = [];
+    for (let offset = 0; ; ) {
+      let r = await query(from, to).range(offset, offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1);
+      if (r.error && !closedColumnMissing && /closed_at|column|schema cache/i.test(r.error.message)) {
+        closedColumnMissing = true;
+        r = await query(from, to).range(offset, offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1);
+      }
+      for (let attempt = 1; r.error && attempt < 3; attempt++) {
+        await new Promise((res) => setTimeout(res, 500 * attempt));
+        r = await query(from, to).range(offset, offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1);
+      }
+      if (r.error) {
+        console.error('fetchPublishedSponsoredJobs window failed', r.error);
+        return null;
+      }
+      const rows = (r.data ?? []) as unknown as SponsoredJob[];
+      // Safety: a page that repeats what we already have means the end.
+      if (rows.length && out.some((x) => x.id === rows[0].id)) break;
+      out.push(...rows);
+      if (out.length > 50_000) break;
+      // The server may return fewer rows per request than asked (its max-rows
+      // setting); a page as big as the biggest seen so far may have more after it.
+      SERVER_PAGE.size = Math.max(SERVER_PAGE.size, rows.length);
+      if (rows.length === 0 || rows.length < Math.min(SUPABASE_MAX_ROWS_PER_REQUEST, SERVER_PAGE.size)) break;
+      offset += rows.length;
+    }
+    return out;
+  };
 
-  const firstPage = (first.data ?? []) as unknown as SponsoredJob[];
-  const total = first.count ?? firstPage.length;
-  if (firstPage.length >= total) return { rows: firstPage, complete: true };
-
-  // The project's max-rows setting may be lower than we asked for — page
-  // by what the server actually returns so no gap opens between pages.
-  const pageSize = Math.max(1, Math.min(SUPABASE_MAX_ROWS_PER_REQUEST, firstPage.length));
-
-  // Show the newest page right away; the rest follow.
-  onPartial(firstPage);
-  const pageStarts: number[] = [];
-  for (let from = pageSize; from < total; from += pageSize) pageStarts.push(from);
-
-  // A few at a time (phones on slow networks time out when ~20 large
-  // requests start at once), each retried before giving up.
-  const pages: SponsoredJob[][] = new Array(pageStarts.length);
-  let failed = 0;
-  let next = 0;
+  const results: (SponsoredJob[] | null)[] = new Array(windows.length);
+  // Newest day first, shown as soon as it arrives.
+  results[0] = await loadWindow(windows[0]);
+  // Nothing works — let the caller fall back to its cached copy.
+  if (results[0] === null) return null;
+  if (results[0]?.length) onPartial(results[0]);
+  let next = 1;
   await Promise.all(
-    Array.from({ length: Math.min(6, pageStarts.length) }, async () => {
-      while (next < pageStarts.length) {
+    Array.from({ length: 4 }, async () => {
+      while (next < windows.length) {
         const i = next++;
-        const from = pageStarts[i];
-        for (let attempt = 0; attempt < 3; attempt++) {
-          const r = await baseQuery(false).range(from, from + pageSize - 1);
-          if (!r.error) {
-            pages[i] = (r.data ?? []) as unknown as SponsoredJob[];
-            break;
-          }
-          if (attempt === 2) {
-            console.error('fetchPublishedSponsoredJobs page failed', r.error);
-            failed++;
-          } else await new Promise((res) => setTimeout(res, 400 * (attempt + 1)));
-        }
+        results[i] = await loadWindow(windows[i]);
       }
     })
   );
   const seen = new Set<string>();
-  const rows = [firstPage, ...pages.filter(Boolean)].flat().filter((j) => (seen.has(j.id) ? false : (seen.add(j.id), true)));
-  return { rows, complete: failed === 0 && rows.length >= total };
+  const rows = results
+    .filter((x): x is SponsoredJob[] => Boolean(x))
+    .flat()
+    .filter((j) => (seen.has(j.id) ? false : (seen.add(j.id), true)));
+  return { rows, complete: results.every(Boolean) };
 }
+
+/** Rows the server actually returns per request (its max-rows setting), learned on the fly. */
+const SERVER_PAGE = { size: 0 };
 
 /**
  * Every published, unexpired job (list columns only). `onPartial` is

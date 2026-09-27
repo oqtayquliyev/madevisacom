@@ -1,5 +1,5 @@
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   BadgeCheck,
@@ -10,6 +10,7 @@ import {
   Globe2,
   LayoutGrid,
   GraduationCap,
+  Home,
   Loader2,
   Plane,
   Search,
@@ -370,6 +371,8 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   const [category, setCategory] = useState(() => asCategoryValue(initial.get('category')));
   const [jobType, setJobType] = useState(initial.get('type') ?? 'All types');
   const [remoteOnly, setRemoteOnly] = useState(initial.get('remote') === '1');
+  // Quick switch: remote OR hybrid jobs.
+  const [flexOnly, setFlexOnly] = useState(initial.get('flex') === '1');
   const [city, setCity] = useState(initial.get('city') ?? '');
   const [company, setCompany] = useState(initial.get('company') ?? '');
   const [salaryOnly, setSalaryOnly] = useState(initial.get('salary') === '1');
@@ -410,7 +413,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   // small request). The full list loads for signed-in visitors, or as soon
   // as a guest searches or filters (so results cover every job).
   const hasQuery = Boolean(
-    search.trim() || country !== 'All countries' || category !== 'All categories' || jobType !== 'All types' || remoteOnly || city || company || salaryOnly ||
+    search.trim() || country !== 'All countries' || category !== 'All categories' || jobType !== 'All types' || remoteOnly || flexOnly || city || company || salaryOnly ||
       experienceLevel !== 'All levels' || datePosted !== 'Any time' || directOnly || studentOnly || visaOnly,
   );
   // Once the full list is loaded it stays (clearing a search doesn't reload).
@@ -482,6 +485,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     if (category !== 'All categories') params.set('category', category);
     if (jobType !== 'All types') params.set('type', jobType);
     if (remoteOnly) params.set('remote', '1');
+    if (flexOnly) params.set('flex', '1');
     if (city) params.set('city', city);
     if (company) params.set('company', company);
     if (salaryOnly) params.set('salary', '1');
@@ -494,15 +498,13 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
 
     const query = params.toString();
     window.history.replaceState({}, '', query ? `/jobs?${query}` : '/jobs');
-  }, [search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly]);
+  }, [search, country, category, jobType, remoteOnly, flexOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly]);
+  }, [search, country, category, jobType, remoteOnly, flexOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly]);
 
   const directJobs = useMemo(() => allJobs.filter((j) => j.sourceType === 'company_submitted'), [allJobs]);
-  const studentCount = useMemo(() => allJobs.filter(isStudentOrInternJob).length, [allJobs]);
-  const visaCount = useMemo(() => allJobs.filter((j) => j.visaSponsorship).length, [allJobs]);
   // Only employment types that actually have jobs (no empty "Contract / Freelance").
   const jobTypeOptions = useMemo(() => {
     const present = new Set(allJobs.map((j) => j.type).filter(isMeaningfulJobType));
@@ -546,13 +548,14 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
         (country === 'All countries' || job.country === country) &&
         (jobType === 'All types' || job.type === jobType) &&
         (!remoteOnly || job.remote) &&
+        (!flexOnly || job.remote || job.workArrangement === 'remote' || job.workArrangement === 'hybrid') &&
         (!normalizedCity || job.city.toLowerCase().includes(normalizedCity)) &&
         (!normalizedCompany || job.company.toLowerCase().includes(normalizedCompany)) &&
         (!salaryOnly || Boolean(job.salary)) &&
         (experienceLevel === 'All levels' || experienceBucket(job.experienceLevel) === experienceLevel)
       );
     });
-  }, [allJobs, catOf, search, country, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, directOnly, studentOnly, visaOnly]);
+  }, [allJobs, catOf, search, country, jobType, remoteOnly, flexOnly, city, company, salaryOnly, experienceLevel, datePosted, directOnly, studentOnly, visaOnly]);
 
   const categoryCounts = useMemo(() => {
     const labels = new Map<string, number>();
@@ -566,7 +569,21 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     return { labels, groups };
   }, [baseMatched, catOf]);
 
-  const filteredJobs = useMemo(() => {
+  // A single category (e.g. Blockchain Developer) may have only a few jobs:
+  // after them, the rest of its group (Software & IT) follows, newest first.
+  const { filteredJobs, relatedStart, relatedGroup } = useMemo(() => {
+    const main = buildMainList();
+    if (category === ALL_CATEGORIES || category.startsWith('group:')) return { filteredJobs: main, relatedStart: -1, relatedGroup: '' };
+    const group = categoryGroup(category) ?? '';
+    const related = sortNewestFirst(baseMatched.filter((j) => {
+      const c = catOf.get(j.id);
+      return Boolean(c && c.group === group && c.label !== category) && !j.closed;
+    }));
+    return { filteredJobs: [...main, ...related], relatedStart: related.length ? main.length : -1, relatedGroup: group };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseMatched, catOf, category, sortBy, shownBefore, viewedAtLoad]);
+
+  function buildMainList(): Job[] {
     const matched = category === ALL_CATEGORIES ? baseMatched : baseMatched.filter((j) => categoryMatches(catOf.get(j.id) ?? null, category));
     if (sortBy === 'newest') return withClosedLast(sortNewestFirst(matched));
     // "Most relevant": a different mix each visit — shuffled, jobs shown at
@@ -580,7 +597,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
         )
       )
     );
-  }, [baseMatched, catOf, category, sortBy, shownBefore, viewedAtLoad]);
+  }
 
   // Remember what led the list this visit, so next visit leads with other jobs.
   const unfiltered = !search && country === 'All countries' && category === 'All categories' && !studentOnly && !visaOnly && !directOnly;
@@ -643,6 +660,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     Number(category !== 'All categories') +
     Number(jobType !== 'All types') +
     Number(remoteOnly) +
+    Number(flexOnly) +
     Number(Boolean(city)) +
     Number(Boolean(company)) +
     Number(salaryOnly) +
@@ -659,6 +677,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     category !== ALL_CATEGORIES ? { key: 'category', label: categoryValueLabel(category), onClear: () => setCategory(ALL_CATEGORIES) } : null,
     jobType !== 'All types' ? { key: 'type', label: jobType, onClear: () => setJobType('All types') } : null,
     remoteOnly ? { key: 'remote', label: 'Remote only', onClear: () => setRemoteOnly(false) } : null,
+    flexOnly ? { key: 'flex', label: 'Remote / hybrid', onClear: () => setFlexOnly(false) } : null,
     city ? { key: 'city', label: `City: ${city}`, onClear: () => setCity('') } : null,
     company ? { key: 'company', label: `Company: ${company}`, onClear: () => setCompany('') } : null,
     salaryOnly ? { key: 'salary', label: 'Salary listed', onClear: () => setSalaryOnly(false) } : null,
@@ -674,6 +693,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     setCategory('All categories');
     setJobType('All types');
     setRemoteOnly(false);
+    setFlexOnly(false);
     setCity('');
     setCompany('');
     setSalaryOnly(false);
@@ -728,6 +748,11 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
               )}
             </button>
           </div>
+
+          <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/25">
+            <CalendarClock className="h-3.5 w-3.5" />
+            Only active vacancies posted in the last 30 days
+          </p>
 
           {/* Date posted · Country · Category */}
           <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:grid-cols-3 sm:gap-3">
@@ -879,17 +904,9 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
             </div>
             {/* Quick filters — switches under the sort */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:justify-end">
-              {studentCount > 0 && (
-                <FilterSwitch
-                  on={studentOnly}
-                  onChange={setStudentOnly}
-                  icon={GraduationCap}
-                  label="Students & interns"
-                />
-              )}
-              {visaCount > 0 && (
-                <FilterSwitch on={visaOnly} onChange={setVisaOnly} icon={Plane} label="Visa sponsorship" />
-              )}
+              <FilterSwitch on={studentOnly} onChange={setStudentOnly} icon={GraduationCap} label="Students & interns" />
+              <FilterSwitch on={visaOnly} onChange={setVisaOnly} icon={Plane} label="Visa sponsorship" />
+              <FilterSwitch on={flexOnly} onChange={setFlexOnly} icon={Home} label="Remote / hybrid" />
               {directJobs.length > 0 && (
                 <FilterSwitch on={directOnly} onChange={setDirectOnly} icon={BadgeCheck} label="Direct from companies" />
               )}
@@ -964,8 +981,16 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
               </div>
             )}
             <div className="mt-6 grid gap-4 lg:grid-cols-2">
-              {visibleJobs.map((job) => (
-                <JobCard key={job.id} job={job} goToJob={goToJob} />
+              {visibleJobs.map((job, i) => (
+                <Fragment key={job.id}>
+                  {i === relatedStart && (
+                    <div className="mt-2 border-t border-ink-200 pt-5 lg:col-span-2">
+                      <p className="text-sm font-bold text-ink-900">More {relatedGroup} jobs</p>
+                      <p className="text-xs text-ink-500">Other roles in the same field, newest first.</p>
+                    </div>
+                  )}
+                  <JobCard job={job} goToJob={goToJob} />
+                </Fragment>
               ))}
               {loadingMore && Array.from({ length: 2 }).map((_, i) => <JobCardSkeleton key={`more-${i}`} />)}
             </div>
