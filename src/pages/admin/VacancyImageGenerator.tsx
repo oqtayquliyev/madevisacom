@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Download, ImageIcon, Loader2, RefreshCw, Search } from 'lucide-react';
+import { PostCaptionBuilder, type CaptionJob } from '@/pages/admin/PostCaptionBuilder';
 import { supabase } from '@/lib/supabase';
 import { formatSalary, type SalaryPeriod, type SalaryStatus } from '@/lib/listingCategories';
 
@@ -443,6 +444,12 @@ export function VacancyImageGenerator() {
 
   const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id].slice(-12)));
 
+  // Same wording as the images, for the post caption.
+  const captionJobs: CaptionJob[] = useMemo(
+    () => picked.map((j) => ({ title: j.title, company: j.publisher?.name ?? null, place: placeOf(j) || null, salary: salaryOf(j) })),
+    [picked]
+  );
+
   return (
     <section className="mt-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -568,6 +575,7 @@ export function VacancyImageGenerator() {
             </div>
           ) : (
             <>
+              <PostCaptionBuilder jobs={captionJobs} />
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-sm font-semibold text-ink-700">
                   {outputs.length} image{outputs.length === 1 ? '' : 's'}
