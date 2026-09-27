@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 const SITE_URL = 'https://madevisa.com';
-const DEFAULT_OG_IMAGE = 'https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789558197/madevisa-fav_j8ot2d.png';
+const DEFAULT_OG_IMAGE = 'https://madevisa.com/api/og/page?p=home';
 
 type SeoOptions = {
   title: string;

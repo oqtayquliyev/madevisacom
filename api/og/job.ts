@@ -4,75 +4,9 @@
 
 import { ImageResponse } from '@vercel/og';
 import { fetchShareJob, postedLabel, type ShareJob } from '../_jobShare';
+import { BLUE, brandLogo, googleFont, h, img, logoDataUrl, type El, type Font } from '../_og';
 
 export const config = { runtime: 'edge' };
-
-const BLUE = '#2563EB';
-
-// Tiny element builder — satori (inside @vercel/og) accepts plain
-// { type, props } objects, so no JSX/React build step is needed here.
-type El = { type: string; props: Record<string, unknown> };
-function h(type: string, style: Record<string, unknown>, ...children: (El | string | null | false | undefined)[]): El {
-  const kids = children.filter((c) => c !== null && c !== false && c !== undefined) as (El | string)[];
-  return { type, props: { style: { display: 'flex', ...style }, children: kids.length === 1 ? kids[0] : kids } };
-}
-function img(src: string, style: Record<string, unknown>): El {
-  return { type: 'img', props: { src, style } };
-}
-
-/** Logos can be any format; only png/jpeg/gif/svg render reliably, so inline those and skip the rest. */
-async function logoDataUrl(url: string | null): Promise<string | null> {
-  if (!url) return null;
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
-    if (!res.ok) return null;
-    const type = (res.headers.get('content-type') ?? '').split(';')[0].trim();
-    if (!/^image\/(png|jpeg|jpg|gif|svg\+xml)$/.test(type)) return null;
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    if (bytes.length > 1_500_000) return null;
-    let bin = '';
-    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    return `data:${type};base64,${btoa(bin)}`;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * The site's own fonts, fetched as TTF from Google Fonts (satori can't use
- * woff2). Subset to the characters actually drawn, so it's small and fast.
- * If Google Fonts is unreachable the image still renders with the default font.
- */
-type Font = { name: string; data: ArrayBuffer; weight: 400 | 600 | 700; style: 'normal' };
-async function googleFont(family: string, weight: 400 | 600 | 700, text: string): Promise<Font | null> {
-  try {
-    const css = await (
-      await fetch(`https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@${weight}&text=${encodeURIComponent(text)}`, {
-        signal: AbortSignal.timeout(2500),
-      })
-    ).text();
-    const url = css.match(/src: url\((.+?)\) format\('(opentype|truetype)'\)/)?.[1];
-    if (!url) return null;
-    const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
-    return res.ok ? { name: family, data: await res.arrayBuffer(), weight, style: 'normal' } : null;
-  } catch {
-    return null;
-  }
-}
-
-/** MadeVisa logo (public/og-logo.png) as a data URL. */
-async function brandLogo(origin: string): Promise<string | null> {
-  try {
-    const res = await fetch(`${origin}/og-logo.png`, { signal: AbortSignal.timeout(2500) });
-    if (!res.ok) return null;
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    let bin = '';
-    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    return `data:image/png;base64,${btoa(bin)}`;
-  } catch {
-    return null;
-  }
-}
 
 const SLAB = "'Fraunces', serif";
 const SANS = "'Inter', sans-serif";
