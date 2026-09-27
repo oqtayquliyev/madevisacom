@@ -25,7 +25,7 @@ import { moveToBack, recencyBucket, recentlyShownIds, rememberShown, visitShuffl
 import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
-import { fetchNewestPublishedJobs, fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
 import { PersonalizationBar } from '@/components/opportunities/PersonalizationBar';
@@ -160,7 +160,7 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
         <JobLogo job={job} size={52} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold text-ink-500">{job.company}</p>
-          <h3 className="mt-0.5 font-slab text-lg font-bold leading-snug text-ink-950 group-hover:text-brand-700">{job.title}</h3>
+          <h3 className="mt-0.5 font-title text-lg font-bold leading-snug text-ink-950 group-hover:text-brand-700">{job.title}</h3>
         </div>
       </div>
 
@@ -383,7 +383,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       setLoadingSponsored(false);
     };
     if (!wantFull) {
-      fetchNewestPublishedJobs(PAGE_SIZE * 3).then((rows) => {
+      fetchNewestDiverseJobs(PAGE_SIZE * 3).then((rows) => {
         show(rows);
         if (!cancelled) setSponsoredComplete(true);
       });
@@ -537,18 +537,21 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       );
 
     if (sortBy === 'newest') {
+      // "Newest" = most recently shared on MadeVisa (not the company's own
+      // posting date). Within each period (last 24 h, 3 days, 2 weeks, older)
+      // jobs are newest-first and round-robined across companies: each
+      // company's newest job comes before anyone's second, so the first
+      // page shows many different companies, latest shared first.
+      const shared = (j: Job) => Date.parse(j.sharedAt ?? j.postedDate ?? '') || 0;
       const buckets: Job[][] = [[], [], [], [], []];
-      for (const job of matched) buckets[recencyBucket(job.postedDate)].push(job);
-      // Older buckets keep strict newest-first order; the fresh ones rotate.
-      return buckets.flatMap((b, i) =>
-        i <= 1
-          ? rotate(b, `newest-${i}`)
-          : interleaveByCompany(
-              moveToBack(
-                [...b].sort((x, y) => (y.postedDate ? Date.parse(y.postedDate) : 0) - (x.postedDate ? Date.parse(x.postedDate) : 0)),
-                (j) => viewedAtLoad.has(j.id)
-              )
-            )
+      for (const job of matched) buckets[recencyBucket(job.sharedAt ?? job.postedDate)].push(job);
+      return buckets.flatMap((b) =>
+        interleaveByCompany(
+          moveToBack(
+            [...b].sort((x, y) => shared(y) - shared(x)),
+            (j) => viewedAtLoad.has(j.id)
+          )
+        )
       );
     }
     return rotate(matched, 'relevant');

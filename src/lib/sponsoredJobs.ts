@@ -294,7 +294,7 @@ export async function fetchNewestPublishedJobs(limit = 60): Promise<SponsoredJob
  * in the browser. Falls back to the newest jobs if the function is missing.
  */
 export async function fetchLandingJobs(n = 5): Promise<SponsoredJob[]> {
-  const KEY = 'mv:landingJobs';
+  const KEY = 'mv:landingJobs:v2'; // v2: last 24 hours only
   try {
     const raw = window.localStorage.getItem(KEY);
     if (raw) {
@@ -316,6 +316,21 @@ export async function fetchLandingJobs(n = 5): Promise<SponsoredJob[]> {
     /* ignore */
   }
   return rows;
+}
+
+/**
+ * Newest jobs for signed-out visitors on /jobs, spread across companies:
+ * each company's newest job before anyone's second (newest_diverse_job_ids,
+ * migration 20261027090000), so one bulk import can't fill the first page.
+ * Falls back to the plain newest list if the function isn't there yet.
+ */
+export async function fetchNewestDiverseJobs(limit = 36, perCompany = 3): Promise<SponsoredJob[]> {
+  const { data: ids, error } = await supabase.rpc('newest_diverse_job_ids', { n: limit, per_company: perCompany });
+  if (error || !Array.isArray(ids) || !ids.length) return fetchNewestPublishedJobs(limit);
+  const { data, error: e2 } = await supabase.from('sponsored_jobs').select(LIST_COLUMNS).in('id', ids as string[]);
+  if (e2 || !data?.length) return fetchNewestPublishedJobs(limit);
+  const order = new Map((ids as string[]).map((id, i) => [id, i]));
+  return (data as unknown as SponsoredJob[]).sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
 /** How many jobs went live on MadeVisa between `fromIso` and `toIso` (indexed count). */
@@ -551,6 +566,7 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     // A job without its own image shows the company's logo.
     imageUrl: job.image_url || job.publisher?.logo_url || null,
     postedDate: job.source_posted_at,
+    sharedAt: job.approved_at ?? job.created_at,
     experienceLevel: job.experience_level,
     workArrangement: job.work_arrangement ?? null,
     visaStatus: job.visa_status ?? null,

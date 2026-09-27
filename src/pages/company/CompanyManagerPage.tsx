@@ -583,7 +583,7 @@ function JobForm({
     <div className="overflow-hidden rounded-lg border border-ink-200 bg-white">
       <div className="bg-brand-700 px-4 py-3 text-white">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Preview</p>
-        <p className="mt-0.5 line-clamp-2 font-slab text-base font-bold leading-snug">{f.title.trim() || 'Job title'}</p>
+        <p className="mt-0.5 line-clamp-2 font-title text-base font-bold leading-snug">{f.title.trim() || 'Job title'}</p>
       </div>
       <dl className="divide-y divide-ink-100 text-sm">
         <PreviewRow icon={Banknote} label="Compensation" value={salaryText} />

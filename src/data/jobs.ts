@@ -34,6 +34,8 @@ export type Job = {
   imageUrl?: string | null;
   /** Original posting date on the source career site (ISO string), when known — distinct from `published`. Null/undefined renders as "Not specified" rather than being silently hidden. */
   postedDate?: string | null;
+  /** When the job went live on MadeVisa (approved_at, else created_at) — drives "newest" ordering. */
+  sharedAt?: string | null;
   experienceLevel?: string | null;
   workArrangement?: 'onsite' | 'hybrid' | 'remote' | null;
   visaStatus?: 'offered' | 'not_offered' | null;

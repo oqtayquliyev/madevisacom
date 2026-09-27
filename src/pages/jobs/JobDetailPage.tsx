@@ -371,7 +371,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                   Closed{closedAgo ? ` ${closedAgo}` : ''}
                 </p>
               )}
-              <h1 className={`break-words font-slab text-3xl font-bold leading-tight tracking-tight sm:text-5xl sm:leading-[1.1] ${closed ? 'text-white/70' : ''}`}>{job.title}</h1>
+              <h1 className={`break-words font-title text-3xl font-bold leading-tight tracking-tight sm:text-5xl sm:leading-[1.1] ${closed ? 'text-white/70' : ''}`}>{job.title}</h1>
               <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/85">
                 {arrangement && (
                   <span className="flex items-center gap-1.5 font-semibold text-white">
@@ -493,7 +493,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
           <div className="mt-8 flex flex-col gap-4 border-t border-ink-100 pt-6 md:flex-row md:items-center md:justify-between md:gap-8">
             <div className="min-w-0">
               <p className="text-xs font-semibold text-ink-500">{job.company}</p>
-              <p className="mt-0.5 font-slab text-lg font-bold leading-snug text-ink-950">{job.title}</p>
+              <p className="mt-0.5 font-title text-lg font-bold leading-snug text-ink-950">{job.title}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {applyButton('flex-1 bg-brand-600 text-white shadow-soft-lg hover:bg-brand-700 focus-visible:outline-brand-600 md:flex-none')}

@@ -101,16 +101,9 @@
   }
 }
 
-/* Newsreader titles (Tailwind `font-slab` / `font-serif`):
-   - optical sizing: the font draws finer details at large sizes
-   - a touch tighter, like editorial headlines
-   - Semibold instead of Bold — calmer and more premium in Newsreader */
-.font-slab,
-.font-serif {
+/* Job titles in Fraunces (Tailwind `font-title`): optical sizing draws
+   finer detail at large sizes; a touch tighter, like editorial headlines. */
+.font-title {
   font-optical-sizing: auto;
-  letter-spacing: -0.012em;
-}
-.font-slab.font-bold,
-.font-serif.font-bold {
-  font-weight: 600;
+  letter-spacing: -0.01em;
 }

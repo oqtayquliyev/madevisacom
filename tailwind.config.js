@@ -5,9 +5,11 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        // Titles: Newsreader. `font-slab` is kept as the class name so existing pages switch automatically.
-        serif: ['Newsreader', 'ui-serif', 'Georgia', 'serif'],
-        slab: ['Newsreader', 'ui-serif', 'Georgia', 'serif'],
+        // Job titles only: Fraunces (`font-title`). Every other heading is Inter,
+        // like the landing page — `font-slab` is kept as a class name and now maps to Inter.
+        title: ['Fraunces', 'ui-serif', 'Georgia', 'serif'],
+        serif: ['Fraunces', 'ui-serif', 'Georgia', 'serif'],
+        slab: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
         ink: {

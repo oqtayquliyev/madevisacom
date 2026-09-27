@@ -71,7 +71,8 @@ function buildMatchItems(
       remote: board.remote,
       salary: board.salary,
       imageUrl: board.imageUrl,
-      createdAt: j.created_at,
+      // When it went live on MadeVisa — what the landing cards order and label by.
+      createdAt: j.approved_at ?? j.created_at,
       description: board.description,
       postedDate: board.postedDate,
     };
@@ -128,7 +129,8 @@ function iconFor(category: string, kind: 'job' | 'program'): LucideIcon {
  * per company first. Topped up with other fresh items if there aren't enough.
  */
 function pickRecentWithSalary(items: MatchItem[], count: number, shownBefore: Set<string>): MatchItem[] {
-  const when = (i: MatchItem) => new Date(i.kind === 'job' ? i.postedDate ?? i.createdAt : i.createdAt).getTime() || 0;
+  // Newest shared on MadeVisa first (the landing query already limits this to the last 24 hours).
+  const when = (i: MatchItem) => new Date(i.createdAt).getTime() || 0;
   const salaried = items
     .filter((i) => i.kind === 'job' && Boolean(i.salary && i.salary.trim()))
     .sort((a, b) => when(b) - when(a));
@@ -460,7 +462,7 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
           </span>
         )}
 
-        <h3 className="mt-3 font-slab text-base font-bold leading-snug text-ink-950 line-clamp-2">{item.title}</h3>
+        <h3 className={`mt-3 ${item.kind === 'job' ? 'font-title' : 'font-slab'} text-base font-bold leading-snug text-ink-950 line-clamp-2`}>{item.title}</h3>
 
         {salaryOrFunding ? (
           <p className="mt-1 truncate font-slab text-base font-bold leading-snug text-ink-950">{salaryOrFunding}</p>
@@ -481,7 +483,7 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
         {snippet && <p className="mt-2 line-clamp-2 text-xs leading-5 text-ink-500">{snippet}</p>}
 
         <div className="mt-auto pt-2">
-          {item.postedDate && <JobAgeBadge iso={item.postedDate} className="mb-2" />}
+          {item.kind === 'job' ? <JobAgeBadge iso={item.createdAt} className="mb-2" /> : item.postedDate && <JobAgeBadge iso={item.postedDate} className="mb-2" />}
           {showCostPill && (
             <div className="flex items-center gap-1 border-t border-ink-100 pt-2">
               <span className="truncate rounded bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">

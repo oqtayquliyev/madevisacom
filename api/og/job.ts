@@ -74,7 +74,7 @@ async function brandLogo(origin: string): Promise<string | null> {
   }
 }
 
-const SLAB = "'Newsreader', serif";
+const SLAB = "'Fraunces', serif";
 const SANS = "'Inter', sans-serif";
 
 function chip(label: string, value: string, strong = false): El {
@@ -82,7 +82,7 @@ function chip(label: string, value: string, strong = false): El {
     'div',
     { flexDirection: 'column', padding: '14px 20px', borderRadius: 14, backgroundColor: strong ? '#EFF6FF' : '#F8FAFC', border: `2px solid ${strong ? '#BFDBFE' : '#E2E8F0'}`, marginRight: 14, marginBottom: 14 },
     h('div', { fontSize: 18, fontWeight: 600, color: '#64748B', marginBottom: 4, fontFamily: SANS }, label),
-    h('div', { fontSize: strong ? 30 : 26, fontWeight: strong ? 600 : 700, color: '#0F172A', fontFamily: strong ? SLAB : SANS }, value)
+    h('div', { fontSize: strong ? 30 : 26, fontWeight: 700, color: '#0F172A', fontFamily: SANS }, value)
   );
 }
 
@@ -91,7 +91,7 @@ function render(job: ShareJob | null, logo: string | null, brand: string | null)
     return h(
       'div',
       { width: '100%', height: '100%', backgroundColor: BLUE, color: 'white', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' },
-      brand ? img(brand, { width: 596, height: 122 }) : h('div', { fontSize: 72, fontWeight: 600, fontFamily: SLAB }, 'MadeVisa'),
+      brand ? img(brand, { width: 596, height: 122 }) : h('div', { fontSize: 72, fontWeight: 700, fontFamily: SANS }, 'MadeVisa'),
       h('div', { fontSize: 32, marginTop: 12, opacity: 0.85 }, 'Jobs, programs, study and visas — in one place')
     );
   }
@@ -124,7 +124,7 @@ function render(job: ShareJob | null, logo: string | null, brand: string | null)
         brand ? img(brand, { width: 223, height: 46, marginLeft: 'auto' }) : null
       ),
       // title
-      h('div', { fontSize: title.length > 55 ? 52 : 62, fontWeight: 600, fontFamily: SLAB, color: '#0F172A', lineHeight: 1.12, letterSpacing: -1, marginTop: 30, marginBottom: 26 }, title),
+      h('div', { fontSize: title.length > 55 ? 52 : 62, fontWeight: 700, fontFamily: SLAB, color: '#0F172A', lineHeight: 1.12, letterSpacing: -1, marginTop: 30, marginBottom: 26 }, title),
       // facts
       h('div', { flexWrap: 'wrap' }, ...chips),
       // footer
@@ -180,7 +180,7 @@ export default async function handler(req: Request): Promise<Response> {
     googleFont('Inter', 400, text),
     googleFont('Inter', 600, text),
     googleFont('Inter', 700, text),
-    googleFont('Newsreader', 600, text),
+    googleFont('Fraunces', 700, text),
   ]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return new ImageResponse(render(job, logo, brand) as any, {
