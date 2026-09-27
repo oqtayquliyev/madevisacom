@@ -14,8 +14,7 @@ import {
   Scale,
   Search,
   ShieldCheck,
-  TrendingDown,
-  TrendingUp,
+
   UserCheck,
   Users,
 } from 'lucide-react';
@@ -25,18 +24,18 @@ import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { SharePromo } from '@/components/companies/SharePromo';
 import { ShareExperienceDialog } from '@/components/companies/ShareExperienceDialog';
+import { FeedbackCompaniesRow } from '@/components/companies/FeedbackCompaniesRow';
 import { SoftCard, SoftPanel } from '@/components/charts/SoftCharts';
 import { companyPath, fetchCompaniesDirectory, fetchCompanyBySlug, type CompanyProfile, type DirectoryCompany } from '@/lib/companies';
 import {
   EXPERIENCE_OUTCOMES,
   feedbackPath,
   fetchExperienceSummary,
-  fetchHiringFeedbackOverview,
+
   scoreWord,
   type ExperienceOutcome,
   type ExperienceSummary,
-  type FeedbackCompany,
-  type HiringFeedbackOverview,
+
 } from '@/lib/companyExperiences';
 
 type Props = { slug?: string; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
@@ -57,14 +56,13 @@ function nav(href: string) {
  */
 export function FeedbackPage({ slug, go, onAuth }: Props) {
   const [rows, setRows] = useState<DirectoryCompany[] | null>(null);
-  const [overview, setOverview] = useState<HiringFeedbackOverview | null | undefined>(undefined);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [company, setCompany] = useState<CompanyProfile | null | undefined>(slug ? undefined : null);
   const [summary, setSummary] = useState<ExperienceSummary | null>(null);
   const [dialog, setDialog] = useState<{ pick: { id?: string | null; name: string; logo_url?: string | null } | null; outcome?: ExperienceOutcome | null } | null>(null);
 
   useEffect(() => {
     fetchCompaniesDirectory().then((r) => setRows(r ?? []));
-    fetchHiringFeedbackOverview().then(setOverview);
   }, []);
   useEffect(() => {
     if (!slug) return setCompany(null);
@@ -127,8 +125,8 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
         {/* THIS COMPANY (company link) */}
         {company && <CompanyNumbers company={company} summary={summary} onShare={() => setDialog({ pick: fixed })} />}
 
-        {/* ACROSS ALL COMPANIES */}
-        <Overview data={overview} />
+        {/* COMPANIES — your own reports first, then 5 at a time */}
+        <FeedbackCompaniesRow companies={rows} onShare={(pick) => setDialog({ pick })} refreshKey={refreshKey} />
 
         {/* WHO IT'S FOR */}
         <section>
@@ -186,7 +184,10 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
 
       <ShareExperienceDialog
         open={Boolean(dialog)}
-        onClose={() => setDialog(null)}
+        onClose={() => {
+          setDialog(null);
+          setRefreshKey((k) => k + 1); // show a just-shared report in the row
+        }}
         company={fixed}
         initial={fixed ? null : dialog?.pick ?? null}
         initialOutcome={dialog?.outcome ?? null}
@@ -275,105 +276,6 @@ function CompanyNumbers({ company, summary, onShare }: { company: CompanyProfile
         </div>
       )}
     </SoftPanel>
-  );
-}
-
-const SEGMENTS: { key: keyof HiringFeedbackOverview; label: string; shade: string }[] = [
-  { key: 'offer', label: 'Offer', shade: '#1D4ED8' },
-  { key: 'interview', label: 'Interview', shade: 'rgba(29,78,216,0.75)' },
-  { key: 'responded', label: 'Replied', shade: 'rgba(29,78,216,0.5)' },
-  { key: 'rejected', label: 'Rejected', shade: 'rgba(29,78,216,0.3)' },
-  { key: 'no_response', label: 'No response', shade: 'rgba(15,23,42,0.12)' },
-];
-
-function Overview({ data }: { data: HiringFeedbackOverview | null | undefined }) {
-  if (data === undefined) return <div className="skeleton-shimmer h-72 rounded-xl" />;
-  if (data === null) return null;
-  const t = data.total || 0;
-  const pct = (n: number) => (t ? Math.round((n / t) * 100) : 0);
-  const heard = t - data.no_response;
-  return (
-    <SoftPanel
-      title="What applicants report, across all companies"
-      sub={
-        t
-          ? `Real application outcomes shared by applicants${data.last_7d ? ` · ${data.last_7d} new this week` : ''}`
-          : 'The first outcomes are coming in — yours could be one of them.'
-      }
-    >
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Heard back" value={t ? `${pct(heard)}%` : '—'} note="any reply, rejection included" />
-        <Kpi label="No response at all" value={t ? `${pct(data.no_response)}%` : '—'} note="silence after 7+ days" />
-        <Kpi label="Reached interview" value={t ? `${pct(data.interview + data.offer)}%` : '—'} />
-        <Kpi label="First reply" value={data.avg_reply_days != null ? `~${data.avg_reply_days} days` : '—'} note="average, when they reply" />
-      </div>
-
-      {t > 0 && (
-        <div className="mt-6">
-          <div className="flex h-4 overflow-hidden rounded-full bg-ink-100">
-            {SEGMENTS.map((s) => {
-              const n = data[s.key] as number;
-              return n ? <span key={s.key} title={`${s.label}: ${n}`} style={{ width: `${(n / t) * 100}%`, background: s.shade }} className="transition-all duration-700" /> : null;
-            })}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[12px] text-ink-600">
-            {SEGMENTS.map((s) => (
-              <span key={s.key} className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.shade }} />
-                {s.label} <strong className="text-ink-900">{pct(data[s.key] as number)}%</strong>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="mt-7 grid gap-4 lg:grid-cols-2">
-        <CompanyList title="Most responsive" icon={<TrendingUp className="h-4 w-4" />} tone="up" items={data.most_responsive} unit="heard back" />
-        <CompanyList title="Most silence" icon={<TrendingDown className="h-4 w-4" />} tone="down" items={data.most_silent} unit="no response" />
-      </div>
-    </SoftPanel>
-  );
-}
-
-function CompanyList({ title, icon, tone, items, unit }: { title: string; icon: ReactNode; tone: 'up' | 'down'; items: FeedbackCompany[]; unit: string }) {
-  return (
-    <SoftCard className="hover:translate-y-0">
-      <p className="flex items-center gap-2 text-[14px] font-bold text-ink-900">
-        <span className={`grid h-6 w-6 place-items-center rounded-full ${tone === 'up' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>{icon}</span>
-        {title}
-      </p>
-      {items.length === 0 ? (
-        <p className="mt-3 text-[13px] text-ink-500">Companies appear here once 3 different people have shared about them.</p>
-      ) : (
-        <ul className="mt-3 space-y-1.5">
-          {items.map((c, i) => (
-            <li key={c.id}>
-              <a
-                href={companyPath(c)}
-                onClick={(e) => {
-                  e.preventDefault();
-                  nav(companyPath(c));
-                }}
-                className="flex items-center gap-3 rounded-lg bg-white px-3 py-2 transition hover:shadow-sm"
-              >
-                <span className="w-4 text-[12px] font-bold text-ink-400">{i + 1}</span>
-                <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md border border-ink-100 bg-white p-0.5">
-                  {c.logo_url ? <img src={c.logo_url} alt="" className="h-full w-full object-contain" /> : <Building2 className="h-4 w-4 text-ink-300" />}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink-900">{c.name}</span>
-                <span className="text-right text-[12px] text-ink-500">
-                  <strong className={tone === 'up' ? 'text-emerald-600' : 'text-rose-500'}>{c.pct}%</strong> {unit}
-                  <span className="block text-[11px] text-ink-400">
-                    {c.score != null ? `score ${c.score} · ` : ''}
-                    {c.n} outcomes
-                  </span>
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-    </SoftCard>
   );
 }
 

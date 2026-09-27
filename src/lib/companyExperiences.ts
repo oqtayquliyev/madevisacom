@@ -303,3 +303,28 @@ export async function fetchExperienceReporters(userIds: string[]): Promise<{ row
   }
   return { rows: (data ?? []) as ExperienceReporter[] };
 }
+
+export type MyExperienceReport = {
+  id: string;
+  company_name: string;
+  publisher_id: string | null;
+  outcome: ExperienceOutcome;
+  applied_on: string;
+  status: ExperienceStatus;
+  created_at: string;
+  publisher: { name: string; logo_url: string | null } | null;
+};
+
+/** The signed-in person's own recent reports, newest first (RLS: own rows only). */
+export async function fetchMyExperienceReports(limit = 6): Promise<MyExperienceReport[]> {
+  const base = 'id, company_name, publisher_id, outcome, applied_on, status, created_at';
+  let res: { data: unknown; error: { message: string } | null } = await supabase
+    .from('company_experience_reports')
+    .select(`${base}, publisher:program_publishers(name, logo_url)`)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  // Without the company join if the relationship isn't exposed.
+  if (res.error) res = await supabase.from('company_experience_reports').select(base).order('created_at', { ascending: false }).limit(limit);
+  if (res.error) return [];
+  return ((res.data ?? []) as unknown as MyExperienceReport[]).map((r) => ({ ...r, publisher: r.publisher ?? null }));
+}
