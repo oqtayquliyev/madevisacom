@@ -260,6 +260,7 @@ const SPLITS: Partial<Record<PageKey, (people: number | null) => Split>> = {
 
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
+  const debug = url.searchParams.has('debug');
   const p = (url.searchParams.get('p') ?? 'home') as PageKey;
   const key: PageKey = p in PAGES ? p : 'home';
   const brand = await brandLogo(url.origin);
@@ -268,16 +269,16 @@ export default async function handler(req: Request): Promise<Response> {
   if (key === 'home') {
     const [live, jobs] = await Promise.all([countJobs(liveFilter()), latestHiring(3)]);
     const logos = await Promise.all(jobs.map((j) => logoDataUrl(j.logo)));
-    return shareImage(renderHome(brand, live, jobs, logos), { titleFont: true, maxAge: 3600 });
+    return shareImage(renderHome(brand, live, jobs, logos), { titleFont: true, maxAge: 3600, debug });
   }
   if (key === 'jobs') {
     const [live, today, hiring] = await Promise.all([countJobs(liveFilter()), countJobs(liveFilter(`created_at=gt.${since24h}`)), latestHiring(14)]);
     const logos = (await Promise.all(hiring.map((j) => logoDataUrl(j.logo)))).filter((l): l is string => Boolean(l)).slice(0, 7);
-    return shareImage(renderJobs(brand, live, today, logos), { maxAge: 3600 });
+    return shareImage(renderJobs(brand, live, today, logos), { maxAge: 3600, debug });
   }
-  if (key === 'companies') return shareImage(renderCompanies(brand), { maxAge: 86400 });
+  if (key === 'companies') return shareImage(renderCompanies(brand), { maxAge: 86400, debug });
 
   const people = key === 'network' ? (await rpc<{ people: number }>('network_counts'))?.people ?? null : null;
   const split = SPLITS[key]!(people);
-  return shareImage(renderSplit(brand, key, split), { maxAge: 21600 });
+  return shareImage(renderSplit(brand, key, split), { maxAge: 21600, debug });
 }

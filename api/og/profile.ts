@@ -99,8 +99,9 @@ function render(p: ShareProfile | null, avatar: string | null, brand: string | n
 
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
+  const debug = url.searchParams.has('debug');
   const u = url.searchParams.get('u') ?? '';
   const p = u ? await fetchShareProfile(u).catch(() => null) : null;
   const [avatar, brand] = await Promise.all([p?.avatar ? logoDataUrl(p.avatar) : Promise.resolve(null), brandLogo(url.origin)]);
-  return shareImage(render(p, avatar, brand), { maxAge: 3600 });
+  return shareImage(render(p, avatar, brand), { maxAge: 3600, debug });
 }

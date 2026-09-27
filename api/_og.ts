@@ -12,10 +12,16 @@ export const BLUE = '#2563EB';
 export type El = { type: string; props: Record<string, unknown> };
 export function h(type: string, style: Record<string, unknown>, ...children: (El | string | null | false | undefined)[]): El {
   const kids = children.filter((c) => c !== null && c !== false && c !== undefined) as (El | string)[];
-  return { type, props: { style: { display: 'flex', ...style }, children: kids.length === 1 ? kids[0] : kids } };
+  return { type, props: { style: { display: 'flex', ...clean(style) }, children: kids.length === 1 ? kids[0] : kids } };
+}
+/** The renderer crashes on undefined/null style values — drop them. */
+function clean(style: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(style)) if (v !== undefined && v !== null) out[k] = v;
+  return out;
 }
 export function img(src: string, style: Record<string, unknown>): El {
-  return { type: 'img', props: { src, style } };
+  return { type: 'img', props: { src, style: clean(style) } };
 }
 
 /** Logos can be any format; only png/jpeg/gif/svg render reliably, so inline those and skip the rest. */
@@ -84,24 +90,47 @@ export function textOf(el: El | string | null | undefined): string {
   return Array.isArray(kids) ? kids.map((k) => textOf(k)).join(' ') : textOf(kids);
 }
 
-/** The standard share image: 1200×630 PNG, cached at the edge. Fonts are subset to the text drawn. */
-export async function shareImage(tree: El, opts: { titleFont?: boolean; maxAge?: number } = {}): Promise<Response> {
-  const text = `${textOf(tree)} 0123456789`;
-  const fonts = await Promise.all([
-    googleFont('Inter', 400, text),
-    googleFont('Inter', 600, text),
-    googleFont('Inter', 700, text),
-    googleFont('Inter', 800, text),
-    opts.titleFont ? googleFont('Fraunces', 700, text) : Promise.resolve(null),
-  ]);
+/**
+ * The standard share image: 1200×630 PNG, cached at the edge. Fonts are
+ * subset to the text drawn. The PNG is rendered fully before responding, so a
+ * rendering error can't turn into a blank response: it falls back to a simple
+ * branded image (and `debug: true` returns the error as text instead).
+ */
+export async function shareImage(tree: El, opts: { titleFont?: boolean; maxAge?: number; debug?: boolean } = {}): Promise<Response> {
   const sMaxAge = opts.maxAge ?? 21600;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return new ImageResponse(tree as any, {
-    width: 1200,
-    height: 630,
-    fonts: fonts.filter((f): f is Font => f !== null),
-    headers: { 'Cache-Control': `public, max-age=3600, s-maxage=${sMaxAge}, stale-while-revalidate=604800` },
-  });
+  const headers = { 'Content-Type': 'image/png', 'Cache-Control': `public, max-age=3600, s-maxage=${sMaxAge}, stale-while-revalidate=604800` };
+  const render = async (t: El, titleFont: boolean) => {
+    const text = `${textOf(t)} 0123456789`;
+    const fonts = await Promise.all([
+      googleFont('Inter', 400, text),
+      googleFont('Inter', 600, text),
+      googleFont('Inter', 700, text),
+      googleFont('Inter', 800, text),
+      titleFont ? googleFont('Fraunces', 700, text) : Promise.resolve(null),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = new ImageResponse(t as any, { width: 1200, height: 630, fonts: fonts.filter((f): f is Font => f !== null) });
+    return res.arrayBuffer();
+  };
+  try {
+    return new Response(await render(tree, Boolean(opts.titleFont)), { headers });
+  } catch (err) {
+    const message = err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err);
+    console.error('share image failed', message);
+    if (opts.debug) return new Response(message, { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
+    try {
+      const fallback = h(
+        'div',
+        { width: 1200, height: 630, backgroundColor: BLUE, color: 'white', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', fontFamily: "'Inter', sans-serif" },
+        h('div', { fontSize: 88, fontWeight: 700 }, 'madevisa'),
+        h('div', { fontSize: 32, marginTop: 12 }, 'Jobs straight from company career pages')
+      );
+      // Short cache so a fixed version replaces it quickly.
+      return new Response(await render(fallback, false), { headers: { ...headers, 'Cache-Control': 'public, max-age=60, s-maxage=300' } });
+    } catch {
+      return new Response('Share image unavailable', { status: 500, headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
+    }
+  }
 }
 
 // --- Icons (Lucide shapes, drawn as inline SVG) -------------------------------

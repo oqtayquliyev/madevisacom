@@ -115,12 +115,13 @@ function render(c: ShareCompany, logo: string | null, brand: string | null): El 
 
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
+  const debug = url.searchParams.has('debug');
   // Accept a bare slug, "/companies/<slug>" or a full company URL.
   const raw = decodeURIComponent(url.searchParams.get('slug') ?? '').trim();
   const slug = raw.replace(/^https?:\/\/[^/]+/i, '').replace(/^\/?companies\//i, '').replace(/[?#].*$/, '').replace(/\/+$/, '');
   const c = slug ? await fetchShareCompany(slug).catch(() => null) : null;
   const brand = await brandLogo(url.origin);
-  if (!c) return shareImage(renderCompanies(brand), { maxAge: 3600 });
+  if (!c) return shareImage(renderCompanies(brand), { maxAge: 3600, debug });
   const logo = c.logo ? await logoDataUrl(c.logo) : null;
-  return shareImage(render(c, logo, brand), { maxAge: 7200 });
+  return shareImage(render(c, logo, brand), { maxAge: 7200, debug });
 }
