@@ -11,13 +11,11 @@ import {
   BLUE,
   brandLogo,
   clip,
-  countJobs,
   ctaPill,
   fmt,
   h,
   icon,
   img,
-  liveFilter,
   logoDataUrl,
   logoTile,
   rpc,
@@ -82,7 +80,7 @@ function renderHome(brand: string | null, live: number | null, jobs: HiringNow[]
       h(
         'div',
         { marginTop: 22 },
-        words(`${liveText ? `${liveText} live jobs` : 'Live jobs'} from company career pages — and who actually replies.`, liveText ? [liveText, 'live', 'jobs'] : [], {
+        words(`${liveText ? `${liveText} new jobs today` : 'Fresh jobs every day'} from company career pages — and who actually replies.`, liveText ? [liveText, 'new', 'jobs', 'today'] : [], {
           size: 26,
           width: 540,
           weight: 400,
@@ -124,8 +122,8 @@ function renderJobs(brand: string | null, live: number | null, today: number | n
         brandMark(brand, true),
         tag('Updated every day', { bg: 'rgba(255,255,255,0.08)', color: '#CBD5E1', border: 'rgba(255,255,255,0.16)', icon: 'refresh', size: 20 })
       ),
-      h('div', { fontSize: 150, fontWeight: 800, color: 'white', letterSpacing: -7, lineHeight: 1, marginTop: 36, flexShrink: 0 }, live != null ? fmt(live) : 'Thousands'),
-      h('div', { marginTop: 10 }, words('live jobs, straight from company career pages.', ['company', 'career', 'pages.'], { size: 40, width: 1060, weight: 700, color: '#94A3B8', hiColor: 'white', hiBg: 'rgba(96,165,250,0.22)', tracking: -1 })),
+      h('div', { fontSize: 150, fontWeight: 800, color: 'white', letterSpacing: -7, lineHeight: 1, marginTop: 36, flexShrink: 0 }, live != null ? fmt(live) : 'Daily'),
+      h('div', { marginTop: 10 }, words('new jobs today, straight from company career pages.', ['company', 'career', 'pages.'], { size: 40, width: 1060, weight: 700, color: '#94A3B8', hiColor: 'white', hiBg: 'rgba(96,165,250,0.22)', tracking: -1 })),
       today != null && today > 0
         ? h('div', { marginTop: 22 }, tag(`+${fmt(today)} added in the last 24 hours`, { bg: 'rgba(34,197,94,0.14)', color: '#4ADE80', icon: 'up', size: 22 }))
         : null,
@@ -264,15 +262,18 @@ export default async function handler(req: Request): Promise<Response> {
   const p = (url.searchParams.get('p') ?? 'home') as PageKey;
   const key: PageKey = p in PAGES ? p : 'home';
   const brand = await brandLogo(url.origin);
-  const since24h = new Date(Date.now() - 86_400_000).toISOString();
 
   if (key === 'home') {
-    const [live, jobs] = await Promise.all([countJobs(liveFilter()), latestHiring(3)]);
+    // The number stored with the latest release — never a site-wide total.
+    const [rel, jobs] = await Promise.all([rpc<{ new_today: number }>('current_job_release'), latestHiring(3)]);
+    const live = rel?.new_today ?? null;
     const logos = await Promise.all(jobs.map((j) => logoDataUrl(j.logo)));
     return shareImage(renderHome(brand, live, jobs, logos), { titleFont: true, maxAge: 3600, debug });
   }
   if (key === 'jobs') {
-    const [live, today, hiring] = await Promise.all([countJobs(liveFilter()), countJobs(liveFilter(`created_at=gt.${since24h}`)), latestHiring(14)]);
+    const [rel, hiring] = await Promise.all([rpc<{ new_today: number }>('current_job_release'), latestHiring(14)]);
+    const live = rel?.new_today ?? null;
+    const today = null;
     const logos = (await Promise.all(hiring.map((j) => logoDataUrl(j.logo)))).filter((l): l is string => Boolean(l)).slice(0, 7);
     return shareImage(renderJobs(brand, live, today, logos), { maxAge: 3600, debug });
   }

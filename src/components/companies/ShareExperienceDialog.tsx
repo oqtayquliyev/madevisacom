@@ -470,7 +470,7 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
                     className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#1D4ED8] px-5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-40"
                   >
                     {sending && <Loader2 className="h-4 w-4 animate-spin" />}
-                    Send code
+                    Get code &amp; approve
                   </button>
                 </div>
                 {captcha.element}

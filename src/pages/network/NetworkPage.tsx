@@ -95,7 +95,6 @@ export function NetworkPage({ go, onAuth }: Props) {
               <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
                 <HeroFigure label="People" value={counts === undefined ? '…' : (counts?.people ?? 0).toLocaleString()} />
                 <HeroFigure label="Hiring now" value={counts === undefined ? '…' : (counts?.hiring ?? 0).toLocaleString()} />
-                <HeroFigure label="Employers who sponsor" value={employers ? employers.length.toLocaleString() : '…'} />
               </div>
             </div>
             <div className="shrink-0">
@@ -125,7 +124,7 @@ export function NetworkPage({ go, onAuth }: Props) {
         <div className={`${WRAP} flex flex-col gap-3 py-3 md:flex-row md:items-center`}>
           <div className="grid grid-cols-3 gap-1 rounded-xl bg-ink-50 p-1 md:inline-flex md:w-auto" role="tablist">
             <TabButton active={tab === 'people'} onClick={() => setTab('people')} icon={Users} label="People" count={counts?.people} />
-            <TabButton active={tab === 'employers'} onClick={() => setTab('employers')} icon={Building2} label="Employers who sponsor" short="Employers" count={employers?.length} />
+            <TabButton active={tab === 'employers'} onClick={() => setTab('employers')} icon={Building2} label="Employers who sponsor" short="Employers" />
             <TabButton
               active={tab === 'experts'}
               onClick={() => setTab('experts')}

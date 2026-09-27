@@ -19,7 +19,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/costEstimates';
-import { countJobsPublishedSince, fetchLandingJobs, fetchPublishedSponsoredJobs, isClosedJob, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { countJobsPublishedSince, fetchCurrentRelease, fetchLandingJobs, peekJobRelease, fetchPublishedSponsoredJobs, isClosedJob, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { fetchSponsoredPrograms } from '@/lib/programs';
 import { formatCost } from '@/lib/listingCategories';
 import { stripHtml } from '@/lib/atsImport';
@@ -202,38 +202,19 @@ export function LocationMatchSection({
     if (shownItems?.length) rememberShown('landing', shownItems.map((i) => i.id));
   }, [shownItems]);
 
-  // "N new jobs published today" — a snapshot, not live: counts jobs from
-  // midnight up to the last 2-hour mark (00:00, 02:00, 04:00 …), cached
-  // per visitor, so the number steps up every 2 hours instead of ticking.
-  const [todayCount, setTodayCount] = useState<number | null>(null);
+  // "N new jobs published today" — the number stored with the latest
+  // release ("Publish update" in the admin panel), not counted live.
+  // The last known number shows instantly; the release check is one tiny row.
+  const [todayCount, setTodayCount] = useState<number | null>(() => peekJobRelease()?.new_today ?? null);
   useEffect(() => {
-    const midnight = new Date();
-    midnight.setHours(0, 0, 0, 0);
-    const TWO_H = 2 * 3_600_000;
-    const upTo = midnight.getTime() + Math.floor((Date.now() - midnight.getTime()) / TWO_H) * TWO_H;
-    if (upTo <= midnight.getTime()) {
-      setTodayCount(0); // before 2 am: nothing to show yet
-      return;
-    }
-    const key = `mv:todayJobs:${upTo}`;
-    try {
-      const saved = window.localStorage.getItem(key);
-      if (saved != null) {
-        setTodayCount(Number(saved));
-        return;
-      }
-    } catch {
-      /* no storage — just ask */
-    }
     let alive = true;
-    countJobsPublishedSince(midnight.toISOString(), new Date(upTo).toISOString()).then((n) => {
+    fetchCurrentRelease().then((rel) => {
       if (!alive) return;
-      setTodayCount(n);
-      try {
-        if (n != null) window.localStorage.setItem(key, String(n));
-      } catch {
-        /* ignore */
-      }
+      if (rel) return setTodayCount(rel.new_today);
+      // Releases not set up yet: the old count since midnight.
+      const midnight = new Date();
+      midnight.setHours(0, 0, 0, 0);
+      countJobsPublishedSince(midnight.toISOString()).then((n) => alive && setTodayCount(n));
     });
     return () => {
       alive = false;

@@ -124,9 +124,49 @@ const liveOrRecentlyClosed = (asOf: string) =>
 // downloading the whole catalog.
 // ---------------------------------------------------------------------------
 
-let publishedJobsCache: { data: SponsoredJob[]; fetchedAt: number } | null = null;
-const PUBLISHED_JOBS_CACHE_TTL_MS = 60_000;
-const PERSISTED_MAX_AGE_MS = 6 * 60 * 60 * 1000; // older copies are ignored
+let publishedJobsCache: { data: SponsoredJob[]; fetchedAt: number; release: number | null } | null = null;
+const PUBLISHED_JOBS_CACHE_TTL_MS = 60_000; // only when releases aren't available
+const PERSISTED_MAX_AGE_MS = 6 * 60 * 60 * 1000; // copies without a matching release
+const PERSISTED_RELEASE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // copies of the current release
+
+// --- Releases -----------------------------------------------------------------
+// Imported jobs go public in batches when an admin presses "Publish update"
+// (migration 20261029090000). Each release has an id: while it doesn't
+// change, the saved copy of the jobs is still exactly right — no download.
+
+export type JobRelease = { id: number; published_at: string; new_today: number; jobs_released: number };
+const RELEASE_KEY = 'mv:jobRelease';
+const RELEASE_TTL_MS = 60_000;
+let releaseCache: { value: JobRelease | null; at: number } | null = null;
+let releaseInflight: Promise<JobRelease | null> | null = null;
+
+/** The last release this browser saw — instant, for first paint. */
+export function peekJobRelease(): JobRelease | null {
+  try {
+    return JSON.parse(localStorage.getItem(RELEASE_KEY) ?? 'null') as JobRelease | null;
+  } catch {
+    return null;
+  }
+}
+
+/** The current release (checked at most once a minute). Null if releases aren't set up. */
+export async function fetchCurrentRelease(force = false): Promise<JobRelease | null> {
+  if (!force && releaseCache && Date.now() - releaseCache.at < RELEASE_TTL_MS) return releaseCache.value;
+  if (!releaseInflight) {
+    releaseInflight = (async () => {
+      const { data, error } = await supabase.rpc('current_job_release');
+      const value = error || !data ? null : (data as JobRelease);
+      releaseCache = { value, at: Date.now() };
+      try {
+        if (value) localStorage.setItem(RELEASE_KEY, JSON.stringify(value));
+      } catch {
+        /* private mode */
+      }
+      return value;
+    })().finally(() => (releaseInflight = null));
+  }
+  return releaseInflight;
+}
 const IDB_NAME = 'madevisa-cache';
 const IDB_STORE = 'kv';
 const IDB_KEY = 'publishedJobs:v3'; // v1 copies could be missing jobs (see fetchPublishedFromNetwork)
@@ -150,15 +190,15 @@ function openCacheDb(): Promise<IDBDatabase | null> {
   });
 }
 
-async function readPersistedJobs(): Promise<{ data: SponsoredJob[]; fetchedAt: number } | null> {
+async function readPersistedJobs(): Promise<{ data: SponsoredJob[]; fetchedAt: number; release?: number | null } | null> {
   const db = await openCacheDb();
   if (!db) return null;
   return new Promise((resolve) => {
     try {
       const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(IDB_KEY);
       req.onsuccess = () => {
-        const v = req.result as { data: SponsoredJob[]; fetchedAt: number } | undefined;
-        resolve(v && Array.isArray(v.data) && Date.now() - v.fetchedAt < PERSISTED_MAX_AGE_MS ? v : null);
+        const v = req.result as { data: SponsoredJob[]; fetchedAt: number; release?: number | null } | undefined;
+        resolve(v && Array.isArray(v.data) && Date.now() - v.fetchedAt < PERSISTED_RELEASE_MAX_AGE_MS ? v : null);
       };
       req.onerror = () => resolve(null);
     } catch {
@@ -167,13 +207,13 @@ async function readPersistedJobs(): Promise<{ data: SponsoredJob[]; fetchedAt: n
   });
 }
 
-function writePersistedJobs(data: SponsoredJob[]) {
+function writePersistedJobs(data: SponsoredJob[], release: number | null) {
   // Deferred so saving never competes with the first render.
   const save = async () => {
     const db = await openCacheDb();
     if (!db) return;
     try {
-      db.transaction(IDB_STORE, 'readwrite').objectStore(IDB_STORE).put({ data, fetchedAt: Date.now() }, IDB_KEY);
+      db.transaction(IDB_STORE, 'readwrite').objectStore(IDB_STORE).put({ data, fetchedAt: Date.now(), release }, IDB_KEY);
     } catch {
       /* quota / private mode — caching is optional */
     }
@@ -370,8 +410,11 @@ export async function countJobsPublishedSince(fromIso: string, toIso?: string): 
 }
 
 export async function fetchPublishedSponsoredJobs(opts: { onPartial?: (rows: SponsoredJob[]) => void } = {}): Promise<SponsoredJob[]> {
-  if (publishedJobsCache && Date.now() - publishedJobsCache.fetchedAt < PUBLISHED_JOBS_CACHE_TTL_MS) {
-    return publishedJobsCache.data;
+  // In memory: reuse while the release hasn't changed (or 60 s without releases).
+  if (publishedJobsCache) {
+    const rel = await fetchCurrentRelease();
+    const sameRelease = rel && publishedJobsCache.release === rel.id;
+    if (sameRelease || (!rel && Date.now() - publishedJobsCache.fetchedAt < PUBLISHED_JOBS_CACHE_TTL_MS)) return publishedJobsCache.data;
   }
   if (opts.onPartial) {
     partialListeners.add(opts.onPartial);
@@ -386,25 +429,48 @@ export async function fetchPublishedSponsoredJobs(opts: { onPartial?: (rows: Spo
   if (!inflight) {
     inflight = (async () => {
       let shownCount = 0;
-      // Instant paint from the last visit, while the network catches up.
+      const releaseP = fetchCurrentRelease();
       const persisted = publishedJobsCache ? null : await readPersistedJobs();
-      if (persisted) {
+      const release = await releaseP;
+
+      // 1. Saved copy of the current release: exactly right — no download at all.
+      if (persisted && release && persisted.release === release.id) {
+        const rows = stillLive(persisted.data);
+        publishedJobsCache = { data: rows, fetchedAt: Date.now(), release: release.id };
+        emit(rows);
+        return rows;
+      }
+      // 2. An older saved copy: show it at once, refresh behind it.
+      if (persisted && Date.now() - persisted.fetchedAt < PERSISTED_MAX_AGE_MS) {
         const rows = stillLive(persisted.data);
         shownCount = rows.length;
         emit(rows);
+      } else {
+        // 3. First visit: the newest jobs across companies in one small request,
+        //    so nobody waits for the full list.
+        fetchNewestDiverseJobs(36, 2)
+          .then((quick) => {
+            if (shownCount === 0 && quick.length) {
+              shownCount = quick.length;
+              emit(quick);
+            }
+          })
+          .catch(() => undefined);
       }
       const fresh = await fetchPublishedFromNetwork((firstPage) => {
-        // Don't replace a fuller cached list with just the first page.
-        if (firstPage.length > shownCount) emit(firstPage);
+        // Don't replace a fuller list with just the first page.
+        if (firstPage.length > shownCount) {
+          shownCount = firstPage.length;
+          emit(firstPage);
+        }
       });
       const fallback = publishedJobsCache?.data ?? (persisted ? stillLive(persisted.data) : null);
       if (!fresh) return fallback ?? [];
       // An incomplete load (a page kept failing) is shown if there's
-      // nothing better, but never saved as the reference copy — otherwise
-      // the count would stay low until the next full load.
+      // nothing better, but never saved as the reference copy.
       if (!fresh.complete) return fallback && fallback.length > fresh.rows.length ? fallback : fresh.rows;
-      publishedJobsCache = { data: fresh.rows, fetchedAt: Date.now() };
-      writePersistedJobs(fresh.rows);
+      publishedJobsCache = { data: fresh.rows, fetchedAt: Date.now(), release: release?.id ?? null };
+      writePersistedJobs(fresh.rows, release?.id ?? null);
       return fresh.rows;
     })().finally(() => {
       inflight = null;

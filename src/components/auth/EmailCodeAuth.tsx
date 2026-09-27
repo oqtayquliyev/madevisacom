@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Mail } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { handleNavClick } from '@/lib/navLink';
 import { confirmEmailVerified } from '@/lib/emailVerification';
@@ -139,7 +139,7 @@ export function EmailCodeAuth({ mode, onSwitch, onHome }: Props) {
             <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="you@example.com" required autoComplete="email" />
             {captcha.element}
             <PrimaryButton loading={sending} disabled={!emailOk || !captcha.ready} className="mt-4">
-              <Mail className="h-4 w-4" /> Email me a code
+              Continue <ArrowRight className="h-4 w-4" />
             </PrimaryButton>
           </form>
           <p className="mt-4 text-center text-sm text-ink-500">

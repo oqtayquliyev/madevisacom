@@ -119,8 +119,6 @@ export function DestinationsPage({ go, onAuth }: DestinationsPageProps) {
                 Add your passport to see your routes
               </a>
             )}
-            <HeroFigure label="Visa-sponsored jobs" value={stats ? totals.sponsored.toLocaleString() : '…'} />
-            <HeroFigure label="Companies hiring" value={stats ? totals.companies.toLocaleString() : '…'} />
           </div>
         </div>
       </section>

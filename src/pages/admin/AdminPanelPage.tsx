@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EvidenceReviewSection } from '@/pages/admin/EvidenceReviewSection';
 import { ListingRequestsSection } from '@/pages/admin/ListingRequestsSection';
+import { PublishReleasePanel } from '@/pages/admin/PublishReleasePanel';
 import { VacancyImageGenerator } from '@/pages/admin/VacancyImageGenerator';
 import { ExperienceReportsSection } from '@/pages/admin/ExperienceReportsSection';
 import { JobReportsSection } from '@/pages/admin/JobReportsSection';
@@ -519,6 +520,8 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
 
             {tab === 'imports' && (
               <>
+                <PublishReleasePanel onPublished={() => loadAll(['allJobs'])} />
+
                 <FindCompaniesPanel publishers={[...verifiedPublishers, ...pendingPublishers]} sources={sources} countries={countries} onChange={() => loadAll()} />
 
                 <ImportCenter

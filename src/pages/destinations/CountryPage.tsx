@@ -102,7 +102,7 @@ function CountryView({ guide, go, onAuth }: { guide: VisaGuide; go: (view: View)
     { id: 'routes', label: 'Visa routes', count: guide.routes.length },
     { id: 'apply', label: 'How to apply' },
     { id: 'pathway', label: 'Path to residence' },
-    { id: 'companies', label: 'Companies hiring', count: s?.companies.length, children: [{ id: 'focus', label: 'Roles & cities' }] },
+    { id: 'companies', label: 'Companies hiring', children: [{ id: 'focus', label: 'Roles & cities' }] },
     { id: 'sources', label: 'Short stays & sources' },
     { id: 'about-metrics', label: 'About these metrics' },
   ];
@@ -171,9 +171,7 @@ function CountryView({ guide, go, onAuth }: { guide: VisaGuide; go: (view: View)
               <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
                 <h1 className="text-[28px] font-bold leading-tight tracking-tight text-white sm:text-[34px]">{guide.name}</h1>
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-                  <HeroPill label="Open jobs" value={loading ? '…' : (s?.total ?? 0).toLocaleString()} />
                   <HeroPill label="Visa-sponsored" value={sponsoredLabel} />
-                  <HeroPill label="Companies" value={loading ? '…' : (s?.companies.length ?? 0).toLocaleString()} />
                 </div>
               </div>
               <p className="mt-3 max-w-4xl text-[16px] leading-7 text-white/85">{guide.blurb}</p>
@@ -252,7 +250,7 @@ function CountryView({ guide, go, onAuth }: { guide: VisaGuide; go: (view: View)
               <SoftCard className="grid grid-cols-2 gap-x-6 gap-y-6 p-5 md:grid-cols-4">
                 <ScoreStat title="Open jobs" value={loading ? '…' : (s?.total ?? 0).toLocaleString()} delta={s && s.posted30 > 0 ? { text: `${s.posted30} new`, up: true } : null} note="in past 30 days" />
                 <ScoreStat title="Visa-sponsored" value={sponsoredLabel} ring={s?.rate ?? null} note={s ? `${s.sponsored.toLocaleString()} jobs offer sponsorship` : undefined} />
-                <ScoreStat title="Companies hiring" value={loading ? '…' : (s?.companies.length ?? 0).toLocaleString()} note={s ? `${s.companies.filter((c) => c.sponsored > 0).length} sponsor visas` : undefined} />
+                <ScoreStat title="Companies that sponsor" value={loading ? '…' : s && s.companies.length ? `${Math.round((s.companies.filter((c) => c.sponsored > 0).length / s.companies.length) * 100)}%` : '—'} note="of companies hiring here" />
                 <div className="min-w-0">
                   <p className="text-[15px] font-medium text-ink-600">Years to citizenship</p>
                   <div className="mt-2 flex items-center gap-3">
@@ -417,7 +415,7 @@ function CountryView({ guide, go, onAuth }: { guide: VisaGuide; go: (view: View)
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 px-5 py-3">
                     <p className="text-[14px] text-ink-500">
-                      {s.companies.length} companies · {s.companies.filter((c) => c.sponsored > 0).length} sponsor visas
+                      Sorted by visa-sponsored openings
                     </p>
                     {s.companies.length > 8 && (
                       <label className="flex h-10 w-full items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 focus-within:border-[#1D4ED8] sm:w-64">
