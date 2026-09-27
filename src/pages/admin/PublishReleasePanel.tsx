@@ -203,8 +203,8 @@ export function PublishReleasePanel({ onPublished }: { onPublished?: () => void 
 
   const when = release ? new Date(release.published_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : null;
   const budget = auto ? auto.today_limit + auto.extra_today : 0;
-  const pct = auto && budget > 0 ? Math.min(100, Math.round((auto.released_today / budget) * 100)) : 0;
-  const detectorTrouble = auto && auto.to_detect > 0 && auto.last_detect_status !== null && auto.last_detect_status !== 200;
+  const pct = auto && budget > 0 ? Math.min(100, Math.round((auto.released_today / budget) * 100)) : 0
+  const detectorTrouble = auto && auto.to_detect > 0 && auto.last_detect_status !== null && (auto.last_detect_status < 200 || auto.last_detect_status >= 300);
   const detectorIdle = auto && auto.detect_enabled && auto.to_detect > 0 && !auto.last_detect_at;
 
   const numberField = (key: keyof Settings, label: string, hint?: string, min = 0) =>
