@@ -414,7 +414,8 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       experienceLevel !== 'All levels' || datePosted !== 'Any time' || directOnly || studentOnly || visaOnly,
   );
   // Once the full list is loaded it stays (clearing a search doesn't reload).
-  const [wantFull, setWantFull] = useState(() => Boolean(session) || hasQuery);
+  // Everyone (guests too) gets the full list, so search, filters and counts cover every job; guests are only limited by "Show more".
+  const [wantFull, setWantFull] = useState(true);
   useEffect(() => {
     if (session || hasQuery) setWantFull(true);
   }, [session, hasQuery]);
@@ -636,11 +637,6 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     );
   }, [categoryCounts, category]);
 
-  // Most common categories (with the other filters applied) as quick chips.
-  const popularCategories = useMemo(
-    () => [...categoryCounts.labels.entries()].filter(([l]) => !l.endsWith('(other)')).sort((a, b) => b[1] - a[1]).slice(0, 12),
-    [categoryCounts]
-  );
 
   const activeFilterCount =
     Number(country !== 'All countries') +
@@ -900,34 +896,6 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
             </div>
           </div>
         </div>
-
-        {/* Popular categories (the full list of ~200 is under "Category" above) */}
-        {popularCategories.length > 0 && (
-          <div className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-            <button
-              type="button"
-              onClick={() => setCategory(ALL_CATEGORIES)}
-              className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                category === ALL_CATEGORIES ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
-              }`}
-            >
-              All categories
-            </button>
-            {popularCategories.map(([label, n]) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => setCategory(category === label ? ALL_CATEGORIES : label)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                  category === label ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
-                }`}
-              >
-                {label}
-                <span className={`tabular-nums ${category === label ? 'text-white/70' : 'text-ink-400'}`}>{n.toLocaleString()}</span>
-              </button>
-            ))}
-          </div>
-        )}
 
         {activeFilters.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
