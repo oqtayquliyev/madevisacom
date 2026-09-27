@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Loader2, Pause, Play, Rocket, Settings2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Factory, Loader2, Pause, Play, Rocket, Search, Settings2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { fetchCurrentRelease, type JobRelease } from '@/lib/sponsoredJobs';
 
@@ -42,11 +42,34 @@ type AutoStatus = {
   too_short: number;
   too_old: number;
   cron: boolean;
+  // Automatic pipeline (migration 20261101090000) — absent before it runs.
+  conveyor_enabled?: boolean;
+  companies_per_run?: number;
+  resync_hours?: number;
+  last_conveyor_at?: string | null;
+  last_conveyor?: { text?: string; ok?: boolean; published?: number } | null;
+  conveyor_healthy?: boolean;
+  sources_due?: number;
+  finder_enabled?: boolean;
+  finder_every_min?: number;
+  next_finder_at?: string | null;
+  last_finder_at?: string | null;
+  last_finder?: { text?: string; ok?: boolean } | null;
+  log?: { at: string; kind: string; ok: boolean; summary: string }[];
 };
 
-type Settings = Pick<AutoStatus, 'daily_limit' | 'auto_balance' | 'target_live' | 'min_interval_s' | 'max_interval_s' | 'min_description_chars' | 'max_age_days' | 'timezone'>;
+type Settings = Pick<AutoStatus, 'daily_limit' | 'auto_balance' | 'target_live' | 'min_interval_s' | 'max_interval_s' | 'min_description_chars' | 'max_age_days' | 'timezone'> & {
+  companies_per_run?: number;
+  resync_hours?: number;
+  finder_every_min?: number;
+};
 
-const SUGGESTED_DAILY_LIMIT = 2400;
+const SUGGESTED_DAILY_LIMIT = 2000;
+const ago = (iso: string | null | undefined, now: number) => {
+  if (!iso) return 'never';
+  const m = Math.round((now - Date.parse(iso)) / 60_000);
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+};
 const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString();
 const clock = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '—');
 
@@ -90,10 +113,20 @@ export function PublishReleasePanel({ onPublished }: { onPublished?: () => void 
 
   // The countdown only needs a local clock.
   useEffect(() => {
-    if (!auto?.enabled) return;
+    if (!auto?.enabled && !auto?.finder_enabled) return;
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [auto?.enabled]);
+  }, [auto?.enabled, auto?.finder_enabled]);
+
+  const runNow = async (kind: 'sync' | 'find') => {
+    setBusy(`run-${kind}`);
+    setMsg(null);
+    const { error } = await supabase.rpc('pipeline_run_now', { p_kind: kind, p_want: 5 });
+    setBusy(null);
+    if (error) return setMsg({ ok: false, text: error.message });
+    setMsg({ ok: true, text: kind === 'sync' ? 'Started one sync round — results show below in a minute or two.' : 'Started a company search — results show below in a few minutes.' });
+    window.setTimeout(() => void refresh(), 60_000);
+  };
 
   const configure = async (patch: Partial<AutoStatus>, label: string) => {
     setBusy(label);
@@ -149,6 +182,9 @@ export function PublishReleasePanel({ onPublished }: { onPublished?: () => void 
         min_description_chars: auto.min_description_chars,
         max_age_days: auto.max_age_days,
         timezone: auto.timezone,
+        ...(auto.companies_per_run !== undefined
+          ? { companies_per_run: auto.companies_per_run, resync_hours: auto.resync_hours, finder_every_min: auto.finder_every_min }
+          : {}),
       });
     }
     setShowSettings((v) => !v);
@@ -348,6 +384,87 @@ export function PublishReleasePanel({ onPublished }: { onPublished?: () => void 
         </>
       )}
 
+      {auto && auto.conveyor_enabled !== undefined && (
+        <div className="mt-4 rounded-lg border border-ink-200 bg-white p-4">
+          <p className="text-sm font-bold text-ink-950">Automatic pipeline</p>
+          <p className="mt-0.5 text-xs text-ink-500">Runs on the server — you can close this tab. Finds companies, reads their careers pages, detects details and publishes, a few at a time.</p>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {/* Conveyor */}
+            <div className="rounded-md border border-ink-100 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
+                  <Factory className="h-4 w-4 text-brand-600" /> Sync &amp; publish
+                </p>
+                <button
+                  onClick={() => void configure(auto.conveyor_enabled ? { conveyor_enabled: false } : { conveyor_enabled: true, enabled: true }, 'conveyor')}
+                  disabled={busy !== null}
+                  className={`rounded-md px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${auto.conveyor_enabled ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
+                >
+                  {busy === 'conveyor' ? '…' : auto.conveyor_enabled ? 'On — turn off' : 'Turn on'}
+                </button>
+              </div>
+              <p className="mt-1 text-xs leading-5 text-ink-600">
+                Every 3–4 min: {auto.companies_per_run} companies from different countries, their newest jobs published. Each company is re-checked after {auto.resync_hours} h.{' '}
+                {fmt(auto.sources_due)} due now.
+              </p>
+              {auto.conveyor_enabled && auto.conveyor_healthy === false && (
+                <p className="mt-2 flex items-start gap-1.5 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> No answer from the auto-pipeline function for 15 min — publishing from the waiting list instead. Is it deployed?
+                </p>
+              )}
+              <p className={`mt-2 text-xs leading-5 ${auto.last_conveyor?.ok === false ? 'text-rose-700' : 'text-ink-700'}`}>
+                <span className="text-ink-500">Last: {ago(auto.last_conveyor_at, now)} · </span>
+                {auto.last_conveyor?.text ?? 'not run yet'}
+              </p>
+              <button onClick={() => void runNow('sync')} disabled={busy !== null} className="mt-2 text-xs font-semibold text-brand-700 hover:underline disabled:opacity-50">
+                {busy === 'run-sync' ? 'Starting…' : 'Run one round now'}
+              </button>
+            </div>
+
+            {/* Finder */}
+            <div className="rounded-md border border-ink-100 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
+                  <Search className="h-4 w-4 text-brand-600" /> Find new companies
+                </p>
+                <button
+                  onClick={() => void configure({ finder_enabled: !auto.finder_enabled }, 'finder')}
+                  disabled={busy !== null}
+                  className={`rounded-md px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${auto.finder_enabled ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
+                >
+                  {busy === 'finder' ? '…' : auto.finder_enabled ? 'On — turn off' : 'Turn on'}
+                </button>
+              </div>
+              <p className="mt-1 text-xs leading-5 text-ink-600">
+                One new company every {auto.finder_every_min} min, rotating through the countries (biggest companies first).
+                {auto.finder_enabled && auto.next_finder_at && <> Next {Date.parse(auto.next_finder_at) <= now ? 'any moment' : `in ${countdown(auto.next_finder_at, now)}`}.</>}
+              </p>
+              <p className={`mt-2 text-xs leading-5 ${auto.last_finder?.ok === false ? 'text-rose-700' : 'text-ink-700'}`}>
+                <span className="text-ink-500">Last: {ago(auto.last_finder_at, now)} · </span>
+                {auto.last_finder?.text ?? 'not run yet'}
+              </p>
+              <button onClick={() => void runNow('find')} disabled={busy !== null} className="mt-2 text-xs font-semibold text-brand-700 hover:underline disabled:opacity-50">
+                {busy === 'run-find' ? 'Starting…' : 'Find one now'}
+              </button>
+            </div>
+          </div>
+
+          {!!auto.log?.length && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs font-semibold text-ink-600">Recent activity</summary>
+              <ul className="mt-2 space-y-1.5">
+                {auto.log.map((l, i) => (
+                  <li key={i} className={`text-xs leading-5 ${l.ok ? 'text-ink-700' : 'text-rose-700'}`}>
+                    <span className="tabular-nums text-ink-400">{clock(l.at)}</span> <span className="font-medium">{l.kind === 'find' ? 'Find' : 'Sync'}</span> — {l.summary}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+
       {showSettings && draft && (
         <div className="mt-4 rounded-lg border border-ink-200 bg-white p-4">
           <div className="grid gap-4 sm:grid-cols-3">
@@ -366,6 +483,13 @@ export function PublishReleasePanel({ onPublished }: { onPublished?: () => void 
               <span className="font-normal text-ink-500">e.g. Asia/Baku, Europe/Berlin, UTC</span>
             </label>
           </div>
+          {draft.companies_per_run !== undefined && (
+            <div className="mt-4 grid gap-4 border-t border-ink-100 pt-4 sm:grid-cols-3">
+              {numberField('companies_per_run', 'Companies per round', '1–5, each from a different country. 3 is gentle.', 1)}
+              {numberField('resync_hours', 'Re-check a company after (hours)', 'Default 12. Closed jobs are noticed on each check.', 1)}
+              {numberField('finder_every_min', 'Find a new company every (minutes)', 'Default 20 ≈ 70 companies a day tried.', 5)}
+            </div>
+          )}
           <label className="mt-4 flex flex-wrap items-center gap-2 text-xs text-ink-700">
             <input type="checkbox" checked={draft.auto_balance} onChange={(e) => setDraft({ ...draft, auto_balance: e.target.checked })} />
             <span>

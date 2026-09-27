@@ -2893,6 +2893,18 @@ async function resolveAndRun(ctx: Ctx, inputUrl: string): Promise<Resolved> {
 // HTTP handler
 // =========================================================================
 
+// The auto-pipeline function (server-side sync, run by pg_cron) calls this
+// function with the secret from app_secrets (migration 20261031090000).
+let pipelineSecretCache: { value: string | null; at: number } | null = null;
+async function isPipelineSecret(supabaseUrl: string, serviceRoleKey: string, given: string): Promise<boolean> {
+  if (!pipelineSecretCache || Date.now() - pipelineSecretCache.at > 5 * 60_000) {
+    const service = createClient(supabaseUrl, serviceRoleKey);
+    const { data } = await service.from("app_secrets").select("value").eq("name", "cron_secret").maybeSingle();
+    pipelineSecretCache = { value: (data as { value?: string } | null)?.value ?? null, at: Date.now() };
+  }
+  return Boolean(pipelineSecretCache.value) && given === pipelineSecretCache.value;
+}
+
 serve(async (req) => {
   const CORS_HEADERS = corsHeadersFor(req);
   const reply = (body: unknown, status = 200) =>
@@ -2901,11 +2913,13 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
 
   try {
-    // --- Auth: admin only ---
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return reply({ ok: false, error: "Missing Authorization header." }, 401);
+    // --- Auth: admin only (or the auto-pipeline function, with the shared secret) ---
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const pipelineSecret = req.headers.get("x-madevisa-cron");
+    if (!(pipelineSecret && (await isPipelineSecret(supabaseUrl, serviceRoleKey, pipelineSecret)))) {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return reply({ ok: false, error: "Missing Authorization header." }, 401);
     const callerClient = createClient(supabaseUrl, serviceRoleKey, { global: { headers: { Authorization: authHeader } } });
     const { data: { user }, error: userError } = await callerClient.auth.getUser();
     if (userError || !user) return reply({ ok: false, error: "Not authenticated." }, 401);
@@ -2917,6 +2931,7 @@ serve(async (req) => {
     const asCaller = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authHeader } } });
     const { data: adminOk, error: adminErr } = await asCaller.rpc("is_admin");
     if (adminErr || adminOk !== true) return reply({ ok: false, error: "Admin access requires your two-step login code. Sign out and sign in again." }, 403);
+    }
 
     // --- Input ---
     const body = await req.json();
