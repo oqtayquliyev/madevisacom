@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Building2, CheckCircle2, ChevronDown, Loader2, Lock, MessageSquarePlus, Search, X } from 'lucide-react';
+import { Building2, CheckCircle2, ChevronDown, Loader2, Lock, Mail, MessageSquarePlus, Search, X } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { confirmEmailVerified } from '@/lib/emailVerification';
+import { useCaptcha } from '@/components/auth/Turnstile';
 import { useAuth } from '@/lib/auth';
 import {
   APPLIED_WHEN,
@@ -15,6 +18,20 @@ import {
   type ExperienceChannel,
   type ExperienceOutcome,
 } from '@/lib/companyExperiences';
+
+/** Must match Supabase → Authentication → Email → "Email OTP length" (same as the sign-in page). */
+const OTP_LENGTH = Number(import.meta.env.VITE_OTP_LENGTH) || 6;
+const RESEND_SECONDS = 45;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+function friendlyAuthError(message: string): string {
+  if (/captcha/i.test(message)) return "The security check didn't go through. Please wait a moment and try again.";
+  if (/rate limit|too many|security purposes|seconds/i.test(message)) return 'A code was sent a moment ago. Check your inbox (and spam), or try again in a minute.';
+  if (/expired|invalid|token/i.test(message)) return "That code isn't right or has expired. Check the latest email, or send a new code.";
+  if (/signups not allowed|not allowed/i.test(message)) return 'Sharing is paused for new emails right now. Please try again later.';
+  if (/email/i.test(message) && /valid/i.test(message)) return 'Please enter a valid email address.';
+  return message;
+}
 
 /** Short answers only — nothing here needs a paragraph. */
 const LIMITS = { company: 80, role: 60, website: 100 };
@@ -40,7 +57,7 @@ type Props = {
  * what happened); the rest is optional and folded away. Every report is
  * reviewed before it counts, and is only ever shown as a total.
  */
-export function ShareExperienceDialog({ open, onClose, company, initial, companies = [], initialOutcome, onAuth }: Props) {
+export function ShareExperienceDialog({ open, onClose, company, initial, companies = [], initialOutcome }: Props) {
   const { session } = useAuth();
   const [picked, setPicked] = useState<PickCompany | null>(null);
   const [typed, setTyped] = useState('');
@@ -62,6 +79,24 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
   const [done, setDone] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Not signed in: the report is confirmed with a one-time email code in
+  // this same dialog (no separate sign-up page). Verifying the code signs
+  // them in, then the report is sent straight away.
+  const [email, setEmail] = useState('');
+  const [codeStep, setCodeStep] = useState(false);
+  const [code, setCode] = useState('');
+  const [sending, setSending] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+  const [newlySignedIn, setNewlySignedIn] = useState(false);
+  const captcha = useCaptcha({ invisible: true });
+  const codeRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = window.setTimeout(() => setResendIn((v) => v - 1), 1000);
+    return () => window.clearTimeout(t);
+  }, [resendIn]);
+
   const reset = () => {
     setWhen(null);
     setOutcome(null);
@@ -74,6 +109,8 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
     setMatch(null);
     setTrap('');
     setError(null);
+    setCodeStep(false);
+    setCode('');
   };
 
   useEffect(() => {
@@ -109,8 +146,49 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
   const websiteOk = !website || /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(\/\S*)?$/i.test(website);
   const canSend = name.length >= 2 && whenDays != null && outcome && !tooSoon && websiteOk && !busy;
 
-  const send = async () => {
-    if (!canSend || !outcome || whenDays == null) return;
+  const emailOk = EMAIL_RE.test(email.trim());
+
+  /** Step 1 (signed out): email a one-time code. */
+  const sendCode = async () => {
+    if (!canSend) return;
+    if (trap) return setDone(true); // bot filled the hidden field — pretend it worked
+    if (!emailOk) return setError('Please enter a valid email address.');
+    if (!captcha.ready) return setError('One moment — finishing a quick security check. Try again in a second.');
+    setSending(true);
+    setError(null);
+    const { error: err } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: { shouldCreateUser: true, captchaToken: captcha.token, emailRedirectTo: window.location.href },
+    });
+    captcha.reset();
+    setSending(false);
+    if (err) return setError(friendlyAuthError(err.message));
+    setCode('');
+    setCodeStep(true);
+    setResendIn(RESEND_SECONDS);
+    window.setTimeout(() => codeRef.current?.focus(), 60);
+  };
+
+  /** Step 2 (signed out): check the code — that signs them in — then send the report. */
+  const confirmCode = async (token = code) => {
+    const clean = token.replace(/\D/g, '');
+    if (clean.length < OTP_LENGTH) return setError(`Enter the ${OTP_LENGTH}-digit code from the email.`);
+    setBusy(true);
+    setError(null);
+    const { error: err } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: clean, type: 'email' });
+    if (err) {
+      setBusy(false);
+      return setError(friendlyAuthError(err.message));
+    }
+    await confirmEmailVerified().catch(() => undefined);
+    setNewlySignedIn(true);
+    setBusy(false);
+    await send(true);
+  };
+
+  const send = async (afterCode = false) => {
+    if (!canSend && !afterCode) return;
+    if (!outcome || whenDays == null) return;
     if (trap) return setDone(true); // bot filled the hidden field — pretend it worked
     setBusy(true);
     setError(null);
@@ -155,23 +233,16 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
           </button>
         </div>
 
-        {!session ? (
-          <div className="px-5 pb-8 pt-4 text-center">
-            <p className="text-sm text-ink-600">Sign in to share — it keeps reports honest. Your name is never shown.</p>
-            <div className="mt-4 flex justify-center gap-2">
-              <button onClick={() => (onClose(), onAuth?.('login'))} className="rounded-lg bg-[#1D4ED8] px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-800">
-                Sign in
-              </button>
-              <button onClick={() => (onClose(), onAuth?.('register'))} className="rounded-lg border border-ink-200 px-5 py-2.5 text-sm font-semibold text-ink-700 hover:bg-ink-50">
-                Create account
-              </button>
-            </div>
-          </div>
-        ) : done ? (
+        {done ? (
           <div className="px-5 pb-8 pt-6 text-center">
             <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
             <p className="mt-3 text-base font-bold text-ink-950">Thank you — that helps the next applicant</p>
             <p className="mx-auto mt-1 max-w-sm text-sm text-ink-500">We review every report. Once approved it adds to {name}'s totals — never with your name.</p>
+            {newlySignedIn && (
+              <p className="mx-auto mt-3 max-w-sm rounded-lg bg-ink-50 px-3 py-2 text-[12px] leading-5 text-ink-500">
+                You're signed in as {email.trim()} — share about other companies without a code, or track your applications from your profile.
+              </p>
+            )}
             <div className="mt-5 flex justify-center gap-2">
               {!company && (
                 <button
@@ -362,17 +433,101 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
 
             {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[11px] leading-4 text-ink-400">Checked by MadeVisa before it counts. One report per company per month.</p>
-              <button
-                onClick={send}
-                disabled={!canSend}
-                className="flex shrink-0 items-center gap-2 rounded-lg bg-[#1D4ED8] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-40"
-              >
-                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                Share
-              </button>
-            </div>
+            {session ? (
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] leading-4 text-ink-400">Checked by MadeVisa before it counts. One report per company per month.</p>
+                <button
+                  onClick={() => void send()}
+                  disabled={!canSend}
+                  className="flex shrink-0 items-center gap-2 rounded-lg bg-[#1D4ED8] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-40"
+                >
+                  {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Share
+                </button>
+              </div>
+            ) : !codeStep ? (
+              <div className="rounded-xl border border-[#1D4ED8]/15 bg-[#1D4ED8]/[0.03] p-3">
+                <label className={label} htmlFor="share-email">
+                  Your email <span className="font-normal text-ink-400">— to confirm it's a real report</span>
+                </label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="relative w-full sm:flex-1">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
+                    <input
+                      id="share-email"
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && canSend && emailOk && void sendCode()}
+                      placeholder="you@example.com"
+                      className={`${field} h-11 pl-9`}
+                    />
+                  </div>
+                  <button
+                    onClick={() => void sendCode()}
+                    disabled={!canSend || !emailOk || sending}
+                    className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#1D4ED8] px-5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-40"
+                  >
+                    {sending && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Send code
+                  </button>
+                </div>
+                {captcha.element}
+                <p className="mt-2 text-[11px] leading-4 text-ink-500">
+                  We email a {OTP_LENGTH}-digit code — no password. Your email is never shown or shared. {!canSend && 'Answer the questions above first.'}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[#1D4ED8]/25 bg-[#1D4ED8]/[0.04] p-3">
+                <label className={label} htmlFor="share-code">
+                  Enter the {OTP_LENGTH}-digit code we sent to <span className="text-[#1D4ED8]">{email.trim()}</span>
+                </label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    id="share-code"
+                    ref={codeRef}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={code}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH);
+                      setCode(v);
+                      if (v.length === OTP_LENGTH && !busy) void confirmCode(v);
+                    }}
+                    placeholder={'•'.repeat(OTP_LENGTH)}
+                    className={`${field} h-12 w-full text-center text-xl font-bold tracking-[0.5em] sm:h-11 sm:flex-1`}
+                  />
+                  <button
+                    onClick={() => void confirmCode()}
+                    disabled={code.length < OTP_LENGTH || busy}
+                    className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#1D4ED8] px-5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-40"
+                  >
+                    {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Confirm & share
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
+                  <button
+                    onClick={() => {
+                      setCodeStep(false);
+                      setCode('');
+                      setError(null);
+                    }}
+                    className="font-semibold text-ink-600 hover:text-ink-900"
+                  >
+                    Change email
+                  </button>
+                  <button onClick={() => void sendCode()} disabled={resendIn > 0 || sending} className="font-semibold text-[#1D4ED8] hover:underline disabled:text-ink-400 disabled:no-underline">
+                    {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
+                  </button>
+                  <span className="text-ink-400">Not there? Check spam.</span>
+                </div>
+                <p className="mt-2 text-[11px] leading-4 text-ink-500">
+                  Confirming also gives you a free MadeVisa login, so you can edit or remove your report later. Checked by MadeVisa before it counts.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
