@@ -3,7 +3,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { isMeaningfulSalary } from '@/lib/listingCategories';
 import { companyPath, recordApplication } from '@/lib/companies';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
-import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Check, ChevronDown, FileText, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Navigation, Phone, Plane, Share2, UserRound, Users } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Check, ChevronDown, FileText, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Navigation, Phone, Plane, Share2, UserRound, Users, Zap } from 'lucide-react';
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
@@ -392,6 +392,12 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                         {' '}on <strong className="font-bold text-white">{job.company}</strong>
                       </>
                     )}
+                  </span>
+                )}
+                {postedDate && !job.closed && postedAgeDays >= 0 && postedAgeDays < 1 && (
+                  <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-brand-700">
+                    <Zap className="h-3 w-3 fill-current" />
+                    Be an early applicant
                   </span>
                 )}
                 {stillHiring && (

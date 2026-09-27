@@ -267,6 +267,19 @@ async function fetchPublishedFromNetwork(onPartial: (rows: SponsoredJob[]) => vo
  * render immediately; the promise resolves with the complete, fresh list.
  */
 /**
+ * When a job was posted: the company's own posting date when the source
+ * gave one, otherwise when it went live on MadeVisa — whichever is
+ * earlier (same as job_posted_at() in the database). Sorting, the
+ * "Date posted" filter, the age badge and the 30-day limit all use this.
+ */
+export function jobPostedAt(job: Pick<SponsoredJob, 'source_posted_at' | 'created_at'>): string {
+  const created = Date.parse(job.created_at);
+  const source = job.source_posted_at ? Date.parse(job.source_posted_at) : NaN;
+  if (Number.isFinite(source) && (!Number.isFinite(created) || source < created)) return new Date(source).toISOString();
+  return job.created_at;
+}
+
+/**
  * The newest published, unexpired jobs — one small request that uses the
  * (status, created_at) index. For the landing page and for guests on
  * /jobs, who only see the first page; much lighter than the full list.
@@ -289,17 +302,18 @@ export async function fetchNewestPublishedJobs(limit = 60): Promise<SponsoredJob
 }
 
 /**
- * Landing page: 5 jobs from 5 different companies, each with a salary and
- * a logo (landing_job_ids, migration 20261026090000). Cached for 2 hours
- * in the browser. Falls back to the newest jobs if the function is missing.
+ * Landing page: the newest job of 5 different companies (companies with a
+ * logo first) — landing_job_ids, migration 20261028090000. Cached for 10
+ * minutes in the browser, so new jobs show up quickly. Falls back to the
+ * newest jobs if the function is missing.
  */
 export async function fetchLandingJobs(n = 5): Promise<SponsoredJob[]> {
-  const KEY = 'mv:landingJobs:v2'; // v2: last 24 hours only
+  const KEY = 'mv:landingJobs:v3'; // v3: newest per company, 10-minute cache
   try {
     const raw = window.localStorage.getItem(KEY);
     if (raw) {
       const saved = JSON.parse(raw) as { at: number; rows: SponsoredJob[] };
-      if (Date.now() - saved.at < 2 * 3_600_000 && saved.rows?.length) return stillLive(saved.rows);
+      if (Date.now() - saved.at < 10 * 60_000 && saved.rows?.length) return stillLive(saved.rows);
     }
   } catch {
     /* ignore */
@@ -565,7 +579,7 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     spotsAvailable: job.spots_available,
     // A job without its own image shows the company's logo.
     imageUrl: job.image_url || job.publisher?.logo_url || null,
-    postedDate: job.source_posted_at,
+    postedDate: jobPostedAt(job),
     sharedAt: job.approved_at ?? job.created_at,
     experienceLevel: job.experience_level,
     workArrangement: job.work_arrangement ?? null,

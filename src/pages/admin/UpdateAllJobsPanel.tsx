@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Infinity as InfinityIcon, Loader2, Play, RefreshCw, ScanSearch, Square, X } from 'lucide-react';
+import { CalendarX2, Check, ChevronDown, Infinity as InfinityIcon, Loader2, Pause, Play, RefreshCw, ScanSearch, Square, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { syncImportSource, type ImportSource } from '@/lib/importSync';
 import { backfillJobFacts, type ImportCountryLookup, purgeJunkJobs } from '@/lib/admin';
@@ -20,6 +20,27 @@ type Phase = 'idle' | 'sync' | 'detect' | 'finished';
 
 const CONCURRENCY = 3;
 const AUTO_KEY = 'madevisa:autoUpdate';
+// Part-by-part updates: how many companies per run, and when the current
+// "round" (every company once) started. Kept in this browser.
+const PART_KEY = 'madevisa:updateParts';
+const BATCH_SIZES = [0, 10, 25, 50, 100, 200];
+type PartSettings = { batch: number; gentle: boolean; roundStart: string | null };
+function readParts(): PartSettings {
+  try {
+    const v = JSON.parse(localStorage.getItem(PART_KEY) ?? '{}') as Partial<PartSettings>;
+    return { batch: Number(v.batch) || 0, gentle: Boolean(v.gentle), roundStart: v.roundStart ?? null };
+  } catch {
+    return { batch: 0, gentle: false, roundStart: null };
+  }
+}
+function writeParts(v: PartSettings) {
+  try {
+    localStorage.setItem(PART_KEY, JSON.stringify(v));
+  } catch {
+    /* optional */
+  }
+}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const GAPS = [
   { min: 30, label: 'every 30 min' },
   { min: 60, label: 'every hour' },
@@ -90,6 +111,21 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
   const stop = useRef(false);
   const [detectOnly, setDetectOnly] = useState(false);
 
+  // ---- Part by part ----
+  const [parts, setPartsState] = useState<PartSettings>(readParts);
+  const setParts = (patch: Partial<PartSettings>) =>
+    setPartsState((p) => {
+      const next = { ...p, ...patch };
+      writeParts(next);
+      return next;
+    });
+  // The companies this run is working on (shown in the strip).
+  const [targets, setTargets] = useState<ImportSource[]>([]);
+
+  // ---- Remove jobs older than 30 days ----
+  const [age, setAge] = useState<{ running: boolean; deleted: number; hidden: number; done: boolean; error?: string } | null>(null);
+  const ageStop = useRef(false);
+
   // ---- Keep jobs updated (auto mode) ----
   // Runs a full update, cleans up jobs closed over 24 h ago, waits, repeats —
   // for as long as this tab stays open. Only a click starts it.
@@ -121,8 +157,16 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
     }
   };
 
-  // Only companies with a source; one entry per source, stable order.
-  const list = useMemo(() => [...sources].sort((a, b) => (a.publisher?.name ?? '').localeCompare(b.publisher?.name ?? '')), [sources]);
+  // Only companies with a source; the ones updated longest ago first.
+  const list = useMemo(
+    () => [...sources].sort((a, b) => (a.last_synced_at ?? '').localeCompare(b.last_synced_at ?? '') || (a.publisher?.name ?? '').localeCompare(b.publisher?.name ?? '')),
+    [sources]
+  );
+  // Companies not yet updated in the current round.
+  const roundLeft = useMemo(
+    () => (parts.roundStart ? list.filter((s) => !s.last_synced_at || s.last_synced_at < (parts.roundStart as string)) : list),
+    [list, parts.roundStart]
+  );
   const running = phase === 'sync' || phase === 'detect';
 
   const loadRuns = () => fetchRecentRuns().then(setRuns);
@@ -148,13 +192,25 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
     return () => window.removeEventListener('beforeunload', warn);
   }, [running, auto]);
 
-  const runAll = async () => {
+  const runAll = async (opts: { newRound?: boolean } = {}) => {
     if (running || !list.length) return;
+    // Which companies: the rest of this round (a new round when it's done),
+    // at most `batch` of them, updated-longest-ago first.
+    let roundStart = parts.roundStart;
+    let pending = roundLeft;
+    if (opts.newRound || !roundStart || pending.length === 0) {
+      roundStart = new Date().toISOString();
+      setParts({ roundStart });
+      pending = list;
+    }
+    const chosen = parts.batch ? pending.slice(0, parts.batch) : pending;
+    const gentle = parts.gentle;
+    setTargets(chosen);
     setDetectOnly(false);
     stop.current = false;
     setError(null);
     setResult(null);
-    setStates(Object.fromEntries(list.map((s) => [s.id, 'waiting' as SourceState])));
+    setStates(Object.fromEntries(chosen.map((s) => [s.id, 'waiting' as SourceState])));
     setSyncDone(0);
     setDetect({ done: 0, total: 0 });
     const t = { fetched: 0, added: 0, removed: 0, failed: 0, checked: 0, filled: 0 };
@@ -164,17 +220,19 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
     setNow(t0);
 
     const liveBefore = await countLiveJobs();
-    const runId = await startRun({ sources_total: list.length, live_before: liveBefore });
+    const runId = await startRun({ sources_total: chosen.length, live_before: liveBefore });
 
-    // ---- 1. Sync every source (3 at a time) ----
+    // ---- 1. Sync the chosen sources (3 at a time; gentle = 1 at a time with a short rest) ----
     setPhase('sync');
     let next = 0;
     let done = 0;
     const active = new Set<string>();
     await Promise.all(
-      Array.from({ length: CONCURRENCY }, async () => {
-        while (next < list.length && !stop.current) {
-          const src = list[next++];
+      Array.from({ length: gentle ? 1 : CONCURRENCY }, async () => {
+        while (next < chosen.length && !stop.current) {
+          if (gentle && next > 0) await sleep(4000);
+          if (stop.current) break;
+          const src = chosen[next++];
           const name = src.publisher?.name ?? 'Company';
           active.add(name);
           setCurrent([...active]);
@@ -242,7 +300,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
     setResult({
       id: runId ?? 'local',
       started_at: new Date(t0).toISOString(),
-      sources_total: list.length,
+      sources_total: chosen.length,
       sources_ok: done - t.failed,
       sources_failed: t.failed,
       jobs_fetched: t.fetched,
@@ -327,6 +385,40 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
     onChange();
   };
 
+  /** Deletes / hides jobs posted more than 30 days ago, 2,000 at a time, until none are left (or paused). */
+  const runAgeCleanup = async () => {
+    if (age?.running) return;
+    ageStop.current = false;
+    let deleted = 0;
+    let hidden = 0;
+    setAge({ running: true, deleted, hidden, done: false });
+    while (!ageStop.current) {
+      const { data, error: e } = await supabase.rpc('enforce_job_age_limit', { p_batch: 2000 });
+      if (e) {
+        setAge({
+          running: false,
+          deleted,
+          hidden,
+          done: false,
+          error: /function|schema cache|does not exist/i.test(e.message) ? 'Run the 20261028090000_jobs_30_day_rule.sql migration in Supabase first.' : e.message,
+        });
+        return;
+      }
+      const r = (data ?? {}) as { deleted?: number; hidden?: number };
+      deleted += r.deleted ?? 0;
+      hidden += r.hidden ?? 0;
+      if (!r.deleted && !r.hidden) {
+        setAge({ running: false, deleted, hidden, done: true });
+        onChange();
+        return;
+      }
+      setAge({ running: true, deleted, hidden, done: false });
+      await sleep(parts.gentle ? 4000 : 1500);
+    }
+    setAge({ running: false, deleted, hidden, done: false });
+    onChange();
+  };
+
   const runAllRef = useRef(runAll);
   runAllRef.current = runAll;
   const gapMinRef = useRef(gapMin);
@@ -364,7 +456,10 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
   }, [auto, nextRunAt, running, now]);
 
   const last = runs?.find((r) => r.status !== 'running') ?? null;
-  const syncPct = list.length ? syncDone / list.length : 0;
+  const syncPct = targets.length ? syncDone / targets.length : 0;
+  const midRound = Boolean(parts.roundStart) && roundLeft.length > 0 && roundLeft.length < list.length;
+  const nextCount = Math.min(parts.batch || Infinity, roundLeft.length && midRound ? roundLeft.length : list.length);
+  const runLabel = parts.batch ? `Update next ${nextCount} compan${nextCount === 1 ? 'y' : 'ies'}` : midRound ? `Continue (${roundLeft.length} left)` : 'Run full update';
   const detectPct = detect.total ? detect.done / detect.total : phase === 'finished' ? 1 : 0;
   const overall = detectOnly ? (phase === 'finished' ? 1 : detectPct) : phase === 'sync' ? syncPct * 0.7 : phase === 'detect' ? 0.7 + detectPct * 0.3 : phase === 'finished' ? 1 : 0;
 
@@ -378,7 +473,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-bold leading-tight">Update all jobs</h2>
           <p className="text-xs text-white/60">
-            Fetches all {list.length} companies with a source, then detects job details. Companies without a source are skipped.
+            Fetches companies with a source ({list.length}), then detects job details. Do it all at once, or part by part below and pause any time.
           </p>
         </div>
         {running ? (
@@ -386,11 +481,11 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
             onClick={() => {
               stop.current = true;
               if (autoRef.current) stopAuto();
-              setDetail('Stopping after the current step…');
+              setDetail('Pausing after the companies in progress… (progress is kept)');
             }}
             className="flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/10"
           >
-            <Square className="h-3.5 w-3.5 fill-current" /> Stop
+            <Pause className="h-3.5 w-3.5 fill-current" /> Pause
           </button>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -402,11 +497,11 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
             <ScanSearch className="h-4 w-4" /> Detect job details only
           </button>
           <button
-            onClick={runAll}
+            onClick={() => runAll()}
             disabled={!list.length}
             className="group flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-3 text-sm font-bold text-white shadow-[0_0_0_4px_rgba(37,99,235,0.25)] transition hover:bg-brand-500 disabled:opacity-40"
           >
-            <Play className="h-4 w-4 fill-current transition group-hover:scale-110" /> Run full update
+            <Play className="h-4 w-4 fill-current transition group-hover:scale-110" /> {runLabel}
           </button>
           </div>
         )}
@@ -460,6 +555,89 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
         )}
       </div>
 
+      {/* Part by part */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/10 px-5 py-3 text-xs sm:px-6">
+        <Pause className="h-4 w-4 shrink-0 text-white/40" />
+        <span className="min-w-0 flex-1 text-white/60">
+          <strong className="text-white">Part by part:</strong>{' '}
+          {parts.roundStart ? (
+            roundLeft.length === 0 ? (
+              <>all {list.length} companies updated this round — the next run starts a new round.</>
+            ) : (
+              <>
+                <strong className="text-white">{(list.length - roundLeft.length).toLocaleString()}</strong> of {list.length.toLocaleString()} companies updated this round ·{' '}
+                <strong className="text-amber-300">{roundLeft.length.toLocaleString()} left</strong>. Pause any time; next time it continues with the rest.
+              </>
+            )
+          ) : (
+            <>update a few companies a day instead of all at once — the ones updated longest ago go first.</>
+          )}
+        </span>
+        <label className="flex items-center gap-2 text-white/80">
+          Per run
+          <select
+            value={parts.batch}
+            disabled={running}
+            onChange={(e) => setParts({ batch: Number(e.target.value) })}
+            className="rounded bg-white/10 px-2 py-1.5 text-white"
+          >
+            {BATCH_SIZES.map((n) => (
+              <option key={n} value={n} className="text-ink-900">
+                {n ? `${n} companies` : 'All companies'}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-white/80" title="One company at a time with a short rest in between — slower, but much lighter on the database.">
+          <input type="checkbox" checked={parts.gentle} disabled={running} onChange={(e) => setParts({ gentle: e.target.checked })} /> Gentle mode
+        </label>
+        {midRound && !running && (
+          <button onClick={() => runAll({ newRound: true })} className="font-semibold text-white/70 underline-offset-2 hover:text-white hover:underline">
+            Start a new round
+          </button>
+        )}
+      </div>
+
+      {/* Jobs older than 30 days */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/10 px-5 py-3 text-xs sm:px-6">
+        <CalendarX2 className={`h-4 w-4 shrink-0 ${age?.running ? 'text-amber-300' : 'text-white/40'}`} />
+        <span className="min-w-0 flex-1 text-white/60">
+          <strong className="text-white">Only jobs from the last 30 days:</strong>{' '}
+          {age?.running ? (
+            <span className="text-white">
+              Removing… {age.deleted.toLocaleString()} deleted · {age.hidden.toLocaleString()} hidden
+            </span>
+          ) : age?.error ? (
+            <span className="text-rose-300">{age.error}</span>
+          ) : age?.done ? (
+            <span className="text-emerald-400">
+              Done — {age.deleted.toLocaleString()} deleted · {age.hidden.toLocaleString()} hidden. Nothing older than 30 days is left.
+            </span>
+          ) : age ? (
+            <span className="text-amber-300">
+              Paused — {age.deleted.toLocaleString()} deleted · {age.hidden.toLocaleString()} hidden so far. Press again to continue.
+            </span>
+          ) : (
+            <>older jobs are hidden automatically every hour. To clear out the ones already there, press the button (2,000 at a time).</>
+          )}
+        </span>
+        {age?.running ? (
+          <button
+            onClick={() => (ageStop.current = true)}
+            className="flex items-center gap-1.5 rounded-md border border-white/20 px-3 py-1.5 font-semibold text-white hover:bg-white/10"
+          >
+            <Pause className="h-3 w-3 fill-current" /> Pause
+          </button>
+        ) : (
+          <button
+            onClick={runAgeCleanup}
+            className="flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 font-bold text-ink-950 hover:bg-brand-50"
+          >
+            <CalendarX2 className="h-3 w-3" /> {age && !age.done && !age.error ? 'Continue' : 'Remove jobs older than 30 days'}
+          </button>
+        )}
+      </div>
+
       {/* Last run line (idle) */}
       {phase === 'idle' && (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-white/10 px-5 py-3 text-xs text-white/60 sm:px-6">
@@ -475,7 +653,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
                 <strong className="text-emerald-400">+{last.jobs_added.toLocaleString()}</strong> new
               </span>
               <span>{last.details_checked.toLocaleString()} jobs detected</span>
-              {last.status !== 'done' && <span className="text-amber-300">{last.status === 'stopped' ? 'Stopped early' : 'Finished with a problem'}</span>}
+              {last.status !== 'done' && <span className="text-amber-300">{last.status === 'stopped' ? 'Paused' : 'Finished with a problem'}</span>}
             </>
           ) : (
             <span>Never run yet — press Run full update.</span>
@@ -509,7 +687,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
         <div className="border-t border-white/10 px-5 py-5 sm:px-6">
           {/* Overall bar */}
           <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-white/50">
-            <span>{phase === 'finished' ? (result?.status === 'done' && result.sources_failed === 0 ? 'Complete' : result?.status === 'done' ? 'Complete with problems' : result?.status === 'stopped' ? 'Stopped' : 'Finished with a problem') : 'Working'}</span>
+            <span>{phase === 'finished' ? (result?.status === 'done' && result.sources_failed === 0 ? 'Complete' : result?.status === 'done' ? 'Complete with problems' : result?.status === 'stopped' ? 'Paused' : 'Finished with a problem') : 'Working'}</span>
             <span className="tabular-nums normal-case tracking-normal text-white/70">
               {Math.round(overall * 100)}% · {fmtDuration((phase === 'finished' && result?.finished_at ? new Date(result.finished_at).getTime() : now) - (startedAt ?? now))}
             </span>
@@ -526,9 +704,9 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
             <Step
               n={1}
               icon={RefreshCw}
-              title={`Fetch from ${list.length} sources`}
+              title={`Fetch from ${targets.length} sources`}
               state={detectOnly ? 'waiting' : phase === 'sync' ? 'running' : syncDone === 0 && phase !== 'finished' ? 'waiting' : 'done'}
-              progress={detectOnly ? 'Skipped — detect only' : `${syncDone} / ${list.length} companies`}
+              progress={detectOnly ? 'Skipped — detect only' : `${syncDone} / ${targets.length} companies`}
               pct={syncPct}
             />
             <Step
@@ -543,7 +721,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
 
           {/* Company strip */}
           <div className={`mt-5 flex-wrap gap-1.5 ${detectOnly ? 'hidden' : 'flex'}`} aria-label="Companies">
-            {list.map((s) => {
+            {targets.map((s) => {
               const st = states[s.id] ?? 'waiting';
               return (
                 <span
@@ -597,7 +775,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
               ) : result.status === 'done' ? (
                 <span className="font-bold text-amber-300">Updated — {result.sources_ok} of {result.sources_total} sources synced</span>
               ) : (
-                <span className="font-bold text-amber-300">{result.status === 'stopped' ? 'Stopped — run again to finish.' : 'Finished with a problem'}</span>
+                <span className="font-bold text-amber-300">{result.status === 'stopped' ? 'Paused — press Continue to go on from here.' : 'Finished with a problem'}</span>
               )}
               {result.live_before != null && result.live_after != null && (
                 <span className="text-white/70">
@@ -645,7 +823,7 @@ export function UpdateAllJobsPanel({ sources, countries, onChange }: { sources: 
                     <td className="py-1.5 tabular-nums text-emerald-400">+{r.jobs_added.toLocaleString()}</td>
                     <td className="py-1.5 tabular-nums">{r.jobs_removed.toLocaleString()}</td>
                     <td className="py-1.5 tabular-nums">{r.details_checked.toLocaleString()}</td>
-                    <td className="py-1.5">{{ done: 'Done', stopped: 'Stopped', failed: 'Problem', running: 'Interrupted' }[r.status]}</td>
+                    <td className="py-1.5">{{ done: 'Done', stopped: 'Paused', failed: 'Problem', running: 'Interrupted' }[r.status]}</td>
                   </tr>
                 ))}
               </tbody>

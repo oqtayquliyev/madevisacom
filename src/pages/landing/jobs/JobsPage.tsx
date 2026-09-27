@@ -4,14 +4,18 @@ import {
   ArrowRight,
   BadgeCheck,
   Briefcase,
+  CalendarClock,
   ChevronDown,
+  ChevronUp,
   Globe2,
+  LayoutGrid,
   GraduationCap,
   Loader2,
   Plane,
   Search,
   SlidersHorizontal,
   X,
+  Zap,
 } from 'lucide-react';
 import type { View } from '@/types';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -19,9 +23,11 @@ import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { Logo } from '@/components/layout/Logo';
-import { categories, countries, jobTypes, type Job } from '@/data/jobs';
-import { DISCOVERY_CATEGORIES, displayJobCategory, isMeaningfulJobType, isStudentOrInternJob, matchesDiscoveryCategory } from '@/lib/jobCategories';
-import { moveToBack, recencyBucket, recentlyShownIds, rememberShown, visitShuffle } from '@/lib/feedRotation';
+import { jobTypes, type Job } from '@/data/jobs';
+import { displayJobCategory, isMeaningfulJobType, isStudentOrInternJob } from '@/lib/jobCategories';
+import { CATEGORIES_BY_GROUP, categoryGroup, categoryMatches, categoryValueLabel, classifyJob, type JobCategory } from '@/lib/jobTaxonomy';
+import { FilterCombo, type ComboOption } from '@/components/jobs/FilterCombo';
+import { moveToBack, recentlyShownIds, rememberShown, visitShuffle } from '@/lib/feedRotation';
 import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
@@ -40,22 +46,54 @@ type JobsPageProps = {
   goToJob?: (path: string) => void;
 };
 
-const DATE_POSTED_OPTIONS = ['Any time', 'Past 24 hours', 'Past week', 'Past month'] as const;
+// MadeVisa only lists jobs posted in the last 30 days, so "Any time" = 30 days.
+const MAX_AGE_DAYS = 30;
+const DATE_POSTED_OPTIONS = ['Any time', 'Past 24 hours', 'Past 3 days', 'Past week', 'Past 2 weeks'] as const;
 type DatePostedOption = (typeof DATE_POSTED_OPTIONS)[number];
+const WINDOW_DAYS: Record<DatePostedOption, number> = { 'Any time': MAX_AGE_DAYS, 'Past 24 hours': 1, 'Past 3 days': 3, 'Past week': 7, 'Past 2 weeks': 14 };
+const asDateOption = (v: string | null): DatePostedOption => (DATE_POSTED_OPTIONS as readonly string[]).includes(v ?? '') ? (v as DatePostedOption) : 'Any time';
+
+const ALL_CATEGORIES = 'All categories';
+/** A category filter value from the URL, or "All categories" if it isn't one we know. */
+function asCategoryValue(v: string | null): string {
+  if (!v) return ALL_CATEGORIES;
+  if (v.startsWith('group:')) return CATEGORIES_BY_GROUP.some((g) => g.group === v.slice(6)) ? v : ALL_CATEGORIES;
+  return categoryGroup(v) ? v : ALL_CATEGORIES;
+}
+
+/** When the job was posted (company's date, else when it went live here). */
+const postedMs = (j: Job) => Date.parse(j.postedDate ?? j.sharedAt ?? '') || 0;
+const sharedMs = (j: Job) => Date.parse(j.sharedAt ?? j.postedDate ?? '') || 0;
+const DAY_MS = 86_400_000;
+
+/** Posted in the last 24 hours — worth applying early. */
+function isEarlyApplicantJob(j: Job): boolean {
+  const t = postedMs(j);
+  return !j.closed && t > 0 && Date.now() - t < DAY_MS;
+}
+
+/** Strictly newest first. Jobs posted at the very same moment (a bulk
+ *  import) are spread across companies instead of one company's batch in a row. */
+function sortNewestFirst(jobs: Job[]): Job[] {
+  const sorted = [...jobs].sort((a, b) => postedMs(b) - postedMs(a) || sharedMs(b) - sharedMs(a));
+  const out: Job[] = [];
+  for (let i = 0; i < sorted.length; ) {
+    let k = i + 1;
+    while (k < sorted.length && postedMs(sorted[k]) === postedMs(sorted[i])) k++;
+    out.push(...(k - i > 2 ? interleaveByCompany(sorted.slice(i, k)) : sorted.slice(i, k)));
+    i = k;
+  }
+  return out;
+}
 
 type SortOption = 'newest' | 'relevant';
 
 const PAGE_SIZE = 12;
 
-function withinDateWindow(iso: string | null | undefined, window: DatePostedOption): boolean {
-  if (window === 'Any time') return true;
-  if (!iso) return false;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return false;
-  const days = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24);
-  if (window === 'Past 24 hours') return days <= 1;
-  if (window === 'Past week') return days <= 7;
-  return days <= 31;
+function withinDateWindow(job: Job, window: DatePostedOption): boolean {
+  const t = postedMs(job);
+  if (!t) return window === 'Any time';
+  return (Date.now() - t) / DAY_MS <= WINDOW_DAYS[window];
 }
 
 /** Round-robins a list across `company` so that, when hundreds of jobs
@@ -186,6 +224,12 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
           <span className="rounded border border-ink-300 bg-ink-100 px-1.5 py-[3px] text-[10px] font-bold uppercase tracking-wide text-ink-600">Closed</span>
         ) : (
           <DateTag job={job} />
+        )}
+        {isEarlyApplicantJob(job) && (
+          <span className="inline-flex items-center gap-1 rounded bg-brand-600 px-1.5 py-[3px] text-[10px] font-bold uppercase tracking-wide text-white">
+            <Zap className="h-3 w-3 fill-current" />
+            Be an early applicant
+          </span>
         )}
         {viewed && !closed && (
           <span className="rounded border border-ink-200 bg-white px-1.5 py-[3px] text-[10px] font-bold uppercase tracking-wide text-ink-600">Viewed</span>
@@ -323,14 +367,14 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
 
   const [search, setSearch] = useState(initial.get('q') ?? '');
   const [country, setCountry] = useState(initial.get('country') ?? 'All countries');
-  const [category, setCategory] = useState(initial.get('category') ?? 'All categories');
+  const [category, setCategory] = useState(() => asCategoryValue(initial.get('category')));
   const [jobType, setJobType] = useState(initial.get('type') ?? 'All types');
   const [remoteOnly, setRemoteOnly] = useState(initial.get('remote') === '1');
   const [city, setCity] = useState(initial.get('city') ?? '');
   const [company, setCompany] = useState(initial.get('company') ?? '');
   const [salaryOnly, setSalaryOnly] = useState(initial.get('salary') === '1');
   const [experienceLevel, setExperienceLevel] = useState(initial.get('level') ?? 'All levels');
-  const [datePosted, setDatePosted] = useState<DatePostedOption>((initial.get('posted') as DatePostedOption) ?? 'Any time');
+  const [datePosted, setDatePosted] = useState<DatePostedOption>(() => asDateOption(initial.get('posted')));
   const [sortBy, setSortBy] = useState<SortOption>((initial.get('sort') as SortOption) ?? 'newest');
   // "Direct from companies": only listings the company posted on MadeVisa itself.
   const [directOnly, setDirectOnly] = useState(initial.get('direct') === '1');
@@ -468,94 +512,74 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   const viewedAtLoad = useMemo(() => new Set(allJobs.filter((j) => isJobViewed(j.id)).map((j) => j.id)), [allJobs]);
   const shownBefore = useMemo(() => recentlyShownIds('jobs'), []);
 
-  const filteredJobs = useMemo(() => withClosedLast(filterAndSort()), // eslint-disable-next-line react-hooks/exhaustive-deps
-  [allJobs, search, country, category, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly, shownBefore, viewedAtLoad]);
+  // Each job's category (from its title / department) — computed once per list.
+  const catOf = useMemo(() => {
+    const m = new Map<string, JobCategory | null>();
+    for (const j of allJobs) m.set(j.id, classifyJob(j.title, j.category));
+    return m;
+  }, [allJobs]);
 
-  function filterAndSort(): Job[] {
+  // Every filter except the category — so the category list can show how
+  // many jobs each category has with the other filters applied.
+  const baseMatched = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     const normalizedCity = city.trim().toLowerCase();
     const normalizedCompany = company.trim().toLowerCase();
 
-    const matched = allJobs.filter((job) => {
+    return allJobs.filter((job) => {
+      const cat = catOf.get(job.id);
       const matchesSearch =
         !normalizedSearch ||
         job.title.toLowerCase().includes(normalizedSearch) ||
         job.company.toLowerCase().includes(normalizedSearch) ||
         job.category.toLowerCase().includes(normalizedSearch) ||
+        Boolean(cat && cat.label.toLowerCase().includes(normalizedSearch)) ||
         job.city.toLowerCase().includes(normalizedSearch);
 
-      const matchesCountry = country === 'All countries' || job.country === country;
-      const matchesCategory =
-        category === 'All categories' || matchesDiscoveryCategory(job.category, category) || matchesDiscoveryCategory(job.title, category);
-      const matchesType = jobType === 'All types' || job.type === jobType;
-      const matchesRemote = !remoteOnly || job.remote;
-      const matchesCity = !normalizedCity || job.city.toLowerCase().includes(normalizedCity);
-      const matchesCompany = !normalizedCompany || job.company.toLowerCase().includes(normalizedCompany);
-      const matchesSalary = !salaryOnly || Boolean(job.salary);
-      const matchesLevel = experienceLevel === 'All levels' || experienceBucket(job.experienceLevel) === experienceLevel;
-      const matchesDate = withinDateWindow(job.postedDate, datePosted);
-      const matchesDirect = !directOnly || job.sourceType === 'company_submitted';
-      const matchesStudent = !studentOnly || isStudentOrInternJob(job);
-      const matchesVisa = !visaOnly || Boolean(job.visaSponsorship);
-
       return (
-        matchesDirect &&
-        matchesStudent &&
-        matchesVisa &&
+        withinDateWindow(job, datePosted) &&
+        (!directOnly || job.sourceType === 'company_submitted') &&
+        (!studentOnly || isStudentOrInternJob(job)) &&
+        (!visaOnly || Boolean(job.visaSponsorship)) &&
         matchesSearch &&
-        matchesCountry &&
-        matchesCategory &&
-        matchesType &&
-        matchesRemote &&
-        matchesCity &&
-        matchesCompany &&
-        matchesSalary &&
-        matchesLevel &&
-        matchesDate
+        (country === 'All countries' || job.country === country) &&
+        (jobType === 'All types' || job.type === jobType) &&
+        (!remoteOnly || job.remote) &&
+        (!normalizedCity || job.city.toLowerCase().includes(normalizedCity)) &&
+        (!normalizedCompany || job.company.toLowerCase().includes(normalizedCompany)) &&
+        (!salaryOnly || Boolean(job.salary)) &&
+        (experienceLevel === 'All levels' || experienceBucket(job.experienceLevel) === experienceLevel)
       );
     });
+  }, [allJobs, catOf, search, country, jobType, remoteOnly, city, company, salaryOnly, experienceLevel, datePosted, directOnly, studentOnly, visaOnly]);
 
-    // Diversify by company instead of returning `matched` in whatever
-    // order the underlying fetches produced it (grouped by import
-    // batch, so one company's hundreds of listings run together before
-    // the next company appears at all — confusing when scrolling
-    // through hundreds of jobs from what will eventually be hundreds
-    // of companies). "newest" sorts each company's own jobs newest
-    // first, then round-robins across companies; "relevant" round-
-    // robins in the existing order without re-sorting within a company.
-    //
-    // Each visit also shows a different mix: within a freshness bucket
-    // (today, last 3 days, ...) jobs are shuffled per visit, jobs shown
-    // at the top last time come after unseen ones, and jobs already
-    // opened go to the end of their bucket.
-    const rotate = (jobs: Job[], salt: string) =>
+  const categoryCounts = useMemo(() => {
+    const labels = new Map<string, number>();
+    const groups = new Map<string, number>();
+    for (const j of baseMatched) {
+      const c = catOf.get(j.id);
+      if (!c) continue;
+      labels.set(c.label, (labels.get(c.label) ?? 0) + 1);
+      groups.set(c.group, (groups.get(c.group) ?? 0) + 1);
+    }
+    return { labels, groups };
+  }, [baseMatched, catOf]);
+
+  const filteredJobs = useMemo(() => {
+    const matched = category === ALL_CATEGORIES ? baseMatched : baseMatched.filter((j) => categoryMatches(catOf.get(j.id) ?? null, category));
+    if (sortBy === 'newest') return withClosedLast(sortNewestFirst(matched));
+    // "Most relevant": a different mix each visit — shuffled, jobs shown at
+    // the top last time and jobs already opened go further down, spread
+    // across companies.
+    return withClosedLast(
       interleaveByCompany(
         moveToBack(
-          moveToBack(visitShuffle(jobs, salt), (j) => shownBefore.has(j.id)),
+          moveToBack(visitShuffle(matched, 'relevant'), (j) => shownBefore.has(j.id)),
           (j) => viewedAtLoad.has(j.id)
         )
-      );
-
-    if (sortBy === 'newest') {
-      // "Newest" = most recently shared on MadeVisa (not the company's own
-      // posting date). Within each period (last 24 h, 3 days, 2 weeks, older)
-      // jobs are newest-first and round-robined across companies: each
-      // company's newest job comes before anyone's second, so the first
-      // page shows many different companies, latest shared first.
-      const shared = (j: Job) => Date.parse(j.sharedAt ?? j.postedDate ?? '') || 0;
-      const buckets: Job[][] = [[], [], [], [], []];
-      for (const job of matched) buckets[recencyBucket(job.sharedAt ?? job.postedDate)].push(job);
-      return buckets.flatMap((b) =>
-        interleaveByCompany(
-          moveToBack(
-            [...b].sort((x, y) => shared(y) - shared(x)),
-            (j) => viewedAtLoad.has(j.id)
-          )
-        )
-      );
-    }
-    return rotate(matched, 'relevant');
-  }
+      )
+    );
+  }, [baseMatched, catOf, category, sortBy, shownBefore, viewedAtLoad]);
 
   // Remember what led the list this visit, so next visit leads with other jobs.
   const unfiltered = !search && country === 'All countries' && category === 'All categories' && !studentOnly && !visaOnly && !directOnly;
@@ -580,22 +604,43 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     }, 300);
   };
 
-  const countryOptions = ['All countries', ...jobCountryOptions];
-  // The full `countries` list will keep growing as more destinations
-  // get added; capping the pill row to a fixed top 8 (with the rest
-  // reachable via the "Filters" dropdown, which already lists all of
-  // them) keeps this row from wrapping into a wall of pills. If the
-  // active filter is a country outside that top 8, swap it into the
-  // last slot so the selection is always visible here without the
-  // person needing to open Filters just to see what's applied.
-  const POPULAR_COUNTRY_PILL_COUNT = 8;
-  const topCountries = countries.slice(0, POPULAR_COUNTRY_PILL_COUNT);
-  const visibleCountryPills =
-    country !== 'All countries' && !topCountries.some((c) => c.name === country)
-      ? [...topCountries.slice(0, POPULAR_COUNTRY_PILL_COUNT - 1), countries.find((c) => c.name === country)].filter(
-          (c): c is (typeof countries)[number] => Boolean(c)
-        )
-      : topCountries;
+  // ---- Hero filters: Date posted · Country · Category ----
+  const dateOptions = useMemo<ComboOption[]>(() => {
+    const counts = new Map<DatePostedOption, number>();
+    const now = Date.now();
+    for (const j of allJobs) {
+      const days = (now - postedMs(j)) / DAY_MS;
+      for (const o of DATE_POSTED_OPTIONS) if (o !== 'Any time' && days <= WINDOW_DAYS[o]) counts.set(o, (counts.get(o) ?? 0) + 1);
+    }
+    return DATE_POSTED_OPTIONS.filter((o) => o !== 'Any time').map((o) => ({ value: o, label: o, count: loading ? undefined : counts.get(o) ?? 0 }));
+  }, [allJobs, loading]);
+
+  const countryComboOptions = useMemo<ComboOption[]>(() => {
+    const stats = new Map<string, { n: number; code: string }>();
+    for (const j of allJobs) {
+      if (!j.country) continue;
+      const s = stats.get(j.country) ?? { n: 0, code: j.countryCode };
+      s.n++;
+      stats.set(j.country, s);
+    }
+    const opts = jobCountryOptions.map((c) => ({ value: c, label: c, count: stats.get(c)?.n ?? 0, flag: stats.get(c)?.code || undefined }));
+    return opts.sort((a, b) => (b.count ?? 0) - (a.count ?? 0) || a.label.localeCompare(b.label));
+  }, [allJobs, jobCountryOptions]);
+
+  const categoryComboOptions = useMemo<ComboOption[]>(() => {
+    const haveCounts = categoryCounts.labels.size > 0;
+    return CATEGORIES_BY_GROUP.flatMap(({ group, labels }) =>
+      labels
+        .filter((l) => !haveCounts || categoryCounts.labels.has(l) || l === category)
+        .map((l) => ({ value: l, label: l, group, count: haveCounts ? categoryCounts.labels.get(l) ?? 0 : undefined }))
+    );
+  }, [categoryCounts, category]);
+
+  // Most common categories (with the other filters applied) as quick chips.
+  const popularCategories = useMemo(
+    () => [...categoryCounts.labels.entries()].filter(([l]) => !l.endsWith('(other)')).sort((a, b) => b[1] - a[1]).slice(0, 12),
+    [categoryCounts]
+  );
 
   const activeFilterCount =
     Number(country !== 'All countries') +
@@ -615,7 +660,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   // each one clears just that one filter, not everything (clearAllFilters below still does that for the "Clear all" button).
   const activeFilters: { key: string; label: string; onClear: () => void }[] = [
     country !== 'All countries' ? { key: 'country', label: country, onClear: () => setCountry('All countries') } : null,
-    category !== 'All categories' ? { key: 'category', label: category, onClear: () => setCategory('All categories') } : null,
+    category !== ALL_CATEGORIES ? { key: 'category', label: categoryValueLabel(category), onClear: () => setCategory(ALL_CATEGORIES) } : null,
     jobType !== 'All types' ? { key: 'type', label: jobType, onClear: () => setJobType('All types') } : null,
     remoteOnly ? { key: 'remote', label: 'Remote only', onClear: () => setRemoteOnly(false) } : null,
     city ? { key: 'city', label: `City: ${city}`, onClear: () => setCity('') } : null,
@@ -688,62 +733,43 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
             </button>
           </div>
 
-          {/* Mobile: "All countries" + one compact dropdown instead of a wall of pills */}
-          <div className="mt-4 flex items-center gap-2 sm:hidden">
-            <button
-              type="button"
-              onClick={() => setCountry('All countries')}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold ${
-                country === 'All countries' ? 'border-white bg-white text-brand-700' : 'border-white/25 bg-white/10 text-white'
-              }`}
-            >
-              <Globe2 className="h-3.5 w-3.5" />
-              All countries
-            </button>
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">Country</span>
-              <select
-                value={country === 'All countries' ? '' : country}
-                onChange={(e) => setCountry(e.target.value || 'All countries')}
-                className={`h-9 w-full appearance-none truncate rounded-full border py-0 pl-3.5 pr-8 text-xs font-semibold outline-none ${
-                  country !== 'All countries' ? 'border-white bg-white text-brand-700' : 'border-white/25 bg-white/10 text-white'
-                }`}
-              >
-                <option value="" className="text-ink-900">Choose a country…</option>
-                {jobCountryOptions.map((c) => (
-                  <option key={c} value={c} className="text-ink-900">
-                    {c}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 ${country !== 'All countries' ? 'text-brand-700' : 'text-white'}`} />
-            </label>
-          </div>
-
-          <div className="-mx-5 mt-5 hidden flex-wrap gap-2 px-5 pb-1 sm:mx-0 sm:flex sm:px-0">
-            <button
-              type="button"
-              onClick={() => setCountry('All countries')}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-                country === 'All countries' ? 'border-white bg-white text-brand-700' : 'border-white/25 bg-white/10 text-white hover:border-white/60 hover:bg-white/15'
-              }`}
-            >
-              <Globe2 className="h-3.5 w-3.5" />
-              All countries
-            </button>
-            {visibleCountryPills.map((item) => (
-              <button
-                key={item.code}
-                type="button"
-                onClick={() => setCountry(item.name)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-                  country === item.name ? 'border-white bg-white text-brand-700' : 'border-white/25 bg-white/10 text-white hover:border-white/60 hover:bg-white/15'
-                }`}
-              >
-                <CircleFlag countryCode={item.code} label={item.name} size={15} />
-                {item.name}
-              </button>
-            ))}
+          {/* Date posted · Country · Category */}
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:grid-cols-3 sm:gap-3">
+            <FilterCombo
+              label="Date posted"
+              icon={CalendarClock}
+              value={datePosted}
+              allValue="Any time"
+              allLabel="Any time"
+              options={dateOptions}
+              onChange={(v) => setDatePosted(asDateOption(v))}
+            />
+            <FilterCombo
+              label="Country"
+              icon={Globe2}
+              value={country}
+              allValue="All countries"
+              allLabel="All countries"
+              options={countryComboOptions}
+              onChange={setCountry}
+              searchable
+              searchPlaceholder="Search countries"
+            />
+            <FilterCombo
+              label="Category"
+              icon={LayoutGrid}
+              value={category}
+              allValue={ALL_CATEGORIES}
+              allLabel={ALL_CATEGORIES}
+              options={categoryComboOptions}
+              onChange={setCategory}
+              searchable
+              searchPlaceholder="Search categories, e.g. nurse, driver, data"
+              groupValue={(g) => `group:${g}`}
+              displayFor={categoryValueLabel}
+              align="right"
+              className="col-span-2 sm:col-span-1"
+            />
           </div>
         </div>
       </section>
@@ -752,15 +778,12 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
         <section className="border-b border-ink-200 bg-white">
           <div className="mx-auto max-w-5xl px-5 py-5 sm:px-8">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <SelectField label="Country" value={country} options={countryOptions} onChange={setCountry} />
               <TextField label="City" value={city} onChange={setCity} placeholder={cityOptions.slice(0, 3).join(', ') || 'Any city'} />
-              <SelectField label="Category" value={category} options={categories} onChange={setCategory} />
               <SelectField label="Employment type" value={jobType} options={jobTypeOptions} onChange={setJobType} />
               <TextField label="Company" value={company} onChange={setCompany} placeholder={companyOptions.slice(0, 3).join(', ') || 'Any company'} />
               {experienceLevelOptions.length > 0 && (
                 <SelectField label="Experience level" value={experienceLevel} options={['All levels', ...experienceLevelOptions]} onChange={setExperienceLevel} />
               )}
-              <SelectField label="Date posted" value={datePosted} options={[...DATE_POSTED_OPTIONS]} onChange={(v) => setDatePosted(v as DatePostedOption)} />
 
               <SelectField
                 label="Remote"
@@ -811,11 +834,23 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
               </div>
             </div>
 
-            {activeFilterCount > 0 && (
-              <button type="button" onClick={clearAllFilters} className="mt-4 text-xs font-semibold text-brand-600 hover:text-brand-700">
-                Clear all filters
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 pt-4">
+              {activeFilterCount > 0 ? (
+                <button type="button" onClick={clearAllFilters} className="text-xs font-semibold text-brand-600 hover:text-brand-700">
+                  Clear all filters
+                </button>
+              ) : (
+                <span className="text-xs text-ink-400">Date posted, country and category are in the blue bar above.</span>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowFilters(false)}
+                className="flex items-center gap-1.5 rounded-md bg-ink-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-ink-800"
+              >
+                <ChevronUp className="h-4 w-4" />
+                Close filters
               </button>
-            )}
+            </div>
           </div>
         </section>
       )}
@@ -866,48 +901,33 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setCategory('All categories')}
-            className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-              category === 'All categories' ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
-            }`}
-          >
-            All categories
-          </button>
-          {/* Mobile: one compact category dropdown */}
-          <label className="relative min-w-[9rem] flex-1 sm:hidden">
-            <span className="sr-only">Category</span>
-            <select
-              value={category === 'All categories' ? '' : category}
-              onChange={(e) => setCategory(e.target.value || 'All categories')}
-              className={`h-8 w-full appearance-none rounded-md py-0 pl-3 pr-7 text-xs font-semibold outline-none ${
-                category !== 'All categories' ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-600'
-              }`}
-            >
-              <option value="">Choose a category…</option>
-              {DISCOVERY_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className={`pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 ${category !== 'All categories' ? 'text-white' : 'text-ink-500'}`} />
-          </label>
-          {DISCOVERY_CATEGORIES.map((c) => (
+        {/* Popular categories (the full list of ~200 is under "Category" above) */}
+        {popularCategories.length > 0 && (
+          <div className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             <button
-              key={c}
               type="button"
-              onClick={() => setCategory(c)}
-              className={`hidden shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition sm:inline-flex ${
-                category === c ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
+              onClick={() => setCategory(ALL_CATEGORIES)}
+              className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                category === ALL_CATEGORIES ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
               }`}
             >
-              {c}
+              All categories
             </button>
-          ))}
-        </div>
+            {popularCategories.map(([label, n]) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setCategory(category === label ? ALL_CATEGORIES : label)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                  category === label ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
+                }`}
+              >
+                {label}
+                <span className={`tabular-nums ${category === label ? 'text-white/70' : 'text-ink-400'}`}>{n.toLocaleString()}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {activeFilters.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2">

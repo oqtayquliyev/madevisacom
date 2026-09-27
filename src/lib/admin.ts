@@ -679,6 +679,16 @@ export function importJobToRow(
   };
 }
 
+/** Jobs are shown for this long after the company posted them. */
+export const MAX_JOB_AGE_DAYS = 30;
+
+/** True when the source's posting date is more than MAX_JOB_AGE_DAYS ago. */
+export function isTooOldToImport(postedIso: string | null | undefined): boolean {
+  if (!postedIso) return false;
+  const t = Date.parse(postedIso);
+  return Number.isFinite(t) && Date.now() - t > MAX_JOB_AGE_DAYS * 86_400_000;
+}
+
 const OPTIONAL_NEW_COLUMNS = ['work_arrangement', 'visa_status'];
 
 /** True when PostgREST rejected a write because a column doesn't exist yet (migration not run). */
@@ -772,7 +782,15 @@ export async function importJobsAsPending(
   // fills the gaps later.
   const detected = fresh.length ? await detectFactsForItems(fresh.map((j) => ({ title: j.title, description: j.description }))) : { ok: true, facts: [] };
   if (!detected.ok) console.warn('job-facts unavailable during import:', detected.error);
-  const rows = fresh.map((j, i) => importJobToRow(j, publisherId, countries, options, detected.facts[i] ?? EMPTY_FACTS));
+  // MadeVisa only shows jobs posted in the last 30 days — older postings
+  // aren't imported at all (they'd be hidden straight away anyway).
+  const rows = fresh
+    .map((j, i) => importJobToRow(j, publisherId, countries, options, detected.facts[i] ?? EMPTY_FACTS))
+    .filter((r) => {
+      if (!isTooOldToImport(r.source_posted_at)) return true;
+      skipped++;
+      return false;
+    });
 
   // Chunked: a failure partway through still keeps what already landed.
   const INSERT_CHUNK_SIZE = 250;

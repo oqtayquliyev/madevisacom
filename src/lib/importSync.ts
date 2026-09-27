@@ -20,6 +20,7 @@ import { fetchGreenhouseJobs, fetchJobsFromCareersUrl, isJunkJob, sanitizeJobHtm
 import {
   fetchAllRows,
   importJobsAsPending,
+  isTooOldToImport,
   normalizeJobUrl,
   type ImportCountryLookup,
   type ImportJobInput,
@@ -364,7 +365,8 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
       gone.push(row);
     }
   }
-  const newJobs = fetched.jobs.filter((j) => !claimed.has(j));
+  // Postings older than 30 days aren't shown on MadeVisa — don't add them.
+  const newJobs = fetched.jobs.filter((j) => !claimed.has(j) && !isTooOldToImport(j.postedAt));
 
   // 4. Safety check before removing anything.
   const removalCount = gone.length + duplicates.length;

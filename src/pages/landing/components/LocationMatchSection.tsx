@@ -2,7 +2,7 @@ import { JobAgeBadge } from '@/components/common/JobAgeBadge';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { jobPath } from '@/lib/jobUrl';
 import { isJobViewed } from '@/lib/viewedJobs';
-import { moveToBack, recencyBucket, recentlyShownIds, rememberShown, visitShuffle } from '@/lib/feedRotation';
+import { rememberShown } from '@/lib/feedRotation';
 import {
   Briefcase,
   GraduationCap,
@@ -16,6 +16,7 @@ import {
   Info,
   X,
   type LucideIcon,
+  Zap,
 } from 'lucide-react';
 import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/costEstimates';
 import { countJobsPublishedSince, fetchLandingJobs, fetchPublishedSponsoredJobs, isClosedJob, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
@@ -71,8 +72,8 @@ function buildMatchItems(
       remote: board.remote,
       salary: board.salary,
       imageUrl: board.imageUrl,
-      // When it went live on MadeVisa — what the landing cards order and label by.
-      createdAt: j.approved_at ?? j.created_at,
+      // When it was posted (company's date, else when it went live here) — what the cards order and label by.
+      createdAt: board.postedDate ?? j.created_at,
       description: board.description,
       postedDate: board.postedDate,
     };
@@ -125,67 +126,28 @@ function iconFor(category: string, kind: 'job' | 'program'): LucideIcon {
 
 
 /**
- * Landing preview: the most recently shared jobs that show a salary — one
- * per company first. Topped up with other fresh items if there aren't enough.
+ * Landing preview: the newest jobs, one per company — companies with a
+ * logo first (so the cards look complete), shown newest first.
+ * The landing query (landing_job_ids) already picks them this way; this
+ * keeps the same rule when it falls back to the plain newest list.
  */
-function pickRecentWithSalary(items: MatchItem[], count: number, shownBefore: Set<string>): MatchItem[] {
-  // Newest shared on MadeVisa first (the landing query already limits this to the last 24 hours).
+function pickNewestDistinct(items: MatchItem[], count: number): MatchItem[] {
   const when = (i: MatchItem) => new Date(i.createdAt).getTime() || 0;
-  const salaried = items
-    .filter((i) => i.kind === 'job' && Boolean(i.salary && i.salary.trim()))
-    .sort((a, b) => when(b) - when(a));
+  const jobs = items.filter((i) => i.kind === 'job').sort((a, b) => when(b) - when(a));
   const picked: MatchItem[] = [];
   const orgs = new Set<string>();
-  for (const i of salaried) {
-    if (orgs.has(i.org)) continue;
-    orgs.add(i.org);
-    picked.push(i);
-    if (picked.length >= count) return picked;
-  }
-  for (const i of salaried) {
-    if (picked.length >= count) return picked;
-    if (!picked.includes(i)) picked.push(i);
-  }
-  const rest = pickFreshDiverse(items.filter((i) => !picked.includes(i) && i.kind === 'job'), count - picked.length, shownBefore);
-  return [...picked, ...rest].slice(0, count);
-}
-
-/**
- * Picks up to `count` items for the landing page's small preview:
- *  - from the freshest items (posted in the last few days, or the newest
- *    60 if there are fewer), in a different random order every visit;
- *  - items shown here on the last visits, and jobs already opened, go
- *    last — so each refresh leads with something new;
- *  - at most one per company/org (a single bulk import would otherwise
- *    fill every slot), topped up regardless of company if needed.
- */
-function pickFreshDiverse(items: MatchItem[], count: number, shownBefore: Set<string>): MatchItem[] {
-  const byDate = [...items].sort((a, b) => {
-    const da = new Date(a.postedDate ?? a.createdAt).getTime();
-    const db = new Date(b.postedDate ?? b.createdAt).getTime();
-    return db - da;
-  });
-  const fresh = byDate.filter((i) => recencyBucket(i.postedDate ?? i.createdAt) <= 1);
-  const pool = fresh.length >= 60 ? fresh : byDate.slice(0, 60);
-  const ordered = moveToBack(
-    moveToBack(visitShuffle(pool, 'landing'), (i) => shownBefore.has(i.id)),
-    (i) => i.kind === 'job' && isJobViewed(i.id)
-  );
-
-  const seenOrgs = new Set<string>();
-  const picked: MatchItem[] = [];
-  for (const item of ordered) {
-    if (seenOrgs.has(item.org)) continue;
-    seenOrgs.add(item.org);
-    picked.push(item);
-    if (picked.length >= count) return picked;
-  }
-  for (const item of ordered) {
-    if (picked.includes(item)) continue;
-    picked.push(item);
-    if (picked.length >= count) break;
-  }
-  return picked;
+  const take = (ok: (i: MatchItem) => boolean) => {
+    for (const i of jobs) {
+      if (picked.length >= count) return;
+      const org = i.org.trim().toLowerCase();
+      if (orgs.has(org) || !ok(i)) continue;
+      orgs.add(org);
+      picked.push(i);
+    }
+  };
+  take((i) => Boolean(i.imageUrl));
+  take(() => true);
+  return picked.sort((a, b) => when(b) - when(a));
 }
 
 /**
@@ -235,8 +197,7 @@ export function LocationMatchSection({
 }) {
   const [query, setQuery] = useState('');
   const visibleItems = items;
-  const shownBefore = useMemo(() => recentlyShownIds('landing'), []);
-  const shownItems = useMemo(() => (visibleItems ? pickRecentWithSalary(visibleItems, 5, shownBefore) : null), [visibleItems, shownBefore]);
+  const shownItems = useMemo(() => (visibleItems ? pickNewestDistinct(visibleItems, 5) : null), [visibleItems]);
   useEffect(() => {
     if (shownItems?.length) rememberShown('landing', shownItems.map((i) => i.id));
   }, [shownItems]);
@@ -484,6 +445,12 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
 
         <div className="mt-auto pt-2">
           {item.kind === 'job' ? <JobAgeBadge iso={item.createdAt} className="mb-2" /> : item.postedDate && <JobAgeBadge iso={item.postedDate} className="mb-2" />}
+          {item.kind === 'job' && Date.now() - (new Date(item.createdAt).getTime() || 0) < 86_400_000 && (
+            <span className="mb-2 ml-1 inline-flex items-center gap-1 rounded bg-brand-600 px-1.5 py-[3px] text-[10px] font-bold uppercase tracking-wide text-white">
+              <Zap className="h-3 w-3 fill-current" />
+              Early applicant
+            </span>
+          )}
           {showCostPill && (
             <div className="flex items-center gap-1 border-t border-ink-100 pt-2">
               <span className="truncate rounded bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">

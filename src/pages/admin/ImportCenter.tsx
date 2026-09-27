@@ -75,6 +75,25 @@ const SCHEDULES: { hours: number; label: string }[] = [
 ];
 
 const AUTO_SYNC_KEY = 'mv_admin_autosync';
+// A sync that was paused: which sources were still left, to continue later.
+const PAUSED_QUEUE_KEY = 'madevisa:pausedSyncQueue';
+type PausedQueue = { label: string; ids: string[]; at: string };
+function readPausedQueue(): PausedQueue | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(PAUSED_QUEUE_KEY) ?? 'null') as PausedQueue | null;
+    return v && Array.isArray(v.ids) && v.ids.length ? v : null;
+  } catch {
+    return null;
+  }
+}
+function savePausedQueue(v: PausedQueue | null) {
+  try {
+    if (v) localStorage.setItem(PAUSED_QUEUE_KEY, JSON.stringify(v));
+    else localStorage.removeItem(PAUSED_QUEUE_KEY);
+  } catch {
+    /* optional */
+  }
+}
 
 function timeAgo(iso: string | null): string {
   if (!iso) return 'never';
@@ -117,6 +136,7 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
   const [lastResult, setLastResult] = useState<string | null>(null);
   const stop = useRef(false);
   const busy = run !== null;
+  const [paused, setPaused] = useState<PausedQueue | null>(readPausedQueue);
   const say = (m: string) => setLog((prev) => [...prev.slice(-11), m]);
 
   // ---- schedule ----
@@ -221,9 +241,15 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
     let added = 0;
     let removed = 0;
     let failed = 0;
+    let doneCount = list.length;
     for (let i = 0; i < list.length; i++) {
       if (stop.current) {
-        say('Stopped.');
+        // Remember what's left so it can continue later (today or tomorrow).
+        const left = { label: label.replace(/ \(continued\)$/, ''), ids: list.slice(i).map((x) => x.id), at: new Date().toISOString() };
+        savePausedQueue(left);
+        setPaused(left);
+        doneCount = i;
+        say(`Paused — ${left.ids.length} left. Press Continue to go on.`);
         break;
       }
       const src = list[i];
@@ -248,7 +274,13 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
       }
     }
     setRun(null);
-    setLastResult(`${label}: ${list.length} source${list.length === 1 ? '' : 's'} · +${added} new · −${removed} removed${failed ? ` · ${failed} with problems (see Last sync)` : ''}.`);
+    if (doneCount === list.length && /\(continued\)$/.test(label)) {
+      savePausedQueue(null);
+      setPaused(null);
+    }
+    setLastResult(
+      `${label}: ${doneCount} of ${list.length} source${list.length === 1 ? '' : 's'} · +${added} new · −${removed} removed${failed ? ` · ${failed} with problems (see Last sync)` : ''}${doneCount < list.length ? ' · paused' : ''}.`
+    );
     onChange();
   };
 
@@ -326,10 +358,42 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
             <ProgressBar value={run.value} label={run.label} detail={run.detail} />
             <div className="mt-2 flex items-center gap-2">
               <button onClick={() => (stop.current = true)} className="rounded-lg border border-ink-200 bg-white px-3 py-1 text-[11px] font-semibold text-ink-600 hover:bg-ink-50">
-                Stop after current step
+                Pause after this company
               </button>
               <span className="text-[11px] text-ink-400">Keep this tab open until it finishes.</span>
             </div>
+          </div>
+        )}
+        {!run && paused && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <span className="min-w-0 flex-1">
+              <strong>Paused:</strong> {paused.label} — {paused.ids.length} {paused.ids.length === 1 ? 'company' : 'companies'} left (since{' '}
+              {new Date(paused.at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}).
+            </span>
+            <button
+              onClick={() => {
+                const ids = new Set(paused.ids);
+                const left = sources.filter((s) => ids.has(s.id));
+                if (!left.length) {
+                  savePausedQueue(null);
+                  setPaused(null);
+                  return;
+                }
+                void syncMany(left, `${paused.label} (continued)`);
+              }}
+              className="rounded-lg bg-amber-600 px-3 py-1 font-semibold text-white hover:bg-amber-700"
+            >
+              Continue
+            </button>
+            <button
+              onClick={() => {
+                savePausedQueue(null);
+                setPaused(null);
+              }}
+              className="font-semibold text-amber-800 hover:underline"
+            >
+              Discard
+            </button>
           </div>
         )}
         {!run && lastResult && <p className="mb-3 rounded-md bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">{lastResult}</p>}
