@@ -41,8 +41,8 @@ export async function logoDataUrl(url: string | null): Promise<string | null> {
  * woff2). Subset to the characters actually drawn, so it's small and fast.
  * If Google Fonts is unreachable the image still renders with the default font.
  */
-export type Font = { name: string; data: ArrayBuffer; weight: 400 | 600 | 700; style: 'normal' };
-export async function googleFont(family: string, weight: 400 | 600 | 700, text: string): Promise<Font | null> {
+export type Font = { name: string; data: ArrayBuffer; weight: 400 | 600 | 700 | 800; style: 'normal' };
+export async function googleFont(family: string, weight: 400 | 600 | 700 | 800, text: string): Promise<Font | null> {
   try {
     const css = await (
       await fetch(`https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@${weight}&text=${encodeURIComponent(text)}`, {
@@ -75,12 +75,23 @@ export async function brandLogo(origin: string): Promise<string | null> {
 export const TITLE_FONT = "'Fraunces', serif";
 export const SANS = "'Inter', sans-serif";
 
-/** The standard share image: 1200×630 PNG, cached at the edge. */
-export async function shareImage(tree: El, text: string, opts: { titleFont?: boolean; maxAge?: number } = {}): Promise<Response> {
+/** Every string drawn in a tree — used to subset the fonts to just those characters. */
+export function textOf(el: El | string | null | undefined): string {
+  if (!el) return '';
+  if (typeof el === 'string') return el;
+  const kids = el.props.children as El | string | (El | string)[] | undefined;
+  if (!kids) return '';
+  return Array.isArray(kids) ? kids.map((k) => textOf(k)).join(' ') : textOf(kids);
+}
+
+/** The standard share image: 1200×630 PNG, cached at the edge. Fonts are subset to the text drawn. */
+export async function shareImage(tree: El, opts: { titleFont?: boolean; maxAge?: number } = {}): Promise<Response> {
+  const text = `${textOf(tree)} 0123456789`;
   const fonts = await Promise.all([
     googleFont('Inter', 400, text),
     googleFont('Inter', 600, text),
     googleFont('Inter', 700, text),
+    googleFont('Inter', 800, text),
     opts.titleFont ? googleFont('Fraunces', 700, text) : Promise.resolve(null),
   ]);
   const sMaxAge = opts.maxAge ?? 21600;
@@ -93,6 +104,90 @@ export async function shareImage(tree: El, text: string, opts: { titleFont?: boo
   });
 }
 
+// --- Icons (Lucide shapes, drawn as inline SVG) -------------------------------
+
+type Shape = { type: 'path' | 'circle' | 'rect'; props: Record<string, unknown> };
+const P = (d: string): Shape => ({ type: 'path', props: { d } });
+const ICONS = {
+  plane: [P('M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z')],
+  briefcase: [P('M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16'), { type: 'rect', props: { width: 20, height: 14, x: 2, y: 6, rx: 2 } }],
+  ghost: [P('M9 10h.01'), P('M15 10h.01'), P('M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z')],
+  check: [{ type: 'circle', props: { cx: 12, cy: 12, r: 10 } }, P('m9 12 2 2 4-4')],
+  x: [{ type: 'circle', props: { cx: 12, cy: 12, r: 10 } }, P('m15 9-6 6'), P('m9 9 6 6')],
+  message: [P('M7.9 20A9 9 0 1 0 4 16.1L2 22Z')],
+  users: [P('M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'), { type: 'circle', props: { cx: 9, cy: 7, r: 4 } }, P('M22 21v-2a4 4 0 0 0-3-3.87'), P('M16 3.13a4 4 0 0 1 0 7.75')],
+  cap: [P('M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z'), P('M22 10v6'), P('M6 12.5V16a6 3 0 0 0 12 0v-3.5')],
+  globe: [{ type: 'circle', props: { cx: 12, cy: 12, r: 10 } }, P('M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20'), P('M2 12h20')],
+  refresh: [P('M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'), P('M3 3v5h5'), P('M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16'), P('M16 16h5v5')],
+  up: [P('m5 12 7-7 7 7'), P('M12 19V5')],
+  landmark: [P('M3 22h18'), P('M6 18v-7'), P('M10 18v-7'), P('M14 18v-7'), P('M18 18v-7'), P('M12 2 20 7H4z')],
+} satisfies Record<string, Shape[]>;
+export type IconName = keyof typeof ICONS;
+
+export function icon(name: IconName, size: number, color: string, strokeWidth = 2): El {
+  return {
+    type: 'svg',
+    props: {
+      width: size,
+      height: size,
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      stroke: color,
+      strokeWidth,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      style: { flexShrink: 0 },
+      children: ICONS[name],
+    },
+  };
+}
+
+/**
+ * A headline that wraps word by word, with some words highlighted
+ * (marker box + stronger colour). Needs a fixed width to wrap within.
+ */
+export function words(
+  text: string,
+  highlight: string[],
+  o: { size: number; width: number; weight?: number; color: string; hiColor?: string; hiBg?: string; hiWeight?: number; lineHeight?: number; tracking?: number; font?: string }
+): El {
+  const hi = new Set(highlight.map((w) => w.toLowerCase()));
+  const isHi = (w: string) => hi.has(w.toLowerCase()) || hi.has(w.toLowerCase().replace(/[.,!?—:;]+$/, ''));
+  const lh = Math.round(o.size * (o.lineHeight ?? 1.08));
+  const kids: El[] = [];
+  // "\n" forces a line break (a full-width empty item in the wrapping row).
+  text.split('\n').forEach((line, li) => {
+    if (li > 0) kids.push(h('div', { width: o.width, height: 0 }));
+    const parts = line.split(/\s+/).filter(Boolean);
+    parts.forEach((w, i) => {
+      const on = isHi(w);
+      const nextOn = i + 1 < parts.length && isHi(parts[i + 1]);
+      kids.push(
+        h(
+          'div',
+          {
+            fontSize: o.size,
+            fontWeight: on ? o.hiWeight ?? o.weight ?? 700 : o.weight ?? 700,
+            color: on ? o.hiColor ?? o.color : o.color,
+            height: lh,
+            alignItems: 'center',
+            letterSpacing: o.tracking ?? 0,
+            fontFamily: o.font,
+            // Neighbouring highlighted words join into one marker box.
+            paddingLeft: on && o.hiBg ? Math.round(o.size * 0.12) : 0,
+            paddingRight: on && o.hiBg ? (nextOn ? Math.round(o.size * 0.26) : Math.round(o.size * 0.12)) : 0,
+            marginRight: on && o.hiBg && nextOn ? 0 : Math.round(o.size * 0.26),
+            backgroundColor: on && o.hiBg ? o.hiBg : undefined,
+            borderRadius: on && o.hiBg ? Math.round(o.size * 0.16) : 0,
+          },
+          w
+        )
+      );
+    });
+  });
+  return h('div', { flexWrap: 'wrap', width: o.width, flexShrink: 0 }, ...kids);
+}
+
 /** Rounded fact tile, as on the job image. */
 export function chip(label: string, value: string, strong = false): El {
   return h(
@@ -103,20 +198,54 @@ export function chip(label: string, value: string, strong = false): El {
   );
 }
 
-/** Blue "button" pill with an ↗ arrow, like the site's Apply button. */
-export function ctaPill(label: string): El {
+/** "Button" pill with an ↗ arrow, like the site's Apply button. `light` = white pill for dark backgrounds. */
+export function ctaPill(label: string, light = false): El {
+  const fg = light ? '#0B1633' : 'white';
   return h(
     'div',
-    { alignItems: 'center', backgroundColor: BLUE, color: 'white', borderRadius: 999, padding: '18px 34px', fontSize: 26, fontWeight: 700 },
+    { alignItems: 'center', backgroundColor: light ? 'white' : BLUE, color: fg, borderRadius: 999, padding: '18px 34px', fontSize: 26, fontWeight: 700, flexShrink: 0 },
     label,
     {
       type: 'svg',
       props: {
-        width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: 'white', strokeWidth: 2.6, strokeLinecap: 'round', strokeLinejoin: 'round',
+        width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: fg, strokeWidth: 2.6, strokeLinecap: 'round', strokeLinejoin: 'round',
         style: { marginLeft: 12 },
         children: [{ type: 'path', props: { d: 'M7 17L17 7' } }, { type: 'path', props: { d: 'M7 7h10v10' } }],
       },
     }
+  );
+}
+
+/** Small rounded label with an optional icon. */
+export function tag(text: string, o: { bg: string; color: string; border?: string; icon?: IconName; size?: number }): El {
+  const size = o.size ?? 22;
+  return h(
+    'div',
+    { alignItems: 'center', backgroundColor: o.bg, color: o.color, border: o.border ? `2px solid ${o.border}` : undefined, borderRadius: 999, padding: `${Math.round(size * 0.36)}px ${Math.round(size * 0.85)}px`, fontSize: size, fontWeight: 700, flexShrink: 0 },
+    o.icon ? h('div', { marginRight: Math.round(size * 0.4) }, icon(o.icon, Math.round(size * 1.05), o.color, 2.4)) : null,
+    text
+  );
+}
+
+/** Company logo in a white rounded tile, or its initial. */
+export function logoTile(src: string | null, name: string, size: number, radius = 16): El {
+  return src
+    ? img(src, { width: size, height: size, borderRadius: radius, objectFit: 'contain', border: '2px solid #E2E8F0', backgroundColor: 'white', padding: Math.round(size * 0.1), flexShrink: 0 })
+    : h('div', { width: size, height: size, borderRadius: radius, backgroundColor: '#DBEAFE', color: '#1D4ED8', fontSize: Math.round(size * 0.46), fontWeight: 800, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }, (name.trim()[0] ?? '·').toUpperCase());
+}
+
+/** Rubber stamp (rotated, double ring) — the visa motif. */
+export function stamp(lines: string[], o: { color: string; size: number; rotate: number; sub?: string }): El {
+  const s = o.size;
+  return h(
+    'div',
+    { width: s, height: s, borderRadius: 999, border: `${Math.round(s * 0.03)}px solid ${o.color}`, alignItems: 'center', justifyContent: 'center', transform: `rotate(${o.rotate}deg)`, opacity: 0.92, flexShrink: 0 },
+    h(
+      'div',
+      { width: s * 0.84, height: s * 0.84, borderRadius: 999, border: `${Math.max(2, Math.round(s * 0.012))}px solid ${o.color}`, flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
+      o.sub ? h('div', { fontSize: Math.round(s * 0.075), fontWeight: 700, color: o.color, letterSpacing: 3, marginBottom: 4 }, o.sub) : null,
+      ...lines.map((l) => h('div', { fontSize: Math.round(s * (lines.length > 1 ? 0.14 : 0.17)), fontWeight: 800, color: o.color, letterSpacing: 2, lineHeight: 1.05 }, l))
+    )
   );
 }
 

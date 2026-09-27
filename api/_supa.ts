@@ -157,3 +157,36 @@ export async function fetchShareCompany(slug: string): Promise<ShareCompany | nu
     tracked: r?.tracked ?? 0,
   };
 }
+
+// --- Latest jobs across companies (for "hiring now" cards and logo rows) ------
+
+export type HiringNow = { company: string; logo: string | null; title: string };
+
+/**
+ * The newest jobs, one per company — companies with a logo first.
+ * Uses newest_diverse_job_ids (migration 20261027090000) when available,
+ * otherwise the newest 120 jobs de-duplicated by company.
+ */
+export async function latestHiring(n: number): Promise<HiringNow[]> {
+  type Row = { id: string; title: string; publisher: { name: string; logo_url: string | null } | null };
+  const cols = 'id,title,publisher:program_publishers(name,logo_url)';
+  const ids = await rpc<string[]>('newest_diverse_job_ids', { n: 60, per_company: 1 });
+  let rows: Row[] | null = null;
+  if (ids?.length) {
+    const got = await restGet<Row[]>(`sponsored_jobs?select=${cols}&id=in.(${ids.join(',')})`);
+    if (got) {
+      const order = new Map(ids.map((id, i) => [id, i]));
+      rows = got.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+    }
+  }
+  if (!rows?.length) rows = await restGet<Row[]>(`sponsored_jobs?select=${cols}&status=eq.published&order=created_at.desc&limit=120`);
+  const seen = new Set<string>();
+  const out: HiringNow[] = [];
+  for (const r of rows ?? []) {
+    const company = r.publisher?.name?.trim();
+    if (!company || seen.has(company)) continue;
+    seen.add(company);
+    out.push({ company, logo: r.publisher?.logo_url?.trim() || null, title: r.title });
+  }
+  return [...out.filter((x) => x.logo), ...out.filter((x) => !x.logo)].slice(0, n);
+}

@@ -88,7 +88,7 @@ async function previewFor(url: URL): Promise<Preview | null> {
       c.replyRate != null ? `replies to ${c.replyRate}% of applicants` : null,
     ].filter(Boolean);
     return {
-      title: `${c.name} — jobs & company score | MadeVisa`,
+      title: c.replyRate != null ? `Does ${c.name} reply to applicants? ${c.replyRate}% do | MadeVisa` : `${c.name} is hiring — do they reply? | MadeVisa`,
       description: `${bits.length ? `${bits.join(', ')}. ` : ''}Hiring activity and reply rates from real applicants on MadeVisa.`,
       image: `${o}/api/og/company?slug=${encodeURIComponent(slug)}`,
       alt: `${c.name} company score on MadeVisa`,
@@ -101,7 +101,7 @@ async function previewFor(url: URL): Promise<Preview | null> {
     if (!p) return null;
     const status = p.intent === 'hiring' ? 'Hiring' : p.intent === 'looking' ? 'Open to work' : null;
     return {
-      title: `${p.name} (@${p.username}) | MadeVisa`,
+      title: p.intent === 'hiring' ? `${p.name} is hiring | MadeVisa` : p.intent === 'looking' ? `${p.name} is open to work | MadeVisa` : `${p.name} (@${p.username}) | MadeVisa`,
       description: [status, p.headline, p.tracked ? `${p.tracked} applications tracked, ${p.replies} replies` : null].filter(Boolean).join(' · ') || `${p.name} on MadeVisa.`,
       image: `${o}/api/og/profile?u=${encodeURIComponent(p.username)}`,
       alt: `${p.name} on MadeVisa`,

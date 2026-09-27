@@ -1,57 +1,126 @@
-// GET /api/og/company?slug=<slug>-<8 hex> → 1200×630 share image for a company
-// page: logo, name, open jobs, visa-sponsored jobs and the applicant reply rate
-// (only once enough applicants have reported — same rule as the site).
+// GET /api/og/company?slug=<slug>-<8 hex> → 1200×630 company scorecard:
+// the question applicants actually have ("Does X reply to applicants?") with
+// the answer as a big score ring (reply rate, once enough applicants have
+// reported — same rule as the site), plus open and visa-sponsored jobs.
+// Unknown company → the Company Scores page image.
 
 import { fetchShareCompany, type ShareCompany } from '../_supa';
-import { BLUE, brandLogo, chip, clip, fmt, footer, frame, h, img, logoDataUrl, shareImage, type El } from '../_og';
+import { BLUE, brandLogo, clip, fmt, h, icon, img, logoDataUrl, logoTile, shareImage, tag, words, type El, type IconName } from '../_og';
+import { renderCompanies } from './page';
 
 export const config = { runtime: 'edge' };
 
-function headlineFor(c: ShareCompany): string {
-  if (c.replyRate != null) return `Replies to ${c.replyRate}% of applicants`;
-  if (c.openJobs) return `Hiring now — ${fmt(c.openJobs)} open ${c.openJobs === 1 ? 'job' : 'jobs'}`;
-  return 'Company score on MadeVisa';
+const INK = '#0F172A';
+
+function ring(value: number | null, color: string, size: number): El {
+  const r = 46;
+  const len = 2 * Math.PI * r;
+  const pct = value == null ? 0 : Math.max(0, Math.min(100, value)) / 100;
+  return {
+    type: 'svg',
+    props: {
+      width: size,
+      height: size,
+      viewBox: '0 0 120 120',
+      style: { position: 'absolute', top: 0, left: 0 },
+      children: [
+        { type: 'circle', props: { cx: 60, cy: 60, r, fill: 'none', stroke: '#E2E8F0', strokeWidth: 11 } },
+        value == null
+          ? { type: 'circle', props: { cx: 60, cy: 60, r, fill: 'none', stroke: '#CBD5E1', strokeWidth: 11, strokeDasharray: '4 7' } }
+          : { type: 'circle', props: { cx: 60, cy: 60, r, fill: 'none', stroke: color, strokeWidth: 11, strokeLinecap: 'round', strokeDasharray: `${(len * pct).toFixed(1)} ${len.toFixed(1)}`, transform: 'rotate(-90 60 60)' } },
+      ],
+    },
+  };
 }
 
-function render(c: ShareCompany | null, logo: string | null, brand: string | null): El {
-  const top = (right: El | null) =>
-    h('div', { alignItems: 'center', justifyContent: 'space-between' }, brand ? img(brand, { width: 223, height: 46 }) : h('div', { fontSize: 36, fontWeight: 700, color: '#0F172A' }, 'madevisa'), right);
-  const pill = h('div', { fontSize: 22, fontWeight: 700, color: '#1D4ED8', backgroundColor: '#EFF6FF', border: '2px solid #BFDBFE', borderRadius: 999, padding: '8px 20px' }, 'Company Score');
-  if (!c) return frame(top(pill), h('div', { fontSize: 64, fontWeight: 700, color: '#0F172A', marginTop: 60 }, "Who's hiring — and who replies"), footer('madevisa.com/companies', 'Company scores', 'See companies'));
+function fact(ic: IconName, value: string, label: string): El {
+  return h(
+    'div',
+    { alignItems: 'center', backgroundColor: '#F8FAFC', border: '2px solid #E2E8F0', borderRadius: 16, padding: '12px 18px', marginRight: 12, flexShrink: 0 },
+    icon(ic, 26, BLUE, 2.2),
+    h('div', { flexDirection: 'column', marginLeft: 12 }, h('div', { fontSize: 26, fontWeight: 800, color: INK, lineHeight: 1.1 }, value), h('div', { fontSize: 16, fontWeight: 600, color: '#64748B' }, label))
+  );
+}
 
+function render(c: ShareCompany, logo: string | null, brand: string | null): El {
+  const rate = c.replyRate;
+  const color = rate == null ? '#94A3B8' : rate >= 60 ? '#16A34A' : rate >= 30 ? '#D97706' : '#E11D48';
+  const short = clip(c.name, 22);
+  const question = rate != null ? `Does ${short} reply to applicants?` : `${short} is hiring. Do they reply?`;
   const facts: El[] = [];
-  facts.push(chip('Open jobs', c.openJobs == null ? '—' : fmt(c.openJobs), true));
-  if (c.visaJobs) facts.push(chip('Visa-sponsored', fmt(c.visaJobs)));
-  facts.push(chip('Reply rate', c.replyRate == null ? 'Needs more reports' : `${c.replyRate}%`, c.replyRate != null));
-  if (c.tracked > 0) facts.push(chip('Applications reported', fmt(c.tracked)));
+  if (c.openJobs != null) facts.push(fact('briefcase', fmt(c.openJobs), c.openJobs === 1 ? 'open job' : 'open jobs'));
+  if (c.visaJobs) facts.push(fact('plane', fmt(c.visaJobs), 'visa-sponsored'));
+  if (c.tracked > 0) facts.push(fact('users', fmt(c.tracked), c.tracked === 1 ? 'applicant report' : 'applicant reports'));
 
-  return frame(
-    top(pill),
+  const size = 290;
+  const gauge = h(
+    'div',
+    { width: size, height: size, position: 'relative', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    ring(rate, color, size),
     h(
       'div',
-      { alignItems: 'center', marginTop: 34 },
-      logo
-        ? img(logo, { width: 104, height: 104, borderRadius: 20, objectFit: 'contain', border: '2px solid #E2E8F0', backgroundColor: 'white', marginRight: 26 })
-        : h('div', { width: 104, height: 104, borderRadius: 20, backgroundColor: BLUE, color: 'white', fontSize: 52, fontWeight: 700, alignItems: 'center', justifyContent: 'center', marginRight: 26 }, c.name.slice(0, 1).toUpperCase()),
+      { flexDirection: 'column', alignItems: 'center' },
+      rate != null
+        ? h('div', { fontSize: 80, fontWeight: 800, color, letterSpacing: -3, lineHeight: 1 }, `${rate}%`)
+        : h('div', { fontSize: c.openJobs && c.openJobs > 999 ? 58 : 72, fontWeight: 800, color: INK, letterSpacing: -3, lineHeight: 1 }, c.openJobs != null ? fmt(c.openJobs) : '—'),
+      h('div', { fontSize: 20, fontWeight: 700, color: '#64748B', marginTop: 6, letterSpacing: 1 }, rate != null ? 'REPLY RATE' : 'OPEN JOBS')
+    )
+  );
+
+  return h(
+    'div',
+    { width: 1200, height: 630, backgroundColor: '#F4F7FD', padding: 40, fontFamily: "'Inter', sans-serif" },
+    h(
+      'div',
+      { width: 1120, height: 550, backgroundColor: 'white', borderRadius: 30, padding: '40px 48px', flexShrink: 0 },
       h(
         'div',
-        { flexDirection: 'column' },
-        h('div', { alignItems: 'center' }, h('div', { fontSize: 44, fontWeight: 700, color: '#0F172A', letterSpacing: -1 }, clip(c.name, 30)), c.verified ? h('div', { fontSize: 22, fontWeight: 700, color: '#1D4ED8', marginLeft: 14 }, 'Verified') : null),
-        c.country ? h('div', { fontSize: 24, color: '#64748B', marginTop: 4 }, c.country) : null
+        { flexDirection: 'column', width: 690, height: 470, flexShrink: 0 },
+        h(
+          'div',
+          { alignItems: 'center' },
+          logoTile(logo, c.name, 84, 18),
+          h(
+            'div',
+            { flexDirection: 'column', marginLeft: 20 },
+            h('div', { fontSize: 36, fontWeight: 800, color: INK, letterSpacing: -1 }, clip(c.name, 28)),
+            h(
+              'div',
+              { alignItems: 'center', marginTop: 4 },
+              c.country ? h('div', { fontSize: 20, color: '#64748B', marginRight: 12 }, c.country) : null,
+              c.verified ? tag('Verified', { bg: '#EFF6FF', color: '#1D4ED8', icon: 'check', size: 15 }) : null
+            )
+          )
+        ),
+        h('div', { marginTop: 30 }, words(question, ['reply', 'reply?', 'hiring.'], { size: 50, width: 660, weight: 800, color: INK, hiColor: rate != null ? color : BLUE, hiBg: rate != null ? '#F1F5F9' : '#DBEAFE', tracking: -1.8, lineHeight: 1.1 })),
+        facts.length ? h('div', { marginTop: 26 }, ...facts) : null,
+        h(
+          'div',
+          { marginTop: 'auto', alignItems: 'center' },
+          icon('message', 22, '#64748B', 2.2),
+          h('div', { fontSize: 20, color: '#475569', marginLeft: 10 }, 'Applied here? Share how it went on '),
+          h('div', { fontSize: 20, fontWeight: 700, color: INK, marginLeft: 6 }, 'madevisa.com')
+        )
+      ),
+      h(
+        'div',
+        { flexDirection: 'column', width: 330, height: 470, alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
+        brand ? img(brand, { width: 180, height: 37, alignSelf: 'flex-end' }) : h('div', {}, ''),
+        gauge,
+        rate == null ? tag('Reply rate: needs more reports', { bg: '#F1F5F9', color: '#475569', size: 16 }) : tag('From real applicant reports', { bg: '#F1F5F9', color: '#475569', size: 16 })
       )
-    ),
-    h('div', { fontSize: 58, fontWeight: 700, color: '#0F172A', letterSpacing: -2, lineHeight: 1.08, marginTop: 30, marginBottom: 24 }, headlineFor(c)),
-    h('div', { flexWrap: 'wrap' }, ...facts),
-    footer('madevisa.com/companies', 'Hiring activity and reply rates from real applicants', 'See company score')
+    )
   );
 }
 
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
-  const slug = url.searchParams.get('slug') ?? '';
+  // Accept a bare slug, "/companies/<slug>" or a full company URL.
+  const raw = decodeURIComponent(url.searchParams.get('slug') ?? '').trim();
+  const slug = raw.replace(/^https?:\/\/[^/]+/i, '').replace(/^\/?companies\//i, '').replace(/[?#].*$/, '').replace(/\/+$/, '');
   const c = slug ? await fetchShareCompany(slug).catch(() => null) : null;
-  const [logo, brand] = await Promise.all([c?.logo ? logoDataUrl(c.logo) : Promise.resolve(null), brandLogo(url.origin)]);
-  const text = [c?.name, c?.country, c ? headlineFor(c) : "Who's hiring — and who replies", 'Verified Company Score Open jobs Visa-sponsored Reply rate Needs more reports Applications reported —%0123456789,',
-    'madevisa.com/companies Hiring activity and reply rates from real applicants See company score Company scores See companies', c?.name.slice(0, 1).toUpperCase()].filter(Boolean).join(' ');
-  return shareImage(render(c, logo, brand), text, { maxAge: 7200 });
+  const brand = await brandLogo(url.origin);
+  if (!c) return shareImage(renderCompanies(brand), { maxAge: 3600 });
+  const logo = c.logo ? await logoDataUrl(c.logo) : null;
+  return shareImage(render(c, logo, brand), { maxAge: 7200 });
 }
