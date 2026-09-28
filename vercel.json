@@ -92,5 +92,10 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/facets.ts": {
+      "maxDuration": 60
+    }
+  }
 }

@@ -33,6 +33,7 @@ import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { JobSignals } from '@/components/jobs/JobSignals';
+import { useJobFacets } from '@/lib/jobFacets';
 import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
@@ -648,7 +649,28 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     return DATE_POSTED_OPTIONS.filter((o) => o !== 'Any time').map((o) => ({ value: o, label: o, count: loading ? undefined : counts.get(o) ?? 0 }));
   }, [allJobs, loading]);
 
+  const facets = useJobFacets();
+  const activeFilterCountExceptCategory =
+    Number(country !== 'All countries') +
+    Number(jobType !== 'All types') +
+    Number(remoteOnly) +
+    Number(flexOnly) +
+    Number(Boolean(city)) +
+    Number(Boolean(company)) +
+    Number(salaryOnly) +
+    Number(experienceLevel !== 'All levels') +
+    Number(datePosted !== 'Any time') +
+    Number(directOnly) +
+    Number(studentOnly) +
+    Number(visaOnly);
+
   const countryComboOptions = useMemo<ComboOption[]>(() => {
+    // Daily counts over ALL live jobs — the same for guests and signed-in users.
+    if (facets && facets.countries.length) {
+      const opts = facets.countries.map((c) => ({ value: c.name, label: c.name, count: c.n, flag: c.iso || undefined }));
+      if (country !== 'All countries' && !opts.some((o) => o.value === country)) opts.push({ value: country, label: country, count: 0, flag: undefined });
+      return opts;
+    }
     const stats = new Map<string, { n: number; code: string }>();
     for (const j of allJobs) {
       if (!j.country) continue;
@@ -658,16 +680,22 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
     }
     const opts = jobCountryOptions.map((c) => ({ value: c, label: c, count: stats.get(c)?.n ?? 0, flag: stats.get(c)?.code || undefined }));
     return opts.sort((a, b) => (b.count ?? 0) - (a.count ?? 0) || a.label.localeCompare(b.label));
-  }, [allJobs, jobCountryOptions]);
+  }, [allJobs, jobCountryOptions, facets, country]);
 
   const categoryComboOptions = useMemo<ComboOption[]>(() => {
-    const haveCounts = categoryCounts.labels.size > 0;
+    // No other filter or search active → the daily counts over ALL jobs
+    // (same for everyone). With other filters, count what's matched.
+    const otherFilters = Boolean(search.trim()) || activeFilterCountExceptCategory > 0;
+    const daily = facets && !otherFilters ? new Map(Object.entries(facets.categories)) : null;
+    const counts = daily ?? categoryCounts.labels;
+    const haveCounts = counts.size > 0;
     return CATEGORIES_BY_GROUP.flatMap(({ group, labels }) =>
       labels
-        .filter((l) => !haveCounts || categoryCounts.labels.has(l) || l === category)
-        .map((l) => ({ value: l, label: l, group, count: haveCounts ? categoryCounts.labels.get(l) ?? 0 : undefined }))
+        .filter((l) => !haveCounts || counts.has(l) || l === category)
+        .map((l) => ({ value: l, label: l, group, count: haveCounts ? counts.get(l) ?? 0 : undefined }))
     );
-  }, [categoryCounts, category]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryCounts, category, facets, search, activeFilterCountExceptCategory]);
 
 
   const activeFilterCount =
