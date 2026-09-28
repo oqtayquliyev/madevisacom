@@ -1,8 +1,21 @@
 {
   "rewrites": [
+    { "source": "/sitemap.xml", "destination": "/api/sitemap?f=index" },
+    { "source": "/sitemaps/:name.xml", "destination": "/api/sitemap?f=:name" },
+
+    { "source": "/", "destination": "/api/seo?r=home" },
+    { "source": "/jobs", "destination": "/api/seo?r=jobs" },
+    { "source": "/jobs/:a/:b", "destination": "/api/seo?r=job&a=:a&b=:b" },
+    { "source": "/jobs/:a", "destination": "/api/seo?r=job&a=:a" },
+    { "source": "/companies/:s", "destination": "/api/seo?r=company&s=:s" },
+    { "source": "/destinations/:s", "destination": "/api/seo?r=destination&s=:s" },
+    { "source": "/blog", "destination": "/api/seo?r=blog" },
+    { "source": "/blog/:s", "destination": "/api/seo?r=article&s=:s" },
     {
-      "source": "/((?!api/.*).*)",
-      "destination": "/index.html"
-    }
+      "source": "/:s(about|how-it-works|job-market|contact|privacy|terms|cookies|disclaimer|advertising-policy|sponsored-listing-terms|editorial-policy|corrections|verification-policy|companies|destinations|feedback|network|programs|study)",
+      "destination": "/api/seo?r=page&s=:s"
+    },
+
+    { "source": "/((?!api/.*).*)", "destination": "/index.html" }
   ]
 }

@@ -352,3 +352,19 @@ export async function allRows<T>(make: (from: number, to: number) => PromiseLike
   }
   return out;
 }
+
+/** Same as slugify() in src/lib/jobUrl.ts — URLs must match the website's. */
+export function slugify(input: string, maxLength = 80): string {
+  const slug = (input ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  if (slug.length <= maxLength) return slug;
+  return slug.slice(0, maxLength).replace(/-[^-]*$/, '') || slug.slice(0, maxLength);
+}
+export const SITE = 'https://madevisa.com';
+export const jobUrl = (j: { id: string; title: string; company: string }) => `${SITE}/jobs/${slugify(j.company) || 'company'}/${slugify(j.title) || 'job'}-${j.id.slice(0, 8).toLowerCase()}`;
+export const companyUrlPath = (c: { id: string; name: string }) => `/companies/${slugify(c.name) || 'company'}-${c.id.slice(0, 8)}`;

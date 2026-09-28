@@ -51,8 +51,20 @@ function setCanonical(href: string) {
  * search engines every other page was a duplicate of the homepage).
  * Call this once near the top of each top-level page component.
  */
+/**
+ * Pages served by api/seo.ts arrive with their structured data already in
+ * the HTML (marked data-ssr-path). After moving to another page in the
+ * app, that data describes the wrong page — remove it.
+ */
+function clearStaleServerData(path: string) {
+  document.querySelectorAll<HTMLElement>('[data-ssr-path]').forEach((el) => {
+    if (el.dataset.ssrPath !== path && el.dataset.ssrPath !== window.location.pathname) el.remove();
+  });
+}
+
 export function useSeo({ title, description, path, noindex = false, ogImage = DEFAULT_OG_IMAGE }: SeoOptions) {
   useEffect(() => {
+    clearStaleServerData(path);
     const fullTitle = title.includes('MadeVisa') ? title : `${title} | MadeVisa`;
     const url = `${SITE_URL}${path}`;
 

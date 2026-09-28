@@ -203,8 +203,8 @@ export function PublishReleasePanel({ onPublished }: { onPublished?: () => void 
 
   const when = release ? new Date(release.published_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : null;
   const budget = auto ? auto.today_limit + auto.extra_today : 0;
-  const pct = auto && budget > 0 ? Math.min(100, Math.round((auto.released_today / budget) * 100)) : 0
-  const detectorTrouble = auto && auto.to_detect > 0 && auto.last_detect_status !== null && (auto.last_detect_status < 200 || auto.last_detect_status >= 300);
+  const pct = auto && budget > 0 ? Math.min(100, Math.round((auto.released_today / budget) * 100)) : 0;
+  const detectorTrouble = auto && auto.to_detect > 0 && auto.last_detect_status !== null && auto.last_detect_status !== 200;
   const detectorIdle = auto && auto.detect_enabled && auto.to_detect > 0 && !auto.last_detect_at;
 
   const numberField = (key: keyof Settings, label: string, hint?: string, min = 0) =>
@@ -456,7 +456,7 @@ export function PublishReleasePanel({ onPublished }: { onPublished?: () => void 
               <ul className="mt-2 space-y-1.5">
                 {auto.log.map((l, i) => (
                   <li key={i} className={`text-xs leading-5 ${l.ok ? 'text-ink-700' : 'text-rose-700'}`}>
-                    <span className="tabular-nums text-ink-400">{clock(l.at)}</span> <span className="font-medium">{l.kind === 'find' ? 'Find' : 'Sync'}</span> — {l.summary}
+                    <span className="tabular-nums text-ink-400">{clock(l.at)}</span> <span className="font-medium">{l.kind === 'find' ? 'Find' : l.kind === 'articles' ? 'Reports' : 'Sync'}</span> — {l.summary}
                   </li>
                 ))}
               </ul>

@@ -26,6 +26,10 @@ import { CompanyManagerPage } from '@/pages/company/CompanyManagerPage';
 import { OfficialPartnersPage } from '@/pages/partners/OfficialPartnersPage';
 import { PublicProfilePage } from '@/pages/u/PublicProfilePage';
 import { LegalPage } from '@/pages/legal/LegalPage';
+import { InfoPage } from '@/pages/info/InfoPage';
+import { JobMarketPage } from '@/pages/info/JobMarketPage';
+import { BlogPage } from '@/pages/blog/BlogPage';
+import { ArticlePage } from '@/pages/blog/ArticlePage';
 import { legalPageOrder } from '@/data/legalContent';
 import { SubmitJobPage } from '@/pages/submit/SubmitJobPage';
 import { VerifyEmailPage } from '@/pages/auth/VerifyEmailPage';
@@ -290,6 +294,22 @@ export default function App() {
 
   if (path.startsWith('/u/')) {
     return <PublicProfilePage username={path.slice(3)} go={go} onAuth={goToAuth} />;
+  }
+
+  if (path === '/about' || path === '/how-it-works') {
+    return <InfoPage key={path} slug={path.slice(1) as 'about' | 'how-it-works'} go={go} onAuth={goToAuth} />;
+  }
+
+  if (path === '/job-market') {
+    return <JobMarketPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (path === '/blog' || path === '/blog/') {
+    return <BlogPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (path.startsWith('/blog/')) {
+    return <ArticlePage slug={path.slice('/blog/'.length).replace(/\/+$/, '')} go={go} onAuth={goToAuth} />;
   }
 
   if (legalPageOrder.includes(path.slice(1))) {

@@ -3,6 +3,7 @@ import { handleNavClick } from '@/lib/navLink';
 import { SoonChip, SOON_VIEWS } from '@/components/common/SoonChip';
 import type { View } from '@/types';
 import { BrandMark } from '@/components/layout/Logo';
+import { nav } from '@/lib/pageLayout';
 
 type LandingFooterProps = {
   go: (view: View) => void;
@@ -20,22 +21,33 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
     title: 'Explore',
     links: [
       { label: 'Jobs', view: 'jobs' },
-      { label: 'Programs', view: 'programs' },
-      { label: 'Study & scholarships', view: 'study' },
       { label: 'Company Scores', view: 'companies' },
       { label: 'Hiring Feedback', view: 'feedback' },
       { label: 'Visas by Country', view: 'destinations' },
       { label: 'Network', view: 'network' },
+      { label: 'Programs', view: 'programs' },
+      { label: 'Study & scholarships', view: 'study' },
+    ],
+  },
+  {
+    title: 'Insights',
+    links: [
+      { label: 'Job market, live', href: '/job-market' },
+      { label: 'Hiring reports', href: '/blog?c=insights' },
+      { label: 'Visa guides', href: '/blog?c=visas' },
+      { label: 'Career guides', href: '/blog?c=guides' },
+      { label: 'All articles', href: '/blog' },
     ],
   },
   {
     title: 'MadeVisa',
     links: [
       { label: 'About', href: '/about' },
-      { label: 'Contact', href: '/contact' },
+      { label: 'How it works', href: '/how-it-works' },
       { label: 'Post a job', view: 'submit-job' },
-      { label: 'Advertise', href: 'mailto:hello@madevisa.com?subject=Advertising%20on%20MadeVisa' },
+      { label: 'Advertise', href: '/advertising-policy' },
       { label: 'Official institutions', view: 'official-partners' },
+      { label: 'Contact', href: '/contact' },
     ],
   },
 ];
@@ -62,16 +74,17 @@ const LEGAL = [
   { label: 'Editorial policy', href: '/editorial-policy' },
   { label: 'Verification', href: '/verification-policy' },
   { label: 'Corrections', href: '/corrections' },
+  { label: 'Sponsored listings', href: '/sponsored-listing-terms' },
 ];
 
 export function LandingFooter({ go }: LandingFooterProps) {
   return (
     <footer className="border-t border-ink-800 bg-ink-950 text-white">
       <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12">
-        <div className="grid gap-8 sm:grid-cols-[1.4fr_1fr_1fr]">
+        <div className="grid gap-8 lg:grid-cols-[1.3fr_2.7fr]">
           <div>
             <BrandMark variant="footer" onClick={() => go('home')} />
-            <p className="mt-3 max-w-xs text-sm leading-6 text-ink-300">Jobs, programs, study and visas from official sources — in one place.</p>
+            <p className="mt-3 max-w-xs text-sm leading-6 text-ink-300">Live jobs straight from company career pages, which companies reply, and the visa routes to get there.</p>
             <div className="mt-4 flex items-center gap-2.5">
               {SOCIAL.map(({ label, href, icon: Icon }) => (
                 <a
@@ -88,8 +101,7 @@ export function LandingFooter({ go }: LandingFooterProps) {
             </div>
           </div>
 
-          {/* Two short columns, side by side even on mobile */}
-          <div className="col-span-1 grid grid-cols-2 gap-6 sm:col-span-2">
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-3">
             {columns.map((column) => (
               <div key={column.title}>
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink-400">{column.title}</p>
@@ -106,7 +118,7 @@ export function LandingFooter({ go }: LandingFooterProps) {
                           {SOON_VIEWS.has(link.view) && <SoonChip className="!bg-white/10 !text-ink-400" />}
                         </a>
                       ) : (
-                        <a href={link.href} className="text-sm text-ink-300 transition hover:text-white">
+                        <a href={link.href} onClick={(event) => handleNavClick(event, () => nav(link.href!))} className="text-sm text-ink-300 transition hover:text-white">
                           {link.label}
                         </a>
                       )}
@@ -122,7 +134,7 @@ export function LandingFooter({ go }: LandingFooterProps) {
           <p>© {new Date().getFullYear()} MadeVisa</p>
           <nav aria-label="Legal" className="flex flex-wrap gap-x-4 gap-y-1.5">
             {LEGAL.map((l) => (
-              <a key={l.href} href={l.href} className="hover:text-white">
+              <a key={l.href} href={l.href} onClick={(event) => handleNavClick(event, () => nav(l.href))} className="hover:text-white">
                 {l.label}
               </a>
             ))}

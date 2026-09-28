@@ -7,6 +7,7 @@
 //        the few newest new jobs, publish them.            (every 3–4 min)
 //   { cron: "find" }           → finder.ts: add one new company from the
 //        next country (or save it for later).              (every ~20 min)
+//   { cron: "articles" }       → articles.ts: weekly hiring reports.   (Mondays)
 // The header x-madevisa-cron must match app_secrets.cron_secret.
 // It answers at once (202) and keeps working in the background.
 //
@@ -18,6 +19,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { runConveyor } from './conveyor.ts';
 import { runFinder } from './finder.ts';
+import { runArticles } from './articles.ts';
 import { pipelineSecret } from './shared.ts';
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
@@ -35,6 +37,7 @@ Deno.serve(async (req) => {
   let work: Promise<void>;
   if (body?.cron === 'sync') work = runConveyor(service, Math.min(Math.max(Number(body.want) || 0, 0), 50));
   else if (body?.cron === 'find') work = runFinder(service);
+  else if (body?.cron === 'articles') work = runArticles(service);
   else return reply({ ok: false, error: 'Unknown job.' }, 400);
 
   const safe = work.catch(async (e) => {

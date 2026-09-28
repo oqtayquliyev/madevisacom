@@ -7,7 +7,9 @@
 // needs. Whatever else is new stays on the company's careers page and is
 // picked up on a later visit, so nothing piles up in a waiting list here.
 
+import { notifyGoogle } from './indexing.ts';
 import {
+  jobUrl,
   allRows,
   analyse,
   countryIds,
@@ -73,7 +75,7 @@ async function syncOne(
   cfg: { minChars: number; maxAgeDays: number },
   byIso: Map<string, string>,
   deadline: number
-): Promise<{ report: Report; publishedIds: string[] }> {
+): Promise<{ report: Report; publishedIds: string[]; urls: string[] }> {
   const report: Report = { name: src.publisher_name ?? 'Company', country: src.country, fetched: 0, added: 0, removed: 0, more: 0, complete: false };
   const finish = async (status: 'ok' | 'partial' | 'error', extra: Record<string, unknown> = {}) => {
     await service
@@ -101,7 +103,7 @@ async function syncOne(
   if (!fetched.ok) {
     report.error = fetched.error;
     await finish('error');
-    return { report, publishedIds: [] };
+    return { report, publishedIds: [], urls: [] };
   }
   report.fetched = fetched.jobs.length;
   report.complete = fetched.complete;
@@ -113,7 +115,7 @@ async function syncOne(
   if (!fetched.jobs.length) {
     report.error = 'The source returned 0 jobs — nothing removed, in case it is temporarily broken.';
     await finish('error', sourceMeta);
-    return { report, publishedIds: [] };
+    return { report, publishedIds: [], urls: [] };
   }
 
   // 2. What MadeVisa already has for this company.
@@ -133,7 +135,7 @@ async function syncOne(
   } catch (e) {
     report.error = e instanceof Error ? e.message : 'Could not load existing jobs.';
     await finish('error', sourceMeta);
-    return { report, publishedIds: [] };
+    return { report, publishedIds: [], urls: [] };
   }
   existing = existing.filter((r) => r.import_source_id === src.id || r.import_source_id === null);
 
@@ -217,24 +219,28 @@ async function syncOne(
   report.more = Math.max(0, candidates.length - used);
 
   const publishedIds: string[] = [];
+  const urls: string[] = [];
   if (rows.length) {
-    let ins = await service.from('sponsored_jobs').insert(rows).select('id, status');
+    let ins = await service.from('sponsored_jobs').insert(rows).select('id, status, title');
     if (ins.error && /work_arrangement|visa_status|column/i.test(ins.error.message)) {
       ins = await service
         .from('sponsored_jobs')
         .insert(rows.map(({ work_arrangement: _w, visa_status: _v, ...rest }) => rest))
-        .select('id, status');
+        .select('id, status, title');
     }
     if (ins.error) report.error = ins.error.message;
     else {
-      const got = (ins.data ?? []) as { id: string; status: string }[];
+      const got = (ins.data ?? []) as { id: string; status: string; title: string }[];
       report.added = got.length;
-      publishedIds.push(...got.filter((r) => r.status === 'published').map((r) => r.id));
+      for (const r of got.filter((r) => r.status === 'published')) {
+        publishedIds.push(r.id);
+        urls.push(jobUrl({ id: r.id, title: r.title, company: src.publisher_name ?? 'company' }));
+      }
     }
   }
 
   await finish(report.error ? 'partial' : 'ok', sourceMeta);
-  return { report, publishedIds };
+  return { report, publishedIds, urls };
 }
 
 export async function runConveyor(service: Service, want: number): Promise<void> {
@@ -250,12 +256,14 @@ export async function runConveyor(service: Service, want: number): Promise<void>
     const byIso = await countryIds(service);
 
     const ids: string[] = [];
+    const urls: string[] = [];
     const reports: Report[] = [];
     for (const src of (sources ?? []) as Source[]) {
       if (Date.now() > deadline - 20_000) break;
       try {
         const r = await syncOne(service, src, Math.max(0, want - ids.length), cfg, byIso, deadline);
         ids.push(...r.publishedIds);
+        urls.push(...r.urls);
         reports.push(r.report);
       } catch (e) {
         reports.push({ name: src.publisher_name ?? 'Company', country: src.country, fetched: 0, added: 0, removed: 0, more: 0, complete: false, error: e instanceof Error ? e.message : 'Failed' });
@@ -271,6 +279,8 @@ export async function runConveyor(service: Service, want: number): Promise<void>
       p_topup: Math.max(0, want - ids.length),
       p_summary: { text, ok: reports.every((r) => !r.error), companies: reports },
     });
+    // Optional: tell Google about the new job pages (does nothing without the secret).
+    if (urls.length) await notifyGoogle(service, urls);
   } catch (e) {
     await service.rpc('pipeline_finished', { p_kind: 'sync', p_ok: false, p_summary: `Sync failed: ${e instanceof Error ? e.message : 'unknown error'}`, p_detail: null });
   }
