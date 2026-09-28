@@ -143,12 +143,11 @@ function hookFor(c: Campaign, jobs: Job[], seed: number): string {
   }
   if (n === 1) {
     const j = jobs[0];
-    return j.salary ? `${j.company} is hiring — and says what it pays.` : `${j.company} just posted this on its careers page.`;
+    return `${j.company} just posted this on its careers page.`;
   }
-  const withSalary = jobs.filter((j) => j.salary).length;
   return pickBy(
     [
-      `${n} roles that went live in the last 24 hours${withSalary ? `, ${withSalary === n ? 'all' : withSalary} with the salary shown` : ''}.`,
+      `${n} roles that went live in the last 24 hours.`,
       `A few roles worth your attention today — straight from company career pages.`,
       `${companies.join(' and ')}${n > 2 ? ` and ${n - 2} more` : ''} ${companies.length === 1 ? 'is' : 'are'} hiring. Posted today.`,
       `Fresh this morning: ${n} openings, no reposts.`,

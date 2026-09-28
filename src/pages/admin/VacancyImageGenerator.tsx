@@ -417,7 +417,7 @@ export function VacancyImageGenerator() {
   // Headline follows the template until the admin edits it.
   const [headlineTouched, setHeadlineTouched] = useState(false);
   useEffect(() => {
-    if (!headlineTouched) setHeadline(template === 'list' ? 'New jobs this week' : template === 'company' ? 'Now hiring' : template === 'salary' ? 'Salary shown' : 'New job');
+    if (!headlineTouched) setHeadline(template === 'list' ? 'New jobs this week' : template === 'company' ? 'Now hiring' : 'New job');
   }, [template, headlineTouched]);
 
   const picked = useMemo(() => selected.map((id) => jobs.find((j) => j.id === id)).filter((j): j is JobRow => Boolean(j)), [selected, jobs]);
