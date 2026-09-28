@@ -8,9 +8,8 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import './index.css';
 
-// Started fine: clear the one-time reload guard (api/seo.ts) and remove its ?_r= marker.
+// Tidy the address after a repair reload (api/seo.ts adds ?_r=).
 try {
-  sessionStorage.removeItem('mv-boot-retry');
   const u = new URL(window.location.href);
   if (u.searchParams.has('_r')) {
     u.searchParams.delete('_r');
@@ -20,25 +19,45 @@ try {
   /* optional */
 }
 
+// If the page's stylesheet didn't load (a cached page naming a stylesheet
+// from an older deploy), fetch the current one and add it — no reload.
+function ensureStyles() {
+  const probe = document.createElement('div');
+  probe.className = 'hidden';
+  document.body.appendChild(probe);
+  const styled = getComputedStyle(probe).display === 'none';
+  probe.remove();
+  if (styled) return;
+  fetch('/index.html', { cache: 'no-store' })
+    .then((r) => r.text())
+    .then((html) => {
+      for (const m of html.matchAll(/href="(\/assets\/[^"]+\.css)"/g)) {
+        if (document.querySelector(`link[href="${m[1]}"]`)) continue;
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = m[1];
+        document.head.appendChild(link);
+      }
+    })
+    .catch(() => undefined);
+}
+if (document.readyState === 'complete') window.setTimeout(ensureStyles, 200);
+else window.addEventListener('load', () => window.setTimeout(ensureStyles, 200));
+
 // A tab opened before a deploy asks for page files that no longer exist:
 // reload once to get the new ones instead of showing a broken page.
 window.addEventListener('vite:preloadError', (event) => {
-  event.preventDefault();
+  // At most one reload every 2 minutes — never a loop.
   try {
-    if (sessionStorage.getItem('mv-chunk-retry')) return;
-    sessionStorage.setItem('mv-chunk-retry', '1');
+    const last = Number(localStorage.getItem('mv-chunk-retry-at') ?? 0);
+    if (Date.now() - last < 120_000) return;
+    localStorage.setItem('mv-chunk-retry-at', String(Date.now()));
   } catch {
-    /* reload anyway */
+    return;
   }
+  event.preventDefault();
   window.location.reload();
 });
-window.setTimeout(() => {
-  try {
-    sessionStorage.removeItem('mv-chunk-retry');
-  } catch {
-    /* optional */
-  }
-}, 30_000);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

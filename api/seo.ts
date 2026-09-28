@@ -164,7 +164,10 @@ async function getTemplate(origin: string): Promise<string> {
  * sessionStorage stops it from ever looping; main.tsx clears it on success.
  */
 function withBootGuard(html: string): string {
-  const guard = `<script>(function(){var k='mv-boot-retry';function again(){try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1');var u=new URL(location.href);u.searchParams.set('_r',String(Date.now()));location.replace(u.toString());}catch(e){}}window.addEventListener('error',function(e){var t=e&&e.target;if(!t)return;if((t.tagName==='SCRIPT'&&t.type==='module')||(t.tagName==='LINK'&&/stylesheet|modulepreload/.test(t.rel||'')&&/\\/assets\\//.test(t.href||'')))again();},true);setTimeout(function(){if(document.getElementById('ssr'))again();},15000);})();</script>`;
+  // Only for the app's own script failing to load. At most one reload every
+  // 2 minutes (localStorage), so it can never loop. Stylesheet problems are
+  // repaired inside the app without reloading (src/main.tsx).
+  const guard = `<script>(function(){var k='mv-boot-retry-at';function again(){try{var last=+(localStorage.getItem(k)||0);if(Date.now()-last<120000)return;localStorage.setItem(k,String(Date.now()));var u=new URL(location.href);u.searchParams.set('_r',String(Date.now()));location.replace(u.toString());}catch(e){}}window.addEventListener('error',function(e){var t=e&&e.target;if(t&&t.tagName==='SCRIPT'&&t.type==='module'&&/\\/assets\\//.test(t.src||''))again();},true);})();</script>`;
   return html.replace('<head>', `<head>\n${guard}`);
 }
 
