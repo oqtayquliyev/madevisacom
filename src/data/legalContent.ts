@@ -113,7 +113,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         bullets: [
           'Country: to show jobs and visa routes that fit you, we detect the country you browse from — from your browser’s location (only if you allow it; only the country code is kept, never coordinates) or, if you don’t, a rough estimate from your network address. It is saved in a cookie for 180 days and you can change it at any time.',
           'On your device: to make pages load instantly we keep a copy of the job list, your recently viewed jobs and a few display preferences in your browser’s storage. This stays on your device.',
-          'Usage and performance: privacy-friendly analytics that count page views and measure page speed in aggregate, without advertising cookies or cross-site tracking.',
+          'Usage and performance: Google Analytics and Vercel Analytics count page views, how people move through the site and how fast pages load. Advertising features are switched off, IP addresses are shortened, and in the EEA, UK and Switzerland Google Analytics runs without cookies.',
           'Security: a bot check on sign-up and sign-in, and standard server logs (such as network address, time and page requested) kept for a short period to protect the service.',
           'Email verification: when you confirm your email address and which address was confirmed.',
         ],
@@ -149,6 +149,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         bullets: [
           'Supabase — database, authentication and file storage.',
           'Vercel — website hosting, privacy-friendly analytics and performance measurement.',
+          'Google — Google Analytics (visit statistics, with advertising features off).',
           'Google — optional “Sign in with Google” and web fonts.',
           'Cloudflare — the bot check (Turnstile) on sign-up and sign-in.',
           'Cloudinary and our own storage — images such as logos and profile photos.',
@@ -280,8 +281,8 @@ export const legalPages: Record<string, LegalPageContent> = {
     slug: 'cookies',
     title: 'Cookie Policy',
     description: 'The small amount of cookies and browser storage MadeVisa uses, what each one is for, and how to clear them.',
-    intro: `${ENTITY} uses very little: one cookie, plus browser storage that keeps pages fast and keeps you signed in. No advertising cookies. Last updated ${LEGAL_LAST_UPDATED}.`,
-    summary: ['No advertising or cross-site tracking cookies.', 'One cookie remembers your country for 180 days.', 'Browser storage keeps you signed in and makes the job list load instantly.'],
+    intro: `${ENTITY} uses very little: a country cookie, analytics cookies outside Europe, and browser storage that keeps pages fast and keeps you signed in. No advertising cookies. Last updated ${LEGAL_LAST_UPDATED}.`,
+    summary: ['No advertising or cross-site tracking cookies.', 'One cookie remembers your country for 180 days; Google Analytics cookies are used outside Europe only.', 'Browser storage keeps you signed in and makes the job list load instantly.'],
     sections: [
       {
         heading: 'Cookies',
@@ -302,7 +303,10 @@ export const legalPages: Record<string, LegalPageContent> = {
       },
       {
         heading: 'Analytics',
-        paragraphs: ['We measure page views and page speed with privacy-friendly analytics that don’t use cookies and don’t follow you across other sites.'],
+        paragraphs: [
+          'Google Analytics measures visits and how people use the site. Outside the EEA, UK and Switzerland it sets first-party cookies (_ga, _ga_*) that last up to 2 years; inside those regions it runs without cookies. Its advertising features are switched off.',
+          'Vercel Analytics measures page views and page speed without cookies.',
+        ],
       },
       {
         heading: 'Managing them',

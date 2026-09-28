@@ -1,17 +1,24 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9E4ENDTWY0"></script>
+    <meta charset="UTF-8" />
+    <!-- Google tag (gtag.js) — Google Analytics 4.
+         Privacy: ad storage is off everywhere; in the EEA, UK and Switzerland
+         analytics cookies are off too (Google counts those visits cookielessly).
+         Page changes inside the app are tracked by GA4's "page changes based on
+         browser history" setting (on by default). -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+      gtag('consent', 'default', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'granted' });
+      gtag('consent', 'default', {
+        analytics_storage: 'denied',
+        region: ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','GB','CH']
+      });
       gtag('js', new Date());
-
-      gtag('config', 'G-9E4ENDTWY0');
+      gtag('config', 'G-9E4ENDTWY0', { anonymize_ip: true });
     </script>
-
-    <meta charset="UTF-8" />
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9E4ENDTWY0"></script>
 
     <meta name="theme-color" content="#f7f9fc" />
 

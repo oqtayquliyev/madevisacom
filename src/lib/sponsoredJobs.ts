@@ -714,6 +714,7 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
   const companyName = job.publisher?.name ?? companyNameFromUrl(job.official_url ?? job.application_url) ?? 'Company';
   return {
     id: `sponsored-${job.id}`,
+    publisherId: job.publisher_id ?? null,
     title: job.title,
     company: companyName,
     country: job.country?.name ?? 'Various',

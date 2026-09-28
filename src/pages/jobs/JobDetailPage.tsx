@@ -25,6 +25,7 @@ import { EMPTY_FACTS, fetchJobFacts, isCurrentFacts, type JobContact, type Store
 import { allCountries } from '@/data/allCountries';
 import { ReportJobButton } from '@/components/jobs/ReportJobDialog';
 import { JobInsights } from '@/components/jobs/JobInsights';
+import { JobSignals } from '@/components/jobs/JobSignals';
 
 type JobDetailPageProps = {
   id: string;
@@ -406,6 +407,15 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                   </span>
                 )}
               </div>
+              {!closed && (
+                <JobSignals
+                  variant="hero"
+                  publisherId={raw?.publisher_id ?? job.publisherId}
+                  company={job.company}
+                  countryCode={job.countryCode}
+                  visaOffered={job.visaStatus === 'offered' || job.visaSponsorship}
+                />
+              )}
               <ContactBox contact={contact} />
             </div>
 

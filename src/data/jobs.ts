@@ -8,6 +8,8 @@ import type { EligibilityCriteria } from '@/lib/personalization';
 
 export type Job = {
   id: string;
+  /** The company (program_publishers.id) — for reply rates and hiring activity. */
+  publisherId?: string | null;
   title: string;
   company: string;
   country: string;

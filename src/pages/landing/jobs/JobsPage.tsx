@@ -32,6 +32,7 @@ import { moveToBack, recentlyShownIds, rememberShown, visitShuffle } from '@/lib
 import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
+import { JobSignals } from '@/components/jobs/JobSignals';
 import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
@@ -219,6 +220,10 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
       </div>
 
       {job.salary && <p className="mt-3 font-slab text-lg font-bold leading-snug text-ink-950">{job.salary}</p>}
+
+      {!isExternal && !closed && (
+        <JobSignals publisherId={job.publisherId} company={job.company} countryCode={job.countryCode} visaOffered={job.visaStatus === 'offered' || job.visaSponsorship} />
+      )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3.5">
         {closed ? (
