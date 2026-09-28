@@ -388,12 +388,20 @@ type Result = { id: string; url?: string };
 const env = (k: string) => Deno.env.get(k) ?? '';
 export const connected = (p: Platform): boolean =>
   p === 'facebook' ? Boolean(env('FB_PAGE_ID') && env('FB_PAGE_TOKEN'))
-    : p === 'instagram' ? Boolean(env('IG_USER_ID') && (env('IG_ACCESS_TOKEN') || env('FB_PAGE_TOKEN')))
+    : p === 'instagram' ? Boolean(igDirect() ? env('IG_ACCESS_TOKEN') : env('IG_USER_ID') && (env('IG_ACCESS_TOKEN') || env('FB_PAGE_TOKEN')))
       : p === 'linkedin' ? Boolean(env('LINKEDIN_TOKEN') && env('LINKEDIN_AUTHOR'))
         : Boolean(env('TIKTOK_TOKEN'));
 
-async function graph(path: string, params: Record<string, string>, token: string) {
-  const res = await fetch(`https://graph.facebook.com/v21.0/${path}`, { method: 'POST', body: new URLSearchParams({ ...params, access_token: token }) });
+// Instagram works two ways:
+//  - through the Facebook Page: IG_USER_ID + FB_PAGE_TOKEN (graph.facebook.com)
+//  - on its own, "Instagram API with Instagram Login": IG_ACCESS_TOKEN (starts
+//    with "IG…", graph.instagram.com) — no Facebook Page link needed; IG_USER_ID
+//    is optional there ("me" is used).
+const igDirect = () => env('IG_ACCESS_TOKEN').startsWith('IG') || env('IG_API_HOST') === 'instagram';
+const igBase = () => (igDirect() ? 'https://graph.instagram.com/v21.0' : 'https://graph.facebook.com/v21.0');
+
+async function graph(path: string, params: Record<string, string>, token: string, base = 'https://graph.facebook.com/v21.0') {
+  const res = await fetch(`${base}/${path}`, { method: 'POST', body: new URLSearchParams({ ...params, access_token: token }) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.error) throw new Error(`Meta: ${data.error?.message ?? res.status}`);
   return data;
@@ -416,7 +424,7 @@ async function publishFacebook(post: Post): Promise<Result> {
 
 async function waitReady(container: string, token: string) {
   for (let i = 0; i < 10; i++) {
-    const res = await fetch(`https://graph.facebook.com/v21.0/${container}?fields=status_code&access_token=${token}`);
+    const res = await fetch(`${igBase()}/${container}?fields=status_code&access_token=${token}`);
     const d = await res.json().catch(() => ({}));
     if (d.status_code === 'FINISHED') return;
     if (d.status_code === 'ERROR') throw new Error('Instagram could not process the image');
@@ -445,21 +453,22 @@ async function asJpeg(service: Service, pngUrl: string): Promise<string> {
 }
 
 async function publishInstagram(post: Post, service: Service): Promise<Result> {
-  const ig = env('IG_USER_ID');
+  const ig = env('IG_USER_ID') || (igDirect() ? 'me' : '');
   const token = env('IG_ACCESS_TOKEN') || env('FB_PAGE_TOKEN');
+  const base = igBase();
   const urls: string[] = [];
   for (const im of post.images) urls.push(await asJpeg(service, im.url));
   let creation: string;
   if (urls.length === 1) {
-    creation = (await graph(`${ig}/media`, { image_url: urls[0], caption: post.caption }, token)).id;
+    creation = (await graph(`${ig}/media`, { image_url: urls[0], caption: post.caption }, token, base)).id;
   } else {
     const children: string[] = [];
-    for (const u of urls) children.push((await graph(`${ig}/media`, { image_url: u, is_carousel_item: 'true' }, token)).id);
+    for (const u of urls) children.push((await graph(`${ig}/media`, { image_url: u, is_carousel_item: 'true' }, token, base)).id);
     for (const c of children) await waitReady(c, token);
-    creation = (await graph(`${ig}/media`, { media_type: 'CAROUSEL', children: children.join(','), caption: post.caption }, token)).id;
+    creation = (await graph(`${ig}/media`, { media_type: 'CAROUSEL', children: children.join(','), caption: post.caption }, token, base)).id;
   }
   await waitReady(creation, token);
-  const r = await graph(`${ig}/media_publish`, { creation_id: creation }, token);
+  const r = await graph(`${ig}/media_publish`, { creation_id: creation }, token, base);
   return { id: r.id };
 }
 
@@ -486,7 +495,7 @@ async function publishLinkedIn(post: Post): Promise<Result> {
     if (!put.ok) throw new Error(`LinkedIn upload: ${put.status}`);
     urns.push(d.value.image);
   }
-  const content = urns.length === 1 ? { media: { id: urns[0], altText: post.headline } } : { multiImage: { images: urns.map((id) => ({ id, altText: post.headline })) } };
+  const content = urns.length === 1 ? { media: { id: urns[0], altText: post.headline || 'New jobs on MadeVisa' } } : { multiImage: { images: urns.map((id) => ({ id, altText: post.headline || 'New jobs on MadeVisa' })) } };
   const res = await fetch('https://api.linkedin.com/rest/posts', {
     method: 'POST',
     headers,
