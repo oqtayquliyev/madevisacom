@@ -20,6 +20,9 @@
 //   LinkedIn   LINKEDIN_TOKEN, LINKEDIN_AUTHOR    (e.g. urn:li:organization:12345)
 //   TikTok     TIKTOK_TOKEN                       (Content Posting API, photo posts; madevisa.com verified)
 
+import { PNG } from 'npm:pngjs@7.0.0';
+import jpeg from 'npm:jpeg-js@0.4.4';
+import { Buffer } from 'node:buffer';
 import { SITE, type Service } from './shared.ts';
 
 type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok';
@@ -350,15 +353,37 @@ async function waitReady(container: string, token: string) {
   }
 }
 
-async function publishInstagram(post: Post): Promise<Result> {
+/**
+ * Instagram's publishing API accepts JPEG only. Converts the PNG once and
+ * keeps it in the public "social-images" bucket (reused on retries — a run
+ * stopped halfway continues where it left off).
+ */
+async function asJpeg(service: Service, pngUrl: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(pngUrl)));
+  const key = `ig/${[...digest].map((b) => b.toString(16).padStart(2, '0')).join('')}.jpg`;
+  const publicUrl = `${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/social-images/${key}`;
+  const exists = await fetch(publicUrl, { method: 'HEAD' }).catch(() => null);
+  if (exists?.ok) return publicUrl;
+  const res = await fetch(pngUrl);
+  if (!res.ok) throw new Error(`Image didn’t load (${res.status})`);
+  const png = PNG.sync.read(Buffer.from(new Uint8Array(await res.arrayBuffer())));
+  const out = jpeg.encode({ data: png.data, width: png.width, height: png.height }, 90);
+  const { error } = await service.storage.from('social-images').upload(key, out.data, { contentType: 'image/jpeg', upsert: true });
+  if (error) throw new Error(`Saving the JPEG failed: ${error.message} (did you run 20261104090000_social_images_bucket.sql?)`);
+  return publicUrl;
+}
+
+async function publishInstagram(post: Post, service: Service): Promise<Result> {
   const ig = env('IG_USER_ID');
   const token = env('IG_ACCESS_TOKEN') || env('FB_PAGE_TOKEN');
+  const urls: string[] = [];
+  for (const im of post.images) urls.push(await asJpeg(service, im.url));
   let creation: string;
-  if (post.images.length === 1) {
-    creation = (await graph(`${ig}/media`, { image_url: post.images[0].url, caption: post.caption }, token)).id;
+  if (urls.length === 1) {
+    creation = (await graph(`${ig}/media`, { image_url: urls[0], caption: post.caption }, token)).id;
   } else {
     const children: string[] = [];
-    for (const im of post.images) children.push((await graph(`${ig}/media`, { image_url: im.url, is_carousel_item: 'true' }, token)).id);
+    for (const u of urls) children.push((await graph(`${ig}/media`, { image_url: u, is_carousel_item: 'true' }, token)).id);
     for (const c of children) await waitReady(c, token);
     creation = (await graph(`${ig}/media`, { media_type: 'CAROUSEL', children: children.join(','), caption: post.caption }, token)).id;
   }
@@ -425,7 +450,7 @@ async function publishTikTok(post: Post): Promise<Result> {
   return { id: d.data?.publish_id ?? '' };
 }
 
-const PUBLISHERS: Record<Platform, (p: Post) => Promise<Result>> = { facebook: publishFacebook, instagram: publishInstagram, linkedin: publishLinkedIn, tiktok: publishTikTok };
+const PUBLISHERS: Record<Platform, (p: Post, service: Service) => Promise<Result>> = { facebook: publishFacebook, instagram: publishInstagram, linkedin: publishLinkedIn, tiktok: publishTikTok };
 
 async function publishDue(service: Service, platforms: Map<Platform, PlatformRow>, log: string[]) {
   // A run that stopped mid-publish: try again (the network call either happened or didn't).
@@ -461,7 +486,7 @@ async function publishDue(service: Service, platforms: Map<Platform, PlatformRow
 
     await service.from('social_posts').update({ status: 'publishing', attempts: post.attempts + 1 }).eq('id', post.id);
     try {
-      const r = await PUBLISHERS[post.platform](post);
+      const r = await PUBLISHERS[post.platform](post, service);
       await service.from('social_posts').update({ status: 'published', published_at: new Date().toISOString(), external_id: r.id, external_url: r.url ?? null, error: null }).eq('id', post.id);
       log.push(`${post.platform}: published`);
     } catch (e) {
