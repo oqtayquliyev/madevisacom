@@ -186,46 +186,37 @@ function VisaPanel({ fit }: { fit: VisaFit }) {
       </>
     );
   }
-  if (fit.kind === 'citizen' || fit.kind === 'free') {
-    return (
-      <>
-        <p className="font-semibold text-ink-950">No work permit needed</p>
-        <p className="mt-1">{fit.detail}</p>
-        <p className="mt-1 text-xs text-ink-500">Passport: {fit.passportName} — from your profile, or the country you’re browsing from.</p>
-        <PanelLink href={fit.href}>{fit.guide.name}: living and working there</PanelLink>
-      </>
-    );
-  }
-  if (fit.kind === 'no-guide') {
-    return (
-      <>
-        <p className="font-semibold text-ink-950">{fit.label}</p>
-        {fit.detail && <p className="mt-1">{fit.detail}</p>}
-        {fit.sponsored && <p className="mt-1">This job’s ad says the employer offers visa sponsorship.</p>}
-        <p className="mt-1 text-xs text-ink-500">Passport: {fit.passportName}. Always confirm with the employer and the official immigration site.</p>
-        <PanelLink href="/destinations">Visa guides by country</PanelLink>
-      </>
-    );
-  }
-  if (fit.kind !== 'route') return null;
   const r = fit.route;
+  const report = `mailto:hello@madevisa.com?subject=${encodeURIComponent(`Visa info correction: ${fit.passportName} → ${fit.destName}`)}&body=${encodeURIComponent(
+    `The job card says: "${fit.label}" for a passport from ${fit.passportName} working in ${fit.destName}.\n\nWhat's wrong / the correct rule (with an official link if you have one):\n`
+  )}`;
   return (
     <>
       <p className="font-semibold text-ink-950">
-        {r.name} — {fit.guide.name}
+        {r ? `${r.name} — ${fit.guide?.name ?? fit.destName}` : `${fit.label} — ${fit.destName}`}
       </p>
-      <p className="mt-1">{r.summary}</p>
-      <ul className="mt-2 space-y-0.5 text-xs text-ink-600">
-        {fit.asks.length > 0 && <li>Also asks for: {fit.asks.map((a, i) => (i ? a.charAt(0).toLowerCase() + a.slice(1) : a)).join(', ')}</li>}
-        <li>Valid for: {r.validity}</li>
-        {r.fee && <li>Fee: {r.fee}</li>}
-        <li>Counts toward permanent residence: {r.leadsToPR ? 'yes' : 'no'}</li>
-        {fit.more > 0 && <li>{fit.more} more {fit.more === 1 ? 'route' : 'routes'} may fit</li>}
-      </ul>
+      <p className="mt-1">{fit.note}</p>
+      {r && (
+        <ul className="mt-2 space-y-0.5 text-xs text-ink-600">
+          {fit.asks.length > 0 && <li>Also asks for: {fit.asks.map((a, i) => (i ? a.charAt(0).toLowerCase() + a.slice(1) : a)).join(', ')}</li>}
+          <li>Valid for: {r.validity}</li>
+          {r.fee && <li>Fee: {r.fee}</li>}
+          <li>Counts toward permanent residence: {r.leadsToPR ? 'yes' : 'no'}</li>
+          {fit.more > 0 && <li>{fit.more} more {fit.more === 1 ? 'route' : 'routes'} may fit</li>}
+        </ul>
+      )}
+      {fit.sponsored && <p className="mt-1 text-xs text-emerald-700">This job’s ad says the employer offers visa sponsorship.</p>}
       <p className="mt-2 text-xs text-ink-500">
-        Based on MadeVisa’s {fit.guide.name} visa guide (checked {fit.guide.reviewed}) for a passport from {fit.passportName}, assuming this job’s offer. General information, not legal advice.
+        Rule: {fit.applies}
+        {fit.passportRegion ? ` · your passport group: ${fit.passportRegion}` : ''}. {fit.guide ? `From MadeVisa’s ${fit.guide.name} visa guide (checked ${fit.guide.reviewed}).` : `MadeVisa rules, reviewed ${fit.reviewed}.`} General
+        information, not legal advice.
       </p>
-      <PanelLink href={fit.href}>All routes for {fit.guide.name}</PanelLink>
+      <div className="mt-1 flex flex-wrap items-center gap-x-4">
+        <PanelLink href={fit.href}>{fit.guide ? `All routes for ${fit.guide.name}` : 'Visa guides by country'}</PanelLink>
+        <a href={report} className="mt-2 text-xs font-medium text-ink-500 underline hover:text-ink-800">
+          Report a mistake
+        </a>
+      </div>
     </>
   );
 }
@@ -233,21 +224,18 @@ function VisaPanel({ fit }: { fit: VisaFit }) {
 export function VisaRouteSignal({ countryCode, visaOffered, variant = 'card' }: { countryCode: string | null | undefined; visaOffered?: boolean | null; variant?: Variant }) {
   const { profile } = usePersonalization();
   const fit = visaFitFor(countryCode, profile.citizenship, visaOffered);
-  if (!fit) return null;
+  if (!fit) return null; // no permit needed — nothing to show
   const text = variant === 'hero' ? 'text-white/90' : 'text-ink-600';
-  const passport = fit.kind === 'no-passport' ? null : profile.citizenship;
-  const good = fit.kind === 'citizen' || fit.kind === 'free';
 
   return (
     <span className={`flex min-w-0 items-center gap-1.5 text-[12.5px] ${text}`}>
-      {passport ? <CircleFlag countryCode={passport} size={14} /> : <Stamp className={`h-3.5 w-3.5 shrink-0 ${variant === 'hero' ? 'text-white' : 'text-ink-400'}`} aria-hidden />}
+      {fit.kind === 'permit' ? <CircleFlag countryCode={fit.passport} size={14} /> : <Stamp className={`h-3.5 w-3.5 shrink-0 ${variant === 'hero' ? 'text-white' : 'text-ink-400'}`} aria-hidden />}
       <span className="truncate">
         {fit.kind === 'no-passport' ? (
           fit.label
         ) : (
           <>
-            {fit.kind === 'no-guide' && fit.label.startsWith('Your country') ? null : <>Passport from {fit.passportName}: </>}
-            <span className={`font-semibold ${good && variant === 'card' ? 'text-emerald-700' : ''}`}>{fit.label}</span>
+            Passport from {fit.passportName}: <span className="font-semibold">{fit.label}</span>
           </>
         )}
       </span>

@@ -26,7 +26,9 @@ export function PersonalizationBar({ tone = 'light', variant = 'full' }: { tone?
       >
         <MapPin className={`h-3.5 w-3.5 ${onBlue ? 'text-white' : 'text-brand-600'}`} />
         Your location
-        <CountryPicker code={profile.currentLocation} onSelect={(code) => updateProfile({ currentLocation: code })} />
+        {/* Also used as the passport for "Passport from …" on job cards
+            (the visa pages let people pick a different passport). */}
+        <CountryPicker code={profile.currentLocation} onSelect={(code) => updateProfile({ currentLocation: code, citizenship: code })} />
       </div>
     );
   }
