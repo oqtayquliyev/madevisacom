@@ -603,15 +603,6 @@ export default async function handler(req: Request): Promise<Response> {
     const b = q.get('b');
     const s = q.get('s') ?? '';
     let page: Page | Response | null = null;
-    // Short links from social posts: /j/<8 hex>?s=<platform> → the job page.
-    if (r === 'short') {
-      const prefix = a.match(/^[0-9a-f]{8}$/i)?.[0];
-      const j = prefix ? await rpc<SeoJob | null>('seo_job', { p_prefix: prefix }) : null;
-      const src = (q.get('s') ?? '').replace(/[^a-z]/gi, '').slice(0, 20);
-      const utm = src ? `?utm_source=${src}&utm_medium=social&utm_campaign=jobs` : '';
-      const to = j && !j.closed ? `${jobPath(j)}${utm}` : `/jobs${utm}`;
-      return new Response(null, { status: j && !j.closed ? 301 : 302, headers: { Location: to, 'Cache-Control': 'public, s-maxage=3600' } });
-    }
     if (r === 'job' && a) page = await jobPage(a, b, `/jobs/${a}${b ? `/${b}` : ''}`);
     else if (r === 'jobs') page = await jobsPage();
     else if (r === 'home') page = await homePage();

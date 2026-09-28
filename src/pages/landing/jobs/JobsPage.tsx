@@ -32,7 +32,7 @@ import { moveToBack, recentlyShownIds, rememberShown, visitShuffle } from '@/lib
 import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
-import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
 import { PersonalizationBar } from '@/components/opportunities/PersonalizationBar';
@@ -142,7 +142,7 @@ function JobLogo({ job, size = 48 }: { job: Job; size?: number }) {
       style={{ width: size, height: size }}
     >
       {job.imageUrl && !failed ? (
-        <img src={job.imageUrl} alt="" width={size} height={size} loading="lazy" decoding="async" onError={() => setFailed(true)} className="h-full w-full object-contain p-1.5" />
+        <img src={job.imageUrl} alt="" onError={() => setFailed(true)} className="h-full w-full object-contain p-1.5" />
       ) : (
         <CompanyLogo name={job.company} size={size - 6} />
       )}
@@ -417,21 +417,11 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       experienceLevel !== 'All levels' || datePosted !== 'Any time' || directOnly || studentOnly || visaOnly,
   );
   // Once the full list is loaded it stays (clearing a search doesn't reload).
-  // The full list is ~70k jobs (megabytes, seconds of phone CPU), so a
-  // first-time guest gets only the newest jobs — one small request. It loads
-  // as soon as someone searches or filters, is signed in, or already has a
-  // saved copy on this device (then it costs only a tiny "what's new" check).
-  const [wantFull, setWantFull] = useState(false);
+  // Everyone (guests too) gets the full list, so search, filters and counts cover every job; guests are only limited by "Show more".
+  const [wantFull, setWantFull] = useState(true);
   useEffect(() => {
     if (session || hasQuery) setWantFull(true);
   }, [session, hasQuery]);
-  useEffect(() => {
-    let alive = true;
-    hasSavedJobList().then((saved) => alive && saved && setWantFull(true));
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
