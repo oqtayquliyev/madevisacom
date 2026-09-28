@@ -456,7 +456,7 @@ export function PublishReleasePanel({ onPublished }: { onPublished?: () => void 
               <ul className="mt-2 space-y-1.5">
                 {auto.log.map((l, i) => (
                   <li key={i} className={`text-xs leading-5 ${l.ok ? 'text-ink-700' : 'text-rose-700'}`}>
-                    <span className="tabular-nums text-ink-400">{clock(l.at)}</span> <span className="font-medium">{l.kind === 'find' ? 'Find' : l.kind === 'articles' ? 'Reports' : l.kind === 'social' ? 'Social' : 'Sync'}</span> — {l.summary}
+                    <span className="tabular-nums text-ink-400">{clock(l.at)}</span> <span className="font-medium">{l.kind === 'find' ? 'Find' : l.kind === 'articles' ? 'Reports' : 'Sync'}</span> — {l.summary}
                   </li>
                 ))}
               </ul>

@@ -3,7 +3,7 @@ import { EvidenceReviewSection } from '@/pages/admin/EvidenceReviewSection';
 import { ListingRequestsSection } from '@/pages/admin/ListingRequestsSection';
 import { PublishReleasePanel } from '@/pages/admin/PublishReleasePanel';
 import { ArticlesSection } from '@/pages/admin/ArticlesSection';
-import { SocialSection } from '@/pages/admin/SocialSection';
+import { VacancyImageGenerator } from '@/pages/admin/VacancyImageGenerator';
 import { ExperienceReportsSection } from '@/pages/admin/ExperienceReportsSection';
 import { JobReportsSection } from '@/pages/admin/JobReportsSection';
 import { countNewJobReports } from '@/lib/jobReports';
@@ -120,7 +120,7 @@ const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Inbox }[] = [
   { key: 'imports', label: 'Import & sync', icon: RefreshCw },
   { key: 'companies', label: 'Companies & access', icon: Building2 },
   { key: 'articles', label: 'Articles', icon: Newspaper },
-  { key: 'images', label: 'Social media', icon: ImageIcon },
+  { key: 'images', label: 'Social images', icon: ImageIcon },
   { key: 'settings', label: 'Settings', icon: Settings },
 ];
 const INBOX_SEEN_KEY = 'mv_admin_inbox_seen_at';
@@ -654,7 +654,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
 
             {tab === 'articles' && <ArticlesSection />}
 
-            {tab === 'images' && <SocialSection />}
+            {tab === 'images' && <VacancyImageGenerator />}
 
             {tab === 'settings' && (
               <>

@@ -395,9 +395,6 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
           <img
             src={item.imageUrl!}
             alt=""
-            width={56}
-            height={56}
-            decoding="async"
             onError={() => setImgFailed(true)}
             className="h-14 w-14 shrink-0 rounded border border-ink-100 bg-white object-contain p-1"
           />
