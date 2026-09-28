@@ -49,6 +49,9 @@ export function OriginCountryProvider({ children }: { children: ReactNode }) {
     setCountryCode(code);
     setIsAutoDetected(false);
     setStoredCountry(code);
+    // Jobs use this country for "Passport from …: <visa route>" too
+    // (PersonalizationProvider listens), so changing it updates every card.
+    window.dispatchEvent(new CustomEvent('madevisa:origin-country', { detail: code }));
   };
 
   return (

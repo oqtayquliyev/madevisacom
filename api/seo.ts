@@ -141,38 +141,28 @@ type Page = {
 const SSR_CSS = `#ssr{font-family:Inter,ui-sans-serif,system-ui,sans-serif;max-width:880px;margin:0 auto;padding:28px 20px 60px;color:#0f172a;line-height:1.65}#ssr a{color:#1d4ed8}#ssr h1{font-size:30px;line-height:1.25;margin:12px 0}#ssr h2{font-size:21px;margin:28px 0 8px}#ssr .crumbs{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0;margin:0;font-size:14px;color:#64748b}#ssr .crumbs li+li:before{content:"›";margin-right:6px}#ssr .meta{color:#475569;font-size:15px}#ssr ul.links{padding-left:18px}#ssr table{border-collapse:collapse;width:100%}#ssr td,#ssr th{border-bottom:1px solid #e2e8f0;padding:6px 8px;text-align:left}`;
 
 let template: { html: string; at: number } | null = null;
-
-// Only accept the file if it is really the app's index.html. A protected
-// deployment answers 200 with Vercel's login page instead, which must never be used.
-const isApp = (h: string) => h.includes('<div id="root"></div>') && !h.includes('geist-skip-nav');
-
-async function fetchIndex(base: string): Promise<string | null> {
-  const bypass = env('VERCEL_AUTOMATION_BYPASS_SECRET');
-  const res = await fetch(`${base}/index.html`, bypass ? { headers: { 'x-vercel-protection-bypass': bypass } } : undefined).catch(() => null);
-  if (!res || !res.ok) return null;
-  const text = await res.text();
-  return isApp(text) ? text : null;
-}
-
 async function getTemplate(origin: string): Promise<string> {
   if (template && Date.now() - template.at < 5 * 60_000) return template.html;
-  // Prefer this deployment's own address (it names exactly the script files this
-  // deployment ships), then fall back to the public domain.
+  // Prefer this deployment's own address: the page must name exactly the
+  // script files this deployment ships. (The public domain can still point at
+  // the previous deployment for a moment while a new one goes live.)
   const own = env('VERCEL_URL');
-  const html = (own && (await fetchIndex(`https://${own}`))) || (await fetchIndex(origin));
-  if (!html) throw new Error('template unavailable');
-  template = { html: withBootGuard(html), at: Date.now() };
+  let res: Response | null = null;
+  if (own) res = await fetch(`https://${own}/index.html`).catch(() => null);
+  if (!res || !res.ok) res = await fetch(`${origin}/index.html`);
+  if (!res.ok) throw new Error(`template ${res.status}`);
+  template = { html: withBootGuard(await res.text()), at: Date.now() };
   return template.html;
 }
 
 /**
- * If the app's script fails to load (a copy of this page cached before a
- * deploy that renamed the files), reload once from a fresh address, which
+ * If the app's script or stylesheet fails to load (a copy of this page cached
+ * before a deploy that renamed the files), reload once from a fresh address, which
  * skips the cached copy. Also covers the app not starting within 15 s.
  * sessionStorage stops it from ever looping; main.tsx clears it on success.
  */
 function withBootGuard(html: string): string {
-  const guard = `<script>(function(){var k='mv-boot-retry';function again(){try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1');var u=new URL(location.href);u.searchParams.set('_r',String(Date.now()));location.replace(u.toString());}catch(e){}}window.addEventListener('error',function(e){var t=e&&e.target;if(t&&t.tagName==='SCRIPT'&&t.type==='module')again();},true);setTimeout(function(){if(document.getElementById('ssr'))again();},15000);})();</script>`;
+  const guard = `<script>(function(){var k='mv-boot-retry';function again(){try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1');var u=new URL(location.href);u.searchParams.set('_r',String(Date.now()));location.replace(u.toString());}catch(e){}}window.addEventListener('error',function(e){var t=e&&e.target;if(!t)return;if((t.tagName==='SCRIPT'&&t.type==='module')||(t.tagName==='LINK'&&/stylesheet|modulepreload/.test(t.rel||'')&&/\\/assets\\//.test(t.href||'')))again();},true);setTimeout(function(){if(document.getElementById('ssr'))again();},15000);})();</script>`;
   return html.replace('<head>', `<head>\n${guard}`);
 }
 

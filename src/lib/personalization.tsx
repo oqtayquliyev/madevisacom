@@ -83,6 +83,18 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // "Your location" changed on the site → use it as the passport and
+  // current location too (visitors can still pick a different passport on
+  // the visa pages).
+  useEffect(() => {
+    const onOrigin = (e: Event) => {
+      const code = (e as CustomEvent<string>).detail;
+      if (typeof code === 'string' && code) setProfileState((current) => ({ ...current, citizenship: code, currentLocation: code }));
+    };
+    window.addEventListener('madevisa:origin-country', onOrigin);
+    return () => window.removeEventListener('madevisa:origin-country', onOrigin);
+  }, []);
+
   const setProfile = (next: Personalization) => setProfileState(next);
   const updateProfile = (patch: Partial<Personalization>) =>
     setProfileState((current) => ({ ...current, ...patch }));

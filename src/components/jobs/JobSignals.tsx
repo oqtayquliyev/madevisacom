@@ -110,7 +110,7 @@ function PanelLink({ href, children }: { href: string; children: React.ReactNode
 // Line 1 — replies (or hiring activity)
 // ---------------------------------------------------------------------------
 
-type ReplyLine = { icon: typeof MessageCircle; text: string; strong: boolean };
+type ReplyLine = { icon: typeof MessageCircle; text: string; strong: boolean; tone?: 'active' | 'very-active' };
 
 function replyLine(s: CompanySignal): ReplyLine | null {
   if (s.response_rate != null) {
@@ -119,8 +119,8 @@ function replyLine(s: CompanySignal): ReplyLine | null {
     return { icon: MessageCircle, text: `Replies to ${replyRatio(s.response_rate)} applicants${time ? ` · ${time}` : ''}`, strong: true };
   }
   const n = s.posted_30d;
-  if (n >= 20) return { icon: Activity, text: `Very active hiring · ${n} new roles in 30 days`, strong: false };
-  if (n >= 5) return { icon: Activity, text: `Actively hiring · ${n} new roles in 30 days`, strong: false };
+  if (n >= 20) return { icon: Activity, text: `Very active hiring · ${n} new roles in 30 days`, strong: true, tone: 'very-active' };
+  if (n >= 5) return { icon: Activity, text: `Actively hiring · ${n} new roles in 30 days`, strong: false, tone: 'active' };
   if (n >= 1) return { icon: Activity, text: `Hiring · ${n} new ${n === 1 ? 'role' : 'roles'} this month`, strong: false };
   if (s.live > 0) return { icon: Activity, text: `${s.live} open ${s.live === 1 ? 'role' : 'roles'} on MadeVisa`, strong: false };
   return null;
@@ -138,8 +138,14 @@ export function CompanyReplySignal({ publisherId, company, variant = 'card' }: {
 
   return (
     <span className={`flex min-w-0 items-center gap-1.5 text-[12.5px] ${text}`}>
-      <Icon className={`h-3.5 w-3.5 shrink-0 ${variant === 'hero' ? 'text-white' : line.strong ? 'text-brand-600' : 'text-ink-400'}`} aria-hidden />
-      <span className={`truncate ${line.strong ? 'font-semibold' : ''}`}>{line.text}</span>
+      <Icon
+        className={`h-3.5 w-3.5 shrink-0 ${
+          variant === 'hero' ? (line.tone ? 'text-emerald-300' : 'text-white') : line.tone ? 'text-emerald-600' : line.strong ? 'text-brand-600' : 'text-ink-400'
+        }`}
+        strokeWidth={line.tone === 'very-active' ? 3 : line.tone === 'active' ? 2.5 : 2}
+        aria-hidden
+      />
+      <span className={`truncate ${line.strong ? 'font-semibold' : ''} ${line.tone === 'very-active' && variant === 'card' ? 'text-emerald-700' : ''}`}>{line.text}</span>
       <InfoTip label="What this is based on" variant={variant}>
         {s.response_rate != null ? (
           <>
