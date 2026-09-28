@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, CheckCircle2, Copy, Download, ExternalLink, Loader2, Play, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
+import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Check, CheckCircle2, Copy, Download, ExternalLink, Loader2, PencilLine, Play, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { VacancyImageGenerator } from '@/pages/admin/VacancyImageGenerator';
 
@@ -23,7 +23,7 @@ type Campaign = {
   kind: 'fresh' | 'student' | 'category' | 'company';
   platforms: Platform[];
   every_minutes: number;
-  format: 'list' | 'carousel' | 'single';
+  format: 'list' | 'carousel' | 'single' | 'company';
   jobs_count: number;
   min_jobs: number;
   categories: string[];
@@ -88,11 +88,109 @@ const STATUS_LABEL: Record<Post['status'], string> = {
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Image texts — every text on a generated image is a URL parameter of
+// /api/og/social, so editing = rewriting the image URLs. Empty hides a text.
+// ---------------------------------------------------------------------------
+
+type ImageTexts = { h: string; hi: string; d: string; tag: string; cta: string; link: string; hire: string; sub: string; ht: string };
+const TEXT_DEFAULTS: Omit<ImageTexts, 'h'> = { hi: 'zap', d: '', tag: 'Be an early applicant', cta: 'Apply on MadeVisa', link: '', hire: 'is hiring', sub: 'Role & how to apply in the caption', ht: '1' };
+const isOg = (u: string) => u.includes('/api/og/social');
+
+function readTexts(url: string, headline: string): ImageTexts {
+  const q = new URL(url, window.location.origin).searchParams;
+  const get = (k: keyof ImageTexts, d: string) => (q.has(k) ? (q.get(k) ?? '') : d);
+  return {
+    h: get('h', headline),
+    hi: get('hi', TEXT_DEFAULTS.hi),
+    d: get('d', new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })),
+    tag: get('tag', TEXT_DEFAULTS.tag),
+    cta: get('cta', TEXT_DEFAULTS.cta),
+    link: get('link', TEXT_DEFAULTS.link),
+    hire: get('hire', TEXT_DEFAULTS.hire),
+    sub: get('sub', TEXT_DEFAULTS.sub),
+    ht: get('ht', TEXT_DEFAULTS.ht),
+  };
+}
+
+/** Same URL with the texts applied. Single-job images keep their own headline unless `allHeadlines`. */
+function withTexts(url: string, t: ImageTexts, setHeadline: boolean): string {
+  const u = new URL(url, window.location.origin);
+  for (const [k, v] of Object.entries(t) as [keyof ImageTexts, string][]) {
+    if (k === 'h' && !setHeadline) continue;
+    if (k === 'link' && !v) u.searchParams.delete('link');
+    else u.searchParams.set(k, v);
+  }
+  return u.toString();
+}
+
+function ImageTextEditor({ post, onSave, busy }: { post: Post; onSave: (patch: Partial<Post>) => void; busy: boolean }) {
+  const first = post.images.find((im) => isOg(im.url));
+  const [t, setT] = useState<ImageTexts>(() => (first ? readTexts(first.url, post.headline) : { h: post.headline, ...TEXT_DEFAULTS }));
+  if (!first) return null;
+  const layout = new URL(first.url, window.location.origin).searchParams.get('layout') ?? 'list';
+  // Carousel of single-job images: each has its own headline, so only change it when edited.
+  const headlineEdited = t.h !== readTexts(first.url, post.headline).h;
+  const setHeadline = layout !== 'single' || post.images.length === 1 || headlineEdited;
+  const images = post.images.map((im) => (isOg(im.url) ? { ...im, url: withTexts(im.url, t, setHeadline) } : im));
+  const set = (k: keyof ImageTexts) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setT((x) => ({ ...x, [k]: e.target.value }));
+  const field = (k: keyof ImageTexts, label: string, hint?: string) => (
+    <label className="text-xs font-medium text-ink-700">
+      {label}
+      <input className={`${input} mt-1`} value={t[k]} onChange={set(k)} placeholder={hint ?? 'Empty = hidden'} />
+    </label>
+  );
+  return (
+    <div className="mt-3 rounded-lg border border-ink-200 bg-ink-50/60 p-3">
+      <div className="grid gap-2 sm:grid-cols-2">
+        {field('h', 'Headline', 'e.g. 3 new jobs')}
+        <label className="text-xs font-medium text-ink-700">
+          Headline icon
+          <select className={`${input} mt-1`} value={t.hi} onChange={set('hi')}>
+            <option value="zap">⚡ Lightning</option>
+            <option value="party">🎉 Party</option>
+            <option value="none">None</option>
+          </select>
+        </label>
+        {field('tag', 'Tag on each job')}
+        {field('d', 'Date pill')}
+        {field('cta', 'Button text')}
+        {field('link', 'Footer link (globe icon)', 'Default: madevisa.com/jobs')}
+        {layout === 'company' && field('hire', 'Under company name')}
+        {layout === 'company' && field('sub', 'Small line')}
+        {layout === 'list' && (
+          <label className="text-xs font-medium text-ink-700">
+            Role hashtags on image
+            <select className={`${input} mt-1`} value={t.ht} onChange={set('ht')}>
+              <option value="1">Show</option>
+              <option value="0">Hide</option>
+            </select>
+          </label>
+        )}
+      </div>
+      <div className={`mt-3 grid gap-2 ${images.length > 1 ? 'grid-cols-3' : 'max-w-[260px]'}`}>
+        {images.map((im) => (
+          <img key={im.url} src={im.url} alt="Preview" loading="lazy" width={im.width} height={im.height} className="h-auto w-full rounded-md border border-ink-200 bg-white" />
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] text-ink-500">The preview redraws from the texts above. Save before approving.</p>
+      <button
+        onClick={() => onSave({ images, headline: setHeadline ? t.h : post.headline })}
+        disabled={busy}
+        className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-ink-950 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+      >
+        <Save className="h-3.5 w-3.5" /> Save image texts
+      </button>
+    </div>
+  );
+}
+
 function PostCard({ post, campaign, onChange }: { post: Post; campaign?: Campaign; onChange: () => void }) {
   const [caption, setCaption] = useState(post.caption);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [editTexts, setEditTexts] = useState(false);
   const dirty = caption !== post.caption;
   const editable = ['awaiting_approval', 'approved', 'manual', 'failed'].includes(post.status);
 
@@ -124,7 +222,7 @@ function PostCard({ post, campaign, onChange }: { post: Post; campaign?: Campaig
         <span className="rounded-full bg-ink-950 px-2.5 py-0.5 font-semibold text-white">{PLATFORM_LABEL[post.platform]}</span>
         <span className={`rounded-full px-2.5 py-0.5 font-semibold ${STATUS_STYLE[post.status]}`}>{STATUS_LABEL[post.status]}</span>
         <span className="text-ink-500">
-          {campaign?.name ?? 'Campaign'} · {post.format === 'list' ? 'List image' : post.format === 'carousel' ? `${post.images.length} images` : 'Single job'} · {when(post.published_at ?? post.created_at)}
+          {campaign?.name ?? 'Campaign'} · {post.format === 'list' ? 'List image' : post.format === 'carousel' ? `${post.images.length} images` : post.format === 'company' ? `Company · ${post.images.length} ${post.images.length === 1 ? 'image' : 'images'}` : 'Single job'} · {when(post.published_at ?? post.created_at)}
         </span>
         {post.external_url && (
           <a href={post.external_url} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 font-semibold text-brand-700 hover:underline">
@@ -167,6 +265,7 @@ function PostCard({ post, campaign, onChange }: { post: Post; campaign?: Campaig
               ))}
             </ul>
           )}
+          {editable && editTexts && <ImageTextEditor post={post} busy={busy !== null} onSave={(patch) => void update(patch, 'texts').then(() => setEditTexts(false))} />}
           {post.error && <p className="mt-2 rounded-md bg-rose-50 px-2.5 py-1.5 text-xs text-rose-800">{post.error}</p>}
           {err && <p className="mt-2 rounded-md bg-rose-50 px-2.5 py-1.5 text-xs text-rose-800">{err}</p>}
 
@@ -200,6 +299,11 @@ function PostCard({ post, campaign, onChange }: { post: Post; campaign?: Campaig
                 className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" /> Mark as posted
+              </button>
+            )}
+            {editable && post.images.some((im) => isOg(im.url)) && (
+              <button onClick={() => setEditTexts((v) => !v)} className="inline-flex items-center gap-1.5 rounded-md border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-50">
+                <PencilLine className="h-3.5 w-3.5" /> {editTexts ? 'Close image texts' : 'Edit image texts'}
               </button>
             )}
             <button onClick={() => void download()} className="inline-flex items-center gap-1.5 rounded-md border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-50">
@@ -284,6 +388,7 @@ function CampaignForm({ c, onDone }: { c: Partial<Campaign>; onDone: () => void 
             <option value="list">One image, up to 5 jobs</option>
             <option value="carousel">Up to 3 images, one caption</option>
             <option value="single">One job</option>
+            <option value="company">Company only — logo, name, “is hiring” (details in caption)</option>
           </select>
         </label>
         <label className="text-xs font-medium text-ink-700">
@@ -472,7 +577,7 @@ export function SocialSection() {
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${c.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-ink-100 text-ink-500'}`}>{c.enabled ? 'On' : 'Off'}</span>
                   </p>
                   <p className="mt-0.5 text-xs text-ink-500">
-                    {FREQ.find(([m]) => m === c.every_minutes)?.[1] ?? `Every ${c.every_minutes} min`} · {c.format === 'list' ? `list of up to ${c.jobs_count}` : c.format === 'carousel' ? 'up to 3 images' : 'one job'} ·{' '}
+                    {FREQ.find(([m]) => m === c.every_minutes)?.[1] ?? `Every ${c.every_minutes} min`} · {c.format === 'list' ? `list of up to ${c.jobs_count}` : c.format === 'carousel' ? 'up to 3 images' : c.format === 'company' ? 'company images' : 'one job'} ·{' '}
                     {c.platforms.map((p) => PLATFORM_LABEL[p]).join(', ')}
                     {c.categories.length ? ` · ${c.categories.join(', ')}` : ''}
                     {c.require_approval ? ' · needs approval' : ' · automatic'}

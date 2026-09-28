@@ -140,6 +140,9 @@ export function ApplicantReport({
     new Map(),
   );
   const [filter, setFilter] = useState<Filter>("all");
+  // Long lists stay short: show the latest few, then "Load more".
+  const [pendingLimit, setPendingLimit] = useState(PAGE);
+  const [shownLimit, setShownLimit] = useState(PAGE);
   const [confirmDelete, setConfirmDelete] = useState<ApplicationReport | null>(
     null,
   );
@@ -207,7 +210,7 @@ export function ApplicantReport({
             tracking.
           </p>
           <ul className="mt-3 space-y-2">
-            {pending.map((r) => (
+            {withFocused(pending, pendingLimit, focusListingId).map((r) => (
               <ConfirmRow
                 key={r.id}
                 r={r}
@@ -224,6 +227,11 @@ export function ApplicantReport({
               />
             ))}
           </ul>
+          <LoadMore
+            total={pending.length}
+            limit={pendingLimit}
+            onMore={() => setPendingLimit((n) => n + PAGE)}
+          />
         </section>
       )}
 
@@ -277,7 +285,7 @@ export function ApplicantReport({
           </p>
         ) : (
           <ul className="mt-4 space-y-3">
-            {shown.map((r) => (
+            {withFocused(shown, shownLimit, focusListingId).map((r) => (
               <TrackCard
                 key={r.id}
                 r={r}
@@ -291,6 +299,13 @@ export function ApplicantReport({
               />
             ))}
           </ul>
+        )}
+        {shown.length > 0 && (
+          <LoadMore
+            total={shown.length}
+            limit={shownLimit}
+            onMore={() => setShownLimit((n) => n + PAGE)}
+          />
         )}
 
         <p className="mt-3 text-[11px] leading-5 text-ink-400">
@@ -1233,6 +1248,52 @@ function ConfirmDelete({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Short lists: latest PAGE items first, "Load more" for the rest.
+// ---------------------------------------------------------------------------
+
+const PAGE = 5;
+
+/** First `limit` rows — plus the focused one (from a link) if it's further down. */
+function withFocused<T extends { listing_id: string | null }>(
+  rows: T[],
+  limit: number,
+  focusId: string | null | undefined,
+): T[] {
+  const head = rows.slice(0, limit);
+  if (!focusId || head.some((r) => r.listing_id === focusId)) return head;
+  const f = rows.find((r) => r.listing_id === focusId);
+  return f ? [...head, f] : head;
+}
+
+function LoadMore({
+  total,
+  limit,
+  onMore,
+}: {
+  total: number;
+  limit: number;
+  onMore: () => void;
+}) {
+  if (total <= limit) return null;
+  const next = Math.min(PAGE, total - limit);
+  return (
+    <div className="mt-3 flex justify-center">
+      <button
+        type="button"
+        onClick={onMore}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-[#2563EB]/30 bg-white px-4 py-2 text-sm font-semibold text-[#2563EB] hover:bg-[#2563EB]/5"
+      >
+        <ChevronDown className="h-4 w-4" />
+        Load {next} more
+        <span className="font-medium text-ink-400">
+          · {total - limit} left
+        </span>
+      </button>
     </div>
   );
 }

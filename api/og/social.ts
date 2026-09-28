@@ -1,5 +1,12 @@
-// GET /api/og/social?layout=list|single&ids=<8-hex,…>&size=portrait|square|story&h=<headline>&d=<date label>&s=<platform>
+// GET /api/og/social?layout=list|single|company&ids=<8-hex,…>&size=portrait|square|story&h=<headline>&d=<date label>&s=<platform>
 //   → PNG for a social post, drawn at the edge from live job data.
+// Every text on the image can be changed from the admin panel before posting:
+//   h    headline                     hi   headline icon: zap | party | none
+//   d    date pill (empty = hidden)   tag  per-job tag, e.g. "Be an early applicant" (empty = hidden)
+//   cta  button text                  link footer link text (globe icon in front)
+//   hire company template: word under the company name ("is hiring")
+//   sub  company template: small line under it (empty = hidden)
+//   ht   0 = hide the role hashtags on the image
 // Add &check=1 → JSON { ok, issues[] } instead of the image: the same layout
 // maths, so the pipeline and the admin preview can see problems (a job no
 // longer live, a title that had to be shortened, a logo that can't be drawn)
@@ -37,6 +44,8 @@ type Job = {
   posted: string | null;
 };
 
+type Texts = { icon: 'zap' | 'party' | 'none'; tag: string; cta: string; link: string; hire: string; sub: string; hashtags: boolean };
+
 type SizeKey = 'portrait' | 'square' | 'story';
 const SIZES: Record<SizeKey, { w: number; h: number; top: number; bottom: number; side: number; head: number; title: number; meta: number; chip: number; maxRows: number }> = {
   // Instagram / Facebook / LinkedIn feed (4:5)
@@ -65,6 +74,61 @@ function fit(text: string, sizes: number[], width: number, maxLines: number, wei
   const s = sizes[sizes.length - 1];
   const c = cut(text, s, width, weight, maxLines);
   return { size: s, text: c.text, cut: c.cut, lines: maxLines };
+}
+
+// Icons drawn here (not in ../_og) so this template owns its look.
+function svg(size: number, paths: string[], o: { stroke: string; fill?: string; width?: number }): El {
+  return {
+    type: 'svg',
+    props: {
+      width: size,
+      height: size,
+      viewBox: '0 0 24 24',
+      fill: o.fill ?? 'none',
+      stroke: o.stroke,
+      strokeWidth: o.width ?? 2,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      style: { flexShrink: 0 },
+      children: paths.map((d) => ({ type: 'path', props: { d } })),
+    },
+  } as unknown as El;
+}
+const ZAP = ['M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z'];
+const PARTY = [
+  'M5.8 11.3 2 22l10.7-3.79',
+  'M4 3h.01',
+  'M22 8h.01',
+  'M15 2h.01',
+  'M22 20h.01',
+  'm22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10',
+  'm22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11c-.11.7-.72 1.22-1.43 1.22H17',
+  'm11 2 .33.82c.34.86-.2 1.82-1.11 1.98C9.52 4.9 9 5.52 9 6.23V7',
+  'M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2Z',
+];
+const GLOBE = ['M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20', 'M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20', 'M2 12h20'];
+
+/** "#CustomerExperienceAdvisor" from "Customer Experience Advisor | S1 | Retail Banking". */
+export function roleTag(title: string): string {
+  const core = title.replace(/\s*\((m|f|w|d|x)\/(m|f|w|d|x)(\/(m|f|w|d|x))?\)\s*/gi, ' ').split(/\s[|–—-]\s|[|,(/]/)[0];
+  const words = core
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 4)
+    .map((w) => w[0].toUpperCase() + w.slice(1));
+  const tag = words.join('').slice(0, 32);
+  return tag.length >= 3 ? `#${tag}` : '';
+}
+
+/** "Be an early applicant" — same look as on the job page: bold caps, lightning. */
+function earlyTag(text: string, size: number): El {
+  return h(
+    'div',
+    { alignItems: 'center', backgroundColor: '#EFF6FF', color: '#1D4ED8', border: '2px solid #BFDBFE', fontSize: size, fontWeight: 800, letterSpacing: 0.8, padding: `${Math.round(size * 0.28)}px ${Math.round(size * 0.6)}px`, borderRadius: 8, marginRight: 10, fontFamily: SANS, flexShrink: 0 },
+    svg(Math.round(size * 1.05), ZAP, { stroke: '#1D4ED8', fill: '#1D4ED8', width: 1.5 }),
+    h('div', { marginLeft: Math.round(size * 0.35) }, text.toUpperCase())
+  );
 }
 
 const cleanTitle = (t: string) => t.replace(/\s*\((m|f|w|d|x)\/(m|f|w|d|x)(\/(m|f|w|d|x))?\)\s*/gi, ' ').replace(/\s+/g, ' ').trim();
@@ -116,7 +180,7 @@ function chip(text: string, size: number, kind: 'salary' | 'tag'): El {
 
 type Issue = { level: 'error' | 'warning'; message: string };
 
-async function draw(layout: 'list' | 'single', sizeKey: SizeKey, jobs: Job[], headline: string, dateLabel: string, platform: string, origin: string) {
+async function draw(layout: 'list' | 'single' | 'company', sizeKey: SizeKey, jobs: Job[], headline: string, dateLabel: string, T: Texts) {
   const S = SIZES[sizeKey];
   const issues: Issue[] = [];
   const inner = S.w - S.side * 2;
@@ -128,15 +192,31 @@ async function draw(layout: 'list' | 'single', sizeKey: SizeKey, jobs: Job[], he
   const headerH = sizeKey === 'story' ? 330 : sizeKey === 'square' ? 200 : 250;
   const footerH = sizeKey === 'story' ? 150 : 110;
   const cardH = S.h - S.top - S.bottom - headerH - footerH;
+  const tagSize = Math.round(S.chip * 0.95);
 
-  const head = fit(headline, [S.head, Math.round(S.head * 0.86), Math.round(S.head * 0.74)], inner, 2, 800);
+  // One spacing unit between every block (header ↔ card ↔ footer), so the
+  // headline can never touch or overlap the white card.
+  const GAP = sizeKey === 'story' ? 40 : sizeKey === 'square' ? 26 : 32;
+  const iconSize = T.icon === 'none' ? 0 : Math.round(S.head * 0.95);
+  const headW = inner - (iconSize ? iconSize + 18 : 0);
+  const head = fit(headline, [S.head, Math.round(S.head * 0.86), Math.round(S.head * 0.74)], headW, 2, 800);
   if (head.cut) issues.push({ level: 'warning', message: 'Headline shortened to fit' });
 
   const header = h(
     'div',
-    { flexDirection: 'column', height: headerH, flexShrink: 0, justifyContent: 'space-between' },
-    h('div', { alignItems: 'center', justifyContent: 'space-between', width: inner }, brand('white', sizeKey === 'story' ? 40 : 34), pill(dateLabel.toUpperCase(), { bg: 'rgba(255,255,255,0.18)', color: 'white', size: sizeKey === 'story' ? 22 : 19 })),
-    h('div', { flexDirection: 'column', width: inner, overflow: 'hidden', maxHeight: Math.round(head.size * 1.12 * 2) + 4 }, h('div', { fontSize: head.size, fontWeight: 800, color: 'white', lineHeight: 1.1, letterSpacing: -1, fontFamily: SANS }, head.text))
+    { flexDirection: 'column', height: headerH, flexShrink: 0, justifyContent: 'space-between', paddingBottom: GAP },
+    h(
+      'div',
+      { alignItems: 'center', justifyContent: 'space-between', width: inner },
+      brand('white', sizeKey === 'story' ? 40 : 34),
+      dateLabel ? pill(dateLabel.toUpperCase(), { bg: 'rgba(255,255,255,0.18)', color: 'white', size: sizeKey === 'story' ? 22 : 19 }) : null
+    ),
+    h(
+      'div',
+      { alignItems: 'center', width: inner, overflow: 'hidden', maxHeight: Math.round(head.size * 1.12 * 2) + 4 },
+      iconSize ? h('div', { marginRight: 18, flexShrink: 0 }, T.icon === 'zap' ? svg(iconSize, ZAP, { stroke: '#FDE047', fill: '#FDE047', width: 1.5 }) : svg(iconSize, PARTY, { stroke: '#FDE047', width: 2.2 })) : null,
+      h('div', { width: headW, fontSize: head.size, fontWeight: 800, color: 'white', lineHeight: 1.1, letterSpacing: -1, fontFamily: SANS }, head.text)
+    )
   );
 
   let body: El;
@@ -145,7 +225,7 @@ async function draw(layout: 'list' | 'single', sizeKey: SizeKey, jobs: Job[], he
     if (jobs.length > S.maxRows) issues.push({ level: 'warning', message: `Only ${S.maxRows} jobs fit this size — ${jobs.length - S.maxRows} left out` });
     const padY = 22;
     const rowH = Math.floor((cardH - padY * 2) / Math.max(rows.length, 3));
-    const textW = inner - 56 - 40 - 30; // card padding + number column
+    const textW = inner - 56 - 8; // card padding (no number column)
     body = h(
       'div',
       { flexDirection: 'column', width: inner, height: cardH, backgroundColor: 'white', borderRadius: 28, padding: `${padY}px 28px`, flexShrink: 0, overflow: 'hidden' },
@@ -164,15 +244,24 @@ async function draw(layout: 'list' | 'single', sizeKey: SizeKey, jobs: Job[], he
           chips.push(chip(text, S.chip, kind));
           return true;
         };
+        if (T.tag) {
+          // Lightning + caps text: estimate its width like a chip.
+          const wdt = T.tag.length * tagSize * 0.7 + tagSize * 2.6 + 10;
+          if (used + wdt <= room) {
+            used += wdt;
+            chips.push(earlyTag(T.tag, tagSize));
+          }
+        }
         if (j.salary) {
-          const sal = cut(j.salary, S.chip, room * 0.6, 800).text;
+          const sal = cut(j.salary, S.chip, room * 0.5, 800).text;
           tryChip(sal, 'salary');
         }
         for (const tg of tagsFor(j)) tryChip(tg, 'tag');
+        const rt = T.hashtags ? roleTag(j.title) : '';
+        if (rt && used + rt.length * S.chip * 0.6 <= room) chips.push(h('div', { fontSize: S.chip, fontWeight: 700, color: BLUE, fontFamily: SANS, flexShrink: 0, alignItems: 'center' }, rt));
         return h(
           'div',
           { height: rowH, flexShrink: 0, alignItems: 'center', borderTop: i === 0 ? 'none' : '2px solid #EEF2F7', overflow: 'hidden' },
-          h('div', { width: 56, flexShrink: 0, fontSize: Math.round(S.title * 0.8), fontWeight: 800, color: BLUE, fontFamily: SANS }, String(i + 1).padStart(2, '0')),
           h(
             'div',
             { flexDirection: 'column', width: textW, overflow: 'hidden' },
@@ -183,10 +272,31 @@ async function draw(layout: 'list' | 'single', sizeKey: SizeKey, jobs: Job[], he
               logos[i] ? img(logos[i]!, { width: logoSize, height: logoSize, borderRadius: 6, objectFit: 'contain', marginRight: 12, backgroundColor: 'white', border: '1px solid #E2E8F0' }) : null,
               h('div', { fontSize: S.meta, fontWeight: 600, color: MUTED, fontFamily: SANS, whiteSpace: 'nowrap' }, metaText)
             ),
-            chips.length ? h('div', { marginTop: 10, height: Math.round(S.chip * 1.9), overflow: 'hidden' }, ...chips) : null
+            chips.length ? h('div', { marginTop: 10, height: Math.round(S.chip * 2.1), alignItems: 'center', overflow: 'hidden' }, ...chips) : null
           )
         );
       })
+    );
+  } else if (layout === 'company') {
+    // Company only: logo, name, "is hiring". The role details live in the caption.
+    const j = jobs[0];
+    const logo = logos[0];
+    const pad = 56;
+    const w = inner - pad * 2;
+    const logoSize = sizeKey === 'story' ? 260 : sizeKey === 'square' ? 180 : 230;
+    const name = fit(j.company, [Math.round(S.head * 1.15), S.head, Math.round(S.head * 0.82)], w, 2, 800);
+    if (name.cut) issues.push({ level: 'warning', message: 'Company name shortened to fit' });
+    const hire = T.hire ? fit(T.hire, [Math.round(S.head * 0.9), Math.round(S.head * 0.7)], w, 1, 800) : null;
+    body = h(
+      'div',
+      { flexDirection: 'column', width: inner, height: cardH, backgroundColor: 'white', borderRadius: 32, padding: pad, flexShrink: 0, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+      logo
+        ? img(logo, { width: logoSize, height: logoSize, borderRadius: 36, objectFit: 'contain', border: '2px solid #E2E8F0', backgroundColor: 'white', padding: Math.round(logoSize * 0.1) })
+        : h('div', { width: logoSize, height: logoSize, borderRadius: 36, backgroundColor: '#DBEAFE', color: '#1D4ED8', fontSize: Math.round(logoSize * 0.46), fontWeight: 800, alignItems: 'center', justifyContent: 'center', fontFamily: SANS }, (j.company.trim()[0] ?? '·').toUpperCase()),
+      h('div', { marginTop: GAP * 1.2, width: w, justifyContent: 'center', textAlign: 'center', fontSize: name.size, fontWeight: 800, color: INK, lineHeight: 1.1, letterSpacing: -1, fontFamily: SANS, maxHeight: Math.round(name.size * 1.1 * 2) + 4, overflow: 'hidden' }, name.text),
+      hire ? h('div', { marginTop: 14, fontSize: hire.size, fontWeight: 800, color: BLUE, fontFamily: SANS, whiteSpace: 'nowrap' }, hire.text) : null,
+      T.tag ? h('div', { marginTop: GAP }, earlyTag(T.tag, Math.round(tagSize * 1.3))) : null,
+      T.sub ? h('div', { marginTop: GAP * 0.8, fontSize: Math.round(S.meta * 1.05), fontWeight: 600, color: MUTED, fontFamily: SANS, whiteSpace: 'nowrap' }, cut(T.sub, Math.round(S.meta * 1.05), w, 600).text) : null
     );
   } else {
     const j = jobs[0];
@@ -215,22 +325,32 @@ async function draw(layout: 'list' | 'single', sizeKey: SizeKey, jobs: Job[], he
       ),
       h('div', { fontSize: t.size, fontWeight: 800, color: INK, lineHeight: 1.1, letterSpacing: -1, fontFamily: SANS, maxHeight: Math.round(t.size * 1.1 * 3) + 4, overflow: 'hidden' }, t.text),
       sal ? h('div', { fontSize: sal.size, fontWeight: 800, color: BLUE, lineHeight: 1.1, fontFamily: SANS, maxHeight: Math.round(sal.size * 1.1 * 2) + 4, overflow: 'hidden' }, sal.text) : null,
-      tags.length ? h('div', { height: Math.round(S.chip * 1.4 * 1.9), overflow: 'hidden' }, ...tags.slice(0, 3).map((tg) => chip(tg, Math.round(S.chip * 1.3), 'tag'))) : null,
+      T.tag || tags.length
+        ? h('div', { height: Math.round(S.chip * 1.4 * 2.1), alignItems: 'center', overflow: 'hidden' }, T.tag ? earlyTag(T.tag, Math.round(tagSize * 1.3)) : null, ...tags.slice(0, T.tag ? 2 : 3).map((tg) => chip(tg, Math.round(S.chip * 1.3), 'tag')))
+        : null,
       h('div', { fontSize: Math.round(S.meta * 0.95), fontWeight: 600, color: MUTED, fontFamily: SANS }, 'Straight from the company’s careers page')
     );
   }
 
-  const shortLink = layout === 'single' ? `madevisa.com/j/${jobs[0].id.slice(0, 8)}` : 'madevisa.com/jobs';
+  const shortLink = T.link || (layout !== 'list' ? `madevisa.com/j/${jobs[0].id.slice(0, 8)}` : 'madevisa.com/jobs');
+  const linkSize = sizeKey === 'story' ? 28 : 24;
   const footer = h(
     'div',
-    { height: footerH, flexShrink: 0, alignItems: 'center', justifyContent: 'space-between', width: inner },
+    { height: footerH, flexShrink: 0, alignItems: 'center', justifyContent: 'space-between', width: inner, paddingTop: GAP },
+    T.cta
+      ? h(
+          'div',
+          { backgroundColor: 'white', color: BLUE, fontSize: sizeKey === 'story' ? 34 : 28, fontWeight: 800, padding: sizeKey === 'story' ? '20px 36px' : '16px 30px', borderRadius: 999, alignItems: 'center', fontFamily: SANS },
+          cut(T.cta, sizeKey === 'story' ? 34 : 28, inner * 0.55, 800).text,
+          h('div', { marginLeft: 12 }, '→')
+        )
+      : h('div', {}),
     h(
       'div',
-      { backgroundColor: 'white', color: BLUE, fontSize: sizeKey === 'story' ? 34 : 28, fontWeight: 800, padding: sizeKey === 'story' ? '20px 36px' : '16px 30px', borderRadius: 999, alignItems: 'center', fontFamily: SANS },
-      'Apply on MadeVisa',
-      h('div', { marginLeft: 12 }, '→')
-    ),
-    h('div', { fontSize: sizeKey === 'story' ? 28 : 24, fontWeight: 700, color: 'rgba(255,255,255,0.92)', fontFamily: SANS }, shortLink)
+      { alignItems: 'center' },
+      svg(Math.round(linkSize * 1.1), GLOBE, { stroke: 'rgba(255,255,255,0.92)', width: 2.2 }),
+      h('div', { marginLeft: 10, fontSize: linkSize, fontWeight: 700, color: 'rgba(255,255,255,0.92)', fontFamily: SANS }, cut(shortLink, linkSize, inner * 0.4, 700).text)
+    )
   );
 
   const tree = h(
@@ -240,19 +360,29 @@ async function draw(layout: 'list' | 'single', sizeKey: SizeKey, jobs: Job[], he
     body,
     footer
   );
-  void platform;
-  void origin;
   return { tree, issues, width: S.w, height: S.h };
 }
 
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const q = url.searchParams;
-  const layout = q.get('layout') === 'single' ? 'single' : 'list';
+  const layout = q.get('layout') === 'single' ? 'single' : q.get('layout') === 'company' ? 'company' : 'list';
   const sizeKey = (['portrait', 'square', 'story'].includes(q.get('size') ?? '') ? q.get('size') : 'portrait') as SizeKey;
   const prefixes = (q.get('ids') ?? '').split(',').map((x) => x.trim().toLowerCase()).filter((x) => /^[0-9a-f]{8}$/.test(x)).slice(0, 5);
-  const headline = (q.get('h') ?? '').slice(0, 120) || (layout === 'single' ? 'Now hiring' : `${prefixes.length} fresh roles worth your attention`);
-  const dateLabel = (q.get('d') ?? '').slice(0, 30) || new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const headline = (q.get('h') ?? '').slice(0, 120) || (layout === 'list' ? `${prefixes.length} new jobs` : 'Now hiring');
+  // A param that is present but empty hides that text; absent = default.
+  const text = (k: string, dflt: string, max = 60) => (q.has(k) ? (q.get(k) ?? '').trim().slice(0, max) : dflt);
+  const dateLabel = text('d', new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), 30);
+  const hi = q.get('hi');
+  const T: Texts = {
+    icon: hi === 'party' || hi === 'none' ? hi : 'zap',
+    tag: text('tag', 'Be an early applicant', 32),
+    cta: text('cta', 'Apply on MadeVisa', 30),
+    link: text('link', '', 40),
+    hire: text('hire', 'is hiring', 30),
+    sub: text('sub', 'Role & how to apply in the caption', 60),
+    hashtags: q.get('ht') !== '0',
+  };
   const check = q.get('check') === '1';
 
   const jobs = prefixes.length ? (await rpc<Job[]>('social_image_jobs', { p_prefixes: prefixes })) ?? [] : [];
@@ -263,15 +393,15 @@ export default async function handler(req: Request): Promise<Response> {
     return new Response('No live jobs', { status: 404 });
   }
 
-  const { tree, issues, width, height } = await draw(layout, sizeKey, layout === 'single' ? jobs.slice(0, 1) : jobs, headline, dateLabel, q.get('s') ?? '', url.origin);
+  const { tree, issues, width, height } = await draw(layout, sizeKey, layout === 'list' ? jobs : jobs.slice(0, 1), headline, dateLabel, T);
   for (const m of missing) issues.push({ level: 'error', message: `Job ${m} is no longer live` });
 
   if (check) {
     return Response.json({ ok: !issues.some((i) => i.level === 'error'), width, height, jobs: jobs.length, issues }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const text = `${textOf(tree)} 0123456789→…·`;
-  const fonts = (await Promise.all([googleFont('Inter', 400, text), googleFont('Inter', 600, text), googleFont('Inter', 700, text), googleFont('Inter', 800, text)])).filter((f): f is Font => f !== null);
+  const glyphs = `${textOf(tree)} 0123456789→…·#`;
+  const fonts = (await Promise.all([googleFont('Inter', 400, glyphs), googleFont('Inter', 600, glyphs), googleFont('Inter', 700, glyphs), googleFont('Inter', 800, glyphs)])).filter((f): f is Font => f !== null);
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const png = await new ImageResponse(tree as any, { width, height, fonts }).arrayBuffer();

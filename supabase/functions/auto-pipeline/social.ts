@@ -33,7 +33,7 @@ type Campaign = {
   kind: 'fresh' | 'student' | 'category' | 'company';
   platforms: Platform[];
   every_minutes: number;
-  format: 'list' | 'carousel' | 'single';
+  format: 'list' | 'carousel' | 'single' | 'company';
   jobs_count: number;
   min_jobs: number;
   categories: string[];
@@ -70,7 +70,7 @@ type Post = {
 
 const DIMS = { portrait: [1080, 1350], square: [1080, 1080], story: [1080, 1920] } as const;
 const SHORT: Record<Platform, string> = { facebook: 'fb', instagram: 'ig', linkedin: 'li', tiktok: 'tt' };
-const IMAGE_VERSION = '1'; // bump when the image template changes, so new posts get fresh images
+const IMAGE_VERSION = '2'; // bump when the image template changes, so new posts get fresh images
 
 // ---------------------------------------------------------------------------
 // Words
@@ -82,6 +82,21 @@ const isRemote = (j: Job) => j.work_arrangement === 'remote' || (Boolean(j.remot
 const pickBy = <T,>(items: T[], seed: number) => items[Math.abs(seed) % items.length];
 const hashtag = (s: string) => `#${s.replace(/[^A-Za-z0-9]+/g, '')}`;
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+/** Keep only this many finished posts (published / rejected / expired / failed). */
+const KEEP_HISTORY = 3;
+
+/** "#CustomerExperienceAdvisor" from "Customer Experience Advisor | S1 | Retail Banking" (same rule as the image). */
+function roleTag(title: string): string {
+  const core = cleanTitle(title).split(/\s[|–—-]\s|[|,(/]/)[0];
+  const words = core
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 4)
+    .map((w) => w[0].toUpperCase() + w.slice(1));
+  const tag = words.join('').slice(0, 32);
+  return tag.length >= 3 ? `#${tag}` : '';
+}
 
 function jobLink(j: Job, p: Platform): string {
   return `${SITE}/j/${j.id.slice(0, 8)}?s=${SHORT[p]}`;
@@ -95,10 +110,9 @@ function headlineFor(c: Campaign, jobs: Job[], seed: number): string {
     const cat = c.categories[0].replace(/\b\w/g, (m) => m.toUpperCase());
     return pickBy([`${cat} roles hiring now`, `${n} fresh ${cat.toLowerCase()} ${plural(n, 'opening', 'openings')}`, `${cat}: ${n} new ${plural(n, 'role', 'roles')} today`], seed);
   }
-  const allSalary = jobs.every((j) => j.salary);
   const mostlyRemote = jobs.filter(isRemote).length > n / 2;
   const visa = jobs.filter((j) => j.visa).length;
-  if (allSalary && seed % 2 === 0) return `${n} new ${plural(n, 'role', 'roles')} — salaries shown`;
+  if (seed % 2 === 0) return `${n} new ${plural(n, 'job', 'jobs')}`;
   if (mostlyRemote) return `Remote-friendly roles, posted today`;
   if (visa >= 2 && seed % 3 === 0) return `${visa} roles offering visa sponsorship`;
   return pickBy([`${n} fresh ${plural(n, 'role', 'roles')} worth your attention`, `${n} companies hiring today`, `Posted in the last 24 hours`, `New today: ${n} ${plural(n, 'role', 'roles')} to apply for`], seed);
@@ -107,7 +121,6 @@ function headlineFor(c: Campaign, jobs: Job[], seed: number): string {
 function singleHeadline(j: Job): string {
   if (j.student) return 'Student role';
   if (j.visa) return 'Visa sponsorship';
-  if (j.salary) return 'Salary shown';
   if (isRemote(j)) return 'Remote role';
   return 'Now hiring';
 }
@@ -151,7 +164,8 @@ function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number): string
     const mode = j.work_arrangement === 'hybrid' ? 'Hybrid' : isRemote(j) && where !== 'Remote' ? 'Remote' : null;
     const facts = [where, j.salary, mode, j.visa ? 'Visa sponsorship' : null, j.student ? 'Student' : null].filter(Boolean);
     const link = clickable ? `Apply: ${jobLink(j, p)}` : `madevisa.com/j/${j.id.slice(0, 8)}`;
-    return `${jobs.length > 1 ? `${i + 1}. ` : ''}${cleanTitle(j.title)} — ${j.company}\n${facts.join(' · ')}\n${link}`;
+    const rt = roleTag(j.title);
+    return `${jobs.length > 1 ? `${i + 1}. ` : ''}${cleanTitle(j.title)} — ${j.company}\n${facts.join(' · ')}\n${link}${rt ? `\n${rt}` : ''}`;
   });
   const cta = clickable
     ? 'Every link opens the role on MadeVisa, with the details and a direct way to apply on the company’s own page.'
@@ -160,6 +174,10 @@ function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number): string
       : `Apply on MadeVisa — type the madevisa.com/j/… address under ${jobs.length === 1 ? 'the role' : 'each role'}.`;
 
   const tags = new Set<string>(['#hiring', '#jobs']);
+  for (const j of jobs.slice(0, 3)) {
+    const rt = roleTag(j.title);
+    if (rt) tags.add(rt);
+  }
   if (c.kind === 'student' || jobs.some((j) => j.student)) tags.add('#internships');
   if (jobs.some((j) => j.visa)) tags.add('#visasponsorship');
   if (jobs.filter(isRemote).length) tags.add('#remotejobs');
@@ -168,16 +186,18 @@ function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number): string
   if (c.categories[0]) tags.add(hashtag(`${c.categories[0]}Jobs`).toLowerCase());
 
   const limit = p === 'linkedin' ? 2900 : 2150;
-  let body = [hookFor(c, jobs, seed), ...blocks, cta, [...tags].slice(0, 6).join(' ')].join('\n\n');
+  let body = [hookFor(c, jobs, seed), ...blocks, cta, [...tags].slice(0, 9).join(' ')].join('\n\n');
   while (body.length > limit && blocks.length > 1) {
     blocks.pop();
-    body = [hookFor(c, jobs, seed), ...blocks, cta, [...tags].slice(0, 6).join(' ')].join('\n\n');
+    body = [hookFor(c, jobs, seed), ...blocks, cta, [...tags].slice(0, 9).join(' ')].join('\n\n');
   }
   return body.slice(0, limit);
 }
 
-function imageUrl(layout: 'list' | 'single', size: string, jobs: Job[], headline: string, date: string, p: Platform) {
-  const q = new URLSearchParams({ layout, size, ids: jobs.map((j) => j.id.slice(0, 8)).join(','), h: headline, d: date, s: SHORT[p], v: IMAGE_VERSION });
+// Every text on the image is a URL parameter (see api/og/social.ts), so the
+// admin panel can edit them before the post goes out.
+function imageUrl(layout: 'list' | 'single' | 'company', size: string, jobs: Job[], headline: string, date: string, p: Platform) {
+  const q = new URLSearchParams({ layout, size, ids: jobs.map((j) => j.id.slice(0, 8)).join(','), h: headline, d: date, s: SHORT[p], hi: 'zap', v: IMAGE_VERSION });
   return `${SITE}/api/og/social?${q.toString()}`;
 }
 
@@ -240,7 +260,7 @@ async function planCampaign(service: Service, c: Campaign, platforms: Map<Platfo
       log.push(`${c.name} → ${p}: daily limit reached`);
       continue;
     }
-    const want = c.format === 'single' ? 1 : c.format === 'carousel' ? Math.min(3, c.jobs_count) : Math.min(pr.size === 'square' ? 3 : 5, c.jobs_count);
+    const want = c.format === 'single' ? 1 : c.format === 'carousel' || c.format === 'company' ? Math.min(3, c.jobs_count) : Math.min(pr.size === 'square' ? 3 : 5, c.jobs_count);
     const { data: picked, error } = await service.rpc('social_pick_jobs', {
       p_platform: p,
       p_count: want,
@@ -264,7 +284,9 @@ async function planCampaign(service: Service, c: Campaign, platforms: Map<Platfo
     const images =
       c.format === 'list'
         ? [{ url: imageUrl('list', pr.size, jobs, headline, date, p), width: w, height: h }]
-        : jobs.map((j) => ({ url: imageUrl('single', pr.size, [j], singleHeadline(j), date, p), width: w, height: h }));
+        : c.format === 'company'
+          ? jobs.map((j) => ({ url: imageUrl('company', pr.size, [j], 'Now hiring', date, p), width: w, height: h }))
+          : jobs.map((j) => ({ url: imageUrl('single', pr.size, [j], singleHeadline(j), date, p), width: w, height: h }));
 
     const checks = await Promise.all(images.map((im) => validateImage(im.url, w, h)));
     const ok = checks.every((x) => x.ok);
@@ -498,6 +520,31 @@ async function publishDue(service: Service, platforms: Map<Platform, PlatformRow
   }
 }
 
+// ---------------------------------------------------------------------------
+// Housekeeping: keep only the last few finished posts, so the admin panel and
+// the database stay small. Jobs stay marked as posted (social_post_jobs keeps
+// its row, post_id just becomes null), so nothing is ever posted twice.
+// ---------------------------------------------------------------------------
+
+async function pruneHistory(service: Service, log: string[]) {
+  const { data } = await service
+    .from('social_posts')
+    .select('id')
+    .in('status', ['published', 'rejected', 'expired', 'failed'])
+    .order('created_at', { ascending: false })
+    .range(KEEP_HISTORY, KEEP_HISTORY + 500);
+  const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
+  if (ids.length) {
+    const { error } = await service.from('social_posts').delete().in('id', ids);
+    if (!error) log.push(`history: removed ${ids.length} old ${plural(ids.length, 'post', 'posts')}`);
+  }
+  // Instagram JPEG copies are only needed while Instagram fetches them.
+  const { data: files } = await service.storage.from('social-images').list('ig', { limit: 1000, sortBy: { column: 'created_at', order: 'asc' } });
+  const cutoff = Date.now() - 2 * 24 * 3_600_000;
+  const old = ((files ?? []) as { name: string; created_at?: string }[]).filter((f) => f.created_at && Date.parse(f.created_at) < cutoff).map((f) => `ig/${f.name}`);
+  if (old.length) await service.storage.from('social-images').remove(old);
+}
+
 export async function runSocial(service: Service, force = false): Promise<void> {
   const log: string[] = [];
   let ok = true;
@@ -519,6 +566,7 @@ export async function runSocial(service: Service, force = false): Promise<void> 
         .eq('id', c.id);
     }
     await publishDue(service, platforms, log);
+    await pruneHistory(service, log);
   } catch (e) {
     ok = false;
     log.push(`Social failed: ${e instanceof Error ? e.message : 'unknown error'}`);
