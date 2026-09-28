@@ -124,9 +124,59 @@ const liveOrRecentlyClosed = (asOf: string) =>
 // downloading the whole catalog.
 // ---------------------------------------------------------------------------
 
-let publishedJobsCache: { data: SponsoredJob[]; fetchedAt: number } | null = null;
-const PUBLISHED_JOBS_CACHE_TTL_MS = 60_000;
-const PERSISTED_MAX_AGE_MS = 6 * 60 * 60 * 1000; // older copies are ignored
+// fetchedAt = when the FULL list was last downloaded. releaseAt = the
+// published_at of the release the copy is up to date with (moved forward
+// by small "what's new since" updates — see fetchReleaseDelta).
+type JobsCopy = { data: SponsoredJob[]; fetchedAt: number; release: number | null; releaseAt?: string | null };
+let publishedJobsCache: JobsCopy | null = null;
+const PUBLISHED_JOBS_CACHE_TTL_MS = 60_000; // only when releases aren't available
+const PERSISTED_MAX_AGE_MS = 6 * 60 * 60 * 1000; // copies without a matching release
+const PERSISTED_RELEASE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // copies of the current release
+// Auto-publish releases a few jobs every 3–4 minutes. A saved copy is kept
+// current with tiny "new since" requests; the full list is re-downloaded
+// at most every 48 h (picks up edits and deleted jobs).
+const DELTA_FULL_REFRESH_MS = 48 * 60 * 60 * 1000;
+const DELTA_OVERLAP_MS = 5 * 60 * 1000; // re-ask a few minutes back; merging by id drops repeats
+const DELTA_MAX_ROWS = 3000; // more changed than this → a full download is simpler
+
+// --- Releases -----------------------------------------------------------------
+// Imported jobs go public in batches when an admin presses "Publish update"
+// (migration 20261029090000). Each release has an id: while it doesn't
+// change, the saved copy of the jobs is still exactly right — no download.
+
+export type JobRelease = { id: number; published_at: string; new_today: number; jobs_released: number };
+const RELEASE_KEY = 'mv:jobRelease';
+const RELEASE_TTL_MS = 60_000;
+let releaseCache: { value: JobRelease | null; at: number } | null = null;
+let releaseInflight: Promise<JobRelease | null> | null = null;
+
+/** The last release this browser saw — instant, for first paint. */
+export function peekJobRelease(): JobRelease | null {
+  try {
+    return JSON.parse(localStorage.getItem(RELEASE_KEY) ?? 'null') as JobRelease | null;
+  } catch {
+    return null;
+  }
+}
+
+/** The current release (checked at most once a minute). Null if releases aren't set up. */
+export async function fetchCurrentRelease(force = false): Promise<JobRelease | null> {
+  if (!force && releaseCache && Date.now() - releaseCache.at < RELEASE_TTL_MS) return releaseCache.value;
+  if (!releaseInflight) {
+    releaseInflight = (async () => {
+      const { data, error } = await supabase.rpc('current_job_release');
+      const value = error || !data ? null : (data as JobRelease);
+      releaseCache = { value, at: Date.now() };
+      try {
+        if (value) localStorage.setItem(RELEASE_KEY, JSON.stringify(value));
+      } catch {
+        /* private mode */
+      }
+      return value;
+    })().finally(() => (releaseInflight = null));
+  }
+  return releaseInflight;
+}
 const IDB_NAME = 'madevisa-cache';
 const IDB_STORE = 'kv';
 const IDB_KEY = 'publishedJobs:v3'; // v1 copies could be missing jobs (see fetchPublishedFromNetwork)
@@ -150,15 +200,15 @@ function openCacheDb(): Promise<IDBDatabase | null> {
   });
 }
 
-async function readPersistedJobs(): Promise<{ data: SponsoredJob[]; fetchedAt: number } | null> {
+async function readPersistedJobs(): Promise<(Omit<JobsCopy, 'release'> & { release?: number | null }) | null> {
   const db = await openCacheDb();
   if (!db) return null;
   return new Promise((resolve) => {
     try {
       const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(IDB_KEY);
       req.onsuccess = () => {
-        const v = req.result as { data: SponsoredJob[]; fetchedAt: number } | undefined;
-        resolve(v && Array.isArray(v.data) && Date.now() - v.fetchedAt < PERSISTED_MAX_AGE_MS ? v : null);
+        const v = req.result as (Omit<JobsCopy, 'release'> & { release?: number | null }) | undefined;
+        resolve(v && Array.isArray(v.data) && Date.now() - v.fetchedAt < PERSISTED_RELEASE_MAX_AGE_MS ? v : null);
       };
       req.onerror = () => resolve(null);
     } catch {
@@ -167,13 +217,13 @@ async function readPersistedJobs(): Promise<{ data: SponsoredJob[]; fetchedAt: n
   });
 }
 
-function writePersistedJobs(data: SponsoredJob[]) {
+function writePersistedJobs(copy: JobsCopy) {
   // Deferred so saving never competes with the first render.
   const save = async () => {
     const db = await openCacheDb();
     if (!db) return;
     try {
-      db.transaction(IDB_STORE, 'readwrite').objectStore(IDB_STORE).put({ data, fetchedAt: Date.now() }, IDB_KEY);
+      db.transaction(IDB_STORE, 'readwrite').objectStore(IDB_STORE).put(copy, IDB_KEY);
     } catch {
       /* quota / private mode — caching is optional */
     }
@@ -193,7 +243,16 @@ function stillLive(rows: SponsoredJob[]): SponsoredJob[] {
 }
 
 /**
-<<<<<<< HEAD
+ * True when this device already has a recent copy of the full job list
+ * (then showing everything costs only a small "what's new" request).
+ */
+export async function hasSavedJobList(): Promise<boolean> {
+  if (publishedJobsCache) return true;
+  const saved = await readPersistedJobs().catch(() => null);
+  return Boolean(saved && saved.data.length && Date.now() - saved.fetchedAt < DELTA_FULL_REFRESH_MS);
+}
+
+/**
  * What changed since a release: jobs that went live after it, and jobs
  * closed after it. Two small indexed requests (released_at / closed_at) —
  * usually a handful of rows. null = couldn't (or too much changed); the
@@ -242,8 +301,6 @@ async function catchUpCopy(copy: { data: SponsoredJob[]; fetchedAt: number; rele
 }
 
 /**
-=======
->>>>>>> parent of 424fb7f (d)
  * Every live job, loaded one day at a time (jobs live at most 30 days, so
  * 31 day-windows cover them all). Each request is small and uses the
  * created_at index — no slow "count everything" query and no deep page
@@ -421,8 +478,21 @@ export async function countJobsPublishedSince(fromIso: string, toIso?: string): 
 }
 
 export async function fetchPublishedSponsoredJobs(opts: { onPartial?: (rows: SponsoredJob[]) => void } = {}): Promise<SponsoredJob[]> {
-  if (publishedJobsCache && Date.now() - publishedJobsCache.fetchedAt < PUBLISHED_JOBS_CACHE_TTL_MS) {
-    return publishedJobsCache.data;
+  // In memory: reuse while the release hasn't changed (or 60 s without releases).
+  if (publishedJobsCache) {
+    const rel = await fetchCurrentRelease();
+    const sameRelease = rel && publishedJobsCache.release === rel.id;
+    if (sameRelease || (!rel && Date.now() - publishedJobsCache.fetchedAt < PUBLISHED_JOBS_CACHE_TTL_MS)) return publishedJobsCache.data;
+    // A newer release (auto-publish adds a few jobs every few minutes):
+    // fetch just what changed instead of the whole list.
+    if (rel && !inflight) {
+      const caught = await catchUpCopy(publishedJobsCache, rel);
+      if (caught) {
+        publishedJobsCache = caught;
+        writePersistedJobs(caught);
+        return caught.data;
+      }
+    }
   }
   if (opts.onPartial) {
     partialListeners.add(opts.onPartial);
@@ -437,25 +507,64 @@ export async function fetchPublishedSponsoredJobs(opts: { onPartial?: (rows: Spo
   if (!inflight) {
     inflight = (async () => {
       let shownCount = 0;
-      // Instant paint from the last visit, while the network catches up.
+      const releaseP = fetchCurrentRelease();
       const persisted = publishedJobsCache ? null : await readPersistedJobs();
-      if (persisted) {
+      const release = await releaseP;
+
+      // 1. Saved copy of the current release: exactly right — no download at all.
+      if (persisted && release && persisted.release === release.id) {
+        const rows = stillLive(persisted.data);
+        publishedJobsCache = { data: rows, fetchedAt: persisted.fetchedAt, release: release.id, releaseAt: persisted.releaseAt ?? release.published_at };
+        emit(rows);
+        return rows;
+      }
+      // 1b. Saved copy of an earlier release: show it at once, then add only
+      //     what was published / closed since (a few small rows).
+      if (persisted && release && persisted.releaseAt) {
+        const shown = stillLive(persisted.data);
+        shownCount = shown.length;
+        emit(shown);
+        const caught = await catchUpCopy(persisted, release);
+        if (caught) {
+          publishedJobsCache = caught;
+          emit(caught.data);
+          writePersistedJobs(caught);
+          return caught.data;
+        }
+      }
+      // 2. An older saved copy: show it at once, refresh behind it.
+      if (shownCount > 0) {
+        // Already showing the saved copy (1b) — refresh behind it.
+      } else if (persisted && Date.now() - persisted.fetchedAt < PERSISTED_MAX_AGE_MS) {
         const rows = stillLive(persisted.data);
         shownCount = rows.length;
         emit(rows);
+      } else {
+        // 3. First visit: the newest jobs across companies in one small request,
+        //    so nobody waits for the full list.
+        fetchNewestDiverseJobs(36, 2)
+          .then((quick) => {
+            if (shownCount === 0 && quick.length) {
+              shownCount = quick.length;
+              emit(quick);
+            }
+          })
+          .catch(() => undefined);
       }
       const fresh = await fetchPublishedFromNetwork((firstPage) => {
-        // Don't replace a fuller cached list with just the first page.
-        if (firstPage.length > shownCount) emit(firstPage);
+        // Don't replace a fuller list with just the first page.
+        if (firstPage.length > shownCount) {
+          shownCount = firstPage.length;
+          emit(firstPage);
+        }
       });
       const fallback = publishedJobsCache?.data ?? (persisted ? stillLive(persisted.data) : null);
       if (!fresh) return fallback ?? [];
       // An incomplete load (a page kept failing) is shown if there's
-      // nothing better, but never saved as the reference copy — otherwise
-      // the count would stay low until the next full load.
+      // nothing better, but never saved as the reference copy.
       if (!fresh.complete) return fallback && fallback.length > fresh.rows.length ? fallback : fresh.rows;
-      publishedJobsCache = { data: fresh.rows, fetchedAt: Date.now() };
-      writePersistedJobs(fresh.rows);
+      publishedJobsCache = { data: fresh.rows, fetchedAt: Date.now(), release: release?.id ?? null, releaseAt: release?.published_at ?? null };
+      writePersistedJobs(publishedJobsCache);
       return fresh.rows;
     })().finally(() => {
       inflight = null;

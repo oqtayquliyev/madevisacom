@@ -32,7 +32,7 @@ import { moveToBack, recentlyShownIds, rememberShown, visitShuffle } from '@/lib
 import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
-import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
+import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
 import { PersonalizationBar } from '@/components/opportunities/PersonalizationBar';
@@ -142,7 +142,7 @@ function JobLogo({ job, size = 48 }: { job: Job; size?: number }) {
       style={{ width: size, height: size }}
     >
       {job.imageUrl && !failed ? (
-        <img src={job.imageUrl} alt="" onError={() => setFailed(true)} className="h-full w-full object-contain p-1.5" />
+        <img src={job.imageUrl} alt="" width={size} height={size} loading="lazy" decoding="async" onError={() => setFailed(true)} className="h-full w-full object-contain p-1.5" />
       ) : (
         <CompanyLogo name={job.company} size={size - 6} />
       )}
@@ -199,7 +199,7 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
         <JobLogo job={job} size={52} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold text-ink-500">{job.company}</p>
-          <h3 className="mt-0.5 font-title text-lg font-bold leading-snug text-ink-950 group-hover:text-brand-700">{job.title}</h3>
+          <h3 className="mt-0.5 break-words font-title text-lg font-bold leading-snug text-ink-950 [overflow-wrap:anywhere] group-hover:text-brand-700">{job.title}</h3>
         </div>
       </div>
 
@@ -242,7 +242,7 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
 
   // Already-viewed jobs turn grey (muted background + softened content)
   // so it's easy to spot what you haven't opened yet.
-  const cardClass = `group relative block rounded-lg border p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg sm:p-6 ${
+  const cardClass = `min-w-0 max-w-full overflow-hidden group relative block rounded-lg border p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg sm:p-6 ${
     closed
       ? 'border-ink-200 bg-ink-50 opacity-60 grayscale hover:opacity-80'
       : viewed
@@ -417,11 +417,21 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       experienceLevel !== 'All levels' || datePosted !== 'Any time' || directOnly || studentOnly || visaOnly,
   );
   // Once the full list is loaded it stays (clearing a search doesn't reload).
-  // Everyone (guests too) gets the full list, so search, filters and counts cover every job; guests are only limited by "Show more".
-  const [wantFull, setWantFull] = useState(true);
+  // The full list is ~70k jobs (megabytes, seconds of phone CPU), so a
+  // first-time guest gets only the newest jobs — one small request. It loads
+  // as soon as someone searches or filters, is signed in, or already has a
+  // saved copy on this device (then it costs only a tiny "what's new" check).
+  const [wantFull, setWantFull] = useState(false);
   useEffect(() => {
     if (session || hasQuery) setWantFull(true);
   }, [session, hasQuery]);
+  useEffect(() => {
+    let alive = true;
+    hasSavedJobList().then((saved) => alive && saved && setWantFull(true));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -717,8 +727,12 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
             We collect roles from company career pages and multiple sources, so you can find opportunities you may not see on LinkedIn or other job sites.
           </p>
 
-          <div className="mt-5">
+          <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
             <PersonalizationBar tone="dark" variant="location" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-white/25">
+              <Zap className="h-3.5 w-3.5 fill-amber-300 text-amber-300" />
+              Only jobs from the last 30 days
+            </span>
           </div>
 
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -748,11 +762,6 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
               )}
             </button>
           </div>
-
-          <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/25">
-            <CalendarClock className="h-3.5 w-3.5" />
-            Only active vacancies posted in the last 30 days
-          </p>
 
           {/* Date posted · Country · Category */}
           <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:grid-cols-3 sm:gap-3">
@@ -934,7 +943,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
         )}
 
         {loading ? (
-          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
             {Array.from({ length: 6 }).map((_, i) => (
               <JobCardSkeleton key={i} />
             ))}
@@ -973,14 +982,14 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
                     </button>
                   )}
                 </div>
-                <div className="mt-3 grid gap-4 lg:grid-cols-2">
+                <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
                   {directJobs.slice(0, 2).map((job) => (
                     <JobCard key={`direct-${job.id}`} job={job} goToJob={goToJob} />
                   ))}
                 </div>
               </div>
             )}
-            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
               {visibleJobs.map((job, i) => (
                 <Fragment key={job.id}>
                   {i === relatedStart && (

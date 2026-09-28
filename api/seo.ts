@@ -143,10 +143,27 @@ const SSR_CSS = `#ssr{font-family:Inter,ui-sans-serif,system-ui,sans-serif;max-w
 let template: { html: string; at: number } | null = null;
 async function getTemplate(origin: string): Promise<string> {
   if (template && Date.now() - template.at < 5 * 60_000) return template.html;
-  const res = await fetch(`${origin}/index.html`, { headers: { 'x-madevisa-template': '1' } });
+  // Prefer this deployment's own address: the page must name exactly the
+  // script files this deployment ships. (The public domain can still point at
+  // the previous deployment for a moment while a new one goes live.)
+  const own = env('VERCEL_URL');
+  let res: Response | null = null;
+  if (own) res = await fetch(`https://${own}/index.html`).catch(() => null);
+  if (!res || !res.ok) res = await fetch(`${origin}/index.html`);
   if (!res.ok) throw new Error(`template ${res.status}`);
-  template = { html: await res.text(), at: Date.now() };
+  template = { html: withBootGuard(await res.text()), at: Date.now() };
   return template.html;
+}
+
+/**
+ * If the app's script fails to load (a copy of this page cached before a
+ * deploy that renamed the files), reload once from a fresh address, which
+ * skips the cached copy. Also covers the app not starting within 15 s.
+ * sessionStorage stops it from ever looping; main.tsx clears it on success.
+ */
+function withBootGuard(html: string): string {
+  const guard = `<script>(function(){var k='mv-boot-retry';function again(){try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1');var u=new URL(location.href);u.searchParams.set('_r',String(Date.now()));location.replace(u.toString());}catch(e){}}window.addEventListener('error',function(e){var t=e&&e.target;if(t&&t.tagName==='SCRIPT'&&t.type==='module')again();},true);setTimeout(function(){if(document.getElementById('ssr'))again();},15000);})();</script>`;
+  return html.replace('<head>', `<head>\n${guard}`);
 }
 
 const HEAD_TAGS =
@@ -579,13 +596,22 @@ export default async function handler(req: Request): Promise<Response> {
   } catch {
     return Response.redirect(`${origin}/index.html`, 302);
   }
-  const plainApp = () => new Response(tpl, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=0, s-maxage=60' } });
+  const plainApp = () => new Response(tpl, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=0, s-maxage=60, stale-while-revalidate=60' } });
 
   try {
     const a = q.get('a') ?? '';
     const b = q.get('b');
     const s = q.get('s') ?? '';
     let page: Page | Response | null = null;
+    // Short links from social posts: /j/<8 hex>?s=<platform> → the job page.
+    if (r === 'short') {
+      const prefix = a.match(/^[0-9a-f]{8}$/i)?.[0];
+      const j = prefix ? await rpc<SeoJob | null>('seo_job', { p_prefix: prefix }) : null;
+      const src = (q.get('s') ?? '').replace(/[^a-z]/gi, '').slice(0, 20);
+      const utm = src ? `?utm_source=${src}&utm_medium=social&utm_campaign=jobs` : '';
+      const to = j && !j.closed ? `${jobPath(j)}${utm}` : `/jobs${utm}`;
+      return new Response(null, { status: j && !j.closed ? 301 : 302, headers: { Location: to, 'Cache-Control': 'public, s-maxage=3600' } });
+    }
     if (r === 'job' && a) page = await jobPage(a, b, `/jobs/${a}${b ? `/${b}` : ''}`);
     else if (r === 'jobs') page = await jobsPage();
     else if (r === 'home') page = await homePage();
@@ -603,7 +629,8 @@ export default async function handler(req: Request): Promise<Response> {
       headers: {
         'content-type': 'text/html; charset=utf-8',
         // Browsers always revalidate (the app itself updates live); the edge keeps a copy.
-        'cache-control': `public, max-age=0, s-maxage=${maxAge}, stale-while-revalidate=86400`,
+        // Short stale window: after a deploy, old copies must disappear within minutes.
+        'cache-control': `public, max-age=0, s-maxage=${Math.min(maxAge, 900)}, stale-while-revalidate=120`,
       },
     });
   } catch {
