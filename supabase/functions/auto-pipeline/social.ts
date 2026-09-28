@@ -66,6 +66,7 @@ type Post = {
   images: { url: string; width: number; height: number }[];
   job_ids: string[];
   attempts: number;
+  validation?: { publish_now?: boolean } | null;
 };
 
 const DIMS = { portrait: [1080, 1350], square: [1080, 1080], story: [1080, 1920] } as const;
@@ -535,13 +536,14 @@ const PUBLISHERS: Record<Platform, (p: Post, service: Service) => Promise<Result
 async function publishDue(service: Service, platforms: Map<Platform, PlatformRow>, log: string[]) {
   // A run that stopped mid-publish: try again (the network call either happened or didn't).
   await service.from('social_posts').update({ status: 'approved' }).eq('status', 'publishing').lt('updated_at', new Date(Date.now() - 30 * 60_000).toISOString());
-  const { data } = await service.from('social_posts').select('id, platform, format, caption, headline, images, job_ids, attempts').eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8);
+  const { data } = await service.from('social_posts').select('id, platform, format, caption, headline, images, job_ids, attempts, validation').eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8);
   for (const post of (data ?? []) as Post[]) {
     const pr = platforms.get(post.platform);
     if (!pr?.enabled) continue;
     // Never two posts on one network within its minimum gap.
     const { count } = await service.from('social_posts').select('id', { count: 'exact', head: true }).eq('platform', post.platform).eq('status', 'published').gte('published_at', new Date(Date.now() - pr.min_gap_minutes * 60_000).toISOString());
-    if ((count ?? 0) > 0) continue;
+    // "Publish now" from the admin panel skips the minimum gap.
+    if ((count ?? 0) > 0 && !post.validation?.publish_now) continue;
 
     // Jobs still open?
     const { data: live } = await service.rpc('social_jobs_still_live', { p_ids: post.job_ids });

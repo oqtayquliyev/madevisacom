@@ -286,6 +286,32 @@ function PostCard({ post, campaign, onChange }: { post: Post; campaign?: Campaig
                 {busy === 'approve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} {post.status === 'failed' ? 'Retry' : 'Approve'}
               </button>
             )}
+            {['awaiting_approval', 'approved', 'failed'].includes(post.status) && (
+              <button
+                onClick={async () => {
+                  setBusy('now');
+                  setErr(null);
+                  const { error } = await supabase
+                    .from('social_posts')
+                    .update({ status: 'approved', caption, scheduled_at: new Date().toISOString(), error: null, validation: { ...(post.validation ?? {}), publish_now: true } })
+                    .eq('id', post.id);
+                  if (!error) await supabase.rpc('social_run_now');
+                  setBusy(null);
+                  if (error) setErr(error.message);
+                  else window.setTimeout(onChange, 45_000);
+                  onChange();
+                }}
+                disabled={busy !== null}
+                className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {busy === 'now' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Publish now
+              </button>
+            )}
+            {post.status === 'approved' && (
+              <span className="text-xs text-ink-500">
+                {new Date(post.scheduled_at).getTime() > Date.now() ? `Scheduled ${when(post.scheduled_at)}` : 'Goes out on the next run (every few minutes, after the platform’s min. gap)'}
+              </span>
+            )}
             {['awaiting_approval', 'approved', 'manual', 'failed'].includes(post.status) && (
               <button onClick={() => void update({ status: 'rejected' }, 'reject')} disabled={busy !== null} className="inline-flex items-center gap-1.5 rounded-md border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50">
                 <X className="h-3.5 w-3.5" /> Reject
