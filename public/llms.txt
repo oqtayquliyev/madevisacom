@@ -1,0 +1,20 @@
+# MadeVisa
+
+> MadeVisa is a job-search and hiring-insights platform. It shows live jobs straight from employers' own career pages (with the original posting date), Company Scores built from real applicant outcomes (how often and how fast companies reply), live job-market data by country, company and role, and visa routes for 20+ countries. Free for job seekers.
+
+## Main pages
+- [Jobs](https://madevisa.com/jobs): live jobs from company career pages; filter by country, visa sponsorship, remote/hybrid, salary, experience.
+- [Company Scores](https://madevisa.com/companies): reply rates and hiring activity per company.
+- [Job market insights](https://madevisa.com/job-market): who is hiring, where and how — updated hourly.
+- [Visas by country](https://madevisa.com/destinations): work, talent and job-search visa routes with official sources.
+- [Blog](https://madevisa.com/blog): weekly hiring reports and visa guides.
+
+## About
+- [What is MadeVisa](https://madevisa.com/about)
+- [How it works](https://madevisa.com/how-it-works)
+- [Editorial policy](https://madevisa.com/editorial-policy)
+- [Privacy policy](https://madevisa.com/privacy)
+
+## For crawlers
+- [Sitemap](https://madevisa.com/sitemap.xml) lists every live job, company, article and country page.
+- Job pages: https://madevisa.com/jobs/<company>/<title>-<id>. Each links to the employer's original posting.
