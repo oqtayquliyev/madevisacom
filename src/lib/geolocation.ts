@@ -4,14 +4,11 @@
  *
  * Order:
  * 1. `madevisa_country` cookie → use it (no prompt, no network).
- * 2. Otherwise ASK for location permission first (the browser's own
- *    "Allow location?" prompt). If allowed, the coordinates are turned
- *    into a country (BigDataCloud's free, keyless client endpoint) —
- *    only the COUNTRY CODE is kept; coordinates are never stored or sent
- *    to MadeVisa.
- * 3. If the visitor blocks/ignores the prompt (or the browser can't do
- *    it), fall back to a silent IP-based guess (ipwho.is).
- * 4. Whatever we land on is saved to the cookie for 180 days, so the
+ * 2. Otherwise a silent guess from the network address (ipwho.is). The
+ *    browser's location prompt is never shown on page load — only if a
+ *    page explicitly calls detectCountryByBrowserLocation() after the
+ *    visitor asks for it.
+ * 3. Whatever we land on is saved to the cookie for 180 days, so the
  *    prompt never repeats. Picking a country manually overwrites it.
  */
 
@@ -129,7 +126,10 @@ export async function resolveCountry(): Promise<string | null> {
   if (inflight) return inflight;
 
   inflight = (async () => {
-    const detected = (await detectCountryByBrowserLocation()) ?? (await detectCountryByIp());
+    // No browser location prompt on page load (bad for privacy and flagged by
+    // Google's page checks). The network-based guess is enough to pick a
+    // country, and anyone can change it by hand.
+    const detected = await detectCountryByIp();
     if (detected) {
       setStoredCountry(detected.code);
       return detected.code;

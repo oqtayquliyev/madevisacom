@@ -243,6 +243,16 @@ function stillLive(rows: SponsoredJob[]): SponsoredJob[] {
 }
 
 /**
+ * True when this device already has a recent copy of the full job list
+ * (then showing everything costs only a small "what's new" request).
+ */
+export async function hasSavedJobList(): Promise<boolean> {
+  if (publishedJobsCache) return true;
+  const saved = await readPersistedJobs().catch(() => null);
+  return Boolean(saved && saved.data.length && Date.now() - saved.fetchedAt < DELTA_FULL_REFRESH_MS);
+}
+
+/**
  * What changed since a release: jobs that went live after it, and jobs
  * closed after it. Two small indexed requests (released_at / closed_at) —
  * usually a handful of rows. null = couldn't (or too much changed); the
