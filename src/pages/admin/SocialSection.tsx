@@ -143,15 +143,17 @@ function ImageTextEditor({ post, onSave, busy }: { post: Post; onSave: (patch: P
   return (
     <div className="mt-3 rounded-lg border border-ink-200 bg-ink-50/60 p-3">
       <div className="grid gap-2 sm:grid-cols-2">
-        {field('h', 'Headline', 'e.g. 3 new jobs')}
-        <label className="text-xs font-medium text-ink-700">
-          Headline icon
-          <select className={`${input} mt-1`} value={t.hi} onChange={set('hi')}>
-            <option value="zap">⚡ Lightning</option>
-            <option value="party">🎉 Party</option>
-            <option value="none">None</option>
-          </select>
-        </label>
+        {layout === 'list' && field('h', 'Headline', 'e.g. 3 new jobs')}
+        {layout === 'list' && (
+          <label className="text-xs font-medium text-ink-700">
+            Headline icon
+            <select className={`${input} mt-1`} value={t.hi} onChange={set('hi')}>
+              <option value="zap">⚡ Lightning</option>
+              <option value="party">🎉 Party</option>
+              <option value="none">None</option>
+            </select>
+          </label>
+        )}
         {field('tag', 'Tag on each job')}
         {field('d', 'Date pill')}
         {field('cta', 'Button text')}

@@ -70,7 +70,7 @@ type Post = {
 
 const DIMS = { portrait: [1080, 1350], square: [1080, 1080], story: [1080, 1920] } as const;
 const SHORT: Record<Platform, string> = { facebook: 'fb', instagram: 'ig', linkedin: 'li', tiktok: 'tt' };
-const IMAGE_VERSION = '2'; // bump when the image template changes, so new posts get fresh images
+const IMAGE_VERSION = '3'; // bump when the image template changes, so new posts get fresh images
 
 // ---------------------------------------------------------------------------
 // Words
@@ -85,17 +85,49 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 /** Keep only this many finished posts (published / rejected / expired / failed). */
 const KEEP_HISTORY = 3;
 
-/** "#CustomerExperienceAdvisor" from "Customer Experience Advisor | S1 | Retail Banking" (same rule as the image). */
-function roleTag(title: string): string {
-  const core = cleanTitle(title).split(/\s[|–—-]\s|[|,(/]/)[0];
-  const words = core
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 4)
-    .map((w) => w[0].toUpperCase() + w.slice(1));
-  const tag = words.join('').slice(0, 32);
-  return tag.length >= 3 ? `#${tag}` : '';
+// ---------------------------------------------------------------------------
+// Hashtags people actually search: company, role word, industry, city,
+// country — e.g. #eaton #manager #advisor #banking #bedford #hiring #usjobs
+// ---------------------------------------------------------------------------
+
+const tagWord = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '');
+const COMPANY_NOISE = /^(the|group|inc|ltd|limited|plc|llc|gmbh|ag|sa|corp|corporation|company|co|holding|holdings)$/i;
+// Role words worth a hashtag (the last one in the title wins: "Senior Team Lead, Purchasing" → #lead, #purchasing).
+const ROLES = ['manager', 'director', 'engineer', 'developer', 'designer', 'analyst', 'advisor', 'adviser', 'consultant', 'accountant', 'operator', 'driver', 'nurse', 'teacher', 'assistant', 'coordinator', 'specialist', 'technician', 'cook', 'chef', 'waiter', 'cashier', 'lead', 'supervisor', 'administrator', 'scientist', 'architect', 'recruiter', 'intern', 'officer', 'associate', 'representative', 'agent', 'electrician', 'mechanic', 'welder', 'warehouse', 'courier', 'cleaner', 'receptionist', 'pharmacist', 'doctor', 'lawyer', 'auditor', 'buyer', 'writer', 'editor', 'marketer', 'producer'];
+// Industry / field words found in titles or job functions.
+const FIELDS: [RegExp, string][] = [
+  [/bank/i, 'banking'], [/financ|accounts? (payable|receivable)|accounting/i, 'finance'], [/retail|store|shop/i, 'retail'],
+  [/logistic|warehouse|forklift|supply chain|purchasing|procurement/i, 'logistics'], [/software|developer|devops|frontend|backend|full.?stack/i, 'tech'],
+  [/engineer/i, 'engineering'], [/design|ux|ui\b/i, 'design'], [/market/i, 'marketing'], [/sales|account executive|business development/i, 'sales'],
+  [/nurs|health|medical|clinic|pharma|care\b/i, 'healthcare'], [/hotel|hospitality|restaurant|cook|chef|kitchen|barista/i, 'hospitality'],
+  [/manufactur|production|produktion|operator|factory|assembly|clutch/i, 'manufacturing'], [/customer (service|experience|support)/i, 'customerservice'],
+  [/talent|recruit|\bhr\b|human resources|people/i, 'hr'], [/data|analytics/i, 'data'], [/teach|educat|school|tutor/i, 'education'],
+  [/legal|lawyer|compliance/i, 'legal'], [/driver|transport|delivery|courier/i, 'transport'], [/construct|electric|mechanic|welder/i, 'trades'],
+];
+const COUNTRY_TAG: Record<string, string> = { US: 'us', GB: 'uk', AE: 'uae', DE: 'germany', NL: 'netherlands', IE: 'ireland', CA: 'canada', AU: 'australia', FR: 'france', ES: 'spain', IT: 'italy', PL: 'poland', SK: 'slovakia', CZ: 'czechia', BE: 'belgium', CH: 'switzerland', AT: 'austria', SE: 'sweden', DK: 'denmark', NO: 'norway', FI: 'finland', PT: 'portugal', HU: 'hungary', AZ: 'azerbaijan', TR: 'turkey', SG: 'singapore', JP: 'japan', IN: 'india' };
+
+function tagsFor(c: Campaign, jobs: Job[]): string[] {
+  const company = new Set<string>(), role = new Set<string>(), field = new Set<string>(), city = new Set<string>(), country = new Set<string>();
+  for (const j of jobs) {
+    const name = j.company.split(/[\s,.&()-]+/).find((w) => w && !COMPANY_NOISE.test(w));
+    if (name && tagWord(name).length >= 2) company.add(tagWord(name));
+    const words = cleanTitle(j.title).toLowerCase().split(/[^a-z]+/);
+    const r = [...words].reverse().find((w) => ROLES.includes(w.replace(/s$/, '')));
+    if (r) role.add(r.replace(/s$/, '').replace('adviser', 'advisor'));
+    const text = `${j.title} ${j.job_function ?? ''}`;
+    for (const [re, t] of FIELDS) if (re.test(text)) field.add(t);
+    if (j.city && tagWord(j.city).length >= 3 && tagWord(j.city).length <= 20) city.add(tagWord(j.city));
+    const cc = (j.iso ?? '').toUpperCase();
+    if (COUNTRY_TAG[cc]) country.add(`${COUNTRY_TAG[cc]}jobs`);
+    else if (j.country) country.add(`${tagWord(j.country)}jobs`);
+  }
+  for (const cat of c.categories ?? []) if (tagWord(cat)) field.add(tagWord(cat));
+  const extra: string[] = [];
+  if (c.kind === 'student' || jobs.some((j) => j.student)) extra.push('internships');
+  if (jobs.some((j) => j.visa)) extra.push('visasponsorship');
+  if (jobs.some(isRemote)) extra.push('remotejobs');
+  const all = [...company, ...role, ...field, ...city, 'hiring', ...country, ...extra, 'jobs'];
+  return [...new Set(all)].filter(Boolean).slice(0, 15).map((t) => `#${t}`);
 }
 
 function jobLink(j: Job, p: Platform): string {
@@ -118,11 +150,9 @@ function headlineFor(c: Campaign, jobs: Job[], seed: number): string {
   return pickBy([`${n} fresh ${plural(n, 'role', 'roles')} worth your attention`, `${n} companies hiring today`, `Posted in the last 24 hours`, `New today: ${n} ${plural(n, 'role', 'roles')} to apply for`], seed);
 }
 
-function singleHeadline(j: Job): string {
-  if (j.student) return 'Student role';
-  if (j.visa) return 'Visa sponsorship';
-  if (isRemote(j)) return 'Remote role';
-  return 'Now hiring';
+/** Single-job images carry no headline — only the job details. */
+function singleHeadline(_j: Job): string {
+  return '';
 }
 
 function hookFor(c: Campaign, jobs: Job[], seed: number): string {
@@ -163,8 +193,7 @@ function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number): string
     const mode = j.work_arrangement === 'hybrid' ? 'Hybrid' : isRemote(j) && where !== 'Remote' ? 'Remote' : null;
     const facts = [where, j.salary, mode, j.visa ? 'Visa sponsorship' : null, j.student ? 'Student' : null].filter(Boolean);
     const link = clickable ? `Apply: ${jobLink(j, p)}` : `madevisa.com/j/${j.id.slice(0, 8)}`;
-    const rt = roleTag(j.title);
-    return `${jobs.length > 1 ? `${i + 1}. ` : ''}${cleanTitle(j.title)} — ${j.company}\n${facts.join(' · ')}\n${link}${rt ? `\n${rt}` : ''}`;
+    return `${jobs.length > 1 ? `${i + 1}. ` : ''}${cleanTitle(j.title)} — ${j.company}\n${facts.join(' · ')}\n${link}`;
   });
   const cta = clickable
     ? 'Every link opens the role on MadeVisa, with the details and a direct way to apply on the company’s own page.'
@@ -172,23 +201,13 @@ function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number): string
       ? `Apply on MadeVisa — link in bio, or type the madevisa.com/j/… address under ${jobs.length === 1 ? 'the role' : 'each role'}.`
       : `Apply on MadeVisa — type the madevisa.com/j/… address under ${jobs.length === 1 ? 'the role' : 'each role'}.`;
 
-  const tags = new Set<string>(['#hiring', '#jobs']);
-  for (const j of jobs.slice(0, 3)) {
-    const rt = roleTag(j.title);
-    if (rt) tags.add(rt);
-  }
-  if (c.kind === 'student' || jobs.some((j) => j.student)) tags.add('#internships');
-  if (jobs.some((j) => j.visa)) tags.add('#visasponsorship');
-  if (jobs.filter(isRemote).length) tags.add('#remotejobs');
-  const topCountry = jobs.map((j) => j.country).filter(Boolean).sort((a, b) => jobs.filter((x) => x.country === b).length - jobs.filter((x) => x.country === a).length)[0];
-  if (topCountry) tags.add(hashtag(`${topCountry}Jobs`).toLowerCase());
-  if (c.categories[0]) tags.add(hashtag(`${c.categories[0]}Jobs`).toLowerCase());
+  const tags = new Set<string>(tagsFor(c, jobs));
 
   const limit = p === 'linkedin' ? 2900 : 2150;
-  let body = [hookFor(c, jobs, seed), ...blocks, cta, [...tags].slice(0, 9).join(' ')].join('\n\n');
+  let body = [hookFor(c, jobs, seed), ...blocks, cta, [...tags].join(' ')].join('\n\n');
   while (body.length > limit && blocks.length > 1) {
     blocks.pop();
-    body = [hookFor(c, jobs, seed), ...blocks, cta, [...tags].slice(0, 9).join(' ')].join('\n\n');
+    body = [hookFor(c, jobs, seed), ...blocks, cta, [...tags].join(' ')].join('\n\n');
   }
   return body.slice(0, limit);
 }
@@ -260,31 +279,62 @@ async function planCampaign(service: Service, c: Campaign, platforms: Map<Platfo
       continue;
     }
     const want = c.format === 'single' ? 1 : c.format === 'carousel' || c.format === 'company' ? Math.min(3, c.jobs_count) : Math.min(pr.size === 'square' ? 3 : 5, c.jobs_count);
-    const { data: picked, error } = await service.rpc('social_pick_jobs', {
-      p_platform: p,
-      p_count: want,
-      p_kind: c.kind === 'student' ? 'student' : 'fresh',
-      p_categories: c.categories ?? [],
-      p_countries: c.countries ?? [],
-      p_salary_only: c.salary_only,
-    });
-    if (error) {
-      log.push(`${c.name} → ${p}: ${error.message}`);
-      continue;
+    const pick = (cats: string[]) =>
+      service.rpc('social_pick_jobs', {
+        p_platform: p,
+        p_count: want,
+        p_kind: c.kind === 'student' ? 'student' : 'fresh',
+        p_categories: cats,
+        p_countries: c.countries ?? [],
+        p_salary_only: c.salary_only,
+      });
+    const cats = (c.categories ?? []).filter(Boolean);
+    let jobs: Job[] = [];
+    if (cats.length > 1) {
+      // Several categories chosen: take turns, one job from each category, so
+      // every category gets its share instead of the first one filling the post.
+      const lists = await Promise.all(cats.map((x) => pick([x])));
+      const bad = lists.find((r) => r.error);
+      if (bad?.error) {
+        log.push(`${c.name} → ${p}: ${bad.error.message}`);
+        continue;
+      }
+      const pools = lists.map((r) => [...((r.data ?? []) as Job[])]);
+      const seenJob = new Set<string>(), seenCompany = new Set<string>();
+      const start = seed % cats.length; // rotate which category leads
+      for (let round = 0; jobs.length < want && pools.some((x) => x.length); round++) {
+        for (let k = 0; k < pools.length && jobs.length < want; k++) {
+          const pool = pools[(start + k) % pools.length];
+          while (pool.length) {
+            const j = pool.shift()!;
+            if (seenJob.has(j.id) || seenCompany.has(j.company)) continue;
+            seenJob.add(j.id);
+            seenCompany.add(j.company);
+            jobs.push(j);
+            break;
+          }
+        }
+      }
+    } else {
+      const { data: picked, error } = await pick(cats);
+      if (error) {
+        log.push(`${c.name} → ${p}: ${error.message}`);
+        continue;
+      }
+      jobs = (picked ?? []) as Job[];
     }
-    const jobs = (picked ?? []) as Job[];
     if (jobs.length < Math.min(c.min_jobs, want)) {
       log.push(`${c.name} → ${p}: only ${jobs.length} fresh ${plural(jobs.length, 'job', 'jobs')} match — skipped`);
       continue;
     }
 
     const [w, h] = DIMS[pr.size];
-    const headline = c.format === 'list' ? headlineFor(c, jobs, seed) : jobs.length === 1 ? singleHeadline(jobs[0]) : headlineFor(c, jobs, seed);
+    const headline = c.format === 'list' ? headlineFor(c, jobs, seed) : '';
     const images =
       c.format === 'list'
         ? [{ url: imageUrl('list', pr.size, jobs, headline, date, p), width: w, height: h }]
         : c.format === 'company'
-          ? jobs.map((j) => ({ url: imageUrl('company', pr.size, [j], 'Now hiring', date, p), width: w, height: h }))
+          ? jobs.map((j) => ({ url: imageUrl('company', pr.size, [j], '', date, p), width: w, height: h }))
           : jobs.map((j) => ({ url: imageUrl('single', pr.size, [j], singleHeadline(j), date, p), width: w, height: h }));
 
     const checks = await Promise.all(images.map((im) => validateImage(im.url, w, h)));
