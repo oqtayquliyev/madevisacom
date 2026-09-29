@@ -33,7 +33,7 @@ type Campaign = {
   kind: 'fresh' | 'student' | 'category' | 'company';
   platforms: Platform[];
   every_minutes: number;
-  format: 'list' | 'carousel' | 'single' | 'company';
+  format: 'list' | 'carousel' | 'single' | 'company' | 'cards' | 'mix';
   jobs_count: number;
   min_jobs: number;
   categories: string[];
@@ -187,35 +187,41 @@ function hookFor(c: Campaign, jobs: Job[], seed: number): string {
   );
 }
 
+/** 🇩🇪 from "DE". */
+const flag = (iso: string | null | undefined) =>
+  iso && /^[A-Z]{2}$/i.test(iso) ? String.fromCodePoint(...[...iso.toUpperCase()].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65)) : '📍';
+const HOOK_EMOJI = ['🚀', '✨', '🔥', '💼', '⚡', '🌍'];
+
 function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number): string {
   const clickable = p === 'linkedin' || p === 'facebook';
   const blocks = jobs.map((j, i) => {
     const where = place(j);
-    const mode = j.work_arrangement === 'hybrid' ? 'Hybrid' : isRemote(j) && where !== 'Remote' ? 'Remote' : null;
-    const facts = [where, j.salary, mode, j.visa ? 'Visa sponsorship' : null, j.student ? 'Student' : null].filter(Boolean);
-    const link = clickable ? `Apply: ${jobLink(j, p)}` : `madevisa.com/j/${j.id.slice(0, 8)}`;
+    const mode = j.work_arrangement === 'hybrid' ? '🏠 Hybrid' : isRemote(j) && where !== 'Remote' ? '🌐 Remote' : null;
+    const facts = [where ? `${flag(j.iso)} ${where}` : null, j.salary ? `💰 ${j.salary}` : null, mode, j.visa ? '🛂 Visa sponsorship' : null, j.student ? '🎓 Student' : null].filter(Boolean);
+    const link = clickable ? `👉 ${jobLink(j, p)}` : `👉 madevisa.com/j/${j.id.slice(0, 8)}`;
     return `${jobs.length > 1 ? `${i + 1}. ` : ''}${cleanTitle(j.title)} — ${j.company}\n${facts.join(' · ')}\n${link}`;
   });
   const cta = clickable
-    ? 'Every link opens the role on MadeVisa, with the details and a direct way to apply on the company’s own page.'
+    ? '🔎 Check visa sponsorship for your passport and apply on madevisa.com/jobs'
     : p === 'instagram'
-      ? `Apply on MadeVisa — link in bio, or type the madevisa.com/j/… address under ${jobs.length === 1 ? 'the role' : 'each role'}.`
-      : `Apply on MadeVisa — type the madevisa.com/j/… address under ${jobs.length === 1 ? 'the role' : 'each role'}.`;
+      ? '🔎 Check visa sponsorship for your passport on madevisa.com/jobs — link in bio.'
+      : '🔎 Check visa sponsorship for your passport on madevisa.com/jobs';
 
   const tags = new Set<string>(tagsFor(c, jobs));
 
   const limit = p === 'linkedin' ? 2900 : 2150;
-  let body = [hookFor(c, jobs, seed), ...blocks, cta, [...tags].join(' ')].join('\n\n');
+  const hook = `${pickBy(HOOK_EMOJI, seed)} ${hookFor(c, jobs, seed)}`;
+  let body = [hook, ...blocks, cta, [...tags].join(' ')].join('\n\n');
   while (body.length > limit && blocks.length > 1) {
     blocks.pop();
-    body = [hookFor(c, jobs, seed), ...blocks, cta, [...tags].join(' ')].join('\n\n');
+    body = [hook, ...blocks, cta, [...tags].join(' ')].join('\n\n');
   }
   return body.slice(0, limit);
 }
 
 // Every text on the image is a URL parameter (see api/og/social.ts), so the
 // admin panel can edit them before the post goes out.
-function imageUrl(layout: 'list' | 'single' | 'company', size: string, jobs: Job[], headline: string, date: string, p: Platform) {
+function imageUrl(layout: 'list' | 'single' | 'company' | 'cards', size: string, jobs: Job[], headline: string, date: string, p: Platform) {
   const q = new URLSearchParams({ layout, size, ids: jobs.map((j) => j.id.slice(0, 8)).join(','), h: headline, d: date, s: SHORT[p], hi: 'zap', v: IMAGE_VERSION });
   return `${SITE}/api/og/social?${q.toString()}`;
 }
@@ -265,8 +271,26 @@ async function recentPosts(service: Service, p: Platform, minutes: number): Prom
   return count ?? 0;
 }
 
+/** The companies (and format) of the last few posts on a network — so the next post doesn't repeat them. */
+async function recentOnPlatform(service: Service, p: Platform, n = 3): Promise<{ companies: Set<string>; lastFormat: string | null }> {
+  const { data } = await service
+    .from('social_posts')
+    .select('format, links')
+    .eq('platform', p)
+    .not('status', 'in', '(rejected,expired)')
+    .order('created_at', { ascending: false })
+    .limit(n);
+  const rows = (data ?? []) as { format: string; links: { company?: string }[] }[];
+  const companies = new Set<string>();
+  for (const r of rows) for (const l of r.links ?? []) if (l.company) companies.add(l.company.trim().toLowerCase());
+  return { companies, lastFormat: rows[0]?.format ?? null };
+}
+
+const MIX: Campaign['format'][] = ['cards', 'list', 'company'];
+
 async function planCampaign(service: Service, c: Campaign, platforms: Map<Platform, PlatformRow>, log: string[]) {
-  const seed = Math.floor(Date.now() / 3_600_000) + c.name.length;
+  // A different seed every run → different hook, headline and emoji each post.
+  const seed = Math.floor(Math.random() * 1_000_000);
   const date = `Fresh · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
   for (const p of c.platforms) {
     const pr = platforms.get(p);
@@ -279,11 +303,20 @@ async function planCampaign(service: Service, c: Campaign, platforms: Map<Platfo
       log.push(`${c.name} → ${p}: daily limit reached`);
       continue;
     }
-    const want = c.format === 'single' ? 1 : c.format === 'carousel' || c.format === 'company' ? Math.min(3, c.jobs_count) : Math.min(pr.size === 'square' ? 3 : 5, c.jobs_count);
+    // Never repeat a company from the last 3 posts on this network; "mix"
+    // campaigns also switch to a different design than the last post.
+    const recent = await recentOnPlatform(service, p, 3);
+    const lastIdx = MIX.indexOf((recent.lastFormat ?? '') as Campaign['format']);
+    const format: Campaign['format'] = c.format === 'mix' ? MIX[(lastIdx + 1) % MIX.length] : c.format;
+    const want =
+      format === 'single' ? 1
+        : format === 'carousel' || format === 'company' ? Math.min(3, c.jobs_count)
+          : format === 'cards' ? Math.min(pr.size === 'square' ? 3 : pr.size === 'story' ? 5 : 4, c.jobs_count)
+            : Math.min(pr.size === 'square' ? 3 : 5, c.jobs_count);
     const pick = (cats: string[]) =>
       service.rpc('social_pick_jobs', {
         p_platform: p,
-        p_count: want,
+        p_count: Math.min(want * 3, 15),
         p_kind: c.kind === 'student' ? 'student' : 'fresh',
         p_categories: cats,
         p_countries: c.countries ?? [],
@@ -324,17 +357,28 @@ async function planCampaign(service: Service, c: Campaign, platforms: Map<Platfo
       }
       jobs = (picked ?? []) as Job[];
     }
+    // Drop companies used in the last 3 posts, then one job per company, then trim to size.
+    const usedCo = new Set<string>();
+    jobs = jobs.filter((j) => {
+      const k = j.company.trim().toLowerCase();
+      if (recent.companies.has(k) || usedCo.has(k)) return false;
+      usedCo.add(k);
+      return true;
+    }).slice(0, want);
     if (jobs.length < Math.min(c.min_jobs, want)) {
       log.push(`${c.name} → ${p}: only ${jobs.length} fresh ${plural(jobs.length, 'job', 'jobs')} match — skipped`);
       continue;
     }
 
     const [w, h] = DIMS[pr.size];
-    const headline = c.format === 'list' ? headlineFor(c, jobs, seed) : '';
+    const CARD_PILLS = ['New jobs this week', 'Fresh roles today', 'Hiring now', 'Just posted', 'Worth a look today'];
+    const headline = format === 'list' ? headlineFor(c, jobs, seed) : format === 'cards' ? pickBy(CARD_PILLS, seed) : '';
     const images =
-      c.format === 'list'
+      format === 'list'
         ? [{ url: imageUrl('list', pr.size, jobs, headline, date, p), width: w, height: h }]
-        : c.format === 'company'
+        : format === 'cards'
+          ? [{ url: imageUrl('cards', pr.size, jobs, headline, date, p), width: w, height: h }]
+        : format === 'company'
           ? jobs.map((j) => ({ url: imageUrl('company', pr.size, [j], '', date, p), width: w, height: h }))
           : jobs.map((j) => ({ url: imageUrl('single', pr.size, [j], singleHeadline(j), date, p), width: w, height: h }));
 
@@ -347,14 +391,14 @@ async function planCampaign(service: Service, c: Campaign, platforms: Map<Platfo
     }
 
     const caption = captionFor(c, jobs, p, seed);
-    const imageKey = `${c.format}:${pr.size}:${jobs.map((j) => j.id).sort().join(',')}`;
+    const imageKey = `${format}:${pr.size}:${jobs.map((j) => j.id).sort().join(',')}`;
     const { data: post, error: insErr } = await service
       .from('social_posts')
       .insert({
         campaign_id: c.id,
         platform: p,
         status: c.require_approval ? 'awaiting_approval' : 'approved',
-        format: c.format,
+        format,
         headline,
         caption,
         images,

@@ -21,12 +21,13 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
     title: 'Explore',
     links: [
       { label: 'Jobs', view: 'jobs' },
-      { label: 'Company Scores', view: 'companies' },
+      { label: 'Insights', view: 'companies' },
       { label: 'Hiring Feedback', view: 'feedback' },
       { label: 'Visas by Country', view: 'destinations' },
-      { label: 'Network', view: 'network' },
-      { label: 'Programs', view: 'programs' },
-      { label: 'Study & scholarships', view: 'study' },
+      { label: 'Recruiters', view: 'network' },
+      { label: 'Instant Jobs (Pro)', href: '/pricing' },
+      { label: 'Programs (soon)', view: 'programs' },
+      { label: 'Study (soon)', view: 'study' },
     ],
   },
   {
@@ -44,7 +45,6 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
     links: [
       { label: 'About', href: '/about' },
       { label: 'How it works', href: '/how-it-works' },
-      { label: 'Pricing', href: '/pricing' },
       { label: 'Post a job', view: 'submit-job' },
       { label: 'Advertise', href: '/advertising-policy' },
       { label: 'Official institutions', view: 'official-partners' },

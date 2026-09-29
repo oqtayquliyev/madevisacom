@@ -39,8 +39,8 @@ const TAB_FROM_URL = (): Tab => {
 
 export function NetworkPage({ go, onAuth }: Props) {
   useSeo({
-    title: 'Network — people hiring across borders, employers who sponsor visas',
-    description: 'Meet hiring managers, recruiters and people looking to move, and see which employers sponsor visas, with live sponsorship rates.',
+    title: 'Recruiters — hiring managers and recruiters hiring across borders',
+    description: 'Hiring managers, recruiters and visa experts who hire internationally, and the employers that sponsor visas — with live sponsorship rates.',
     path: '/network',
   });
   const { session, profile } = useAuth();
@@ -88,12 +88,12 @@ export function NetworkPage({ go, onAuth }: Props) {
         <div className={`${WRAP} pb-10 pt-10 sm:pb-12 sm:pt-12`}>
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <h1 className="text-[32px] font-bold leading-[1.1] tracking-tight sm:text-[44px]">The MadeVisa Network</h1>
+              <h1 className="text-[32px] font-bold leading-[1.1] tracking-tight sm:text-[44px]">Recruiters on MadeVisa</h1>
               <p className="mt-4 text-[16px] leading-7 text-white/85">
-                Hiring managers who hire across borders, people ready to move, and the employers and recruiters that make visas happen.
+                Hiring managers and recruiters who hire across borders, visa experts, and the employers that sponsor visas.
               </p>
               <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
-                <HeroFigure label="People" value={counts === undefined ? '…' : (counts?.people ?? 0).toLocaleString()} />
+                <HeroFigure label="Recruiters" value={counts === undefined ? '…' : (counts?.recruiters ?? 0).toLocaleString()} />
                 <HeroFigure label="Hiring now" value={counts === undefined ? '…' : (counts?.hiring ?? 0).toLocaleString()} />
               </div>
             </div>
@@ -107,11 +107,11 @@ export function NetworkPage({ go, onAuth }: Props) {
                   }}
                   className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-[15px] font-bold text-brand-700 hover:bg-brand-50"
                 >
-                  {listed ? 'Edit your Network profile' : 'Join the Network'}
+                  {listed ? 'Edit your recruiter profile' : 'List yourself as a recruiter'}
                 </a>
               ) : (
                 <button onClick={() => onAuth?.('register')} className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-[15px] font-bold text-brand-700 hover:bg-brand-50">
-                  Join the Network
+                  List yourself as a recruiter
                 </button>
               )}
             </div>
@@ -123,7 +123,7 @@ export function NetworkPage({ go, onAuth }: Props) {
       <div className="border-b border-ink-200 bg-white/95 backdrop-blur md:sticky md:top-[72px] md:z-20">
         <div className={`${WRAP} flex flex-col gap-3 py-3 md:flex-row md:items-center`}>
           <div className="grid grid-cols-3 gap-1 rounded-xl bg-ink-50 p-1 md:inline-flex md:w-auto" role="tablist">
-            <TabButton active={tab === 'people'} onClick={() => setTab('people')} icon={Users} label="People" count={counts?.people} />
+            <TabButton active={tab === 'people'} onClick={() => setTab('people')} icon={Users} label="Hiring people" short="Hiring" />
             <TabButton active={tab === 'employers'} onClick={() => setTab('employers')} icon={Building2} label="Employers who sponsor" short="Employers" />
             <TabButton
               active={tab === 'experts'}
@@ -176,7 +176,10 @@ function PeopleTab({ search, counts, onJoin, listed }: { search: string; counts:
   useEffect(() => {
     let alive = true;
     setPeople(undefined);
-    fetchNetworkDirectory({ intent: intent === 'all' ? null : intent, role: role === 'all' ? null : role, search: q, limit: 90 }).then((rows) => alive && setPeople(rows));
+    // Recruiters only: hiring managers, recruiters, visa experts, or anyone marked as hiring — never job-seeker profiles.
+    fetchNetworkDirectory({ intent: intent === 'all' ? null : intent, role: role === 'all' ? null : role, search: q, limit: 90 }).then(
+      (rows) => alive && setPeople(rows ? rows.filter((p) => (p.network_role && p.network_role !== 'job_seeker') || p.network_intent === 'hiring') : rows)
+    );
     return () => {
       alive = false;
     };
@@ -189,13 +192,12 @@ function PeopleTab({ search, counts, onJoin, listed }: { search: string; counts:
           value={intent}
           onChange={setIntent}
           options={[
-            { value: 'all', label: 'Everyone' },
-            { value: 'hiring', label: `Hiring${counts?.hiring ? ` · ${counts.hiring}` : ''}` },
-            { value: 'looking', label: `Looking${counts?.looking ? ` · ${counts.looking}` : ''}` },
+            { value: 'all', label: 'All recruiters' },
+            { value: 'hiring', label: `Hiring now${counts?.hiring ? ` · ${counts.hiring}` : ''}` },
           ]}
         />
         <div className="flex max-w-full gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
-          {(['all', 'hiring_manager', 'recruiter', 'visa_expert', 'job_seeker'] as const).map((r) => (
+          {(['all', 'hiring_manager', 'recruiter', 'visa_expert'] as const).map((r) => (
             <button
               key={r}
               onClick={() => setRole(r)}

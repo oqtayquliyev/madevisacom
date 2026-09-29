@@ -1,4 +1,4 @@
-// GET /api/og/social?layout=list|single|company&ids=<8-hex,…>&size=portrait|square|story&h=<headline>&d=<date label>&s=<platform>
+// GET /api/og/social?layout=list|single|company|cards&ids=<8-hex,…>&size=portrait|square|story&h=<headline>&d=<date label>&s=<platform>
 //   → PNG for a social post, drawn at the edge from live job data.
 // Every text on the image can be changed from the admin panel before posting:
 //   h    headline                     hi   headline icon: zap | party | none
@@ -180,7 +180,7 @@ function chip(text: string, size: number, kind: 'salary' | 'tag'): El {
 
 type Issue = { level: 'error' | 'warning'; message: string };
 
-async function draw(layout: 'list' | 'single' | 'company', sizeKey: SizeKey, jobs: Job[], headline: string, dateLabel: string, T: Texts) {
+async function draw(layout: 'list' | 'single' | 'company' | 'cards', sizeKey: SizeKey, jobs: Job[], headline: string, dateLabel: string, T: Texts) {
   const S = SIZES[sizeKey];
   const issues: Issue[] = [];
   const inner = S.w - S.side * 2;
@@ -211,7 +211,11 @@ async function draw(layout: 'list' | 'single' | 'company', sizeKey: SizeKey, job
       'div',
       { alignItems: 'center', justifyContent: 'space-between', width: inner },
       brand('white', sizeKey === 'story' ? 40 : 34),
-      dateLabel ? pill(dateLabel.toUpperCase(), { bg: 'rgba(255,255,255,0.18)', color: 'white', size: sizeKey === 'story' ? 22 : 19 }) : null
+      layout === 'cards'
+        ? pill(cut((headline || 'New jobs this week').toUpperCase(), sizeKey === 'story' ? 24 : 21, inner * 0.6, 800).text, { bg: 'rgba(255,255,255,0.18)', color: 'white', size: sizeKey === 'story' ? 24 : 21 })
+        : dateLabel
+          ? pill(dateLabel.toUpperCase(), { bg: 'rgba(255,255,255,0.18)', color: 'white', size: sizeKey === 'story' ? 22 : 19 })
+          : null
     ),
     !showHead
       ? null
@@ -281,6 +285,43 @@ async function draw(layout: 'list' | 'single' | 'company', sizeKey: SizeKey, job
         );
       })
     );
+  } else if (layout === 'cards') {
+    // One white card per job: logo · title · company and place · salary on the right.
+    const max = sizeKey === 'story' ? 5 : sizeKey === 'square' ? 3 : 4;
+    const rows = jobs.slice(0, max);
+    if (jobs.length > max) issues.push({ level: 'warning', message: `Only ${max} jobs fit this size — ${jobs.length - max} left out` });
+    const gap = sizeKey === 'story' ? 26 : 20;
+    const cardHeight = Math.min(sizeKey === 'story' ? 210 : 170, Math.floor((cardH - gap * (rows.length - 1)) / Math.max(rows.length, 1)));
+    const pad = 26;
+    const logoSize = Math.round(cardHeight * 0.48);
+    const titleSize = sizeKey === 'story' ? 40 : 34;
+    const metaSize = sizeKey === 'story' ? 28 : 24;
+    body = h(
+      'div',
+      { flexDirection: 'column', width: inner, height: cardH, flexShrink: 0, justifyContent: 'center', overflow: 'hidden' },
+      ...rows.map((j, i) => {
+        const logo = logos[i];
+        const salW = j.salary ? Math.min(inner * 0.34, j.salary.length * titleSize * 0.62 * 0.8 + 10) : 0;
+        const textW = inner - pad * 2 - (logo ? logoSize + 24 : 0) - (salW ? salW + 20 : 0);
+        const title = cut(cleanTitle(j.title), titleSize, textW, 800);
+        if (title.cut) issues.push({ level: 'warning', message: `Title shortened: ${j.title}` });
+        const meta = cut([j.company, location(j)].filter(Boolean).join(' · '), metaSize, textW, 600).text;
+        return h(
+          'div',
+          { width: inner, height: cardHeight, marginTop: i ? gap : 0, backgroundColor: 'white', borderRadius: 26, padding: `0 ${pad}px`, alignItems: 'center', flexShrink: 0, overflow: 'hidden' },
+          logo ? img(logo, { width: logoSize, height: logoSize, borderRadius: 16, objectFit: 'contain', border: '2px solid #E2E8F0', marginRight: 24, backgroundColor: 'white', padding: Math.round(logoSize * 0.08) }) : null,
+          h(
+            'div',
+            { flexDirection: 'column', width: textW, overflow: 'hidden' },
+            h('div', { fontSize: titleSize, fontWeight: 800, color: INK, fontFamily: SANS, whiteSpace: 'nowrap', letterSpacing: -0.5 }, title.text),
+            h('div', { marginTop: 6, fontSize: metaSize, fontWeight: 600, color: MUTED, fontFamily: SANS, whiteSpace: 'nowrap' }, meta)
+          ),
+          j.salary
+            ? h('div', { marginLeft: 20, width: salW, justifyContent: 'flex-end', fontSize: Math.round(titleSize * 0.8), fontWeight: 800, color: BLUE, fontFamily: SANS, whiteSpace: 'nowrap' }, cut(j.salary, Math.round(titleSize * 0.8), salW, 800).text)
+            : null
+        );
+      })
+    );
   } else if (layout === 'company') {
     // Company only: logo, name, "is hiring". The role details live in the caption.
     const j = jobs[0];
@@ -336,7 +377,8 @@ async function draw(layout: 'list' | 'single' | 'company', sizeKey: SizeKey, job
     );
   }
 
-  const shortLink = T.link || (layout !== 'list' ? `madevisa.com/j/${jobs[0].id.slice(0, 8)}` : 'madevisa.com/jobs');
+  // Always the jobs page — the caption carries each job's own link.
+  const shortLink = T.link || 'madevisa.com/jobs';
   const linkSize = sizeKey === 'story' ? 28 : 24;
   const footer = h(
     'div',
@@ -370,12 +412,13 @@ async function draw(layout: 'list' | 'single' | 'company', sizeKey: SizeKey, job
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const q = url.searchParams;
-  const layout = q.get('layout') === 'single' ? 'single' : q.get('layout') === 'company' ? 'company' : 'list';
+  const lq = q.get('layout');
+  const layout = lq === 'single' ? 'single' : lq === 'company' ? 'company' : lq === 'cards' ? 'cards' : 'list';
   const sizeKey = (['portrait', 'square', 'story'].includes(q.get('size') ?? '') ? q.get('size') : 'portrait') as SizeKey;
   const prefixes = (q.get('ids') ?? '').split(',').map((x) => x.trim().toLowerCase()).filter((x) => /^[0-9a-f]{8}$/.test(x)).slice(0, 5);
   // Lists: "3 new jobs" by default, never salary wording. Single / company images: no headline at all.
   const rawHead = (q.get('h') ?? '').slice(0, 120);
-  const headline = layout !== 'list' ? '' : rawHead && !/salar/i.test(rawHead) ? rawHead : `${prefixes.length} new jobs`;
+  const headline = layout === 'cards' ? rawHead || 'New jobs this week' : layout !== 'list' ? '' : rawHead && !/salar/i.test(rawHead) ? rawHead : `${prefixes.length} new jobs`;
   // A param that is present but empty hides that text; absent = default.
   const text = (k: string, dflt: string, max = 60) => (q.has(k) ? (q.get(k) ?? '').trim().slice(0, max) : dflt);
   const dateLabel = text('d', new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), 30);
@@ -399,7 +442,7 @@ export default async function handler(req: Request): Promise<Response> {
     return new Response('No live jobs', { status: 404 });
   }
 
-  const { tree, issues, width, height } = await draw(layout, sizeKey, layout === 'list' ? jobs : jobs.slice(0, 1), headline, dateLabel, T);
+  const { tree, issues, width, height } = await draw(layout, sizeKey, layout === 'list' || layout === 'cards' ? jobs : jobs.slice(0, 1), headline, dateLabel, T);
   for (const m of missing) issues.push({ level: 'error', message: `Job ${m} is no longer live` });
 
   if (check) {

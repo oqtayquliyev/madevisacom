@@ -1,7 +1,7 @@
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useEffect, useState } from "react";
 import { SoonChip, SOON_VIEWS } from "@/components/common/SoonChip";
-import { BookOpen, ChevronDown, Building2, Briefcase, GraduationCap, LayoutDashboard, LogIn, LogOut, ShieldCheck, UserPlus, Users, X, Gauge } from "lucide-react";
+import { ChevronDown, Building2, Briefcase, GraduationCap, LayoutDashboard, LogIn, LogOut, ShieldCheck, UserPlus, Users, X, BarChart3, Zap } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { CheckInReminder } from "@/components/jobs/CheckInReminder";
 import { fetchMyManagedPublishers } from "@/lib/companyManager";
@@ -19,6 +19,8 @@ type LandingHeaderProps = {
   active?: View;
 };
 
+// Main menu: Jobs · Insights · Recruiters · Instant Jobs (Pro).
+// Programs and Study are "soon" — they live in the footer until they launch.
 const primaryLinks: {
   view: View;
   href: string;
@@ -26,13 +28,8 @@ const primaryLinks: {
   icon: typeof Briefcase;
 }[] = [
   { view: "jobs", href: "/jobs", label: "Jobs", icon: Briefcase },
-  {
-    view: "programs",
-    href: "/programs",
-    label: "Programs",
-    icon: GraduationCap,
-  },
-  { view: "study", href: "/study", label: "Study", icon: BookOpen },
+  { view: "companies", href: "/companies", label: "Insights", icon: BarChart3 },
+  { view: "network", href: "/network", label: "Recruiters", icon: Users },
 ];
 
 // Dropdown rows: grey by default, MadeVisa blue text on hover.
@@ -145,31 +142,20 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             })}
 
             <a
-              href="/network"
+              href="/pricing"
               onClick={(event) =>
                 handleNavClick(event, () => {
-                  go("network");
+                  window.history.pushState({}, "", "/pricing");
+                  window.dispatchEvent(new PopStateEvent("popstate"));
+                  window.scrollTo({ top: 0 });
                   setOpenMenu(false);
                 })
               }
-              className={linkClass("network")}
+              className={linkClass("pricing" as View)}
             >
-              <Users className="h-4 w-4" />
-              Network
-            </a>
-
-            <a
-              href="/companies"
-              onClick={(event) =>
-                handleNavClick(event, () => {
-                  go("companies");
-                  setOpenMenu(false);
-                })
-              }
-              className={linkClass("companies")}
-            >
-              <Gauge className="h-4 w-4" />
-              Company Scores
+              <Zap className="h-4 w-4 text-amber-500" />
+              Instant Jobs
+              <span className="rounded bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Pro</span>
             </a>
 
             <div className="my-1 h-px bg-ink-100 md:hidden" />

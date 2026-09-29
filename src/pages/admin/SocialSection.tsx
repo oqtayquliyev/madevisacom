@@ -23,7 +23,7 @@ type Campaign = {
   kind: 'fresh' | 'student' | 'category' | 'company';
   platforms: Platform[];
   every_minutes: number;
-  format: 'list' | 'carousel' | 'single' | 'company';
+  format: 'list' | 'carousel' | 'single' | 'company' | 'cards' | 'mix';
   jobs_count: number;
   min_jobs: number;
   categories: string[];
@@ -224,7 +224,7 @@ function PostCard({ post, campaign, onChange }: { post: Post; campaign?: Campaig
         <span className="rounded-full bg-ink-950 px-2.5 py-0.5 font-semibold text-white">{PLATFORM_LABEL[post.platform]}</span>
         <span className={`rounded-full px-2.5 py-0.5 font-semibold ${STATUS_STYLE[post.status]}`}>{STATUS_LABEL[post.status]}</span>
         <span className="text-ink-500">
-          {campaign?.name ?? 'Campaign'} · {post.format === 'list' ? 'List image' : post.format === 'carousel' ? `${post.images.length} images` : post.format === 'company' ? `Company · ${post.images.length} ${post.images.length === 1 ? 'image' : 'images'}` : 'Single job'} · {when(post.published_at ?? post.created_at)}
+          {campaign?.name ?? 'Campaign'} · {post.format === 'cards' ? 'Cards image' : post.format === 'list' ? 'List image' : post.format === 'carousel' ? `${post.images.length} images` : post.format === 'company' ? `Company · ${post.images.length} ${post.images.length === 1 ? 'image' : 'images'}` : 'Single job'} · {when(post.published_at ?? post.created_at)}
         </span>
         {post.external_url && (
           <a href={post.external_url} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 font-semibold text-brand-700 hover:underline">
@@ -413,6 +413,8 @@ function CampaignForm({ c, onDone }: { c: Partial<Campaign>; onDone: () => void 
         <label className="text-xs font-medium text-ink-700">
           Format
           <select className={`${input} mt-1`} value={v.format ?? 'list'} onChange={(e) => set({ format: e.target.value as Campaign['format'] })}>
+            <option value="mix">Mix — a different design each post (recommended)</option>
+            <option value="cards">Cards — one card per job, salary on the right (up to 4)</option>
             <option value="list">One image, up to 5 jobs</option>
             <option value="carousel">Up to 3 images, one caption</option>
             <option value="single">One job</option>
@@ -605,7 +607,7 @@ export function SocialSection() {
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${c.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-ink-100 text-ink-500'}`}>{c.enabled ? 'On' : 'Off'}</span>
                   </p>
                   <p className="mt-0.5 text-xs text-ink-500">
-                    {FREQ.find(([m]) => m === c.every_minutes)?.[1] ?? `Every ${c.every_minutes} min`} · {c.format === 'list' ? `list of up to ${c.jobs_count}` : c.format === 'carousel' ? 'up to 3 images' : c.format === 'company' ? 'company images' : 'one job'} ·{' '}
+                    {FREQ.find(([m]) => m === c.every_minutes)?.[1] ?? `Every ${c.every_minutes} min`} · {c.format === 'mix' ? 'mixed designs' : c.format === 'cards' ? `cards, up to ${Math.min(4, c.jobs_count)}` : c.format === 'list' ? `list of up to ${c.jobs_count}` : c.format === 'carousel' ? 'up to 3 images' : c.format === 'company' ? 'company images' : 'one job'} ·{' '}
                     {c.platforms.map((p) => PLATFORM_LABEL[p]).join(', ')}
                     {c.categories.length ? ` · ${c.categories.join(', ')}` : ''}
                     {c.require_approval ? ' · needs approval' : ' · automatic'}
