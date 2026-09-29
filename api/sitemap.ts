@@ -70,6 +70,7 @@ export default async function handler(req: Request): Promise<Response> {
       ['/network', 'daily', '0.5'],
       ['/about', 'monthly', '0.6'],
       ['/how-it-works', 'monthly', '0.6'],
+      ['/pricing', 'monthly', '0.5'],
       ['/submit-job', 'monthly', '0.4'],
       ['/official-partners', 'monthly', '0.3'],
     ];

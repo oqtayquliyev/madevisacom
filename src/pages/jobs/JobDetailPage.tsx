@@ -26,6 +26,7 @@ import { allCountries } from '@/data/allCountries';
 import { ReportJobButton } from '@/components/jobs/ReportJobDialog';
 import { JobInsights } from '@/components/jobs/JobInsights';
 import { JobSignals } from '@/components/jobs/JobSignals';
+import { JobProInsights } from '@/components/pro/JobProInsights';
 
 type JobDetailPageProps = {
   id: string;
@@ -563,6 +564,17 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               window.scrollTo({ top: 0 });
             }}
             onSignUp={() => onAuth?.('register')}
+          />
+        )}
+
+        {raw && !closed && (
+          <JobProInsights
+            publisherId={raw.publisher_id}
+            company={job.company}
+            title={job.title}
+            department={raw.job_function}
+            countryCode={raw.country?.iso_code ?? job.countryCode}
+            countryName={raw.country?.name ?? job.country}
           />
         )}
 

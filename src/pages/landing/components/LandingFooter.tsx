@@ -44,6 +44,7 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
     links: [
       { label: 'About', href: '/about' },
       { label: 'How it works', href: '/how-it-works' },
+      { label: 'Pricing', href: '/pricing' },
       { label: 'Post a job', view: 'submit-job' },
       { label: 'Advertise', href: '/advertising-policy' },
       { label: 'Official institutions', view: 'official-partners' },

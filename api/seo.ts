@@ -528,6 +528,20 @@ async function staticPage(slug: string): Promise<Page | null> {
     };
   }
 
+  if (slug === 'pricing') {
+    return {
+      title: 'Pricing — MadeVisa Pro for job seekers, sponsored jobs for employers',
+      description: 'Free job search with reply rates and visa routes on every job. Pro adds instant job alerts, full company response data and visa-sponsoring companies. Fair prices by country.',
+      path,
+      jsonld: [crumbsLd([['MadeVisa', '/'], ['Pricing', path]])],
+      body:
+        '<h1>Pricing</h1><p>Every job, reply rate and visa route on MadeVisa is free. MadeVisa Pro adds instant job alerts, full company response data and the companies that sponsor visas.</p>' +
+        '<h2>For employers</h2><p>Sponsored jobs ($299 for 30 days), featured placement in social posts, employer plans and Hiring Briefs.</p>' +
+        footerLinks(),
+      maxAge: 3600,
+    };
+  }
+
   if (slug === 'job-market') {
     const snap = await rest<{ data: Record<string, any>; computed_at: string }[]>('insights_snapshot?select=data,computed_at&limit=1'); // eslint-disable-line @typescript-eslint/no-explicit-any
     const d = snap?.[0]?.data;

@@ -40,6 +40,7 @@ const JobMarketPage = lazy(() => import('@/pages/info/JobMarketPage').then((m) =
 const BlogPage = lazy(() => import('@/pages/blog/BlogPage').then((m) => ({ default: m.BlogPage })));
 const ArticlePage = lazy(() => import('@/pages/blog/ArticlePage').then((m) => ({ default: m.ArticlePage })));
 const SubmitJobPage = lazy(() => import('@/pages/submit/SubmitJobPage').then((m) => ({ default: m.SubmitJobPage })));
+const PricingPage = lazy(() => import('@/pages/pricing/PricingPage').then((m) => ({ default: m.PricingPage })));
 const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 
 type AuthPage = 'login' | 'register' | 'reset-password' | 'pending-confirmation';
@@ -301,6 +302,10 @@ export default function App() {
 
   if (path === '/about' || path === '/how-it-works') {
     return <InfoPage key={path} slug={path.slice(1) as 'about' | 'how-it-works'} go={go} onAuth={goToAuth} />;
+  }
+
+  if (path === '/pricing') {
+    return <PricingPage go={go} onAuth={goToAuth} />;
   }
 
   if (path === '/job-market') {

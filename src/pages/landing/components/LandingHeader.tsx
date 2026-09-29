@@ -1,3 +1,4 @@
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useEffect, useState } from "react";
 import { SoonChip, SOON_VIEWS } from "@/components/common/SoonChip";
 import { BookOpen, ChevronDown, Building2, Briefcase, GraduationCap, LayoutDashboard, LogIn, LogOut, ShieldCheck, UserPlus, Users, X, Gauge } from "lucide-react";
@@ -194,6 +195,8 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                 Get started
               </a>
             )}
+
+            {profile && <NotificationBell />}
 
             {/* Account menu — the name links to the person's profile; the avatar +
                 arrow sit in a soft grey box and open the menu. */}
