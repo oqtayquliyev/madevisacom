@@ -418,6 +418,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {/* DASHBOARD — applications at a glance + recently viewed */}
         {tab === 'dashboard' && (
           <div className="mt-5 space-y-8">
+            <MyBriefsSection />
             <ApplicantReport
               viewedCount={recentlyViewedJobs.length}
               hasPublicProfile={Boolean(profile.username)}
@@ -431,7 +432,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
                 accountCreatedAt: user?.created_at ?? null,
               }}
             />
-            <MyBriefsSection />
             <RecentlyViewedSection items={recentlyViewedJobs} onBrowse={() => go('jobs')} />
           </div>
         )}

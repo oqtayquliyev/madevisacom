@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { SoonChip, SOON_VIEWS } from "@/components/common/SoonChip";
 import { ChevronDown, Building2, Briefcase, FileSignature, GraduationCap, LayoutDashboard, LogIn, LogOut, ShieldCheck, UserPlus, Users, X, BarChart3 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { creditsBadge, useOfferCredits } from "@/lib/sponsorOffer";
+import { creditsBadge, usd, useOfferCredits } from "@/lib/sponsorOffer";
 import { CheckInReminder } from "@/components/jobs/CheckInReminder";
 import { OfferWelcome } from "@/components/briefs/OfferWelcome";
 import { fetchMyManagedPublishers } from "@/lib/companyManager";
@@ -21,7 +21,7 @@ type LandingHeaderProps = {
   active?: View;
 };
 
-// Main menu: Jobs · Insights · Recruiters · Make Offer (with offers left).
+// Main menu: Jobs · Prepare Sponsorship (with credit) · Company Insights · Recruiters.
 // Programs and Study are "soon" — they live in the footer until they launch.
 const primaryLinks: {
   view: View;
@@ -30,7 +30,7 @@ const primaryLinks: {
   icon: typeof Briefcase;
 }[] = [
   { view: "jobs", href: "/jobs", label: "Jobs", icon: Briefcase },
-  { view: "companies", href: "/companies", label: "Insights", icon: BarChart3 },
+  { view: "companies", href: "/companies", label: "Company Insights", icon: BarChart3 },
   { view: "network", href: "/network", label: "Recruiters", icon: Users },
 ];
 
@@ -84,7 +84,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
   }, [openMenu, openProfile]);
 
   const linkClass = (view: View) =>
-    `flex items-center gap-2 rounded-md px-3.5 py-2.5 text-left text-[15px] font-medium transition-colors ${
+    `flex items-center gap-2 whitespace-nowrap rounded-md px-3.5 py-2.5 md:px-2.5 lg:px-3.5 text-left text-[15px] font-medium transition-colors ${
       active === view
         ? "bg-brand-50 text-[#2563EB]"
         : "text-ink-600 hover:text-[#2563EB]"
@@ -123,7 +123,8 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                 : "hidden"
             } gap-1 md:static md:z-auto md:flex md:flex-row md:items-center md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:[animation:none]`}
           >
-            {primaryLinks.map((link) => {
+          {/* Jobs first, then the offer, then the rest. */}
+            {primaryLinks.slice(0, 1).map((link) => {
               const Icon = link.icon;
               return (
                 <a
@@ -157,10 +158,30 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
               className={linkClass("offers" as View)}
             >
               <FileSignature className="h-4 w-4" />
-              Make Offer
-              <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">{creditsBadge(credits)}</span>
+              Prepare Sponsorship
+              <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">{credits ? usd(credits.balance) : creditsBadge(null)}</span>
             </a>
 
+            {primaryLinks.slice(1).map((link) => {
+              const Icon = link.icon;
+              return (
+                <a
+                  key={link.view}
+                  href={link.href}
+                  onClick={(event) =>
+                    handleNavClick(event, () => {
+                      go(link.view);
+                      setOpenMenu(false);
+                    })
+                  }
+                  className={`${linkClass(link.view)} ${SOON_VIEWS.has(link.view) && active !== link.view ? "!text-ink-400 hover:!text-ink-600" : ""}`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {link.label}
+                  {SOON_VIEWS.has(link.view) && <SoonChip />}
+                </a>
+              );
+            })}
             <div className="my-1 h-px bg-ink-100 md:hidden" />
 
             <div className="flex items-center gap-1.5 px-3.5 py-1 text-xs text-ink-400 md:hidden">

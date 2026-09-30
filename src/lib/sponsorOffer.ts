@@ -48,6 +48,10 @@ export type OfferTerms = {
    */
   salaryOffset?: number;
   currency?: string;
+  /** Annual gross salary as the candidate understands the offer (editable; job data can be wrong). */
+  salary?: number;
+  /** Cost rows the candidate set by hand, overriding the slider. */
+  overrides?: Partial<Record<CandidateCover, Payer>>;
   /** Who the offer is addressed to, filled from MadeVisa where we can. */
   employer?: OfferEmployer;
 };
@@ -99,7 +103,7 @@ export const OFFER_ITEM_LABEL: Record<CandidateCover, string> = {
 
 export const PAYER_LABEL: Record<Payer, string> = { employer: 'Employer', shared: 'Shared 50/50', candidate: 'Candidate' };
 
-export function buildTerms(split: number, allowed: CandidateCover[]): OfferTerms {
+export function buildTerms(split: number, allowed: CandidateCover[], overrides?: Partial<Record<CandidateCover, Payer>>): OfferTerms {
   const s = Math.max(0, Math.min(100, Math.round(split)));
   const keys = ORDER.filter((k) => allowed.includes(k));
   const n = keys.length;
@@ -107,7 +111,8 @@ export function buildTerms(split: number, allowed: CandidateCover[]): OfferTerms
   const t = n ? Math.max(0, Math.min(n, ((s - 5) / 90) * n)) : 0;
   const items: OfferItem[] = keys.map((key, i) => {
     const f = Math.max(0, Math.min(1, t - i));
-    return { key, payer: f < 0.34 ? 'employer' : f < 0.67 ? 'shared' : 'candidate' };
+    const auto: Payer = f < 0.34 ? 'employer' : f < 0.67 ? 'shared' : 'candidate';
+    return { key, payer: overrides?.[key] ?? auto };
   });
   const total = keys.reduce((a, k) => a + WEIGHT[k], 0);
   const carried = items.reduce((a, it) => a + WEIGHT[it.key] * (it.payer === 'candidate' ? 1 : it.payer === 'shared' ? 0.5 : 0), 0);

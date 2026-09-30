@@ -3,42 +3,69 @@ import { Info } from 'lucide-react';
 import { visaGuideByCode } from '@/data/visa';
 import { briefCountries, DOC_PRICE, PRO_MONTHLY_DOCS, SIGNUP_CREDIT, usd, type OfferCredits } from '@/lib/sponsorOffer';
 
-/** (i) button: what a sponsor offer does, in four lines. */
+/** (i) button: what a sponsorship document does. Opens above or below, always fully on screen. */
 export function OfferInfo({ className = '', light = false }: { className?: string; light?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const pop = useRef<HTMLSpanElement>(null);
+  const W = 304;
+  const H = 280;
+
+  const place = () => {
+    const r = btn.current?.getBoundingClientRect();
+    if (!r) return;
+    const below = window.innerHeight - r.bottom > H + 12;
+    const top = below ? r.bottom + 8 : Math.max(8, r.top - H - 8);
+    const left = Math.max(8, Math.min(window.innerWidth - W - 8, r.left + r.width / 2 - W / 2));
+    setPos({ top, left });
+  };
+
   useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    if (!pos) return;
+    const close = (e: MouseEvent) => !pop.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node) && setPos(null);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setPos(null);
+    const off = () => setPos(null);
     document.addEventListener('mousedown', close);
     document.addEventListener('keydown', esc);
+    window.addEventListener('scroll', off, true);
+    window.addEventListener('resize', off);
     return () => {
       document.removeEventListener('mousedown', close);
       document.removeEventListener('keydown', esc);
+      window.removeEventListener('scroll', off, true);
+      window.removeEventListener('resize', off);
     };
-  }, [open]);
+  }, [pos]);
+
   return (
-    <span ref={ref} className={`relative inline-flex ${className}`}>
+    <span className={`inline-flex ${className}`}>
       <button
+        ref={btn}
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label="How a sponsor offer helps"
+        onClick={() => (pos ? setPos(null) : place())}
+        aria-expanded={Boolean(pos)}
+        aria-label="How a sponsorship document helps"
         className={`grid h-6 w-6 place-items-center rounded-full ${light ? 'text-white/80 hover:bg-white/15 hover:text-white' : 'text-ink-400 hover:bg-ink-100 hover:text-[#1D4ED8]'}`}
       >
         <Info className="h-4 w-4" />
       </button>
-      {open && (
-        <span role="dialog" className="absolute left-1/2 top-8 z-50 w-[min(19rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl bg-white p-4 text-left text-ink-700 shadow-xl ring-1 ring-ink-200">
+      {pos && (
+        <span
+          ref={pop}
+          role="dialog"
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: W, zIndex: 90 }}
+          className="block max-h-[calc(100vh-16px)] overflow-y-auto rounded-xl bg-white p-4 text-left text-ink-700 shadow-xl ring-1 ring-ink-200"
+        >
           <span className="block text-[14px] font-bold text-ink-950">How it helps</span>
-          <span className="mt-2 block text-[13px] leading-5">Most employers say no to sponsorship because they guess it’s slow, costly and risky. Your offer answers that on one page:</span>
+          <span className="mt-2 block text-[13px] leading-5">Most employers say no to sponsorship because they guess it’s slow, costly and risky. Your document answers that on one page:</span>
           <span className="mt-2 block space-y-1.5 text-[13px] leading-5">
             <span className="flex gap-2"><Dot />The legal route and the few steps on their side</span>
-            <span className="flex gap-2"><Dot />Which visa costs you’ll carry — you choose with the slider</span>
+            <span className="flex gap-2"><Dot />Which visa costs you’ll carry — you choose</span>
             <span className="flex gap-2"><Dot />Signature lines, so HR can file it with the contract</span>
           </span>
-          <span className="mt-3 block border-t border-ink-100 pt-2 text-[12px] leading-5 text-ink-500">Each document is {usd(DOC_PRICE)}. New accounts get {usd(SIGNUP_CREDIT)} credit, so your first one is free. Editing later is free.</span>
+          <span className="mt-3 block border-t border-ink-100 pt-2 text-[12px] leading-5 text-ink-500">
+            Each document is {usd(DOC_PRICE)}. New accounts get {usd(SIGNUP_CREDIT)} credit, so your first one is free. Editing later is free.
+          </span>
         </span>
       )}
     </span>

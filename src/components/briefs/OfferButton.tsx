@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { FileDown, FileSignature } from 'lucide-react';
+import { FileDown, FileSignature, Lock } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
 import { briefPath, fetchMyBriefForJob, newOfferPath } from '@/lib/briefs';
-import { creditsBadge, useOfferCredits } from '@/lib/sponsorOffer';
+import { creditsBadge, DOC_PRICE, usd, useOfferCredits } from '@/lib/sponsorOffer';
 
 /**
  * "Sponsorship offer · 3 left" — next to Apply on every open job page.
@@ -34,10 +34,10 @@ export function OfferButton({ jobId, variant, country, onAuth }: { jobId: string
         hero ? 'text-white ring-1 ring-white/50 hover:bg-white/10 focus-visible:outline-white' : 'text-[#1D4ED8] ring-1 ring-[#1D4ED8]/40 hover:bg-[#1D4ED8]/5 focus-visible:outline-brand-600'
       }`}
     >
-      {existing ? <FileDown className="h-4 w-4" /> : <FileSignature className="h-4 w-4" />}
-      {existing ? 'Your document is ready' : out ? 'Top up credit' : 'Sponsorship offer'}
+      {existing ? <FileDown className="h-4 w-4" /> : out ? <Lock className="h-4 w-4" /> : <FileSignature className="h-4 w-4" />}
+      {existing ? 'Your document is ready' : out ? `Unlock · ${usd(DOC_PRICE)}` : 'Sponsorship offer'}
       {!existing && !out && (
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${hero ? 'bg-white text-brand-700' : 'bg-[#1D4ED8] text-white'}`}>{creditsBadge(credits)}</span>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${hero ? 'bg-white text-brand-700' : 'bg-[#1D4ED8] text-white'}`}>{credits ? usd(credits.balance) : creditsBadge(null)}</span>
       )}
     </a>
   );

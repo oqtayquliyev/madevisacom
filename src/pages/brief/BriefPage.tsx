@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Check, Copy, Download, ExternalLink, Eye, Link2, Loader2, Paperclip } from 'lucide-react';
+import { Check, Copy, Download, Eye, Link2, Loader2, Lock, Paperclip, Unlock } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { useAuth } from '@/lib/auth';
@@ -8,7 +8,7 @@ import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { LinkedInLogo } from '@/components/common/LinkedInLogo';
 import { DragSlider } from '@/components/common/DragSlider';
-import { CreditMeter, OfferInfo } from '@/components/briefs/OfferBits';
+import { OfferInfo } from '@/components/briefs/OfferBits';
 import { type CandidateCover, type VisaGuide, type VisaRoute } from '@/data/visa';
 import { fetchSponsoredJobById, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import {
@@ -50,11 +50,13 @@ import {
   type OfferCredits,
   type OfferEmployer,
   type OfferTerms,
+  type Payer,
 } from '@/lib/sponsorOffer';
 import { searchPublishers, type PublisherMatch } from '@/lib/companyExperiences';
 import { visaGuideByCode } from '@/data/visa';
 import { allCountries } from '@/data/allCountries';
 import { nav } from '@/lib/pageLayout';
+import { EXPERIENCE_OPTIONS } from '@/lib/plans';
 
 type Props = { shareId: string; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
@@ -84,6 +86,36 @@ export function BriefPage(props: Props) {
 // New offer: /brief/new?job=<id>
 // ---------------------------------------------------------------------------
 
+/** Everything the candidate can change on the document. */
+type Editable = {
+  split: number;
+  offset: number;
+  salary: number;
+  overrides: Partial<Record<CandidateCover, Payer>>;
+  employer: OfferEmployer;
+};
+
+const termsFrom = (e: Editable, allowed: CandidateCover[], code: string): OfferTerms => ({
+  ...buildTerms(e.split, allowed, e.overrides),
+  salaryOffset: e.offset,
+  salary: e.salary || undefined,
+  currency: currencyFor(code).code,
+  employer: e.employer,
+  overrides: Object.keys(e.overrides).length ? e.overrides : undefined,
+});
+
+/** Annual gross salary from the job ad, when it's in the country's currency. */
+function salaryFromJob(raw: { salary_min: number | null; salary_max: number | null; salary_currency: string | null; salary_period: string | null }, code: string): number {
+  const base = raw.salary_min ?? raw.salary_max;
+  if (!base || (raw.salary_currency ?? '').toUpperCase() !== currencyFor(code).code) return 0;
+  const p = (raw.salary_period ?? 'year').toLowerCase();
+  if (p.startsWith('year') || p === 'annual') return Math.round(base);
+  if (p.startsWith('month')) return Math.round(base * 12);
+  return 0;
+}
+
+const PRINT_ON_OPEN = 'madevisa:printOffer';
+
 function NewOffer({ go, onAuth }: Props) {
   const { session, profile, loading: authLoading } = useAuth();
   const params = new URLSearchParams(window.location.search);
@@ -94,13 +126,12 @@ function NewOffer({ go, onAuth }: Props) {
     | {
         k: 'ready';
         job: { id: string; publisherId: string | null; title: string; company: string; fn: string | null; city: string | null; ownCode: string; contact: string | null; closed: boolean };
+        raw: { salary_min: number | null; salary_max: number | null; salary_currency: string | null; salary_period: string | null };
       }
   >({ k: 'loading' });
   const [country, setCountry] = useState<string>((params.get('country') ?? '').toUpperCase());
   const [routeId, setRouteId] = useState<string>('');
-  const [split, setSplit] = useState(50);
-  const [offset, setOffset] = useState(0);
-  const [employer, setEmployer] = useState<OfferEmployer | null>(null);
+  const [ed, setEd] = useState<Editable | null>(null);
   const [name, setName] = useState('');
   const [headline, setHeadline] = useState('');
   const [note, setNote] = useState('');
@@ -108,7 +139,7 @@ function NewOffer({ go, onAuth }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useSeo({ title: 'Prepare your sponsor offer', description: 'Create a sponsorship cost-sharing offer for an employer.', path: '/brief/new', noindex: true });
+  useSeo({ title: 'Prepare your sponsorship document', description: 'Create a sponsorship cost-sharing offer for an employer.', path: '/brief/new', noindex: true });
 
   useEffect(() => {
     let alive = true;
@@ -117,17 +148,16 @@ function NewOffer({ go, onAuth }: Props) {
       if (!alive) return;
       if (!raw) return setState({ k: 'missing' });
       const board = sponsoredJobToBoardJob(raw);
-      // Already made one for this job → open it instead of spending a credit.
       const mine = await fetchMyBriefForJob(raw.id);
       if (mine) return nav(briefPath(mine.share_id));
       void recordOfferDraft(raw.id);
       const city = raw.city && !/^(all|any|various|remote)$/i.test(raw.city.trim()) ? raw.city : null;
       const contact = raw.contact_email && !/madevisa/i.test(raw.contact_email) ? raw.contact_email : null;
       const job = { id: raw.id, publisherId: raw.publisher_id ?? null, title: board.title, company: board.company, fn: raw.job_function ?? null, city, ownCode: (raw.country?.iso_code ?? '').toUpperCase(), contact, closed: Boolean(board.closed) };
-      setState({ k: 'ready', job });
-      const base: OfferEmployer = { name: board.company, publisherId: job.publisherId, contact, logo: raw.publisher?.logo_url ?? null };
-      setEmployer(base);
-      if (job.publisherId) employerFromPublisher(job.publisherId, board.company).then((e) => alive && setEmployer({ ...e, contact }));
+      const salaryRaw = { salary_min: raw.salary_min, salary_max: raw.salary_max, salary_currency: raw.salary_currency, salary_period: raw.salary_period as string | null };
+      setState({ k: 'ready', job, raw: salaryRaw });
+      setEd({ split: 50, offset: 0, salary: 0, overrides: {}, employer: { name: board.company, publisherId: job.publisherId, contact, logo: raw.publisher?.logo_url ?? null } });
+      if (job.publisherId) employerFromPublisher(job.publisherId, board.company).then((e) => alive && setEd((d) => (d ? { ...d, employer: { ...e, contact } } : d)));
     });
     return () => {
       alive = false;
@@ -137,7 +167,7 @@ function NewOffer({ go, onAuth }: Props) {
   useEffect(() => {
     if (!profile) return;
     setName((n) => n || profile.full_name || '');
-    setHeadline((h) => h || profile.network_headline || profile.occupation || '');
+    setHeadline((h) => h || profile.network_headline || headlineFromProfile(profile) || '');
   }, [profile]);
 
   useEffect(() => {
@@ -147,23 +177,30 @@ function NewOffer({ go, onAuth }: Props) {
   const ready = state.k === 'ready' ? state : null;
   const el = ready ? briefEligibility({ countryCode: ready.job.ownCode, closed: ready.job.closed, override: country || null, fallback: DEFAULT_COUNTRY }) : null;
 
+  // Prefill salary from the job once the country (and its currency) is known.
+  const code = el?.ok ? el.code : '';
+  useEffect(() => {
+    if (ready && code) setEd((d) => (d && !d.salary ? { ...d, salary: salaryFromJob(ready.raw, code) } : d));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, ready?.job.id]);
+
   if (state.k === 'missing' || (ready && el && !el.ok)) return <NotFoundPage go={go} onAuth={onAuth} />;
-  if (!ready || !el || !el.ok || authLoading || !employer) return <Desk go={go} onAuth={onAuth} loading />;
+  if (!ready || !el || !el.ok || authLoading || !ed) return <Desk go={go} onAuth={onAuth} loading />;
 
   const { job } = ready;
   const { guide, routes, picked } = el;
   const route = routes.find((r) => r.id === routeId) ?? routes[0];
   const allowed = route.employer!.candidateMayCover;
-  const cur = currencyFor(el.code);
-  const terms: OfferTerms = { ...buildTerms(split, allowed), salaryOffset: offset, currency: cur.code, employer };
-  const noCredits = credits && credits.left === 0;
+  const terms = termsFrom(ed, allowed, el.code);
+  const usesPro = Boolean(credits?.pro && credits.proLeft > 0);
+  const canPay = Boolean(credits && (usesPro || credits.balance >= DOC_PRICE));
 
   const doc: DocData = {
-    ref: 'MV-DRAFT',
+    ref: 'MV-PREVIEW',
     issuedAt: new Date().toISOString(),
     shareId: null,
     jobTitle: job.title,
-    companyName: employer.name,
+    companyName: ed.employer.name,
     city: picked ? null : job.city,
     candidateName: name.trim() || 'Your name',
     headline: headline.trim() || null,
@@ -173,15 +210,16 @@ function NewOffer({ go, onAuth }: Props) {
 
   const generate = async () => {
     if (!session) return onAuth?.('register');
+    if (!canPay) return nav('/pricing#offers');
     if (!name.trim()) return setError('Add the name the employer should see.');
-    if (!employer.name.trim()) return setError('Add the company this offer is for.');
+    if (!ed.employer.name.trim()) return setError('Add the company this document is for.');
     setBusy(true);
     setError(null);
     const res = await createBrief({
       jobId: job.id,
-      publisherId: employer.publisherId ?? null,
+      publisherId: ed.employer.publisherId ?? null,
       jobTitle: job.title,
-      companyName: employer.name.trim(),
+      companyName: ed.employer.name.trim(),
       jobFunction: job.fn,
       jobCity: picked ? null : job.city,
       countryCode: el.code,
@@ -199,15 +237,22 @@ function NewOffer({ go, onAuth }: Props) {
     setBusy(false);
     if (!res.ok) return setError(res.error);
     pingNotifications();
+    try {
+      window.sessionStorage.setItem(PRINT_ON_OPEN, res.shareId);
+    } catch {
+      /* ignore */
+    }
     window.history.replaceState({}, '', briefPath(res.shareId));
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
+
+  const patch = (p: Partial<Editable>) => setEd((d) => (d ? { ...d, ...p } : d));
 
   return (
     <Desk
       go={go}
       onAuth={onAuth}
-      paper={<OfferDocument doc={doc} terms={terms} guide={guide} route={route} code={el.code} draft />}
+      paper={<OfferDocument doc={doc} terms={terms} guide={guide} route={route} code={el.code} locked />}
       panel={
         <>
           <Panel>
@@ -219,20 +264,13 @@ function NewOffer({ go, onAuth }: Props) {
                 onChange={(c) => {
                   setCountry(c);
                   setRouteId('');
-                  setOffset(0);
+                  patch({ offset: 0, salary: salaryFromJob(ready.raw, c), overrides: {} });
                 }}
               />
             </label>
             {!el.checked && <p className="mt-2 text-[12px] leading-5 text-ink-500">General work-permit terms. The company confirms the exact route.</p>}
-          </Panel>
-
-          <SplitControl split={split} terms={terms} onChange={setSplit} />
-          <OffsetControl code={el.code} value={offset} onChange={setOffset} />
-          <EmployerControl value={employer} onChange={setEmployer} />
-
-          <Panel>
             {routes.length > 1 && (
-              <label className="mb-3 block">
+              <label className="mt-3 block">
                 <span className="text-[13px] font-semibold text-ink-800">Visa route</span>
                 <select value={route.id} onChange={(e) => setRouteId(e.target.value)} className={INPUT}>
                   {routes.map((r) => (
@@ -243,13 +281,19 @@ function NewOffer({ go, onAuth }: Props) {
                 </select>
               </label>
             )}
-            <label className="block">
-              <span className="text-[13px] font-semibold text-ink-800">Your name</span>
+          </Panel>
+
+          <EditorPanels ed={ed} terms={terms} code={el.code} onChange={patch} />
+
+          <Panel>
+            <p className="text-[15px] font-bold text-ink-950">About you</p>
+            <label className="mt-2 block">
+              <span className="text-[13px] font-semibold text-ink-800">Full name</span>
               <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} className={INPUT} />
             </label>
             <label className="mt-3 block">
-              <span className="text-[13px] font-semibold text-ink-800">Headline</span>
-              <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={140} placeholder="Backend engineer, 6 years in fintech" className={INPUT} />
+              <span className="text-[13px] font-semibold text-ink-800">Role and experience</span>
+              <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={140} placeholder="Backend engineer · 5–10 years" className={INPUT} />
             </label>
             <label className="mt-3 block">
               <span className="text-[13px] font-semibold text-ink-800">Note to the hiring manager</span>
@@ -257,26 +301,95 @@ function NewOffer({ go, onAuth }: Props) {
             </label>
           </Panel>
 
-          <div className="space-y-3">
-            {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{error}</p>}
-            {noCredits ? (
-              <a href="/pricing#offers" onClick={(e) => (e.preventDefault(), nav('/pricing#offers'))} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800">
-                Top up credit
-              </a>
-            ) : (
-              <button onClick={generate} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800 disabled:opacity-60">
-                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                {session ? (credits?.pro && credits.proLeft > 0 ? `Generate my PDF · Pro ${credits.proLeft} left` : `Generate my PDF · ${usd(DOC_PRICE)}`) : `Sign up — ${usd(SIGNUP_CREDIT)} credit free`}
-              </button>
-            )}
-            <div className="flex items-center justify-between">
-              {credits ? <CreditMeter credits={credits} /> : <span />}
-              <OfferInfo />
-            </div>
-          </div>
+          <PayBox
+            credits={credits}
+            signedIn={Boolean(session)}
+            usesPro={usesPro}
+            canPay={canPay}
+            busy={busy}
+            error={error}
+            onGo={generate}
+          />
         </>
       }
     />
+  );
+}
+
+/** Role · specialization · experience, from the profile. */
+function headlineFromProfile(p: { occupation?: string | null; specialization?: string | null; experience?: string | null }): string {
+  const role = [p.occupation, p.specialization].filter(Boolean).join(', ');
+  // Only a short level ("5–10 years"), never a long written summary.
+  const level = p.experience && EXPERIENCE_OPTIONS.includes(p.experience) ? p.experience : null;
+  return [role, level].filter(Boolean).join(' · ').slice(0, 140);
+}
+
+/** Cost, balance and the one button: unlock + download. */
+function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { credits: OfferCredits | null; signedIn: boolean; usesPro: boolean; canPay: boolean; busy: boolean; error: string | null; onGo: () => void }) {
+  const short = credits ? Math.max(0, DOC_PRICE - credits.balance) : 0;
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-ink-200">
+        <dl className="space-y-1.5 text-[14px]">
+          <div className="flex justify-between">
+            <dt className="text-ink-600">This document</dt>
+            <dd className="font-semibold tabular-nums text-ink-950">{usesPro ? 'Included in Pro' : usd(DOC_PRICE)}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-ink-600">Your credit</dt>
+            <dd className="font-semibold tabular-nums text-ink-950">{signedIn ? (credits ? usd(credits.balance) : '…') : `${usd(SIGNUP_CREDIT)} on sign-up`}</dd>
+          </div>
+          {credits?.pro && (
+            <div className="flex justify-between">
+              <dt className="text-ink-600">Pro this month</dt>
+              <dd className="font-semibold tabular-nums text-ink-950">{credits.proLeft} left</dd>
+            </div>
+          )}
+          {signedIn && credits && !canPay && (
+            <div className="flex justify-between border-t border-ink-100 pt-1.5">
+              <dt className="font-semibold text-rose-700">Needed</dt>
+              <dd className="font-bold tabular-nums text-rose-700">{usd(short)} more</dd>
+            </div>
+          )}
+        </dl>
+      </div>
+      {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{error}</p>}
+      <button onClick={onGo} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800 disabled:opacity-60">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : canPay ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+        {!signedIn
+          ? `Sign up to unlock · ${usd(SIGNUP_CREDIT)} free`
+          : canPay
+            ? `Prepare & download · ${usesPro ? 'Pro' : usd(DOC_PRICE)}`
+            : `Unlock for ${usd(DOC_PRICE)} · add credit`}
+      </button>
+      <div className="flex items-center justify-between text-[12px] text-ink-500">
+        <span>Full text, signature lines and PDF unlock after this step.</span>
+        <OfferInfo />
+      </div>
+    </div>
+  );
+}
+
+/** The editable parts, shared by the new and saved document. */
+function EditorPanels({ ed, terms, code, onChange, onCommit, status }: { ed: Editable; terms: OfferTerms; code: string; onChange: (p: Partial<Editable>) => void; onCommit?: (p: Partial<Editable>) => void; status?: string }) {
+  const both = (p: Partial<Editable>) => {
+    onChange(p);
+    onCommit?.(p);
+  };
+  return (
+    <>
+      <SplitControl
+        split={ed.split}
+        terms={terms}
+        custom={Object.keys(ed.overrides).length > 0}
+        onChange={(v) => onChange({ split: v, overrides: {} })}
+        onCommit={onCommit ? (v) => onCommit({ split: v, overrides: {} }) : undefined}
+        status={status}
+      />
+      <CostRows terms={terms} salary={ed.salary} code={code} onPick={(key, payer) => both({ overrides: { ...ed.overrides, [key]: payer } })} />
+      <SalaryControl code={code} salary={ed.salary} offset={ed.offset} onChange={onChange} onCommit={onCommit} />
+      <EmployerControl value={ed.employer} onChange={(e) => both({ employer: e })} />
+    </>
   );
 }
 
@@ -284,14 +397,12 @@ const DEFAULT_COUNTRY = 'DE';
 const INPUT = 'mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-[14px] text-ink-900 outline-none focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/15';
 
 // ---------------------------------------------------------------------------
-// Saved offer: /brief/<share id> — owner edits, everyone else reads.
+// Saved document: /brief/<share id> — owner edits, everyone else reads.
 // ---------------------------------------------------------------------------
 
 function SavedOffer({ shareId, go, onAuth }: Props) {
   const [brief, setBrief] = useState<PublicBrief | null | undefined>(undefined);
-  const [split, setSplit] = useState(50);
-  const [offset, setOffset] = useState(0);
-  const [employer, setEmployer] = useState<OfferEmployer | null>(null);
+  const [ed, setEd] = useState<Editable | null>(null);
   const [saved, setSaved] = useState<'idle' | 'saving' | 'saved' | string>('idle');
 
   useEffect(() => {
@@ -301,10 +412,23 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
       if (!alive) return;
       setBrief(b);
       if (!b) return;
-      setSplit(b.split ?? legacySplit(b));
-      setOffset(b.terms?.salaryOffset ?? 0);
-      setEmployer(b.terms?.employer ?? { name: b.company_name, publisherId: b.publisher_id });
+      setEd({
+        split: b.split ?? legacySplit(b),
+        offset: b.terms?.salaryOffset ?? 0,
+        salary: b.terms?.salary ?? 0,
+        overrides: b.terms?.overrides ?? {},
+        employer: b.terms?.employer ?? { name: b.company_name, publisherId: b.publisher_id },
+      });
       if (!b.is_owner) recordBriefView(shareId);
+      // Just generated → open the PDF dialog once.
+      try {
+        if (b.is_owner && window.sessionStorage.getItem(PRINT_ON_OPEN) === shareId) {
+          window.sessionStorage.removeItem(PRINT_ON_OPEN);
+          window.setTimeout(() => savePdf({ candidate: b.candidate_name, company: b.company_name, shareId }), 700);
+        }
+      } catch {
+        /* ignore */
+      }
     });
     return () => {
       alive = false;
@@ -314,29 +438,22 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
   const found = brief ? findRoute(brief.country_code, brief.route_id) : null;
   const allowed: CandidateCover[] = found?.route.employer?.candidateMayCover ?? [];
   const code = brief?.country_code ?? 'DE';
-  const liveTerms = (s: number, o: number, e: OfferEmployer | null): OfferTerms => ({
-    ...buildTerms(s, allowed),
-    salaryOffset: o,
-    currency: currencyFor(code).code,
-    employer: e ?? undefined,
-  });
-  // Owners see live terms; everyone else sees exactly what was saved.
   const terms: OfferTerms | null = useMemo(() => {
-    if (!brief) return null;
-    if (brief.is_owner) return liveTerms(split, offset, employer);
+    if (!brief || !ed) return null;
+    if (brief.is_owner) return termsFrom(ed, allowed, code);
     return brief.terms ?? buildTerms(brief.split ?? legacySplit(brief), allowed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brief, split, offset, employer, allowed.join()]);
+  }, [brief, ed, allowed.join(), code]);
 
   useSeo({
-    title: brief ? `Sponsor offer — ${brief.candidate_name} for ${brief.job_title} at ${brief.company_name}` : 'Sponsor offer',
+    title: brief ? `Sponsorship document — ${brief.candidate_name} for ${brief.job_title} at ${brief.company_name}` : 'Sponsorship document',
     description: 'A sponsorship cost-sharing offer prepared by a candidate on MadeVisa.',
     path: `/brief/${shareId}`,
     noindex: true,
   });
 
   if (brief === undefined) return <Desk go={go} onAuth={onAuth} loading />;
-  if (!brief || !terms) return <NotFoundPage go={go} onAuth={onAuth} />;
+  if (!brief || !terms || !ed) return <NotFoundPage go={go} onAuth={onAuth} />;
 
   const doc: DocData = {
     ref: refFor(brief.share_id),
@@ -351,8 +468,9 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
     note: brief.note,
   };
 
-  const commit = async (next: { split?: number; offset?: number; employer?: OfferEmployer }) => {
-    const t = liveTerms(next.split ?? split, next.offset ?? offset, next.employer ?? employer);
+  const commit = async (p: Partial<Editable>) => {
+    const next = { ...ed, ...p };
+    const t = termsFrom(next, allowed, code);
     setSaved('saving');
     const res = await updateBriefTerms(brief.share_id, t);
     if (res.ok) {
@@ -365,7 +483,7 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
   const paper = found ? (
     <OfferDocument doc={doc} terms={terms} guide={found.guide} route={found.route} code={brief.country_code} />
   ) : (
-    <div className="rounded-sm bg-white p-10 text-[15px] text-ink-600 shadow-soft-lg">The visa details for this offer are being updated.</div>
+    <div className="rounded-sm bg-white p-10 text-[15px] text-ink-600 shadow-soft-lg">The visa details for this document are being updated.</div>
   );
 
   if (!brief.is_owner) {
@@ -379,18 +497,8 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
       paper={paper}
       panel={
         <>
-          <SplitControl split={split} terms={terms} onChange={setSplit} onCommit={(v) => commit({ split: v })} status={saved} />
-          <OffsetControl code={code} value={offset} onChange={setOffset} onCommit={(v) => commit({ offset: v })} />
-          {employer && (
-            <EmployerControl
-              value={employer}
-              onChange={(e) => {
-                setEmployer(e);
-                void commit({ employer: e });
-              }}
-            />
-          )}
           <OwnerActions brief={brief} onStatus={(status) => setBrief({ ...brief, status })} />
+          <EditorPanels ed={ed} terms={terms} code={code} onChange={(p) => setEd({ ...ed, ...p })} onCommit={(p) => void commit(p)} status={saved} />
         </>
       }
     />
@@ -433,7 +541,7 @@ function Panel({ children, className = '' }: { children: ReactNode; className?: 
 }
 
 /** The drag bar: left favours the candidate, right the company. */
-function SplitControl({ split, terms, onChange, onCommit, status }: { split: number; terms: OfferTerms; onChange: (v: number) => void; onCommit?: (v: number) => void; status?: string }) {
+function SplitControl({ split, terms, custom, onChange, onCommit, status }: { split: number; terms: OfferTerms; custom?: boolean; onChange: (v: number) => void; onCommit?: (v: number) => void; status?: string }) {
   return (
     <Panel className="ring-[#1D4ED8]/30">
       <div className="flex items-center justify-between gap-2">
@@ -450,7 +558,7 @@ function SplitControl({ split, terms, onChange, onCommit, status }: { split: num
         onCommit={onCommit}
         label="Balance of the offer between you and the company"
         valueText={`${splitWord(split)}; you carry ${terms.candidateShare}% of shareable costs`}
-        bubble={`${splitWord(split)} · you ${terms.candidateShare}%`}
+        bubble={`${custom ? 'Custom' : splitWord(split)} · you ${terms.candidateShare}%`}
         left="Better for you"
         right="Better for the company"
       />
@@ -498,28 +606,101 @@ function CountrySelect({ value, jobCode, onChange }: { value: string; jobCode?: 
   );
 }
 
-/** "I'll take up to X less in first-year pay" — optional, 0 = none. */
-function OffsetControl({ code, value, onChange, onCommit }: { code: string; value: number; onChange: (v: number) => void; onCommit?: (v: number) => void }) {
-  const cur = currencyFor(code);
-  const toPct = (amount: number) => Math.round((amount / cur.max) * 100);
-  const toAmount = (pct: number) => Math.round((pct / 100) * cur.max / cur.step) * cur.step;
+/** Each cost row, set by hand (overrides the slider until it's dragged again). */
+function CostRows({ terms, salary, code, onPick }: { terms: OfferTerms; salary: number; code: string; onPick: (key: CandidateCover, payer: Payer) => void }) {
+  const opts: { v: Payer; l: string }[] = [
+    { v: 'employer', l: 'Employer' },
+    { v: 'shared', l: '50/50' },
+    { v: 'candidate', l: 'Me' },
+  ];
   return (
     <Panel>
-      <p className="text-[15px] font-bold text-ink-950">Take it from my salary</p>
-      <p className="text-[12px] text-ink-500">Optional. Paid back monthly in year one.</p>
-      <DragSlider
-        size="sm"
-        tone={value ? 'green' : 'grey'}
-        value={toPct(value)}
-        step={(cur.step / cur.max) * 100}
-        onChange={(p) => onChange(toAmount(p))}
-        onCommit={onCommit ? (p) => onCommit(toAmount(p)) : undefined}
-        label="Amount you accept to have deducted from first-year pay"
-        valueText={value ? `Up to ${money(value, code)}` : 'No salary offset'}
-        bubble={value ? `Up to ${money(value, code)}` : 'None'}
-        left="None"
-        right={money(cur.max, code)}
-      />
+      <p className="text-[15px] font-bold text-ink-950">Each cost</p>
+      <ul className="mt-2 space-y-2.5">
+        {terms.items.map((it) => (
+          <li key={it.key}>
+            <p className="text-[13px] font-medium text-ink-800">{OFFER_ITEM_LABEL[it.key]}</p>
+            <div className="mt-1 grid grid-cols-3 gap-1 rounded-lg bg-ink-100 p-0.5" role="radiogroup" aria-label={`Who pays: ${OFFER_ITEM_LABEL[it.key]}`}>
+              {opts.map((o) => (
+                <button
+                  key={o.v}
+                  role="radio"
+                  aria-checked={it.payer === o.v}
+                  onClick={() => it.payer !== o.v && onPick(it.key, o.v)}
+                  className={`rounded-md py-1.5 text-[12px] font-bold ${it.payer === o.v ? 'bg-white text-[#1D4ED8] shadow-sm' : 'text-ink-500 hover:text-ink-800'}`}
+                >
+                  {o.l}
+                </button>
+              ))}
+            </div>
+          </li>
+        ))}
+        <li className="flex items-center justify-between gap-2 border-t border-ink-100 pt-2.5 text-[13px]">
+          <span className="font-medium text-ink-800">Salary and employment conditions</span>
+          <span className="shrink-0 text-ink-500">{salary ? `${money(salary, code)} / yr` : 'Set by employer'}</span>
+        </li>
+      </ul>
+    </Panel>
+  );
+}
+
+/** Stated salary (editable — job ads can be wrong) and the optional deduction. */
+function SalaryControl({ code, salary, offset, onChange, onCommit }: { code: string; salary: number; offset: number; onChange: (p: Partial<Editable>) => void; onCommit?: (p: Partial<Editable>) => void }) {
+  const cur = currencyFor(code);
+  const toPct = (amount: number) => Math.min(100, Math.round((amount / cur.max) * 100));
+  const toAmount = (pct: number) => Math.round(((pct / 100) * cur.max) / cur.step) * cur.step;
+  const pctOfSalary = salary && offset ? Math.round((offset / salary) * 1000) / 10 : null;
+  const num = (v: string) => Math.max(0, Math.min(10_000_000, Math.round(Number(v.replace(/[^\d.]/g, '')) || 0)));
+  return (
+    <Panel>
+      <label className="block">
+        <span className="text-[15px] font-bold text-ink-950">Annual gross salary</span>
+        <span className="block text-[12px] text-ink-500">As offered or advertised. Correct it if the job ad is wrong.</span>
+        <div className="mt-1 flex items-center rounded-lg border border-ink-200 bg-white focus-within:border-[#1D4ED8]">
+          <span className="pl-3 text-[14px] text-ink-500">{cur.symbol.trim()}</span>
+          <input
+            inputMode="numeric"
+            value={salary ? salary.toLocaleString('en-GB') : ''}
+            placeholder="Not stated"
+            onChange={(e) => onChange({ salary: num(e.target.value) })}
+            onBlur={(e) => onCommit?.({ salary: num(e.target.value) })}
+            className="w-full bg-transparent px-2 py-2 text-[14px] text-ink-900 outline-none"
+          />
+        </div>
+      </label>
+
+      <div className="mt-4 border-t border-ink-100 pt-3">
+        <p className="text-[15px] font-bold text-ink-950">Salary deduction (optional)</p>
+        <p className="text-[12px] leading-5 text-ink-500">The most you agree the employer may deduct from your gross pay in the first 12 months, only to recover visa costs it paid.</p>
+        <DragSlider
+          size="sm"
+          tone={offset ? 'green' : 'grey'}
+          value={toPct(offset)}
+          step={(cur.step / cur.max) * 100}
+          onChange={(p) => onChange({ offset: toAmount(p) })}
+          onCommit={onCommit ? (p) => onCommit({ offset: toAmount(p) }) : undefined}
+          label="Maximum salary deduction in the first year"
+          valueText={offset ? `Up to ${money(offset, code)}` : 'No deduction'}
+          bubble={offset ? `Up to ${money(offset, code)}` : 'None'}
+          left="None"
+          right={money(cur.max, code)}
+        />
+        <div className="mt-2 flex items-center gap-2">
+          <div className="flex flex-1 items-center rounded-lg border border-ink-200 bg-white focus-within:border-[#1D4ED8]">
+            <span className="pl-3 text-[13px] text-ink-500">{cur.symbol.trim()}</span>
+            <input
+              inputMode="numeric"
+              aria-label="Exact deduction amount"
+              value={offset ? offset.toLocaleString('en-GB') : ''}
+              placeholder="0"
+              onChange={(e) => onChange({ offset: Math.min(num(e.target.value), 1_000_000) })}
+              onBlur={(e) => onCommit?.({ offset: Math.min(num(e.target.value), 1_000_000) })}
+              className="w-full bg-transparent px-2 py-1.5 text-[13px] text-ink-900 outline-none"
+            />
+          </div>
+          {pctOfSalary != null && <span className="shrink-0 text-[12px] font-semibold text-ink-600">{pctOfSalary}% of salary</span>}
+        </div>
+      </div>
     </Panel>
   );
 }
@@ -734,7 +915,7 @@ function ReaderPanel({ brief }: { brief: PublicBrief }) {
 // The document itself — what prints.
 // ---------------------------------------------------------------------------
 
-function OfferDocument({ doc, terms, guide, route, code, draft }: { doc: DocData; terms: OfferTerms; guide: VisaGuide; route: VisaRoute; code: string; draft?: boolean }) {
+function OfferDocument({ doc, terms, guide, route, code, locked }: { doc: DocData; terms: OfferTerms; guide: VisaGuide; route: VisaRoute; code: string; locked?: boolean }) {
   const employer = route.employer!;
   const place = [doc.city, guide.name].filter(Boolean).join(', ');
   const validUntil = new Date(Date.parse(doc.issuedAt) + VALID_DAYS * 86_400_000).toISOString();
@@ -742,12 +923,27 @@ function OfferDocument({ doc, terms, guide, route, code, draft }: { doc: DocData
   let n = 0;
   const clause = () => ++n;
 
+  const L = Boolean(locked);
+
   return (
-    <article className="offer-paper relative mx-auto max-w-[820px] rounded-sm bg-white px-6 py-8 font-serif text-[15px] leading-[1.7] text-ink-900 shadow-soft-lg sm:px-14 sm:py-14 print:max-w-none print:rounded-none print:p-0 print:shadow-none">
-      {draft && (
-        <span aria-hidden="true" className="pointer-events-none absolute right-6 top-6 rotate-6 rounded border-2 border-[#1D4ED8]/30 px-2 py-0.5 font-sans text-[11px] font-bold tracking-wide text-[#1D4ED8]/50 sm:right-10 sm:top-10">
-          Draft
-        </span>
+    <>
+    {L && (
+      <div className="offer-paper hidden p-10 font-sans text-[14px] print:block">
+        This is a preview. Prepare the document on madevisa.com to download the signed-ready PDF.
+      </div>
+    )}
+    <article
+      onContextMenu={L ? (e) => e.preventDefault() : undefined}
+      className={`${L ? 'select-none print:hidden' : 'offer-paper'} relative mx-auto max-w-[820px] overflow-hidden rounded-sm bg-white px-6 py-8 font-serif text-[15px] leading-[1.7] text-ink-900 shadow-soft-lg sm:px-14 sm:py-14 print:max-w-none print:rounded-none print:p-0 print:shadow-none`}
+    >
+      {L && (
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-around overflow-hidden">
+          {[0, 1, 2, 3].map((i) => (
+            <span key={i} className="-rotate-12 whitespace-nowrap font-sans text-[56px] font-black tracking-widest text-[#1D4ED8]/[0.06] sm:text-[88px]">
+              PREVIEW · PREVIEW
+            </span>
+          ))}
+        </div>
       )}
 
       {/* Letterhead */}
@@ -796,12 +992,15 @@ function OfferDocument({ doc, terms, guide, route, code, draft }: { doc: DocData
           k="Visa route"
           v={route.id === GENERIC_ROUTE_ID ? 'National work permit (to be confirmed)' : route.name}
           sub={
-            !route.url ? null : <a href={route.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#1D4ED8] print:text-ink-600">
-              Official source <ExternalLink className="h-3 w-3 print:hidden" />
-            </a>
+            route.url ? (
+              <a href={route.url} target="_blank" rel="noopener noreferrer" className="break-all text-[12px] text-[#1D4ED8] print:text-ink-700">
+                {route.url}
+              </a>
+            ) : null
           }
         />
         <Party k="Sponsor licence" v={route.id === GENERIC_ROUTE_ID ? 'To be confirmed by the Employer' : employer.licenceNeeded ? 'Required' : 'Not required'} />
+        {terms.salary ? <Party k="Annual gross salary (as offered)" v={money(terms.salary, code)} sub="To be confirmed in the employment contract" /> : null}
       </dl>
 
       {/* The split, at a glance */}
@@ -822,7 +1021,7 @@ function OfferDocument({ doc, terms, guide, route, code, draft }: { doc: DocData
         effort of the visa process. It does not change pay or any other term of employment.
       </Clause>
 
-      <Clause n={clause()} title="What the Employer does">
+      <Clause n={clause()} title="What the Employer does" locked={L}>
         <ol className="mt-1 space-y-1.5">
           {employer.steps.map((s, i) => (
             <li key={i} className="flex gap-3">
@@ -840,7 +1039,7 @@ function OfferDocument({ doc, terms, guide, route, code, draft }: { doc: DocData
         <p className="mt-2">Expected timeline: {employer.timeline}</p>
       </Clause>
 
-      <Clause n={clause()} title="Costs the Employer carries by law">
+      <Clause n={clause()} title="Costs the Employer carries by law" locked={L}>
         {employer.employerCosts ?? 'None beyond the Employer’s own administrative time.'} These costs are outside this offer and will not be recovered from the Candidate, whether through
         salary deductions, repayment or otherwise.
       </Clause>
@@ -866,17 +1065,17 @@ function OfferDocument({ doc, terms, guide, route, code, draft }: { doc: DocData
             ))}
             <tr className="border-b border-ink-200">
               <td className="py-2.5 pr-3 text-ink-800">Salary and employment conditions</td>
-              <td className="py-2.5 text-[13px] font-semibold text-ink-600">Not part of this offer</td>
+              <td className="py-2.5 text-[13px] font-semibold text-ink-600">{terms.salary ? `${money(terms.salary, code)} a year, per the employment contract` : 'Set by the Employer; not changed by this offer'}</td>
             </tr>
           </tbody>
         </table>
-        <p className="mt-3">
+        <p className={`mt-3 ${L ? 'hidden' : ''}`}>
           Where the Employer pays, it pays the provider directly or reimburses the Candidate within 30 days of receiving receipts. Where a cost is shared, each party pays half against
           receipts.
         </p>
       </Clause>
 
-      <Clause n={clause()} title="Repayment">
+      <Clause n={clause()} title="Repayment" locked={L}>
         {terms.repayMonths && employerPays.length ? (
           <>
             If the Candidate resigns within {terms.repayMonths} months of starting, they repay the costs the Employer actually paid under clause 4, reduced by one {terms.repayMonths === 12 ? 'twelfth' : 'twenty-fourth'} for
@@ -889,14 +1088,17 @@ function OfferDocument({ doc, terms, guide, route, code, draft }: { doc: DocData
       </Clause>
 
       {terms.salaryOffset ? (
-        <Clause n={clause()} title="Salary offset">
-          To help with costs the Employer pays under clause 4, the Candidate agrees that up to {money(terms.salaryOffset, code)} may be deducted from their gross pay during the first 12
-          months, in equal monthly amounts and with their written consent. The deduction stops once the costs the Employer actually paid are recovered, never covers costs in clause 3,
-          and never takes pay below the legal minimum wage or the {route.name} salary requirement. Any amount deducted counts towards repayment under clause 5.
+        <Clause n={clause()} title="Salary deduction" locked={L}>
+          Subject to the Candidate’s prior written consent, the Employer may deduct from the Candidate’s gross salary, during the first twelve (12) months of employment, an aggregate
+          amount not exceeding {money(terms.salaryOffset, code)}
+          {terms.salary ? ` (approximately ${Math.round((terms.salaryOffset / terms.salary) * 1000) / 10}% of the stated annual gross salary)` : ''}, in equal monthly
+          instalments and solely to recover costs actually paid by the Employer under clause 4. Deductions shall cease once those costs have been recovered in full; shall not apply to
+          any cost referred to in clause 3; and shall not reduce the Candidate’s pay below the applicable statutory minimum wage or the salary required for the {route.name}. Any amount so
+          deducted shall be credited against any repayment due under clause 5.
         </Clause>
       ) : null}
 
-      <Clause n={clause()} title="Start">
+      <Clause n={clause()} title="Start" locked={L}>
         The Candidate can start work in {guide.name} within {terms.startWeeks} weeks of the visa being granted.
         {terms.remoteStart && (
           <>
@@ -907,28 +1109,34 @@ function OfferDocument({ doc, terms, guide, route, code, draft }: { doc: DocData
         )}
       </Clause>
 
-      <Clause n={clause()} title="Pay and fair recruitment">
+      <Clause n={clause()} title="Pay and fair recruitment" locked={L}>
         Pay and conditions are set by the Employer and must meet the {route.name} requirements and the law of {guide.name}. Nothing in this offer lowers them. No recruitment fee is
         charged to the Candidate, and the Candidate keeps their own identity and travel documents.
       </Clause>
 
       {doc.note && (
-        <Clause n={clause()} title="Note from the Candidate">
+        <Clause n={clause()} title="Note from the Candidate" locked={L}>
           <span className="whitespace-pre-line italic">{doc.note}</span>
         </Clause>
       )}
 
-      <Clause n={clause()} title="Status of this offer">
+      <Clause n={clause()} title="Status of this offer" locked={L}>
         This is a proposal, not a contract. It becomes binding only when both parties sign it, or when its terms are written into the employment contract. It is governed by the law of{' '}
         {guide.name} and is valid for {VALID_DAYS} days from issue. It was prepared with MadeVisa from official government sources and is not legal advice; check the details with the
         official source or a qualified immigration adviser before signing.
       </Clause>
 
       {/* Signatures */}
-      <section className="mt-10 grid gap-10 break-inside-avoid font-sans text-[13px] sm:grid-cols-2">
-        <Sign who="Candidate" name={doc.candidateName} />
-        <Sign who={`For ${doc.companyName}`} />
-      </section>
+      {L ? (
+        <section className="mt-10 flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#1D4ED8]/30 bg-[#1D4ED8]/[0.03] px-4 py-8 font-sans text-[14px] font-semibold text-[#1D4ED8]">
+          <Lock className="h-4 w-4" /> Full wording and signature lines unlock when you prepare the document
+        </section>
+      ) : (
+        <section className="mt-10 grid gap-10 break-inside-avoid font-sans text-[13px] sm:grid-cols-2">
+          <Sign who="Candidate" name={doc.candidateName} />
+          <Sign who={`For ${doc.companyName}`} />
+        </section>
+      )}
 
       <footer className="mt-12 flex flex-wrap items-center justify-between gap-2 border-t border-ink-200 pt-3 font-sans text-[11px] text-ink-500">
         <span>
@@ -938,6 +1146,7 @@ function OfferDocument({ doc, terms, guide, route, code, draft }: { doc: DocData
         {doc.linkedin && <span className="hidden print:inline">{doc.linkedin}</span>}
       </footer>
     </article>
+    </>
   );
 }
 
@@ -957,14 +1166,23 @@ function Party({ k, v, sub }: { k: string; v: ReactNode; sub?: ReactNode }) {
   );
 }
 
-function Clause({ n, title, children }: { n: number; title: string; children: ReactNode }) {
+function Clause({ n, title, children, locked }: { n: number; title: string; children: ReactNode; locked?: boolean }) {
   return (
     <section className="mt-7 break-inside-avoid">
       <h2 className="flex gap-3 font-sans text-[15px] font-bold text-ink-950">
         <span className="w-8 shrink-0 tabular-nums text-[#1D4ED8] print:text-ink-900">{n}.</span>
         {title}
       </h2>
-      <div className="mt-1.5 pl-11 text-ink-800">{children}</div>
+      {locked ? (
+        // Preview: the wording isn't in the page at all until it's prepared.
+        <div className="mt-2.5 space-y-2 pl-11" aria-label="Unlocks when you prepare the document">
+          {[92, 100, 78].map((w, i) => (
+            <span key={i} className="block h-2.5 rounded-full bg-ink-100" style={{ width: `${w}%` }} />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-1.5 pl-11 text-ink-800">{children}</div>
+      )}
     </section>
   );
 }

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
-import { FileCheck2, FileSignature, Loader2, PlayCircle, X } from 'lucide-react';
+import { FileCheck2, FileSignature, Loader2, Lock, PlayCircle, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
 import { briefEligibility, briefPath, fetchMyBriefForJob, newOfferPath } from '@/lib/briefs';
-import { creditsBadge, useOfferCredits } from '@/lib/sponsorOffer';
+import { creditsBadge, DOC_PRICE, usd, useOfferCredits } from '@/lib/sponsorOffer';
 import { OfferFlags, OfferInfo } from '@/components/briefs/OfferBits';
 import { OfferDemo, OfferSteps } from '@/components/briefs/OfferDemo';
 
@@ -83,12 +83,12 @@ export function HiringBriefCallout(props: Props) {
               </a>
             ) : out ? (
               <a href="/pricing#offers" onClick={go('/pricing#offers')} className={primary}>
-                Top up credit
+                <Lock className="h-4 w-4" /> Unlock for {usd(DOC_PRICE)}
               </a>
             ) : (
               <a href={start} onClick={go(start)} className={primary}>
                 <FileSignature className="h-4 w-4" /> Prepare my offer PDF
-                <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-bold text-white">{creditsBadge(credits)}</span>
+                <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-bold text-white">{credits ? `${usd(DOC_PRICE)} · you have ${usd(credits.balance)}` : creditsBadge(null)}</span>
               </a>
             )}
             <button onClick={() => setDemo(true)} className="inline-flex items-center gap-2 rounded-full px-5 py-3.5 text-[14px] font-bold text-white ring-1 ring-white/40 hover:bg-white/10">
