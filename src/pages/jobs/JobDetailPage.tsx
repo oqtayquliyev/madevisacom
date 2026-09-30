@@ -373,8 +373,10 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-end md:justify-between md:gap-10">
-            <div className="min-w-0">
+          {/* Title and details full width; actions on their own row below, so a
+              long button row never squeezes the title into one word per line. */}
+          <div className="mt-6 flex flex-col gap-6">
+            <div className="min-w-0 max-w-full">
               {closed && (
                 <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-wider ring-1 ring-white/30">
                   Closed{closedAgo ? ` ${closedAgo}` : ''}

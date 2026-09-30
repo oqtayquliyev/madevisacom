@@ -48,6 +48,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         paragraphs: [
           'If your company already has a careers page, its jobs can appear on MadeVisa at no cost. To manage your company page, add your team or post a job directly, use Post a job or email us.',
           'For sponsored placements and Hiring Briefs (a plain-language summary of what hiring someone from abroad involves for your company), see the Sponsored Listing Terms.',
+          'For sponsorship documents job seekers prepare (price, credit, Pro, finality and refunds), see the Sponsorship Document Terms.',
         ],
       },
       {
@@ -436,6 +437,71 @@ export const legalPages: Record<string, LegalPageContent> = {
     related: ['advertising-policy', 'privacy', 'contact'],
   },
 
+  'sponsorship-document-terms': {
+    slug: 'sponsorship-document-terms',
+    title: 'Sponsorship Document Terms',
+    description: 'Price, credit, Pro allowance, finality and refunds for MadeVisa sponsorship documents.',
+    intro: `These terms apply when you prepare a sponsorship document (a sponsorship cost-sharing agreement) on ${ENTITY}. Last updated ${LEGAL_LAST_UPDATED}.`,
+    summary: [
+      '$15 per document, paid from account credit.',
+      'Every new account gets $20 credit, so the first document is free.',
+      'Pro: $99 a month ($990 a year) with 10 documents a month.',
+      'You review and approve the terms before paying. After that the document is final.',
+    ],
+    sections: [
+      {
+        heading: 'What a sponsorship document is',
+        paragraphs: [
+          'A one-page proposal from you to an employer: the visa route, the steps on the employer’s side, who pays each visa-related cost, and optional terms such as a repayment window or a salary deduction. It has signature lines for both parties.',
+          'It is a proposal, not a contract. It becomes binding only when both you and the employer sign it, or when its terms are written into your employment contract. It never covers costs the law puts on the employer, never lowers pay below the legal minimum or the visa salary requirement, and never charges you a recruitment fee.',
+          `The wording is prepared from official government sources, but it is not legal advice. Check the details with the official source or a qualified immigration adviser before signing. ${ENTITY} is not a party to the agreement.`,
+        ],
+      },
+      {
+        heading: 'Price and credit',
+        paragraphs: [
+          'Each document costs $15 (USD), taken from your account credit when you approve it. You can add credit for 1, 3 or 5 documents at a time.',
+          'Every new account starts with $20 credit, enough for one document. Sign-up credit has no cash value and can’t be transferred.',
+          'Previewing, adjusting the terms and seeing the demo are free. You pay only when you approve a document.',
+        ],
+      },
+      {
+        heading: 'Pro',
+        paragraphs: [
+          'MadeVisa Pro costs $99 a month or $990 a year (lower in some countries; the price shown when you request it is the price you pay). It includes 10 sponsorship documents each calendar month.',
+          'Unused Pro documents don’t carry over to the next month. Once they’re used, further documents come from your credit at $15 each.',
+        ],
+      },
+      {
+        heading: 'Review, approval and finality',
+        paragraphs: [
+          'Before you pay, you see every term in a final review and confirm that it is correct. Once approved, the document is fixed: its terms, the parties and the role can’t be edited, and the employer sees exactly the approved version.',
+          'You can still mark its status (sent, replied, interview and so on) or withdraw it, which stops the link from working. Withdrawing does not return the credit.',
+          'If something in an approved document is wrong because of a mistake on our side, email us and we will correct it or refund it.',
+        ],
+      },
+      {
+        heading: 'Refunds',
+        paragraphs: ['A prepared document is delivered instantly, so its price is not refundable once approved, except in the cases below.'],
+        bullets: [
+          'Unused credit you bought: refundable within 14 days of purchase.',
+          'Double charges, or a document that failed to generate: always refunded.',
+          'A document made wrong by an error on our side: corrected or refunded.',
+          'Pro: cancel any time; it stops at the end of the month or year. Within 14 days of first starting Pro, if you have not used any Pro documents, you get a full refund.',
+        ],
+      },
+      {
+        heading: 'Contact',
+        paragraphs: [`Questions about credit, Pro or a document: ${EMAIL}. These terms are governed by ${JURISDICTION}.`],
+      },
+    ],
+    faq: [
+      { q: 'Can I change a document after approving it?', a: 'No. You review every term before paying, and after approval the document is final so the employer can rely on it. If you need different terms for the same job, contact us.' },
+      { q: 'Does the employer have to accept it?', a: 'No. It is a proposal. It becomes binding only if both sides sign it or put its terms into the employment contract.' },
+    ],
+    related: ['terms', 'privacy', 'disclaimer'],
+  },
+
   'editorial-policy': {
     slug: 'editorial-policy',
     title: 'Editorial Policy',
@@ -535,6 +601,7 @@ export const legalPageOrder = [
   'disclaimer',
   'advertising-policy',
   'sponsored-listing-terms',
+  'sponsorship-document-terms',
   'editorial-policy',
   'corrections',
   'verification-policy',

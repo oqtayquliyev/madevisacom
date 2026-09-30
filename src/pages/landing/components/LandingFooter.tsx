@@ -76,6 +76,7 @@ const LEGAL = [
   { label: 'Verification', href: '/verification-policy' },
   { label: 'Corrections', href: '/corrections' },
   { label: 'Sponsored listings', href: '/sponsored-listing-terms' },
+  { label: 'Sponsorship documents', href: '/sponsorship-document-terms' },
 ];
 
 export function LandingFooter({ go }: LandingFooterProps) {
@@ -85,7 +86,7 @@ export function LandingFooter({ go }: LandingFooterProps) {
         <div className="grid gap-8 lg:grid-cols-[1.3fr_2.7fr]">
           <div>
             <BrandMark variant="footer" onClick={() => go('home')} />
-            <p className="mt-3 max-w-xs text-sm leading-6 text-ink-300">Live jobs straight from company career pages, which companies reply, and the visa routes to get there.</p>
+            <p className="mt-3 max-w-xs text-sm leading-6 text-ink-300">Live jobs from company career pages, and a sponsorship agreement you attach to your application to get the visa sponsored.</p>
             <div className="mt-4 flex items-center gap-2.5">
               {SOCIAL.map(({ label, href, icon: Icon }) => (
                 <a

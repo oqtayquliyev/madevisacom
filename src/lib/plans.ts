@@ -20,8 +20,8 @@ export const priceRegionFor = (country: string | null | undefined): PriceRegion 
 
 export const PRO_PRICES: Record<PriceRegion, { monthly: number; yearly: number }> = {
   // Includes 10 sponsorship documents a month ($150 at $15 each).
-  standard: { monthly: 49, yearly: 490 },
-  reduced: { monthly: 29, yearly: 290 },
+  standard: { monthly: 99, yearly: 990 },
+  reduced: { monthly: 59, yearly: 590 },
 };
 export const RELOCATION_PRICE: Record<PriceRegion, number> = { standard: 29, reduced: 19 };
 

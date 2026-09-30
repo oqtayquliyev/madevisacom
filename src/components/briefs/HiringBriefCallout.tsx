@@ -83,7 +83,13 @@ export function HiringBriefCallout(props: Props) {
               </a>
             ) : out ? (
               <a href="/pricing#offers" onClick={go('/pricing#offers')} className={primary}>
-                <Lock className="h-4 w-4" /> Unlock for {usd(DOC_PRICE)}
+                <Lock className="h-4 w-4" />
+                <span className="flex flex-col items-start leading-tight">
+                  <span>Unlock sponsored agreement</span>
+                  <span className="text-[11px] font-semibold text-brand-700/70">
+                    {usd(DOC_PRICE)} · you have {usd(credits?.balance ?? 0)}
+                  </span>
+                </span>
               </a>
             ) : (
               <a href={start} onClick={go(start)} className={primary}>

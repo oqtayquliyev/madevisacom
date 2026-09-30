@@ -30,12 +30,23 @@ export function OfferButton({ jobId, variant, country, onAuth }: { jobId: string
         if (!session) return onAuth?.('register');
         nav(href);
       }}
-      className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 py-3.5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+      className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 ${out ? 'py-2' : 'py-3.5'} text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
         hero ? 'text-white ring-1 ring-white/50 hover:bg-white/10 focus-visible:outline-white' : 'text-[#1D4ED8] ring-1 ring-[#1D4ED8]/40 hover:bg-[#1D4ED8]/5 focus-visible:outline-brand-600'
       }`}
     >
       {existing ? <FileDown className="h-4 w-4" /> : out ? <Lock className="h-4 w-4" /> : <FileSignature className="h-4 w-4" />}
-      {existing ? 'Your document is ready' : out ? `Unlock · ${usd(DOC_PRICE)}` : 'Sponsorship offer'}
+      {out ? (
+        <span className="flex flex-col items-start leading-tight">
+          <span>Unlock sponsored agreement</span>
+          <span className={`text-[11px] font-semibold ${hero ? 'text-white/75' : 'text-ink-500'}`}>
+            {usd(DOC_PRICE)} · you have {usd(credits?.balance ?? 0)}
+          </span>
+        </span>
+      ) : existing ? (
+        'Your document is ready'
+      ) : (
+        'Sponsorship offer'
+      )}
       {!existing && !out && (
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${hero ? 'bg-white text-brand-700' : 'bg-[#1D4ED8] text-white'}`}>{credits ? usd(credits.balance) : creditsBadge(null)}</span>
       )}

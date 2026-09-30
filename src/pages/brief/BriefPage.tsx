@@ -25,7 +25,6 @@ import {
   findRoute,
   recordBriefView,
   updateBriefStatus,
-  updateBriefTerms,
   withdrawBrief,
   type BriefStatus,
   type PublicBrief,
@@ -138,6 +137,7 @@ function NewOffer({ go, onAuth }: Props) {
   const [credits, setCredits] = useState<OfferCredits | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   useSeo({ title: 'Prepare your sponsorship document', description: 'Create a sponsorship cost-sharing offer for an employer.', path: '/brief/new', noindex: true });
 
@@ -208,11 +208,18 @@ function NewOffer({ go, onAuth }: Props) {
     note: note.trim() || null,
   };
 
-  const generate = async () => {
+  // Step 1: check, then show the final review. Step 2 (confirmed): pay and create.
+  const review = () => {
     if (!session) return onAuth?.('register');
     if (!canPay) return nav('/pricing#offers');
     if (!name.trim()) return setError('Add the name the employer should see.');
     if (!ed.employer.name.trim()) return setError('Add the company this document is for.');
+    setError(null);
+    setConfirming(true);
+  };
+
+  const generate = async () => {
+    setConfirming(false);
     setBusy(true);
     setError(null);
     const res = await createBrief({
@@ -308,11 +315,95 @@ function NewOffer({ go, onAuth }: Props) {
             canPay={canPay}
             busy={busy}
             error={error}
-            onGo={generate}
+            onGo={review}
           />
+          {confirming && (
+            <ConfirmTerms
+              terms={terms}
+              code={el.code}
+              country={guide.name}
+              routeName={route.id === GENERIC_ROUTE_ID ? 'National work permit (to be confirmed)' : route.name}
+              candidate={name.trim()}
+              headline={headline.trim()}
+              company={ed.employer.name}
+              role={job.title}
+              price={usesPro ? 'Included in Pro' : usd(DOC_PRICE)}
+              onBack={() => setConfirming(false)}
+              onConfirm={() => void generate()}
+            />
+          )}
         </>
       }
     />
+  );
+}
+
+/** Last look before paying: the document can't be changed afterwards. */
+function ConfirmTerms(props: {
+  terms: OfferTerms;
+  code: string;
+  country: string;
+  routeName: string;
+  candidate: string;
+  headline: string;
+  company: string;
+  role: string;
+  price: string;
+  onBack: () => void;
+  onConfirm: () => void;
+}) {
+  const [ok, setOk] = useState(false);
+  const { terms: t, code } = props;
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && props.onBack();
+    document.addEventListener('keydown', esc);
+    return () => document.removeEventListener('keydown', esc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const rows: [string, string][] = [
+    ['Candidate', [props.candidate, props.headline].filter(Boolean).join(' — ')],
+    ['Employer', props.company],
+    ['Role', props.role],
+    ['Place of work', `${props.country} · ${props.routeName}`],
+    ...t.items.map((i) => [OFFER_ITEM_LABEL[i.key], PAYER_LABEL[i.payer]] as [string, string]),
+    ['Annual gross salary', t.salary ? money(t.salary, code) : 'Not stated'],
+    ['Salary deduction', t.salaryOffset ? `Up to ${money(t.salaryOffset, code)} in year one` : 'None'],
+    ['Repayment window', t.repayMonths ? `${t.repayMonths} months, reducing monthly` : 'None'],
+    ['Start after visa', `Within ${t.startWeeks} weeks${t.remoteStart ? ' · remote start offered' : ''}`],
+  ];
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="confirm-title" className="fixed inset-0 z-[80] grid place-items-center bg-ink-950/60 p-3" onClick={props.onBack}>
+      <div className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="border-b border-ink-100 px-5 py-4">
+          <h2 id="confirm-title" className="text-[18px] font-bold text-ink-950">
+            Are these details correct?
+          </h2>
+          <p className="mt-1 text-[13px] text-ink-600">Once you approve, the document is final. It can’t be edited later — the company will see exactly this.</p>
+        </div>
+        <dl className="flex-1 divide-y divide-ink-100 overflow-y-auto px-5 text-[14px]">
+          {rows.map(([k, v]) => (
+            <div key={k} className="flex justify-between gap-4 py-2.5">
+              <dt className="text-ink-500">{k}</dt>
+              <dd className="text-right font-semibold text-ink-900">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="space-y-3 border-t border-ink-100 bg-ink-50 px-5 py-4">
+          <label className="flex cursor-pointer items-start gap-2.5 text-[13px] text-ink-800">
+            <input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#1D4ED8]" />
+            I’ve checked these terms and understand they can’t be changed after I approve.
+          </label>
+          <div className="flex gap-2">
+            <button onClick={props.onBack} className="flex-1 rounded-xl border border-ink-200 bg-white py-3 text-[14px] font-semibold text-ink-800 hover:bg-ink-50">
+              Go back and edit
+            </button>
+            <button onClick={props.onConfirm} disabled={!ok} className="flex flex-[1.4] items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] py-3 text-[14px] font-bold text-white hover:bg-brand-800 disabled:opacity-50">
+              <Lock className="h-4 w-4" /> Approve & pay · {props.price}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -363,7 +454,7 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
             : `Unlock for ${usd(DOC_PRICE)} · add credit`}
       </button>
       <div className="flex items-center justify-between text-[12px] text-ink-500">
-        <span>Full text, signature lines and PDF unlock after this step.</span>
+        <span>You review everything before paying. After that it’s final.</span>
         <OfferInfo />
       </div>
     </div>
@@ -403,7 +494,6 @@ const INPUT = 'mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 t
 function SavedOffer({ shareId, go, onAuth }: Props) {
   const [brief, setBrief] = useState<PublicBrief | null | undefined>(undefined);
   const [ed, setEd] = useState<Editable | null>(null);
-  const [saved, setSaved] = useState<'idle' | 'saving' | 'saved' | string>('idle');
 
   useEffect(() => {
     let alive = true;
@@ -438,10 +528,10 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
   const found = brief ? findRoute(brief.country_code, brief.route_id) : null;
   const allowed: CandidateCover[] = found?.route.employer?.candidateMayCover ?? [];
   const code = brief?.country_code ?? 'DE';
+  // Saved documents are final: everyone sees exactly what was approved.
   const terms: OfferTerms | null = useMemo(() => {
     if (!brief || !ed) return null;
-    if (brief.is_owner) return termsFrom(ed, allowed, code);
-    return brief.terms ?? buildTerms(brief.split ?? legacySplit(brief), allowed);
+    return brief.terms ?? termsFrom(ed, allowed, code);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brief, ed, allowed.join(), code]);
 
@@ -468,20 +558,8 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
     note: brief.note,
   };
 
-  const commit = async (p: Partial<Editable>) => {
-    const next = { ...ed, ...p };
-    const t = termsFrom(next, allowed, code);
-    setSaved('saving');
-    const res = await updateBriefTerms(brief.share_id, t);
-    if (res.ok) {
-      setBrief({ ...brief, split: t.split, terms: t, company_name: t.employer?.name ?? brief.company_name });
-      setSaved('saved');
-      window.setTimeout(() => setSaved((s) => (s === 'saved' ? 'idle' : s)), 1800);
-    } else setSaved(res.error ?? 'Could not save');
-  };
-
   const paper = found ? (
-    <OfferDocument doc={doc} terms={terms} guide={found.guide} route={found.route} code={brief.country_code} />
+    <OfferDocument doc={doc} terms={terms} guide={found.guide} route={found.route} code={brief.country_code} approvedAt={brief.created_at} />
   ) : (
     <div className="rounded-sm bg-white p-10 text-[15px] text-ink-600 shadow-soft-lg">The visa details for this document are being updated.</div>
   );
@@ -498,7 +576,16 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
       panel={
         <>
           <OwnerActions brief={brief} onStatus={(status) => setBrief({ ...brief, status })} />
-          <EditorPanels ed={ed} terms={terms} code={code} onChange={(p) => setEd({ ...ed, ...p })} onCommit={(p) => void commit(p)} status={saved} />
+          <div className="flex items-start gap-2 rounded-xl bg-ink-100 px-4 py-3 text-[13px] text-ink-700">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0 text-ink-500" />
+            <span>
+              <strong className="text-ink-900">Terms are final.</strong> You approved them on {fmtDate(brief.created_at)}. They can’t be changed; the company sees exactly this version.
+            </span>
+          </div>
+          {/* Shown for reference, greyed out and not editable. */}
+          <fieldset disabled aria-label="Approved terms (read only)" className="pointer-events-none select-none space-y-4 opacity-55 grayscale">
+            <EditorPanels ed={ed} terms={terms} code={code} onChange={() => undefined} />
+          </fieldset>
         </>
       }
     />
@@ -915,7 +1002,7 @@ function ReaderPanel({ brief }: { brief: PublicBrief }) {
 // The document itself — what prints.
 // ---------------------------------------------------------------------------
 
-function OfferDocument({ doc, terms, guide, route, code, locked }: { doc: DocData; terms: OfferTerms; guide: VisaGuide; route: VisaRoute; code: string; locked?: boolean }) {
+function OfferDocument({ doc, terms, guide, route, code, locked, approvedAt }: { doc: DocData; terms: OfferTerms; guide: VisaGuide; route: VisaRoute; code: string; locked?: boolean; approvedAt?: string | null }) {
   const employer = route.employer!;
   const place = [doc.city, guide.name].filter(Boolean).join(', ');
   const validUntil = new Date(Date.parse(doc.issuedAt) + VALID_DAYS * 86_400_000).toISOString();
@@ -952,7 +1039,7 @@ function OfferDocument({ doc, terms, guide, route, code, locked }: { doc: DocDat
           <p className="text-[18px] font-extrabold tracking-tight text-ink-950">
             made<span className="text-[#1D4ED8]">visa</span>
           </p>
-          <p className="text-[12px] text-ink-500">Sponsor offer</p>
+          <p className="text-[12px] text-ink-500">Sponsorship agreement</p>
         </div>
         <dl className="grid grid-cols-[auto_auto] gap-x-3 text-[12px] leading-5 text-ink-600">
           <dt>Reference</dt>
@@ -965,10 +1052,21 @@ function OfferDocument({ doc, terms, guide, route, code, locked }: { doc: DocDat
       </header>
 
       <h1 className="mt-8 text-[30px] font-semibold leading-[1.15] tracking-tight text-ink-950 sm:text-[38px]" style={{ fontVariationSettings: '"opsz" 144' }}>
-        Sponsorship cost-sharing offer
+        Sponsorship cost-sharing agreement
       </h1>
-      <p className="mt-2 font-sans text-[15px] text-ink-600">
-        {doc.jobTitle} at {doc.companyName}
+      <p className="mt-3 font-sans text-[15px] leading-7 text-ink-700">
+        Between <strong className="text-ink-950">{doc.candidateName}</strong> (the Candidate) and <strong className="text-ink-950">{doc.companyName}</strong> (the Employer), for the
+        role of <strong className="text-ink-950">{doc.jobTitle}</strong> in {guide.name}.
+      </p>
+      <p className="mt-2 inline-flex flex-wrap items-center gap-2 font-sans text-[13px]">
+        {approvedAt ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-800 print:bg-transparent print:px-0">
+            <Check className="h-3.5 w-3.5" /> Approved by the Candidate on {fmtDate(approvedAt)}
+          </span>
+        ) : (
+          <span className="rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-800">Preview · not yet approved</span>
+        )}
+        <span className="text-ink-500">Binding once signed by both parties</span>
       </p>
 
       {/* Parties */}

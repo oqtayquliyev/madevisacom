@@ -64,7 +64,7 @@ export function OfferInfo({ className = '', light = false }: { className?: strin
             <span className="flex gap-2"><Dot />Signature lines, so HR can file it with the contract</span>
           </span>
           <span className="mt-3 block border-t border-ink-100 pt-2 text-[12px] leading-5 text-ink-500">
-            Each document is {usd(DOC_PRICE)}. New accounts get {usd(SIGNUP_CREDIT)} credit, so your first one is free. Editing later is free.
+            Each document is {usd(DOC_PRICE)}. New accounts get {usd(SIGNUP_CREDIT)} credit, so your first one is free. You review everything before paying; once approved, a document is final.
           </span>
         </span>
       )}
