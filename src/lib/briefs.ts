@@ -73,6 +73,15 @@ export type BriefProof = { companies: number; jobs: number; function_companies: 
 export const briefPath = (shareId: string) => `/brief/${shareId}`;
 /** Offer builder for one job. */
 export const newOfferPath = (jobId: string) => `/brief/new?job=${jobId}`;
+/** Offer builder for any company — typed in or picked from MadeVisa's companies. */
+export const customOfferPath = (o: { company: string; title?: string; country?: string | null; city?: string | null; publisherId?: string | null }) => {
+  const q = new URLSearchParams({ custom: '1', company: o.company.trim() });
+  if (o.title?.trim()) q.set('title', o.title.trim());
+  if (o.country) q.set('country', o.country.toUpperCase());
+  if (o.city?.trim()) q.set('city', o.city.trim());
+  if (o.publisherId) q.set('pub', o.publisherId);
+  return `/brief/new?${q.toString()}`;
+};
 export const briefUrl = (shareId: string) => `${window.location.origin}${briefPath(shareId)}`;
 
 /**
@@ -162,7 +171,8 @@ export function findRoute(countryCode: string, routeId: string): { guide: VisaGu
 }
 
 export type CreateBriefInput = {
-  jobId: string;
+  /** Null for a custom offer (a company or role that isn't listed on MadeVisa). */
+  jobId: string | null;
   publisherId: string | null;
   jobTitle: string;
   companyName: string;

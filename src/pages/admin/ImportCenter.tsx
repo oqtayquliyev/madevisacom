@@ -5,10 +5,10 @@
 //   - filters, sorting, multi-select, one-click sync (selected / due / all)
 //   - expandable per-company job list with publish / unpublish / delete
 //   - bulk "add many companies" from a pasted list
-//   - scheduled syncs that run while this panel is open
+//   - per-company schedules (the server pipeline syncs every company daily)
 //   - a progress bar with percent for everything long-running
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Clock, ExternalLink, ImageIcon, Link2, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { CompanyLeadsSection } from '@/pages/admin/CompanyLeadsSection';
@@ -74,7 +74,6 @@ const SCHEDULES: { hours: number; label: string }[] = [
   { hours: 168, label: 'Weekly' },
 ];
 
-const AUTO_SYNC_KEY = 'mv_admin_autosync';
 // A sync that was paused: which sources were still left, to continue later.
 const PAUSED_QUEUE_KEY = 'madevisa:pausedSyncQueue';
 type PausedQueue = { label: string; ids: string[]; at: string };
@@ -138,15 +137,6 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
   const busy = run !== null;
   const [paused, setPaused] = useState<PausedQueue | null>(readPausedQueue);
   const say = (m: string) => setLog((prev) => [...prev.slice(-11), m]);
-
-  // ---- schedule ----
-  const [autoSync, setAutoSync] = useState(() => {
-    try {
-      return localStorage.getItem(AUTO_SYNC_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
 
   // ---- company rows (counts by company, not just by linked source) ----
   const rows = useMemo<CompanyRow[]>(() => {
@@ -287,32 +277,6 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
   const selectedSources = sources.filter((s) => selected.has(s.publisher_id));
   const visibleSources = visible.flatMap((r) => r.sources);
 
-  // Scheduled syncs while this panel is open.
-  const sourcesRef = useRef(sources);
-  sourcesRef.current = sources;
-  const busyRef = useRef(busy);
-  busyRef.current = busy;
-  useEffect(() => {
-    try {
-      localStorage.setItem(AUTO_SYNC_KEY, autoSync ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
-    if (!autoSync) return;
-    const tick = () => {
-      if (busyRef.current) return;
-      const due = sourcesRef.current.filter((s) => isSourceDue(s));
-      if (due.length) syncMany(due, 'Scheduled sync');
-    };
-    const first = window.setTimeout(tick, 3_000);
-    const id = window.setInterval(tick, 5 * 60_000);
-    return () => {
-      window.clearTimeout(first);
-      window.clearInterval(id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoSync]);
-
   const setSchedule = async (companyId: string, hours: number) => {
     const list = sources.filter((s) => s.publisher_id === companyId);
     for (const s of list) {
@@ -343,7 +307,7 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
     <section className="mt-8">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Import center — companies &amp; their sources</h2>
+          <h2 className="text-[15px] font-bold text-ink-950">Companies &amp; their sources</h2>
           <p className="mt-0.5 text-[11px] text-ink-400">
             {totals.companies} companies · {totals.sources} sources · {totals.live.toLocaleString()} live · {totals.pending.toLocaleString()} pending
             {totals.errors ? ` · ${totals.errors} with sync problems` : ''}
@@ -520,10 +484,9 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
           <label className="flex items-center gap-1 text-[11px] text-ink-600" title="Allow a sync to remove more than 60% of a company's jobs">
             <input type="checkbox" checked={allowLarge} onChange={(e) => setAllowLarge(e.target.checked)} /> Allow large removals
           </label>
-          <label className="ml-auto flex items-center gap-1.5 text-[11px] font-semibold text-ink-700" title="Runs due scheduled syncs every 5 minutes while this admin tab is open">
-            <input type="checkbox" checked={autoSync} onChange={(e) => setAutoSync(e.target.checked)} />
-            <Clock className="h-3.5 w-3.5" /> Run schedules while open
-          </label>
+<span className="ml-auto flex items-center gap-1 text-[11px] text-ink-400" title="Syncs run on the server every day — see Job pipeline at the top">
+            <Clock className="h-3.5 w-3.5" /> Daily syncs run on the server
+          </span>
         </div>
 
         {/* Table */}

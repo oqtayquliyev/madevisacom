@@ -10,6 +10,8 @@ import { briefCountries, uuidFromBoardId } from '@/lib/sponsorOffer';
 import { visaGuideByCode } from '@/data/visa';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { OfferFlags } from '@/components/briefs/OfferBits';
+import { usePersonalization } from '@/lib/personalization';
+import { isLocalJobFor } from '@/lib/visaFit';
 
 type Row = ViewedJobSnapshot & { uuid: string; ok: boolean; offer: string | null };
 
@@ -19,6 +21,7 @@ type Row = ViewedJobSnapshot & { uuid: string; ok: boolean; offer: string | null
  */
 export function OfferJobPicker({ limit = 6, onAuth, title = 'Your last visited jobs' }: { limit?: number; onAuth?: (p: 'login' | 'register') => void; title?: string }) {
   const { user } = useAuth();
+  const { profile: visitor } = usePersonalization();
   const [offers, setOffers] = useState<Map<string, string>>(new Map());
   const viewed = useMemo(() => (user ? getRecentlyViewedJobs() : []), [user]);
 
@@ -83,6 +86,10 @@ export function OfferJobPicker({ limit = 6, onAuth, title = 'Your last visited j
                   <a href={briefPath(r.offer)} onClick={go(briefPath(r.offer))} className="inline-flex items-center gap-1.5 rounded-lg border border-[#1D4ED8]/30 px-3 py-2 text-[13px] font-bold text-[#1D4ED8] hover:bg-[#1D4ED8]/5">
                     <FileDown className="h-4 w-4" /> Your PDF
                   </a>
+                ) : isLocalJobFor(r.countryCode, visitor) ? (
+                  <span className="rounded-lg bg-emerald-50 px-3 py-2 text-[13px] font-semibold text-emerald-700" title="This job is in your country — no visa or sponsorship needed.">
+                    In your country · no visa needed
+                  </span>
                 ) : r.ok ? (
                   <a href={newOfferPath(r.uuid)} onClick={go(newOfferPath(r.uuid))} className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D4ED8] px-3 py-2 text-[13px] font-bold text-white hover:bg-brand-800">
                     <FileSignature className="h-4 w-4" /> Prepare PDF to apply

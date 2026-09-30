@@ -12,7 +12,9 @@ import {
   jobUrl,
   allRows,
   analyse,
+  companyCountryOf,
   countryIds,
+  recheckCountry,
   fetchSource,
   isJunkJob,
   isTooOld,
@@ -44,6 +46,8 @@ type Existing = {
   import_source_id: string | null;
   closed_reason: string | null;
   awaiting_release: boolean | null;
+  country_id?: string | null;
+  city?: string | null;
 };
 
 type Report = {
@@ -126,7 +130,7 @@ async function syncOne(
     existing = await allRows<Existing>((from, to) =>
       service
         .from('sponsored_jobs')
-        .select('id, title, status, external_id, official_url, import_source_id, closed_reason, awaiting_release')
+        .select('id, title, status, external_id, official_url, import_source_id, closed_reason, awaiting_release, country_id, city')
         .eq('publisher_id', src.publisher_id)
         .eq('origin', 'imported')
         .order('created_at', { ascending: true })
@@ -190,6 +194,18 @@ async function syncOne(
       .update({ import_source_id: src.id, ...(job.externalId && !row.external_id ? { external_id: String(job.externalId) } : {}) })
       .eq('id', row.id);
   }
+  // Location check on every pass: jobs saved in the wrong country by an
+  // older import ("North Chicago, IL" as Israel) move to the right one.
+  const companyCountry = companyCountryOf(fetched.jobs);
+  const isoById = new Map([...byIso.entries()].map(([iso, id]) => [id, iso]));
+  for (const { row, job } of live) {
+    const storedIso = row.country_id ? isoById.get(row.country_id) : undefined;
+    if (!storedIso) continue;
+    const target = recheckCountry(storedIso, row.city ?? null, job, companyCountry);
+    const id = target ? byIso.get(target) : undefined;
+    if (id) await service.from('sponsored_jobs').update({ country_id: id }).eq('id', row.id);
+  }
+
   const seen = live.filter(({ row }) => row.status === 'published').map(({ row }) => row.id);
   for (let i = 0; i < seen.length; i += 1000) await service.rpc('conveyor_mark_seen', { p_ids: seen.slice(i, i + 1000) });
 
@@ -214,7 +230,7 @@ async function syncOne(
     // Too short to be a real job ad ("Read about our fees") → skip.
     if (description.length < cfg.minChars || isJunkJob(j.title, description)) continue;
     const payload = analyse(j.title, description);
-    rows.push(jobToRow(j, description, payload, { publisherId: src.publisher_id, importSourceId: src.id, status: src.auto_publish ? 'published' : 'pending', countryIdByIso: byIso }));
+    rows.push(jobToRow(j, description, payload, { publisherId: src.publisher_id, importSourceId: src.id, status: src.auto_publish ? 'published' : 'pending', countryIdByIso: byIso, companyCountry }));
   }
   report.more = Math.max(0, candidates.length - used);
 

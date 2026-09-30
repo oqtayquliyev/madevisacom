@@ -61,12 +61,13 @@ export type SponsoredJob = {
   last_seen_at?: string | null;
   /** Set when the job was closed (gone from the careers page). Visitors see it greyed out for 24 hours. */
   closed_at?: string | null;
-  publisher?: { id: string; name: string; org_type: OrgType; logo_url: string | null; owner_id: string | null };
+  /** created_at = when the company joined MadeVisa ("New on MadeVisa" for 24 h). */
+  publisher?: { id: string; name: string; org_type: OrgType; logo_url: string | null; owner_id: string | null; created_at?: string | null };
   country?: { id: string; name: string; iso_code: string };
 };
 
 const columns =
-  'id, publisher_id, title, description, category, employment_type, job_function, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, created_at, approved_at, expires_at, source_posted_at, additional_locations, origin, publisher:program_publishers(id, name, org_type, logo_url, owner_id), country:countries(id, name, iso_code)';
+  'id, publisher_id, title, description, category, employment_type, job_function, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, benefits, requirements, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, admin_notes, source_verified, needs_info_message, created_at, approved_at, expires_at, source_posted_at, additional_locations, origin, publisher:program_publishers(id, name, org_type, logo_url, owner_id, created_at), country:countries(id, name, iso_code)';
 
 // Same as `columns` above minus description/benefits/requirements (each
 // can be 5-20KB of HTML per job — real imported listings routinely are)
@@ -78,7 +79,7 @@ const columns =
 // jobs, this is the difference between transferring and JSON-parsing a
 // few hundred KB total vs. tens of MB just to render a list of titles.
 const LIST_COLUMNS =
-  'id, publisher_id, title, category, employment_type, job_function, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, created_at, approved_at, expires_at, source_posted_at, additional_locations, origin, publisher:program_publishers(id, name, org_type, logo_url, owner_id), country:countries(id, name, iso_code)';
+  'id, publisher_id, title, category, employment_type, job_function, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, created_at, approved_at, expires_at, source_posted_at, additional_locations, origin, publisher:program_publishers(id, name, org_type, logo_url, owner_id, created_at), country:countries(id, name, iso_code)';
 
 export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
   return {
@@ -762,6 +763,7 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     closedAt: isClosedJob(job) ? job.closed_at ?? null : null,
     closed: isClosedJob(job),
     sourceType: isDirectListing(job) ? 'company_submitted' : 'company_careers',
+    companyAddedAt: job.publisher?.created_at ?? null,
   };
 }
 

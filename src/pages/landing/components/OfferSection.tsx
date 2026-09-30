@@ -3,6 +3,7 @@ import { nav } from '@/lib/pageLayout';
 import { creditsBadge, useOfferCredits } from '@/lib/sponsorOffer';
 import { OfferFlags, OfferInfo } from '@/components/briefs/OfferBits';
 import { OfferDemo, OfferSteps } from '@/components/briefs/OfferDemo';
+import { OfferOddsStat } from '@/components/briefs/OfferOddsStat';
 
 /** Landing: what a sponsor offer is, shown rather than told. */
 export function OfferSection() {
@@ -18,6 +19,7 @@ export function OfferSection() {
             </h2>
             <OfferInfo className="mt-2" />
           </div>
+          <OfferOddsStat className="mt-4" />
         </div>
         <a
           href="/offers"

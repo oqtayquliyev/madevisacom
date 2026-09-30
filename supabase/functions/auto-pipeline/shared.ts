@@ -9,7 +9,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { detectJobFacts, cleanJobDescriptionHtml, stripPageChrome, isPlaceholderValue, splitSourceLocation } from '../job-facts/detector.ts';
 import { sanitizeJobHtml } from '../job-facts/sanitize.ts';
-import { createPlaceResolver } from '../job-facts/placeResolver.ts';
+import { createPlaceResolver, recheckSavedCountry, type PlaceHint } from '../job-facts/placeResolver.ts';
 import { allCountries } from '../job-facts/countries.ts';
 
 export type Service = any;
@@ -113,14 +113,42 @@ function normalizeJobCategory(raw: string | null | undefined): string {
 const resolvePlace = createPlaceResolver(allCountries);
 
 /** One clear country from the office list → its code; several / none → null ("Various"). */
-function countryCodeFromOffices(offices: string[] | undefined, locationText: string | undefined): string | null {
+function countryCodeFromOffices(offices: string[] | undefined, locationText: string | undefined, hint?: PlaceHint): string | null {
   const candidates = offices && offices.length ? offices : locationText ? [locationText] : [];
   const found = new Set<string>();
   for (const o of candidates) {
-    const hit = resolvePlace(o);
+    const hit = resolvePlace(o, hint);
     if (hit) found.add(hit.code);
   }
   return found.size === 1 ? [...found][0] : null;
+}
+
+/**
+ * Where a company's jobs clearly are (named country, ZIP, known city —
+ * never a guess), when most of them agree. A hint for its unclear ones:
+ * a US company's "Mettawa, IL" is Illinois. Same as dominantCountry in
+ * src/lib/officeLocations.ts.
+ */
+export function companyCountryOf(jobs: Pick<SourceJob, 'offices' | 'locationText'>[]): string | null {
+  const n = new Map<string, number>();
+  let total = 0;
+  for (const j of jobs) {
+    for (const raw of j.offices?.length ? j.offices : [j.locationText]) {
+      if (!raw) continue;
+      const d = resolvePlace.detail(raw);
+      if (!d.country || d.guessed) continue;
+      total++;
+      n.set(d.country.code, (n.get(d.country.code) ?? 0) + 1);
+    }
+  }
+  const top = [...n.entries()].sort((a, b) => b[1] - a[1])[0];
+  return top && top[1] >= 2 && top[1] / total >= 0.6 ? top[0] : null;
+}
+
+/** A saved job's country re-read with the current rules (null = keep it). */
+export function recheckCountry(storedIso: string, city: string | null, j: Pick<SourceJob, 'offices' | 'locationText'>, companyCountry: string | null): string | null {
+  const texts = j.offices?.length ? j.offices : [j.locationText];
+  return recheckSavedCountry(resolvePlace, storedIso, city, texts, companyCountry ? { prefer: companyCountry } : undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +174,7 @@ export function jobToRow(
   j: SourceJob,
   description: string,
   payload: FactsPayload,
-  opts: { publisherId: string; importSourceId: string; status: 'published' | 'pending'; countryIdByIso: Map<string, string> }
+  opts: { publisherId: string; importSourceId: string; status: 'published' | 'pending'; countryIdByIso: Map<string, string>; companyCountry?: string | null }
 ): Record<string, unknown> {
   const facts = payload.facts;
   const category = normalizeJobCategory(j.employmentTypeRaw || facts.employmentType);
@@ -154,7 +182,7 @@ export function jobToRow(
   const salaryText = [j.salaryText, facts.compensation].find((v) => isMeaningfulSalary(v)) ?? null;
   const srcLoc = splitSourceLocation(facts.location);
   const listedCity = (j.offices?.[0] ?? j.locationText)?.split(',')[0]?.trim() || null;
-  const code = countryCodeFromOffices(j.offices, j.locationText) ?? srcLoc?.countryCode ?? null;
+  const code = countryCodeFromOffices(j.offices, j.locationText, opts.companyCountry ? { prefer: opts.companyCountry } : undefined) ?? srcLoc?.countryCode ?? null;
   return {
     publisher_id: opts.publisherId,
     title: j.title,

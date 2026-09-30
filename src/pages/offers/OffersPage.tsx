@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { useAuth } from '@/lib/auth';
@@ -10,6 +11,9 @@ import { OfferDemo, OfferSteps } from '@/components/briefs/OfferDemo';
 import { OfferJobPicker } from '@/components/briefs/OfferJobPicker';
 import { BuyOffers } from '@/components/briefs/BuyOffers';
 import { MyBriefsSection } from '@/components/briefs/MyBriefsSection';
+import { OfferCompaniesRow, type OfferCompanyPick } from '@/components/briefs/OfferCompaniesRow';
+import { CustomOfferCard } from '@/components/briefs/CustomOfferCard';
+import { OfferOddsStat } from '@/components/briefs/OfferOddsStat';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
@@ -17,6 +21,8 @@ type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') =
 export function OffersPage({ go, onAuth }: Props) {
   const { profile } = useAuth();
   const credits = useOfferCredits();
+  const [pick, setPick] = useState<OfferCompanyPick | null>(null);
+  const customRef = useRef<HTMLElement>(null);
 
   useSeo({
     title: 'Make a sponsor offer — MadeVisa',
@@ -41,11 +47,21 @@ export function OffersPage({ go, onAuth }: Props) {
           <div className="mt-6">
             <OfferSteps light active={0} />
           </div>
+          <OfferOddsStat light className="mt-6" />
         </div>
       </section>
 
       <main className={`${WRAP} space-y-12 py-10 sm:py-12`}>
         <OfferJobPicker onAuth={onAuth} limit={8} />
+
+        <OfferCompaniesRow
+          onPick={(c) => {
+            setPick(c);
+            window.setTimeout(() => customRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);
+          }}
+        />
+
+        <CustomOfferCard ref={customRef} pick={pick} onAuth={onAuth} onClearPick={() => setPick(null)} />
 
         <section aria-labelledby="demo-title">
           <h2 id="demo-title" className="text-[17px] font-bold text-ink-950">

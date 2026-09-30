@@ -4,8 +4,8 @@ import { detectFactsForItems, EMPTY_FACTS, FACTS_VERSION, refreshJobFacts, type 
 import type { OrgType } from '@/lib/programs';
 import type { ListingStatus, SalaryStatus, SalaryPeriod, CostStatus } from '@/lib/listingCategories';
 import { JOB_CATEGORIES, isMeaningfulSalary, type JobCategory } from '@/lib/listingCategories';
-import { matchCountriesFromOfficeNames } from '@/lib/officeLocations';
-import { createPlaceResolver, isAmbiguousRegionCode, knownRegionCity } from '@/lib/placeResolver';
+import { dominantCountry, matchCountriesFromOfficeNames } from '@/lib/officeLocations';
+import { createPlaceResolver, isAmbiguousRegionCode, recheckSavedCountry, type PlaceHint } from '@/lib/placeResolver';
 import { allCountries } from '@/data/allCountries';
 import { classifyJobFunctionFromTitle } from '@/lib/jobCategories';
 import { fetchJobDetail, isJunkJob, JUNK_PHRASES } from '@/lib/atsImport';
@@ -559,10 +559,10 @@ export type ImportCountryLookup = { id: string; iso_code: string };
  * additionalLocations (stored separately) still carries the raw office
  * list either way, so nothing about the original data is lost.
  */
-function resolveCountryId(offices: string[] | undefined, locationText: string | undefined, countries: ImportCountryLookup[]): string | null {
+function resolveCountryId(offices: string[] | undefined, locationText: string | undefined, countries: ImportCountryLookup[], hint?: PlaceHint): string | null {
   const candidates = offices && offices.length ? offices : locationText ? [locationText] : [];
   if (candidates.length === 0) return null;
-  const matches = matchCountriesFromOfficeNames(candidates);
+  const matches = matchCountriesFromOfficeNames(candidates, hint);
   if (matches.length !== 1) return null;
   return countries.find((c) => c.iso_code === matches[0].code)?.id ?? null;
 }
@@ -627,7 +627,7 @@ export function importJobToRow(
   j: ImportJobInput,
   publisherId: string,
   countries: ImportCountryLookup[],
-  options: { importSourceId?: string | null; status?: 'pending' | 'published' } = {},
+  options: { importSourceId?: string | null; status?: 'pending' | 'published'; companyCountry?: string | null } = {},
   // What the description says — computed by the job-facts server function
   // (see importJobsAsPending). Empty when that function isn't reachable.
   facts: DetectedFacts = EMPTY_FACTS
@@ -643,8 +643,10 @@ export function importJobToRow(
   // listing API left empty or filled with placeholders like "All".
   const srcLoc = splitSourceLocation(facts.location);
   const listedCity = deriveCity(j.additionalLocations?.[0] ?? j.locationText);
+  // Unclear codes ("Mettawa, IL") follow where the company's other jobs clearly are.
+  const hint: PlaceHint | undefined = options.companyCountry ? { prefer: options.companyCountry } : undefined;
   const countryId =
-    resolveCountryId(j.additionalLocations, j.locationText, countries) ??
+    resolveCountryId(j.additionalLocations, j.locationText, countries, hint) ??
     (srcLoc?.countryCode ? countries.find((c) => c.iso_code === srcLoc.countryCode)?.id ?? null : null);
   return {
     publisher_id: publisherId,
@@ -677,6 +679,11 @@ export function importJobToRow(
     compensation_text: salaryText || null,
     salary_status: salaryText ? ('disclosed' as const) : ('not_disclosed' as const),
   };
+}
+
+/** Where a company's fetched jobs clearly are — a hint for its unclear locations ("Mettawa, IL"). */
+export function companyCountryOf(jobs: Pick<ImportJobInput, 'additionalLocations' | 'locationText'>[]): string | null {
+  return dominantCountry(jobs.flatMap((j) => (j.additionalLocations?.length ? j.additionalLocations : [j.locationText])));
 }
 
 /** Jobs are shown for this long after the company posted them. */
@@ -738,9 +745,16 @@ export async function importJobsAsPending(
   publisherId: string,
   countries: ImportCountryLookup[],
   jobs: ImportJobInput[],
-  options: { importSourceId?: string | null; status?: 'pending' | 'published'; skipExisting?: boolean } = {}
+  options: {
+    importSourceId?: string | null;
+    status?: 'pending' | 'published';
+    skipExisting?: boolean;
+    /** Where the company's jobs clearly are (see dominantCountry) — computed from `jobs` when not given. */
+    companyCountry?: string | null;
+  } = {}
 ): Promise<{ ok: boolean; imported: number; skipped: number; error?: string }> {
   const skipExisting = options.skipExisting ?? true;
+  const companyCountry = options.companyCountry !== undefined ? options.companyCountry : companyCountryOf(jobs);
   const seenExternal = new Set<string>();
   const seenUrls = new Set<string>();
 
@@ -785,7 +799,7 @@ export async function importJobsAsPending(
   // MadeVisa only shows jobs posted in the last 30 days — older postings
   // aren't imported at all (they'd be hidden straight away anyway).
   const rows = fresh
-    .map((j, i) => importJobToRow(j, publisherId, countries, options, detected.facts[i] ?? EMPTY_FACTS))
+    .map((j, i) => importJobToRow(j, publisherId, countries, { ...options, companyCountry }, detected.facts[i] ?? EMPTY_FACTS))
     .filter((r) => {
       if (!isTooOldToImport(r.source_posted_at)) return true;
       skipped++;
@@ -1349,14 +1363,6 @@ export async function purgeJunkJobs(): Promise<{ removed: number; error?: string
 // Fix jobs saved with a US state (or Canadian / Australian region) as the country
 // ---------------------------------------------------------------------------
 
-/**
- * Older imports read "Phoenix, AZ" as Azerbaijan, "San Jose, CA" as Canada,
- * "Chicago, IL" as Israel, and so on. This re-checks every job whose country
- * is one of those ambiguous codes and moves it only on positive evidence:
- * the stored location text / office list / "US - …" in the title resolves
- * to another country, or the city is a well-known city of that state
- * ("Phoenix" + AZ). "Baku" + AZ or "Osnabrück" + DE are left alone.
- */
 /** "Roswell-Georgia-United States of America" / "Marietta, Georgia" → "Roswell" / "Marietta". */
 function cityOnly(city: string | null | undefined): string | null {
   if (!city) return null;
@@ -1364,10 +1370,23 @@ function cityOnly(city: string | null | undefined): string | null {
   return city.split(/\s*,\s*|-(?=[A-Z])/)[0].trim() || city;
 }
 
+export type CountryRepairResult = { ok: boolean; scanned: number; fixed: number; byCountry: Record<string, number>; error?: string };
+
+/**
+ * Older imports read "Phoenix, AZ" as Azerbaijan, "San Jose, CA" as Canada,
+ * "North Chicago, IL" as Israel, and so on. This re-checks every job whose
+ * country is one of those ambiguous codes with the current rules
+ * (recheckSavedCountry): the job's own location text / office list / "US - …"
+ * title first, then "<city>, <code>" read again — including "North / East /
+ * Fort …" cities and the company's other jobs (an AbbVie job in "Mettawa, IL"
+ * follows AbbVie's clearly-Illinois jobs). Jobs in Baku, Tel Aviv or
+ * Osnabrück are left alone.
+ */
 export async function repairAmbiguousJobCountries(
   onProgress?: (done: number, total: number) => void,
   shouldStop?: () => boolean,
-): Promise<{ ok: boolean; scanned: number; fixed: number; byCountry: Record<string, number>; error?: string }> {
+  options: { recentHours?: number } = {},
+): Promise<CountryRepairResult> {
   const resolve = createPlaceResolver(allCountries);
   const { data: countryRows, error: cErr } = await supabase.from('countries').select('id, iso_code');
   if (cErr) return { ok: false, scanned: 0, fixed: 0, byCountry: {}, error: cErr.message };
@@ -1377,25 +1396,35 @@ export async function repairAmbiguousJobCountries(
   const isoById = new Map(ambiguous.map((c) => [c.id, c.iso_code]));
   const ids = ambiguous.map((c) => c.id);
   if (!ids.length) return { ok: true, scanned: 0, fixed: 0, byCountry: {} };
+  const since = options.recentHours ? new Date(Date.now() - options.recentHours * 3_600_000).toISOString() : null;
 
-  const { count } = await supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).in('country_id', ids);
+  const countQ = supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).in('country_id', ids);
+  const { count } = await (since ? countQ.gte('created_at', since) : countQ);
   const total = count ?? 0;
   let lastId: string | null = null;
   let scanned = 0;
-  let fixed = 0;
   let firstError: string | undefined;
-  const byCountry: Record<string, number> = {};
-  let withFacts = true;
+  // The posting's own location line lives inside facts; read just that string.
+  let factsCol = ', fact_location:facts->facts->>location';
 
-  type Row = { id: string; title: string; city: string | null; country_id: string; additional_locations: string[] | null; facts?: { location?: string | null } | null };
+  // Pass 1: read everything (small columns only) and learn, per company,
+  // where its jobs clearly are.
+  type Row = { id: string; title: string; city: string | null; country_id: string; publisher_id: string | null; additional_locations: string[] | null; fact_location?: string | null };
+  const all: Row[] = [];
+  const votes = new Map<string, Map<string, number>>();
   for (;;) {
     if (shouldStop?.()) break;
-    const cols = `id, title, city, country_id, additional_locations${withFacts ? ', facts' : ''}`;
-    let q = supabase.from('sponsored_jobs').select(cols).in('country_id', ids).order('id', { ascending: true }).limit(200);
+    let q = supabase
+      .from('sponsored_jobs')
+      .select(`id, title, city, country_id, publisher_id, additional_locations${factsCol}`)
+      .in('country_id', ids)
+      .order('id', { ascending: true })
+      .limit(500);
+    if (since) q = q.gte('created_at', since);
     if (lastId) q = q.gt('id', lastId);
     const res = await q;
-    if (res.error && withFacts && /facts|column|schema cache/i.test(res.error.message)) {
-      withFacts = false;
+    if (res.error && factsCol && /facts|column|schema cache|operator/i.test(res.error.message)) {
+      factsCol = '';
       continue;
     }
     if (res.error) {
@@ -1406,45 +1435,110 @@ export async function repairAmbiguousJobCountries(
     if (!batch.length) break;
     lastId = batch[batch.length - 1].id;
     scanned += batch.length;
-
-    const updates: { id: string; countryId: string; iso: string; city?: string }[] = [];
     for (const r of batch) {
-      const stored = isoById.get(r.country_id);
-      if (!stored) continue;
-      // Positive evidence only.
-      // The saved city too: "Roswell-Georgia-United States of America" says US on its own.
-      const texts = [r.facts?.location ?? null, ...(r.additional_locations ?? []), r.city && /[,-]/.test(r.city) ? r.city : null].filter((t): t is string => Boolean(t));
-      const titleUS = /\b(?:US|USA|U\.S\.|United States)\s*[-–:]/.test(r.title) ? 'US' : null;
-      const votes = new Set<string>();
-      for (const t of texts) {
-        const hit = resolve(t);
-        if (hit) votes.add(hit.code);
-      }
-      if (titleUS) votes.add(titleUS);
-      let target: string | null = null;
-      if (votes.size === 1 && !votes.has(stored)) target = [...votes][0];
-      else if (votes.size === 0 || (votes.size === 1 && votes.has(stored))) target = knownRegionCity(stored, cityOnly(r.city));
-      if (!target || target === stored) continue;
-      const countryId = idByIso.get(target);
-      if (countryId) updates.push({ id: r.id, countryId, iso: target, city: r.city && cityOnly(r.city) !== r.city ? cityOnly(r.city) ?? undefined : undefined });
+      all.push(r);
+      const iso = isoById.get(r.country_id);
+      const city = cityOnly(r.city);
+      if (!iso || !city || !r.publisher_id) continue;
+      const d = resolve.detail(`${city}, ${iso}`);
+      if (!d.country || d.guessed) continue;
+      const m = votes.get(r.publisher_id) ?? new Map<string, number>();
+      m.set(d.country.code, (m.get(d.country.code) ?? 0) + 1);
+      votes.set(r.publisher_id, m);
     }
-
-    let cursor = 0;
-    await Promise.all(
-      Array.from({ length: 6 }, async () => {
-        while (cursor < updates.length) {
-          const u = updates[cursor++];
-          const { error } = await supabase.from('sponsored_jobs').update(u.city ? { country_id: u.countryId, city: u.city } : { country_id: u.countryId }).eq('id', u.id);
-          if (error) firstError = firstError ?? error.message;
-          else {
-            fixed++;
-            byCountry[u.iso] = (byCountry[u.iso] ?? 0) + 1;
-          }
-        }
-      }),
-    );
-    onProgress?.(scanned, total);
-    if (batch.length < 200) break;
+    onProgress?.(Math.round(scanned / 2), total);
+    if (batch.length < 500) break;
   }
+  const hintFor = (pub: string | null): PlaceHint | undefined => {
+    const m = pub ? votes.get(pub) : undefined;
+    if (!m) return undefined;
+    const sum = [...m.values()].reduce((a, b) => a + b, 0);
+    const top = [...m.entries()].sort((a, b) => b[1] - a[1])[0];
+    return top && top[1] >= 2 && top[1] / sum >= 0.6 ? { prefer: top[0] } : undefined;
+  };
+
+  // Pass 2: decide and write.
+  const updates: { id: string; countryId: string; iso: string; city?: string }[] = [];
+  for (const r of all) {
+    const stored = isoById.get(r.country_id);
+    if (!stored) continue;
+    const city = cityOnly(r.city);
+    // The saved city too: "Roswell-Georgia-United States of America" says US on its own.
+    const texts = [r.fact_location ?? null, ...(r.additional_locations ?? []), r.city && /[,-]/.test(r.city) ? r.city : null];
+    if (/\b(?:US|USA|U\.S\.|United States)\s*[-–:]/.test(r.title)) texts.push('United States');
+    const target = recheckSavedCountry(resolve, stored, city, texts, hintFor(r.publisher_id));
+    const countryId = target ? idByIso.get(target) : undefined;
+    if (target && countryId && target !== stored) updates.push({ id: r.id, countryId, iso: target, city: r.city && city !== r.city ? city ?? undefined : undefined });
+  }
+
+  let fixed = 0;
+  let done = 0;
+  const byCountry: Record<string, number> = {};
+  let cursor = 0;
+  await Promise.all(
+    Array.from({ length: 6 }, async () => {
+      while (cursor < updates.length && !shouldStop?.()) {
+        const u = updates[cursor++];
+        const { error } = await supabase.from('sponsored_jobs').update(u.city ? { country_id: u.countryId, city: u.city } : { country_id: u.countryId }).eq('id', u.id);
+        done++;
+        if (error) firstError = firstError ?? error.message;
+        else {
+          fixed++;
+          byCountry[u.iso] = (byCountry[u.iso] ?? 0) + 1;
+        }
+        if (done % 25 === 0) onProgress?.(Math.round(total / 2 + (done / Math.max(1, updates.length)) * (total / 2)), total);
+      }
+    }),
+  );
+  onProgress?.(total, total);
   return { ok: !firstError, scanned, fixed, byCountry, error: firstError };
+}
+
+// ---------------------------------------------------------------------------
+// One check for job details AND locations — used by the admin tool, by
+// "Update all jobs" after every sync, and when new companies are imported.
+// ---------------------------------------------------------------------------
+
+/**
+ * recentHours: jobs added / gone live in the last N hours (both checks).
+ * onlyMissing: details only for jobs not analysed yet, whatever their age or
+ * status (what runs after a sync); locations still follow recentHours.
+ */
+export type JobCheckScope = { recentHours?: number; onlyMissing?: boolean; refetchThin?: boolean };
+export type JobCheckResult = {
+  ok: boolean;
+  error?: string;
+  junkRemoved: number;
+  details: { scanned: number; updated: number; counts: Record<string, number>; migrationMissing?: boolean };
+  locations: CountryRepairResult;
+};
+
+/**
+ * 1. removes bot-check pages saved as jobs, 2. reads descriptions for
+ * salary / experience / work type / visa / posting date / location,
+ * 3. corrects countries read from state codes. Scope: jobs added in the
+ * last N hours, only jobs without details yet, or everything.
+ */
+export async function runJobCheck(
+  scope: JobCheckScope,
+  onProgress?: (step: 'junk' | 'details' | 'locations', done: number, total: number) => void,
+  shouldStop?: () => boolean,
+): Promise<JobCheckResult> {
+  onProgress?.('junk', 0, 0);
+  const junk = await purgeJunkJobs();
+  const details = shouldStop?.()
+    ? { ok: true, scanned: 0, updated: 0, counts: {} as Record<string, number>, error: undefined as string | undefined, migrationMissing: false }
+    : await backfillJobFacts((d, t) => onProgress?.('details', d, t), shouldStop, scope.onlyMissing ? { onlyMissing: true, refetchThin: scope.refetchThin } : { recentHours: scope.recentHours, refetchThin: scope.refetchThin });
+  const locations = shouldStop?.()
+    ? { ok: true, scanned: 0, fixed: 0, byCountry: {} }
+    : await repairAmbiguousJobCountries((d, t) => onProgress?.('locations', d, t), shouldStop, { recentHours: scope.recentHours });
+  const junkRemoved = junk.removed + (details.counts.junkRemoved ?? 0);
+  const error = junk.error ?? details.error ?? locations.error;
+  return {
+    ok: !error,
+    error,
+    junkRemoved,
+    details: { scanned: details.scanned, updated: details.updated, counts: details.counts, migrationMissing: details.migrationMissing },
+    locations,
+  };
 }

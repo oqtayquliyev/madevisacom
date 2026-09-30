@@ -83,6 +83,8 @@ export function BriefPage(props: Props) {
 
 // ---------------------------------------------------------------------------
 // New offer: /brief/new?job=<id>
+// Custom offer (any company, no job on MadeVisa):
+//   /brief/new?custom=1&company=…&title=…&country=XX&city=…&pub=<publisher id>
 // ---------------------------------------------------------------------------
 
 /** Everything the candidate can change on the document. */
@@ -119,6 +121,8 @@ function NewOffer({ go, onAuth }: Props) {
   const { session, profile, loading: authLoading } = useAuth();
   const params = new URLSearchParams(window.location.search);
   const jobId = params.get('job') ?? '';
+  const custom = params.get('custom') === '1';
+  const [roleTitle, setRoleTitle] = useState(params.get('title') ?? '');
   const [state, setState] = useState<
     | { k: 'loading' }
     | { k: 'missing' }
@@ -143,6 +147,19 @@ function NewOffer({ go, onAuth }: Props) {
 
   useEffect(() => {
     let alive = true;
+    if (custom) {
+      // A company you picked or typed yourself — nothing to load.
+      const company = (params.get('company') ?? '').trim();
+      const pub = params.get('pub');
+      const code = (params.get('country') ?? '').toUpperCase();
+      const job = { id: '', publisherId: pub, title: roleTitle, company, fn: null, city: (params.get('city') ?? '').trim() || null, ownCode: code, contact: null, closed: false };
+      setState({ k: 'ready', job, raw: { salary_min: null, salary_max: null, salary_currency: null, salary_period: null } });
+      setEd({ split: 50, offset: 0, salary: 0, overrides: {}, employer: { name: company, publisherId: pub, contact: null, logo: null } });
+      if (pub) employerFromPublisher(pub, company).then((e) => alive && setEd((d) => (d ? { ...d, employer: e } : d)));
+      return () => {
+        alive = false;
+      };
+    }
     if (!jobId) return setState({ k: 'missing' });
     fetchSponsoredJobById(jobId).then(async (raw) => {
       if (!alive) return;
@@ -162,7 +179,8 @@ function NewOffer({ go, onAuth }: Props) {
     return () => {
       alive = false;
     };
-  }, [jobId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId, custom]);
 
   useEffect(() => {
     if (!profile) return;
@@ -187,8 +205,10 @@ function NewOffer({ go, onAuth }: Props) {
   if (state.k === 'missing' || (ready && el && !el.ok)) return <NotFoundPage go={go} onAuth={onAuth} />;
   if (!ready || !el || !el.ok || authLoading || !ed) return <Desk go={go} onAuth={onAuth} loading />;
 
-  const { job } = ready;
-  const { guide, routes, picked } = el;
+  const job = custom ? { ...ready.job, title: roleTitle.trim() } : ready.job;
+  const { guide, routes, picked: pickedCountry } = el;
+  // A custom offer's city belongs to the country it was typed for.
+  const picked = custom ? el.code !== ready.job.ownCode : pickedCountry;
   const route = routes.find((r) => r.id === routeId) ?? routes[0];
   const allowed = route.employer!.candidateMayCover;
   const terms = termsFrom(ed, allowed, el.code);
@@ -199,8 +219,8 @@ function NewOffer({ go, onAuth }: Props) {
     ref: 'MV-PREVIEW',
     issuedAt: new Date().toISOString(),
     shareId: null,
-    jobTitle: job.title,
-    companyName: ed.employer.name,
+    jobTitle: job.title || 'The role you apply for',
+    companyName: ed.employer.name || 'Company name',
     city: picked ? null : job.city,
     candidateName: name.trim() || 'Your name',
     headline: headline.trim() || null,
@@ -213,6 +233,7 @@ function NewOffer({ go, onAuth }: Props) {
     if (!session) return onAuth?.('register');
     if (!canPay) return nav('/pricing#offers');
     if (!name.trim()) return setError('Add the name the employer should see.');
+    if (!job.title) return setError('Add the role you are applying for.');
     if (!ed.employer.name.trim()) return setError('Add the company this document is for.');
     setError(null);
     setConfirming(true);
@@ -223,7 +244,7 @@ function NewOffer({ go, onAuth }: Props) {
     setBusy(true);
     setError(null);
     const res = await createBrief({
-      jobId: job.id,
+      jobId: job.id || null,
       publisherId: ed.employer.publisherId ?? null,
       jobTitle: job.title,
       companyName: ed.employer.name.trim(),
@@ -262,6 +283,16 @@ function NewOffer({ go, onAuth }: Props) {
       paper={<OfferDocument doc={doc} terms={terms} guide={guide} route={route} code={el.code} locked />}
       panel={
         <>
+          {custom && (
+            <Panel>
+              <p className="text-[15px] font-bold text-ink-950">Custom offer</p>
+              <p className="mt-0.5 text-[12px] leading-5 text-ink-500">For a company or role that isn’t on MadeVisa. Change the company name under Employer below.</p>
+              <label className="mt-2 block">
+                <span className="text-[13px] font-semibold text-ink-800">Role you’re applying for</span>
+                <input value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} maxLength={300} placeholder="e.g. Data Engineer" className={INPUT} />
+              </label>
+            </Panel>
+          )}
           <Panel>
             <label className="block">
               <span className="text-[13px] font-semibold text-ink-800">Where will you work?</span>

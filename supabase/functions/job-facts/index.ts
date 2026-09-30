@@ -19,8 +19,9 @@
 //       Admins only (used by the importer before inserting new jobs).
 //   { cron: "detect", limit: 30 }            → server-run (pg_cron, every minute)
 //       Detects jobs waiting for auto-publish, stores the results and fills
-//       empty job fields (salary, experience, work type…) — the same fill-in
-//       the admin "Detect job details" button does. Needs the header
+//       empty job fields (salary, experience, work type…) and corrects a
+//       country read from a US state code ("North Chicago, IL" → US, not
+//       Israel) — the same checks the admin "Check jobs" tool does. Needs the header
 //       x-madevisa-cron = app_secrets.cron_secret (migration 20261031090000).
 //
 // Deploy: supabase functions deploy job-facts --no-verify-jwt
@@ -29,7 +30,10 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { detectJobFacts, cleanJobDescriptionHtml, stripPageChrome, isPlaceholderValue, splitSourceLocation } from './detector.ts';
-import { isAmbiguousRegionCode } from './placeResolver.ts';
+import { createPlaceResolver, isAmbiguousRegionCode, recheckSavedCountry } from './placeResolver.ts';
+import { allCountries } from './countries.ts';
+
+const resolvePlace = createPlaceResolver(allCountries);
 import { sanitizeJobHtml } from './sanitize.ts';
 
 /** Bump when the detector changes, so stored results are recomputed. */
@@ -108,6 +112,7 @@ type WaitingRow = {
   job_function: string | null;
   city: string | null;
   country_id: string | null;
+  additional_locations: string[] | null;
   source_posted_at: string | null;
   remote: boolean | null;
   visa_sponsorship: boolean | null;
@@ -142,6 +147,15 @@ function fillInPatch(r: WaitingRow, f: Payload['facts'], maps: { byIso: Map<stri
     const storedIso = r.country_id ? maps.isoById.get(r.country_id) : undefined;
     if (r.country_id && countryId && storedIso && storedIso !== loc.countryCode && isAmbiguousRegionCode(storedIso)) patch.country_id = countryId;
   }
+  // Saved from a state code by the importer ("North Chicago, IL" as Israel):
+  // read "<city>, <code>" and the office list again with the current rules.
+  const storedIso = r.country_id ? maps.isoById.get(r.country_id) : undefined;
+  if (storedIso && !patch.country_id) {
+    const city = (typeof patch.city === 'string' ? patch.city : r.city) ?? null;
+    const target = recheckSavedCountry(resolvePlace, storedIso, city, [...(r.additional_locations ?? []), f.location]);
+    const id = target ? maps.byIso.get(target) : undefined;
+    if (id) patch.country_id = id;
+  }
   return patch;
 }
 
@@ -155,7 +169,7 @@ function fillInPatch(r: WaitingRow, f: Payload['facts'], maps: { byIso: Map<stri
 async function detectWaiting(service: ServiceClient, limit: number) {
   const started = Date.now();
   const cols =
-    'id, title, description, updated_at, compensation_text, salary_status, experience_level, employment_type, job_function, city, country_id, source_posted_at, remote, visa_sponsorship, work_arrangement, visa_status';
+    'id, title, description, updated_at, compensation_text, salary_status, experience_level, employment_type, job_function, city, country_id, additional_locations, source_posted_at, remote, visa_sponsorship, work_arrangement, visa_status';
   const { data, error } = await service
     .from('sponsored_jobs')
     .select(cols)

@@ -41,6 +41,7 @@ import { PersonalizationBar } from '@/components/opportunities/PersonalizationBa
 import { jobPath } from '@/lib/jobUrl';
 import { experienceBucket } from '@/lib/jobText';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
+import { NewCompanyBadge } from '@/components/common/NewCompanyBadge';
 
 type JobsPageProps = {
   go: (view: View) => void;
@@ -200,7 +201,10 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
       <div className="flex items-start gap-3.5">
         <JobLogo job={job} size={52} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-semibold text-ink-500">{job.company}</p>
+          <p className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-ink-500">
+            <span className="truncate">{job.company}</span>
+            <NewCompanyBadge addedAt={job.companyAddedAt} />
+          </p>
           <h3 className="mt-0.5 break-words font-title text-lg font-bold leading-snug text-ink-950 [overflow-wrap:anywhere] group-hover:text-brand-700">{job.title}</h3>
         </div>
       </div>

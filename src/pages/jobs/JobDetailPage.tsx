@@ -3,6 +3,9 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { isMeaningfulSalary } from '@/lib/listingCategories';
 import { companyPath, recordApplication } from '@/lib/companies';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
+import { isNewCompany, NewCompanyBadge } from '@/components/common/NewCompanyBadge';
+import { usePersonalization } from '@/lib/personalization';
+import { isLocalJobFor } from '@/lib/visaFit';
 import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Check, ChevronDown, FileText, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Navigation, Phone, Plane, Share2, UserRound, Users, Zap } from 'lucide-react';
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
@@ -41,6 +44,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const [raw, setRaw] = useState<SponsoredJob | null>(null);
   const [copied, setCopied] = useState(false);
   const { session } = useAuth();
+  const { profile: visitor } = usePersonalization();
   // Signed-out visitors: after 3 job views, invite them to create an account.
   const [guestViews, setGuestViews] = useState(0);
   useEffect(() => {
@@ -239,7 +243,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // Sponsorship offer next to Apply, on every open job. Jobs outside the
   // covered countries start the builder with a country picker.
   const offerEl = raw ? briefEligibility({ countryCode: raw.country?.iso_code ?? (countryOk ? job.countryCode : null), visa: visa ?? null, closed: Boolean(job.closed), fallback: 'DE' }) : null;
-  const offerOk = Boolean(offerEl?.ok);
+  // Already in your country (or free to work there): no visa, so no sponsorship offer.
+  const localJob = isLocalJobFor(raw?.country?.iso_code ?? (countryOk ? job.countryCode : null), visitor);
+  const offerOk = Boolean(offerEl?.ok) && !localJob;
   const offerCountry = offerEl?.ok && offerEl.picked ? offerEl.code : null;
   const details: { icon: typeof Briefcase; label: string; value: ReactNode }[] = [
     { icon: Banknote, label: 'Compensation', value: salary ? <span className="font-bold text-ink-950">{salary}</span> : see },
@@ -365,9 +371,10 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               ) : (
                 <p className="truncate text-base font-bold sm:text-lg">{job.company}</p>
               )}
-              {job.sourceType === 'company_submitted' && (
-                <div className="mt-1">
-                  <DirectListingBadge company={job.company} />
+              {(job.sourceType === 'company_submitted' || isNewCompany(job.companyAddedAt)) && (
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {job.sourceType === 'company_submitted' && <DirectListingBadge company={job.company} />}
+                  <NewCompanyBadge addedAt={job.companyAddedAt} variant="hero" />
                 </div>
               )}
             </div>
@@ -472,7 +479,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       </section>
 
       <main className="mx-auto max-w-4xl px-5 py-8 sm:px-8 sm:py-10">
-        {raw && (
+        {raw && !localJob && (
           <div className="-mt-4 mb-6">
           <HiringBriefCallout
             jobId={raw.id}

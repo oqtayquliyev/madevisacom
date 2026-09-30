@@ -13,7 +13,7 @@ import { listTotpFactors } from '@/lib/mfa';
 import { UpdateAllJobsPanel } from '@/pages/admin/UpdateAllJobsPanel';
 import { FindCompaniesPanel } from '@/pages/admin/FindCompaniesPanel';
 import { PublisherFilterChips, RegisteredCompanyPanel, type PublisherFilter } from '@/pages/admin/RegisteredCompanyPanel';
-import { CreditCard, FileSignature, Bell, Briefcase, CheckCircle2, Loader2, XCircle, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ImageIcon, Inbox, Landmark, Mail, Newspaper, Pencil, RefreshCw, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
+import { CreditCard, FileSignature, Bell, Briefcase, CheckCircle2, Loader2, XCircle, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ImageIcon, Inbox, Landmark, Mail, Newspaper, Pencil, RefreshCw, ScanSearch, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { ImportCenter } from '@/pages/admin/ImportCenter';
@@ -66,8 +66,8 @@ import {
   removePublisherMember,
   type DirectRequest,
   type PublisherMember,
-  backfillJobFacts,
-  repairAmbiguousJobCountries,
+  runJobCheck,
+  type JobCheckResult,
   deleteCompany,
   fetchOwnerEmails,
 } from '@/lib/admin';
@@ -412,7 +412,6 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
             </button>
           </div>
         )}
-        {!dataLoading && <UpdateAllJobsPanel sources={sources} countries={countries} onChange={() => loadAll()} />}
 
         <nav className="sticky top-0 z-10 -mx-5 mt-6 flex gap-1 overflow-x-auto border-b border-ink-200 bg-[#f8fafc] px-5 sm:mx-0 sm:px-0">
           {ADMIN_TABS.map(({ key, label, icon: Icon }) => {
@@ -539,10 +538,13 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
 
             {tab === 'imports' && (
               <>
+                {/* 1. What runs by itself, every day */}
                 <PublishReleasePanel onPublished={() => loadAll(['allJobs'])} />
 
-                <FindCompaniesPanel publishers={[...verifiedPublishers, ...pendingPublishers]} sources={sources} countries={countries} onChange={() => loadAll()} />
+                {/* 2. Run it now, from this browser */}
+                <UpdateAllJobsPanel sources={sources} countries={countries} onChange={() => loadAll()} />
 
+                {/* 3. Companies and where their jobs come from */}
                 <ImportCenter
                   sources={sources}
                   allJobs={allJobs}
@@ -552,13 +554,17 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
                   onChange={() => loadAll()}
                 />
 
+                {/* 4. Add companies */}
+                <FindCompaniesPanel publishers={[...verifiedPublishers, ...pendingPublishers]} sources={sources} countries={countries} onChange={() => loadAll()} />
+
                 <AddJobsTools>
                   <ImportFromCareersUrlSection countries={countries} onImported={() => loadAll()} />
                   <ImportFromAtsSection countries={countries} onImported={() => loadAll()} />
                   <BulkGreenhouseImportSection countries={countries} allJobs={allJobs} onImported={() => loadAll()} />
                 </AddJobsTools>
 
-                <BackfillJobFactsSection onChange={() => loadAll()} compact />
+                {/* 5. Clean up older jobs */}
+                <JobCheckSection onChange={() => loadAll()} />
               </>
             )}
 
@@ -668,7 +674,6 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
               <>
                 <AdminAccessSection admins={admins} currentEmail={profile?.email ?? ''} onChange={() => loadAll()} />
                 <DesktopNotificationsSection />
-                <BackfillJobFactsSection onChange={() => loadAll()} />
                 <BackfillJobFunctionsSection onChange={() => loadAll()} />
               </>
             )}
@@ -3155,43 +3160,92 @@ function CompanyAccessSection({ publishers, members, onChange }: { publishers: P
 }
 
 // ===========================================================================
-// Detect job details from descriptions (salary, experience, work type, visa)
+// Check jobs — details from descriptions AND locations, in one run
 // ===========================================================================
 
-type DetectScope = 'recent24' | 'recent168' | 'all';
-const DETECT_SCOPES: { value: DetectScope; label: string; hours?: number }[] = [
-  { value: 'recent24', label: 'Last added (24 h)', hours: 24 },
-  { value: 'recent168', label: 'Last 7 days', hours: 168 },
-  { value: 'all', label: 'All jobs' },
+type CheckScope = 'recent24' | 'recent168' | 'missing' | 'all';
+const CHECK_SCOPES: { value: CheckScope; label: string; hint: string }[] = [
+  { value: 'recent24', label: 'Added in 24 h', hint: 'Jobs that went live or were added in the last 24 hours.' },
+  { value: 'recent168', label: 'Last 7 days', hint: 'Jobs from the last week.' },
+  { value: 'missing', label: 'Not checked yet', hint: 'Details for every job the detector hasn’t read yet; locations for the last 7 days.' },
+  { value: 'all', label: 'All jobs', hint: 'Every job — slow on a large catalogue.' },
 ];
 
-function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () => void; compact?: boolean }) {
+function JobCheckSection({ onChange }: { onChange: () => void }) {
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [result, setResult] = useState<string | null>(null);
-  const [refetchThin, setRefetchThin] = useState(true);
-  const [scope, setScope] = useState<DetectScope>('recent24');
+  const [step, setStep] = useState<{ name: 'junk' | 'details' | 'locations'; done: number; total: number } | null>(null);
+  const [result, setResult] = useState<JobCheckResult | null>(null);
+  const [stopped, setStopped] = useState(false);
+  const [refetchThin, setRefetchThin] = useState(false);
+  const [scope, setScope] = useState<CheckScope>('recent24');
   const stop = useRef(false);
-  const hours = DETECT_SCOPES.find((x) => x.value === scope)?.hours;
+  const current = CHECK_SCOPES.find((x) => x.value === scope)!;
+
+  const run = async () => {
+    stop.current = false;
+    setBusy(true);
+    setStopped(false);
+    setResult(null);
+    const r = await runJobCheck(
+      scope === 'recent24' ? { recentHours: 24, refetchThin } : scope === 'recent168' ? { recentHours: 168, refetchThin } : scope === 'missing' ? { onlyMissing: true, recentHours: 168, refetchThin } : { refetchThin },
+      (name, done, total) => setStep({ name, done, total }),
+      () => stop.current,
+    );
+    setBusy(false);
+    setStep(null);
+    setStopped(stop.current);
+    setResult(r);
+    onChange();
+  };
+
+  const c = result?.details.counts ?? {};
+  const moved = result
+    ? Object.entries(result.locations.byCountry)
+        .sort((a, b) => b[1] - a[1])
+        .map(([iso, n]) => `${n} → ${iso}`)
+        .join(', ')
+    : '';
+  const detailParts = result
+    ? ([
+        ['salary', c.compensation],
+        ['experience', c.experience],
+        ['employment type', c.employment],
+        ['work type', c.workType],
+        ['visa', c.visa],
+        ['posted date', c.posted],
+        ['department', c.department],
+        ['location text', c.location],
+        ['pages re-read', c.refetched],
+      ] as [string, number | undefined][]).filter(([, n]) => n)
+    : [];
+
   return (
-    <section className="mt-8">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">Detect job details from descriptions</h2>
-      <div className="mt-3 border border-ink-200 bg-white p-4 text-xs text-ink-600">
-        {compact ? (
-          <p>New imports and syncs do this automatically. Run it on the jobs published most recently, or on everything to fill in jobs imported earlier.</p>
-        ) : (
-          <p>
-            Reads each job's description and fills in what's missing — compensation (e.g. “$126,000—$136,000 CAD”),
-            experience (“8–12 years”, “Career Level: Apprentices”), employment &amp; work type (“Full time · On-site”,
-            “Remote Working: Up to 20%”), visa sponsorship, and the facts block many career sites print (posting date,
-            department, location) — which also replaces placeholders like “All” / “Various”. Only empty fields are
-            filled, except a country saved from a US state code (“Phoenix, AZ” as Azerbaijan), which is corrected.
+    <section className="mt-8 overflow-hidden rounded-xl border border-ink-200 bg-white">
+      <div className="flex flex-col gap-3 border-b border-ink-100 px-4 py-4 sm:flex-row sm:items-center sm:px-5">
+        <div className="min-w-0 flex-1">
+          <h2 className="flex items-center gap-2 text-[15px] font-bold text-ink-950">
+            <ScanSearch className="h-4 w-4 text-brand-600" /> Check jobs — details &amp; locations
+          </h2>
+          <p className="mt-0.5 text-xs leading-5 text-ink-500">
+            Reads each description for salary, experience, work type, visa and posting date, and fixes countries read from state codes — “North Chicago, IL” as Israel,
+            “Phoenix, AZ” as Azerbaijan, “San Jose, CA” as Canada — using the city, the posting’s own location line and where the company’s other jobs are. Syncs and the
+            daily pipeline run this on every new job automatically; use it here for older jobs.
           </p>
+        </div>
+        {busy ? (
+          <button onClick={() => (stop.current = true)} className="shrink-0 rounded-lg border border-ink-200 px-4 py-2.5 text-sm font-semibold text-ink-700 hover:bg-ink-50">
+            Stop
+          </button>
+        ) : (
+          <button onClick={() => void run()} className="shrink-0 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+            Check {current.label.toLowerCase()}
+          </button>
         )}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="font-semibold text-ink-700">Which jobs:</span>
-          <div className="inline-flex rounded-lg bg-ink-100 p-0.5">
-            {DETECT_SCOPES.map((o) => (
+      </div>
+      <div className="space-y-3 px-4 py-4 text-xs text-ink-600 sm:px-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex flex-wrap rounded-lg bg-ink-100 p-0.5">
+            {CHECK_SCOPES.map((o) => (
               <button
                 key={o.value}
                 disabled={busy}
@@ -3203,121 +3257,51 @@ function BackfillJobFactsSection({ onChange, compact = false }: { onChange: () =
               </button>
             ))}
           </div>
-          <span className="text-ink-400">{hours ? 'Published jobs that went live in this window.' : 'Every job — slow on a large catalogue.'}</span>
+          <span className="text-ink-400">{current.hint}</span>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <button
-            disabled={busy}
-            onClick={async () => {
-              stop.current = false;
-              setBusy(true);
-              setResult(null);
-              setProgress({ done: 0, total: 0 });
-              const r = await backfillJobFacts(
-                (done, total) => setProgress({ done, total }),
-                () => stop.current,
-                { refetchThin, recentHours: hours }
+        <label className="flex items-center gap-2 text-ink-600">
+          <input type="checkbox" checked={refetchThin} disabled={busy} onChange={(e) => setRefetchThin(e.target.checked)} />
+          Also re-read the job page when the saved description is short (slower)
+        </label>
+
+        {busy && step && (
+          <ol className="grid gap-2 sm:grid-cols-3">
+            {(['junk', 'details', 'locations'] as const).map((k, i) => {
+              const order = ['junk', 'details', 'locations'].indexOf(step.name);
+              const state = i < order ? 'done' : i === order ? 'running' : 'waiting';
+              const label = k === 'junk' ? 'Remove bot-check pages' : k === 'details' ? 'Read descriptions' : 'Fix locations';
+              return (
+                <li key={k} className={`rounded-lg border p-2.5 ${state === 'running' ? 'border-brand-300 bg-brand-50/50' : state === 'done' ? 'border-emerald-200 bg-emerald-50/40' : 'border-ink-100'}`}>
+                  <p className="flex items-center gap-1.5 font-semibold text-ink-800">
+                    {state === 'done' ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : state === 'running' ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" /> : <span className="h-3.5 w-3.5 rounded-full border border-ink-300" />}
+                    {label}
+                  </p>
+                  {state === 'running' && step.total > 0 && (
+                    <div className="mt-2">
+                      <ProgressBar value={step.done / step.total} label={`${step.done.toLocaleString()} of ${step.total.toLocaleString()}`} />
+                    </div>
+                  )}
+                </li>
               );
-              setBusy(false);
-              setProgress(null);
-              const c = r.counts;
-              setResult(
-                (r.ok ? (stop.current ? 'Stopped. ' : 'Done. ') : `Finished with an error: ${r.error}. `) +
-                  (r.scanned === 0 && hours ? `No jobs were published in the last ${hours === 24 ? '24 hours' : '7 days'}. ` : '') +
-                  `Scanned ${r.scanned.toLocaleString()}, updated ${r.updated.toLocaleString()} — re-read pages ${c.refetched}, salary ${c.compensation}, experience ${c.experience}, employment type ${c.employment}, work type ${c.workType}, visa ${c.visa}, posted date ${c.posted}, department ${c.department}, location ${c.location}${c.countryFixed ? ` (${c.countryFixed} countries corrected)` : ''}.` +
-                  (r.migrationMissing ? ' (Run the 20260925090000 migration to also store work type & “visa not offered”.)' : '')
-              );
-              onChange();
-            }}
-            className="rounded-lg bg-brand-600 px-4 py-2 font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-          >
-            {busy ? 'Detecting…' : hours ? `Detect details · ${DETECT_SCOPES.find((x) => x.value === scope)!.label.toLowerCase()}` : 'Detect details · all jobs'}
-          </button>
-          <label className="flex items-center gap-2 text-ink-600">
-            <input type="checkbox" checked={refetchThin} disabled={busy} onChange={(e) => setRefetchThin(e.target.checked)} />
-            Also re-read the job page when the saved description is short (slower)
-          </label>
-          {busy && (
-            <button onClick={() => (stop.current = true)} className="rounded-lg border border-ink-200 px-3 py-2 font-semibold text-ink-600 hover:bg-ink-50">
-              Stop
-            </button>
-          )}
-        </div>
-        {busy && progress && (
-          <div className="mt-3">
-            <ProgressBar
-              value={progress.total ? progress.done / progress.total : null}
-              label="Reading job descriptions"
-              detail={progress.total ? `${progress.done.toLocaleString()} of ${progress.total.toLocaleString()} jobs checked` : 'Starting…'}
-            />
+            })}
+          </ol>
+        )}
+
+        {result && (
+          <div className={`rounded-lg px-3 py-2.5 ${result.ok ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'}`}>
+            <p className="font-semibold">
+              {stopped ? 'Stopped. ' : result.ok ? 'Done. ' : `Finished with a problem: ${result.error}. `}
+              {result.details.scanned.toLocaleString()} jobs read, {result.details.updated.toLocaleString()} got new details · {result.locations.scanned.toLocaleString()} locations checked,{' '}
+              {result.locations.fixed.toLocaleString()} corrected{moved ? ` (${moved})` : ''}
+              {result.junkRemoved ? ` · ${result.junkRemoved} bot-check pages removed` : ''}.
+            </p>
+            {detailParts.length > 0 && <p className="mt-0.5">Filled: {detailParts.map(([k, n]) => `${k} ${n}`).join(' · ')}</p>}
+            {result.details.migrationMissing && <p className="mt-0.5">Run the 20260925090000 migration to also store work type &amp; “visa not offered”.</p>}
+            {result.details.scanned === 0 && scope.startsWith('recent') && <p className="mt-0.5">No jobs went live in that window.</p>}
           </div>
         )}
-        {result && <p className="mt-2 text-ink-700">{result}</p>}
-        <RepairCountriesPanel onChange={onChange} />
       </div>
     </section>
-  );
-}
-
-/** One-off: jobs an older import saved with a US state (AZ, CA, CO, IN…) as the country. */
-function RepairCountriesPanel({ onChange }: { onChange: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [result, setResult] = useState<string | null>(null);
-  const stop = useRef(false);
-  return (
-    <div className="mt-5 border-t border-ink-100 pt-4">
-      <p className="font-semibold text-ink-800">Fix countries read from US state codes</p>
-      <p className="mt-1">
-        Older imports read “Phoenix, AZ” as Azerbaijan, “Atlanta, Georgia” as the country Georgia, “San Jose, CA” as Canada, “Chicago, IL” as Israel. This checks every job saved with one of those
-        countries and moves it only when its location, office list or title clearly points elsewhere, or its city is a well-known city of that state. Jobs
-        in Baku, Tbilisi or Osnabrück are left alone.
-      </p>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button
-          disabled={busy}
-          onClick={async () => {
-            stop.current = false;
-            setBusy(true);
-            setResult(null);
-            setProgress({ done: 0, total: 0 });
-            const r = await repairAmbiguousJobCountries(
-              (done, total) => setProgress({ done, total }),
-              () => stop.current,
-            );
-            setBusy(false);
-            setProgress(null);
-            const moved = Object.entries(r.byCountry)
-              .sort((a, b) => b[1] - a[1])
-              .map(([iso, n]) => `${n} → ${iso}`)
-              .join(', ');
-            setResult(
-              (r.ok ? (stop.current ? 'Stopped. ' : 'Done. ') : `Finished with an error: ${r.error}. `) +
-                `Checked ${r.scanned.toLocaleString()} jobs, corrected ${r.fixed.toLocaleString()}${moved ? ` (${moved})` : ''}.`,
-            );
-            if (r.fixed) onChange();
-          }}
-          className="rounded-lg border border-brand-600 px-4 py-2 font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50"
-        >
-          {busy ? 'Checking…' : 'Fix state-code countries'}
-        </button>
-        {busy && (
-          <button onClick={() => (stop.current = true)} className="rounded-lg border border-ink-200 px-3 py-2 font-semibold text-ink-600 hover:bg-ink-50">
-            Stop
-          </button>
-        )}
-      </div>
-      {busy && progress && (
-        <div className="mt-3">
-          <ProgressBar
-            value={progress.total ? progress.done / progress.total : null}
-            label="Checking saved countries"
-            detail={progress.total ? `${progress.done.toLocaleString()} of ${progress.total.toLocaleString()} jobs` : 'Starting…'}
-          />
-        </div>
-      )}
-      {result && <p className="mt-2 text-ink-700">{result}</p>}
-    </div>
   );
 }
 

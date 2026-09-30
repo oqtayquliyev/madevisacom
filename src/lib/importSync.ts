@@ -17,9 +17,14 @@
 
 import { supabase } from '@/lib/supabase';
 import { fetchGreenhouseJobs, fetchJobsFromCareersUrl, isJunkJob, sanitizeJobHtml, type FetchedJob } from '@/lib/atsImport';
+import { allCountries } from '@/data/allCountries';
+import { createPlaceResolver, recheckSavedCountry } from '@/lib/placeResolver';
+
+const resolvePlace = createPlaceResolver(allCountries);
 import {
   fetchAllRows,
   importJobsAsPending,
+  companyCountryOf,
   isTooOldToImport,
   normalizeJobUrl,
   type ImportCountryLookup,
@@ -38,6 +43,8 @@ export type SyncSummary = {
   removalMode?: 'delete' | 'expire' | 'close';
   error?: string;
   blockedRemovals?: number;
+  /** Jobs moved to the right country on this sync ("North Chicago, IL" saved as Israel → US). */
+  countriesFixed?: number;
 };
 
 export type ImportSource = {
@@ -244,6 +251,8 @@ type ExistingRow = {
   official_url: string | null;
   import_source_id: string | null;
   created_at: string;
+  country_id?: string | null;
+  city?: string | null;
   work_arrangement?: string | null;
   closed_reason?: string | null;
 };
@@ -323,10 +332,10 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
     );
   try {
     try {
-      existing = await loadExisting('id, title, status, external_id, official_url, import_source_id, created_at, work_arrangement, closed_reason');
+      existing = await loadExisting('id, title, status, external_id, official_url, import_source_id, created_at, country_id, city, work_arrangement, closed_reason');
     } catch {
       try {
-        existing = await loadExisting('id, title, status, external_id, official_url, import_source_id, created_at, work_arrangement');
+        existing = await loadExisting('id, title, status, external_id, official_url, import_source_id, created_at, country_id, city, work_arrangement');
       } catch {
         hasWorkArrangement = false;
         existing = await loadExisting('id, title, status, external_id, official_url, import_source_id, created_at');
@@ -396,6 +405,23 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
       // The source states on-site/hybrid/remote itself → it wins over older guesses.
       (hasWorkArrangement && job.workArrangement && row.work_arrangement !== job.workArrangement)
   );
+  // Location check on every sync: a job saved in the wrong country (an
+  // older import read "North Chicago, IL" as Israel) is moved to the right
+  // one, using the same rules as new imports.
+  const companyCountry = companyCountryOf(fetched.jobs);
+  const isoById = new Map(opts.countries.map((c) => [c.id, c.iso_code]));
+  const idByIso = new Map(opts.countries.map((c) => [c.iso_code, c.id]));
+  const countryFix = new Map<string, string>();
+  for (const { row, job } of stillLive) {
+    const storedIso = row.country_id ? isoById.get(row.country_id) : undefined;
+    if (!storedIso) continue;
+    const texts = job.additionalLocations?.length ? job.additionalLocations : [job.locationText];
+    const target = recheckSavedCountry(resolvePlace, storedIso, row.city, texts, companyCountry ? { prefer: companyCountry } : undefined);
+    const id = target ? idByIso.get(target) : undefined;
+    if (id) countryFix.set(row.id, id);
+  }
+  summary.countriesFixed = countryFix.size;
+  for (const x of stillLive) if (countryFix.has(x.row.id) && !needsOwnWrite.includes(x)) needsOwnWrite.push(x);
   const ownWriteSet = new Set(needsOwnWrite);
   const bulk = stillLive.filter((x) => !ownWriteSet.has(x));
 
@@ -412,6 +438,8 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
 
   await withConcurrency(needsOwnWrite, 8, async ({ row, job }) => {
     const patch: Record<string, unknown> = { last_seen_at: now, import_source_id: source.id };
+    const fixedCountry = countryFix.get(row.id);
+    if (fixedCountry) patch.country_id = fixedCountry;
     if (job.externalId) patch.external_id = String(job.externalId);
     if (row.status === 'published') patch.expires_at = extendTo;
     if (hasWorkArrangement && job.workArrangement && row.work_arrangement !== job.workArrangement) {
@@ -445,6 +473,8 @@ export async function syncImportSource(source: ImportSource, opts: SyncOptions):
       importSourceId: source.id,
       status: source.auto_publish ? 'published' : 'pending',
       skipExisting: false, // already de-duplicated above
+      // Read unclear locations ("Mettawa, IL") the way the rest of this company's jobs clearly are.
+      companyCountry: companyCountryOf(fetched.jobs),
     });
     summary.added = res.imported;
     if (!res.ok) summary.error = res.error;
@@ -502,6 +532,7 @@ export function describeSyncSummary(s: SyncSummary | null | undefined): string {
   if (s.removed) parts.push(`−${s.removed} ${s.removalMode === 'expire' ? 'expired' : s.removalMode === 'close' ? 'closed' : 'removed'}`);
   if (s.duplicatesRemoved) parts.push(`${s.duplicatesRemoved} duplicates cleaned`);
   if (s.adopted) parts.push(`${s.adopted} linked`);
+  if (s.countriesFixed) parts.push(`${s.countriesFixed} location${s.countriesFixed === 1 ? '' : 's'} fixed`);
   return parts.join(' · ');
 }
 

@@ -51,6 +51,8 @@ export type Job = {
    *  - 'company_careers': imported by MadeVisa staff from a company's own public careers page (see supabase/functions/import-ats-jobs) — no publisher owner account behind it.
    *  - 'live_feed': pulled in real time from a public job-board API (Arbeitnow) — not a MadeVisa import of one specific company's page, and not company-submitted either. */
   sourceType?: 'company_submitted' | 'company_careers' | 'live_feed';
+  /** When the company joined MadeVisa — drives the 24-hour "New on MadeVisa" tag. */
+  companyAddedAt?: string | null;
 };
 
 export const countries = [

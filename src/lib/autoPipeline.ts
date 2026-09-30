@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { backfillJobFacts, bulkSetJobStatus, purgeJunkJobs, type ImportCountryLookup } from '@/lib/admin';
+import { bulkSetJobStatus, runJobCheck, type ImportCountryLookup } from '@/lib/admin';
 import { syncImportSource, updateImportSource, type ImportSource } from '@/lib/importSync';
 
 export type PipelineResult = { imported: number; published: number; detected: number; emptySources: ImportSource[]; errors: string[] };
@@ -7,7 +7,7 @@ export type PipelineResult = { imported: number; published: number; detected: nu
 /**
  * For freshly added companies, in one go:
  *   1. import their jobs (to pending)
- *   2. detect job details for anything still missing them
+ *   2. check the new jobs: details from descriptions + the right country
  *   3. publish those companies' pending jobs, and switch their sources to
  *      auto-publish so future syncs go live directly.
  */
@@ -59,11 +59,13 @@ export async function importDetectPublish(
   );
   if (stop() || !opts.publish) return out;
 
-  // 2. Detect details for jobs that don't have them yet.
-  say('Detecting job details…');
-  const det = await backfillJobFacts((d, t) => say(`Detecting job details: ${d.toLocaleString()} / ${t.toLocaleString()}`), stop, { onlyMissing: true });
-  out.detected = det.updated;
-  await purgeJunkJobs();
+  // 2. Details from descriptions + locations, for what was just added.
+  say('Checking job details & locations…');
+  const det = await runJobCheck({ onlyMissing: true, recentHours: 6 }, (step, d, t) =>
+    say(step === 'details' ? `Detecting job details: ${d.toLocaleString()} / ${t.toLocaleString()}` : step === 'locations' ? 'Checking locations…' : 'Removing bot-check pages…'),
+    stop,
+  );
+  out.detected = det.details.updated + det.locations.fixed;
   if (stop()) return out;
 
   // 3. Publish these companies' pending jobs.
