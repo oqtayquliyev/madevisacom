@@ -19,7 +19,9 @@
 // - No recruitment fees are charged to the candidate (ILO C181 and the ILO
 //   General Principles for Fair Recruitment).
 
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
 import type { CandidateCover } from '@/data/visa';
 
 export type Payer = 'employer' | 'shared' | 'candidate';
@@ -118,3 +120,52 @@ export { briefCountries } from '@/data/visa';
 export function pingNotifications() {
   window.dispatchEvent(new Event('madevisa:notifications'));
 }
+
+let creditsCache: { userId: string; at: number; value: OfferCredits | null } | null = null;
+
+/** Credits left for the signed-in person (null for guests). Shared cache; refreshes after an offer is made. */
+export function useOfferCredits(): OfferCredits | null {
+  const { user } = useAuth();
+  const fresh = user && creditsCache?.userId === user.id && Date.now() - creditsCache.at < 60_000 ? creditsCache.value : null;
+  const [credits, setCredits] = useState<OfferCredits | null>(fresh);
+  useEffect(() => {
+    if (!user) return setCredits(null);
+    let alive = true;
+    const load = (force: boolean) => {
+      if (!force && creditsCache?.userId === user.id && Date.now() - creditsCache.at < 60_000) return setCredits(creditsCache.value);
+      fetchOfferCredits().then((c) => {
+        creditsCache = { userId: user.id, at: Date.now(), value: c };
+        if (alive) setCredits(c);
+      });
+    };
+    load(false);
+    const refresh = () => load(true);
+    window.addEventListener('madevisa:notifications', refresh);
+    return () => {
+      alive = false;
+      window.removeEventListener('madevisa:notifications', refresh);
+    };
+  }, [user]);
+  return credits;
+}
+
+/** "3 left", "Unlimited", or "5 free" for guests — the menu / button badge. */
+export function creditsBadge(c: OfferCredits | null): string {
+  if (!c) return `${FREE_OFFER_CREDITS} free`;
+  if (c.unlimited) return 'Unlimited';
+  return `${c.left} left`;
+}
+
+/** Someone pressed "Save as PDF" on an offer (owner or company). For admin stats. */
+export async function recordOfferPdf(shareId: string): Promise<void> {
+  await supabase.rpc('record_offer_pdf', { p_share_id: shareId });
+}
+
+/** Signed-in person opened the offer builder for a job (created or not). For admin stats. */
+export async function recordOfferDraft(jobId: string): Promise<void> {
+  const { data } = await supabase.auth.getSession();
+  if (data.session) await supabase.rpc('touch_offer_draft', { p_job_id: jobId });
+}
+
+/** Job id (uuid) from a board job id like "sponsored-<uuid>". */
+export const uuidFromBoardId = (id: string) => (id.startsWith('sponsored-') ? id.slice('sponsored-'.length) : null);

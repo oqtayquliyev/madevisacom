@@ -29,7 +29,7 @@ import {
   type BriefStatus,
   type PublicBrief,
 } from '@/lib/briefs';
-import { buildTerms, fetchOfferCredits, OFFER_ITEM_LABEL, PAYER_LABEL, pingNotifications, splitWord, type OfferCredits, type OfferTerms } from '@/lib/sponsorOffer';
+import { buildTerms, fetchOfferCredits, OFFER_ITEM_LABEL, PAYER_LABEL, pingNotifications, recordOfferDraft, recordOfferPdf, splitWord, type OfferCredits, type OfferTerms } from '@/lib/sponsorOffer';
 import { nav } from '@/lib/pageLayout';
 
 type Props = { shareId: string; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
@@ -93,6 +93,7 @@ function NewOffer({ go, onAuth }: Props) {
       const mine = await fetchMyBriefForJob(raw.id);
       if (mine) return nav(briefPath(mine.share_id));
       setRouteId(el.routes[0].id);
+      void recordOfferDraft(raw.id);
       const city = raw.city && !/^(all|any|various|remote)$/i.test(raw.city.trim()) ? raw.city : null;
       setState({ k: 'ready', job: { id: raw.id, publisherId: raw.publisher_id ?? null, title: board.title, company: board.company, fn: raw.job_function ?? null, city, code }, guide: el.guide, routes: el.routes });
     });
@@ -392,7 +393,8 @@ function Stat({ k, v }: { k: string; v: string }) {
   );
 }
 
-function savePdf(doc: { candidate: string; company: string }) {
+function savePdf(doc: { candidate: string; company: string; shareId: string }) {
+  void recordOfferPdf(doc.shareId);
   const before = document.title;
   document.title = `Sponsor offer — ${doc.candidate} — ${doc.company}`;
   window.print();
@@ -420,7 +422,7 @@ function OwnerActions({ brief, onStatus }: { brief: PublicBrief; onStatus: (s: B
     <>
       <button
         onClick={() => {
-          savePdf({ candidate: brief.candidate_name, company: brief.company_name });
+          savePdf({ candidate: brief.candidate_name, company: brief.company_name, shareId: brief.share_id });
           markSent();
         }}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800"
@@ -487,7 +489,7 @@ function ReaderPanel({ brief }: { brief: PublicBrief }) {
       <Panel>
         <p className="text-[15px] font-bold text-ink-950">Interested?</p>
         <p className="mt-1 text-[13px] leading-5 text-ink-600">Sign the PDF and send it back to {first}, or reply with changes. Nothing is binding until both sides sign.</p>
-        <button onClick={() => savePdf({ candidate: brief.candidate_name, company: brief.company_name })} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#1D4ED8] px-4 py-3 text-[14px] font-bold text-white hover:bg-brand-800">
+        <button onClick={() => savePdf({ candidate: brief.candidate_name, company: brief.company_name, shareId: brief.share_id })} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#1D4ED8] px-4 py-3 text-[14px] font-bold text-white hover:bg-brand-800">
           <Download className="h-4 w-4" /> Save as PDF
         </button>
         {brief.candidate_linkedin && (

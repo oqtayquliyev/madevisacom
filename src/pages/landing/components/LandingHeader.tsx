@@ -1,8 +1,9 @@
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useEffect, useState } from "react";
 import { SoonChip, SOON_VIEWS } from "@/components/common/SoonChip";
-import { ChevronDown, Building2, Briefcase, GraduationCap, LayoutDashboard, LogIn, LogOut, ShieldCheck, UserPlus, Users, X, BarChart3, Zap } from "lucide-react";
+import { ChevronDown, Building2, Briefcase, FileSignature, GraduationCap, LayoutDashboard, LogIn, LogOut, ShieldCheck, UserPlus, Users, X, BarChart3 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { creditsBadge, useOfferCredits } from "@/lib/sponsorOffer";
 import { CheckInReminder } from "@/components/jobs/CheckInReminder";
 import { fetchMyManagedPublishers } from "@/lib/companyManager";
 import { handleNavClick } from "@/lib/navLink";
@@ -19,7 +20,7 @@ type LandingHeaderProps = {
   active?: View;
 };
 
-// Main menu: Jobs · Insights · Recruiters · Instant Jobs (Pro).
+// Main menu: Jobs · Insights · Recruiters · Make Offer (with offers left).
 // Programs and Study are "soon" — they live in the footer until they launch.
 const primaryLinks: {
   view: View;
@@ -40,6 +41,7 @@ const menuIconClass =
 
 export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
   const { profile, signOut } = useAuth();
+  const credits = useOfferCredits();
   const [openMenu, setOpenMenu] = useState(false);
   const [openProfile, setOpenProfile] = useState(false);
   // Show "Manage company" only to people who actually manage one (cached per user).
@@ -142,20 +144,20 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             })}
 
             <a
-              href="/pricing"
+              href="/offers"
               onClick={(event) =>
                 handleNavClick(event, () => {
-                  window.history.pushState({}, "", "/pricing");
+                  window.history.pushState({}, "", "/offers");
                   window.dispatchEvent(new PopStateEvent("popstate"));
                   window.scrollTo({ top: 0 });
                   setOpenMenu(false);
                 })
               }
-              className={linkClass("pricing" as View)}
+              className={linkClass("offers" as View)}
             >
-              <Zap className="h-4 w-4 text-amber-500" />
-              Instant Jobs
-              <span className="rounded bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Pro</span>
+              <FileSignature className="h-4 w-4" />
+              Make Offer
+              <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">{creditsBadge(credits)}</span>
             </a>
 
             <div className="my-1 h-px bg-ink-100 md:hidden" />

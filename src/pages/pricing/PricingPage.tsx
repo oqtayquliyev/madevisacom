@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Check, CheckCircle2, FileSignature, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, CheckCircle2, Sparkles } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { WRAP } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
 import { usePersonalization } from '@/lib/personalization';
 import { countryName } from '@/lib/visaFit';
-import { missingProfileFields, OFFER_PACK_PRICE, PRO_FEATURES, PRO_PRICES, priceRegionFor, RELOCATION_PRICE, useMyPlan, type Billing, type PlanId } from '@/lib/plans';
-import { fetchOfferCredits, FREE_OFFER_CREDITS, type OfferCredits } from '@/lib/sponsorOffer';
-import { CreditMeter, OfferFlags, OfferInfo } from '@/components/briefs/OfferBits';
+import { missingProfileFields, PRO_FEATURES, PRO_PRICES, priceRegionFor, RELOCATION_PRICE, useMyPlan, type Billing, type PlanId } from '@/lib/plans';
+import { FREE_OFFER_CREDITS } from '@/lib/sponsorOffer';
+import { OfferInfo } from '@/components/briefs/OfferBits';
+import { OfferJobPicker } from '@/components/briefs/OfferJobPicker';
+import { BuyOffers } from '@/components/briefs/BuyOffers';
 import { PlanRequestDialog } from '@/components/pro/PlanRequestDialog';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -44,14 +46,10 @@ export function PricingPage({ go, onAuth }: Props) {
   const proLabel = billing === 'monthly' ? `$${pro.monthly} / month` : `$${pro.yearly} / year`;
   const saving = Math.round(100 - (pro.yearly / (pro.monthly * 12)) * 100);
   const missing = useMemo(() => (profile ? missingProfileFields(profile) : []), [profile]);
-  const [credits, setCredits] = useState<OfferCredits | null>(null);
   useEffect(() => {
-    if (profile) fetchOfferCredits().then(setCredits);
-  }, [profile]);
-  useEffect(() => {
-    if (window.location.hash === '#offers') window.setTimeout(() => document.getElementById('offers')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+    const id = window.location.hash.slice(1);
+    if (id) window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
   }, []);
-  const pack = OFFER_PACK_PRICE[region];
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
@@ -81,6 +79,16 @@ export function PricingPage({ go, onAuth }: Props) {
       </section>
 
       <main className={`${WRAP} py-10 sm:py-14`}>
+        {/* Sponsor offers first: your last jobs → prepare the PDF, then buy more. */}
+        <section id="offers" className="mb-14 scroll-mt-24 space-y-5">
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold tracking-tight text-ink-950">Sponsor offers</h2>
+            <OfferInfo />
+          </div>
+          {profile && <OfferJobPicker limit={3} onAuth={onAuth} />}
+          <BuyOffers onAuth={onAuth} onPro={() => document.getElementById('pro')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />
+        </section>
+
         {isPro && (
           <p className="mb-6 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
             <CheckCircle2 className="h-4 w-4" /> You’re on MadeVisa Pro{sub?.current_period_end ? ` until ${new Date(sub.current_period_end).toLocaleDateString()}` : ''}. Thank you!
@@ -167,53 +175,6 @@ export function PricingPage({ go, onAuth }: Props) {
           </div>
         </div>
 
-        <section id="offers" className="mt-16 scroll-mt-24 overflow-hidden rounded-2xl bg-brand-700 text-white">
-          <div className="p-6 sm:p-8">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <OfferFlags size={26} />
-              {credits && <CreditMeter credits={credits} light />}
-            </div>
-            <div className="mt-4 flex items-start gap-2">
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Sponsor offers</h2>
-              <OfferInfo light className="mt-1" />
-            </div>
-            <p className="mt-2 max-w-2xl text-[15px] leading-6 text-white/85">
-              A one-page document for the employer: the legal visa route, the steps on their side, and which visa costs you’ll carry. Drag to set the terms, save it as a PDF, attach it
-              when you apply.
-            </p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <OfferTier name="Free" price="$0" unit={`${FREE_OFFER_CREDITS} offers, on every account`} />
-              <OfferTier
-                name="Offer pack"
-                price={`$${pack}`}
-                unit="10 more offers, one-time"
-                action={
-                  profile ? (
-                    <button onClick={() => setDialog({ plan: 'brief_credits', billing: 'one_time', label: `$${pack} for 10 offers` })} className="mt-4 w-full rounded-lg bg-white py-2.5 text-sm font-bold text-brand-700 hover:bg-brand-50">
-                      Get 10 offers
-                    </button>
-                  ) : (
-                    <button onClick={() => onAuth?.('register')} className="mt-4 w-full rounded-lg bg-white py-2.5 text-sm font-bold text-brand-700 hover:bg-brand-50">
-                      Create free account
-                    </button>
-                  )
-                }
-              />
-              <OfferTier
-                name="With Pro"
-                price="Unlimited"
-                unit="Included in MadeVisa Pro"
-                action={
-                  <a href="#pro" onClick={(e) => (e.preventDefault(), document.getElementById('pro')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))} className="mt-4 block w-full rounded-lg py-2.5 text-center text-sm font-bold text-white ring-1 ring-white/40 hover:bg-white/10">
-                    See Pro
-                  </a>
-                }
-              />
-            </div>
-            <p className="mt-4 text-xs text-white/70">A credit is used when an offer is generated. Changing its terms later is free.</p>
-          </div>
-        </section>
-
         <section className="mt-16">
           <h2 className="text-2xl font-bold tracking-tight text-ink-950">For employers</h2>
           <p className="mt-1 text-[15px] text-ink-600">Reach people looking for exactly your roles — including the ones ready to relocate. Paying never changes Company Scores or rankings.</p>
@@ -259,19 +220,6 @@ export function PricingPage({ go, onAuth }: Props) {
 
       {dialog && <PlanRequestDialog plan={dialog.plan} billing={dialog.billing} priceLabel={dialog.label} region={region} onClose={() => setDialog(null)} onAuth={onAuth} />}
       <LandingFooter go={go} onAuth={onAuth} />
-    </div>
-  );
-}
-
-function OfferTier({ name, price, unit, action }: { name: string; price: string; unit: string; action?: ReactNode }) {
-  return (
-    <div className="flex flex-col rounded-xl bg-white/10 p-5 ring-1 ring-white/15">
-      <p className="flex items-center gap-2 text-sm font-semibold text-white/80">
-        <FileSignature className="h-4 w-4" /> {name}
-      </p>
-      <p className="mt-2 text-2xl font-bold">{price}</p>
-      <p className="text-xs text-white/75">{unit}</p>
-      <div className="mt-auto">{action}</div>
     </div>
   );
 }
