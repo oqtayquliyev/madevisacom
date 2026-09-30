@@ -69,7 +69,8 @@ export const PRO_MONTHLY_DOCS = 10;
 /** Free document for every new account. */
 export const SIGNUP_DOCS = 1;
 
-export const RELOCATION_PRICE: Record<PriceTier, number> = { A: 29, B: 19, C: 12 };
+/** Pro Relocation: 3 months of Pro (30 documents) + a personal plan for one country. */
+export const RELOCATION_PRICE: Record<PriceTier, number> = { A: 49, B: 29, C: 19 };
 
 /** Employer products (USD, same everywhere). */
 export const EMPLOYER_PRICES = {

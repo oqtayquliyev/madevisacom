@@ -1,6 +1,8 @@
 import { StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
+import { AppErrorBoundary } from '@/components/common/AppErrorBoundary';
+import { reloadForNewVersion } from '@/lib/lazyPage';
 import { AuthProvider } from '@/lib/auth';
 import { MfaGate } from '@/components/auth/MfaGate';
 import { PersonalizationProvider } from '@/lib/personalization';
@@ -47,20 +49,12 @@ else window.addEventListener('load', () => window.setTimeout(ensureStyles, 200))
 // A tab opened before a deploy asks for page files that no longer exist:
 // reload once to get the new ones instead of showing a broken page.
 window.addEventListener('vite:preloadError', (event) => {
-  // At most one reload every 2 minutes — never a loop.
-  try {
-    const last = Number(localStorage.getItem('mv-chunk-retry-at') ?? 0);
-    if (Date.now() - last < 120_000) return;
-    localStorage.setItem('mv-chunk-retry-at', String(Date.now()));
-  } catch {
-    return;
-  }
-  event.preventDefault();
-  window.location.reload();
+  if (reloadForNewVersion()) event.preventDefault();
 });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <AppErrorBoundary>
     <AuthProvider>
       <PersonalizationProvider>
         <MfaGate>
@@ -72,5 +66,6 @@ createRoot(document.getElementById('root')!).render(
         <SpeedInsights />
       </PersonalizationProvider>
     </AuthProvider>
+    </AppErrorBoundary>
   </StrictMode>
 );

@@ -11,6 +11,8 @@ type Props = {
   mode: 'login' | 'register';
   onSwitch: () => void;
   onHome?: () => void;
+  /** Shown inside a dialog on the current page instead of as its own page. */
+  embedded?: boolean;
 };
 
 const RESEND_SECONDS = 45;
@@ -34,7 +36,7 @@ function friendly(message: string): string {
  * Supabase setup: Authentication → Email Templates → "Magic Link" (and
  * "Confirm signup") must include {{ .Token }} so the email shows the code.
  */
-export function EmailCodeAuth({ mode, onSwitch, onHome }: Props) {
+export function EmailCodeAuth({ mode, onSwitch, onHome, embedded = false }: Props) {
   const intent = readAuthIntent();
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
@@ -121,7 +123,7 @@ export function EmailCodeAuth({ mode, onSwitch, onHome }: Props) {
       : reason ?? (mode === 'register' ? 'No password needed — we’ll email you a code.' : 'Sign in with a code sent to your email.');
 
   return (
-    <AuthCard title={title} subtitle={subtitle} onHome={onHome}>
+    <AuthCard title={title} subtitle={subtitle} onHome={onHome} embedded={embedded}>
       <ErrorBanner message={error} />
 
       {step === 'email' ? (

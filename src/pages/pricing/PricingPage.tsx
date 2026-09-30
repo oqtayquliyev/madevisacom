@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, CheckCircle2, Sparkles } from 'lucide-react';
+import { Check, CheckCircle2, Crown, Sparkles } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { WRAP } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
 import { countryName } from '@/lib/visaFit';
 import { missingProfileFields, PRO_FEATURES, useMyPlan, type Billing, type PlanId } from '@/lib/plans';
-import { EMPLOYER_PRICES, priceNote, PRO_MONTHLY_DOCS, usePrices } from '@/lib/pricing';
+import { EMPLOYER_PRICES, priceNote, PRO_MONTHLY_DOCS, PRO_PRICE, usePrices } from '@/lib/pricing';
 import { priceRequestLabel } from '@/components/briefs/BuyOffers';
 import { OfferInfo } from '@/components/briefs/OfferBits';
 import { OfferJobPicker } from '@/components/briefs/OfferJobPicker';
@@ -44,6 +44,7 @@ export function PricingPage({ go, onAuth }: Props) {
   const pro = prices.pro;
   const proLabel = priceRequestLabel(prices, billing === 'monthly' ? 'Pro monthly' : 'Pro yearly', billing === 'monthly' ? pro.monthly : pro.yearly);
   const saving = pro.saving;
+  const PRO_PRICE_USD = PRO_PRICE[prices.tier].monthly;
   const missing = useMemo(() => (profile ? missingProfileFields(profile) : []), [profile]);
   useEffect(() => {
     const id = window.location.hash.slice(1);
@@ -61,13 +62,6 @@ export function PricingPage({ go, onAuth }: Props) {
           <p className="mx-auto mt-4 max-w-2xl text-[16px] leading-7 text-ink-600">
             Every job, reply rate and visa route is free. Pro adds instant alerts, full company data and the companies that sponsor visas — so you apply early, and to the right places.
           </p>
-          <div className="mt-7 inline-flex rounded-full bg-ink-100 p-1 text-sm font-semibold" role="tablist" aria-label="Billing">
-            {(['monthly', 'yearly'] as const).map((b) => (
-              <button key={b} role="tab" aria-selected={billing === b} onClick={() => setBilling(b)} className={`rounded-full px-4 py-1.5 ${billing === b ? 'bg-white text-ink-950 shadow-sm' : 'text-ink-500'}`}>
-                {b === 'monthly' ? 'Monthly' : `Yearly · save ${saving}%`}
-              </button>
-            ))}
-          </div>
           <p className="mt-3 text-xs text-ink-500">{priceNote(prices, countryName)}</p>
         </div>
       </section>
@@ -99,6 +93,18 @@ export function PricingPage({ go, onAuth }: Props) {
             </AppLink>
           </div>
         )}
+
+        {/* Monthly / yearly — right above the plans it changes */}
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-bold tracking-tight text-ink-950">Plans</h2>
+          <div className="inline-flex rounded-full bg-ink-100 p-1 text-sm font-semibold" role="tablist" aria-label="Billing">
+            {(['monthly', 'yearly'] as const).map((b) => (
+              <button key={b} role="tab" aria-selected={billing === b} onClick={() => setBilling(b)} className={`rounded-full px-4 py-1.5 ${billing === b ? 'bg-white text-ink-950 shadow-sm' : 'text-ink-500'}`}>
+                {b === 'monthly' ? 'Monthly' : `Yearly · save ${saving}%`}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="grid gap-5 lg:grid-cols-3">
           {/* Free */}
@@ -154,26 +160,48 @@ export function PricingPage({ go, onAuth }: Props) {
             </button>
           </div>
 
-          {/* Relocation plan */}
-          <div className="flex flex-col rounded-2xl border border-ink-200 bg-white p-6">
-            <p className="text-lg font-bold text-ink-950">Relocation plan</p>
-            <p className="mt-2 text-3xl font-bold text-ink-950">{prices.relocation.label}</p>
-            <p className="text-sm text-ink-500">one-time, per country</p>
-            <ul className="mt-5 flex-1 space-y-2.5">
-              {['The visa routes that fit your passport and profile', 'Document checklist and step-by-step timeline', 'Real costs: fees, deposits, first months', 'Employers there that sponsor visas', '3 months of Pro included'].map((f) => (
-                <li key={f} className="flex gap-2 text-sm text-ink-700">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" /> {f}
+          {/* Pro Relocation — everything in Pro, plus a personal plan for one country */}
+          <div className="relative flex flex-col rounded-2xl bg-ink-950 p-6 text-white shadow-lg">
+            <span className="absolute -top-3 left-6 inline-flex items-center gap-1 rounded-full bg-amber-400 px-3 py-1 text-xs font-bold text-ink-950">
+              <Crown className="h-3.5 w-3.5" /> Best for moving soon
+            </span>
+            <p className="text-lg font-bold">Pro Relocation</p>
+            <p className="mt-2 text-3xl font-bold">{prices.relocation.label}</p>
+            <p className="text-sm text-white/60">one-time · 3 months of Pro, for one country</p>
+            <p className="mt-3 rounded-lg bg-amber-400/15 px-3 py-2 text-sm font-semibold text-amber-300">
+              {3 * PRO_MONTHLY_DOCS} sponsorship documents · 3 months of Pro
+            </p>
+            <ul className="mt-5 flex-1 space-y-3">
+              <li className="text-sm font-semibold">Everything in Pro for 3 months, plus:</li>
+              {[
+                ['Your personal relocation plan', 'The visa routes your passport qualifies for in the country you choose, with every step and deadline.'],
+                ['Document checklist', 'What to gather, translate and certify — in the right order.'],
+                ['Real costs', 'Visa fees, deposits and your first months, so you know the budget before you apply.'],
+                ['Employers that sponsor there', 'A shortlist of companies in your field that hired from abroad recently.'],
+                ['Priority help', 'Questions answered by email within one working day.'],
+              ].map(([t, d]) => (
+                <li key={t} className="flex gap-2 text-sm text-white/80">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                  <span>
+                    <strong className="text-white">{t}.</strong> {d}
+                  </span>
                 </li>
               ))}
             </ul>
-            <button onClick={() => setDialog({ plan: 'relocation', billing: 'one_time', label: priceRequestLabel(prices, 'Relocation plan', prices.relocation) })} className="mt-6 rounded-lg border border-brand-600 py-2.5 text-sm font-semibold text-brand-700 hover:bg-brand-50">
-              Get a relocation plan
+            <p className="mt-4 text-xs text-white/50">
+              Pro for 3 months alone: {prices.m(Math.round(PRO_PRICE_USD * 3)).label}
+            </p>
+            <button
+              onClick={() => setDialog({ plan: 'relocation', billing: 'one_time', label: priceRequestLabel(prices, 'Pro Relocation', prices.relocation) })}
+              className="mt-3 rounded-lg bg-amber-400 py-3 text-sm font-bold text-ink-950 hover:bg-amber-300"
+            >
+              Get Pro Relocation
             </button>
           </div>
         </div>
 
         <section className="mt-16">
-          <h2 className="text-2xl font-bold tracking-tight text-ink-950">For employers</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-ink-950">For employers and companies</h2>
           <p className="mt-1 text-[15px] text-ink-600">Reach people looking for exactly your roles — including the ones ready to relocate. Paying never changes Company Scores or rankings.</p>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {EMPLOYER.map((e) => (

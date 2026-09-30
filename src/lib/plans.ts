@@ -15,7 +15,7 @@ export type PriceRegion = PriceTier;
 
 export const PLAN_NAME: Record<PlanId, string> = {
   pro: 'MadeVisa Pro',
-  relocation: 'Relocation plan',
+  relocation: 'Pro Relocation',
   sponsored_job: 'Sponsored job',
   featured_social: 'Featured in social posts',
   employer: 'Employer plan',

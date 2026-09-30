@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Check, Crown, Wallet } from 'lucide-react';
+import { Check, Crown, TrendingUp, Wallet } from 'lucide-react';
+import { OFFER_HIRE_MULTIPLIER } from '@/components/briefs/OfferOddsStat';
 import { useAuth } from '@/lib/auth';
 import { countryName } from '@/lib/visaFit';
 import { DEFAULT_PACK, priceNote, PRO_MONTHLY_DOCS, usePrices, type Prices } from '@/lib/pricing';
@@ -37,6 +38,7 @@ export function BuyOffers({ onAuth, onPro }: { onAuth?: (p: 'login' | 'register'
                 {p.docs > 1 ? `${p.perDoc.label} each` : 'one document'}
                 {p.saving > 0 && <span className={`ml-1.5 font-bold ${featured ? 'text-emerald-300' : 'text-emerald-600'}`}>−{p.saving}%</span>}
               </p>
+              <HireLine featured={featured} apps={p.docs} />
               <button
                 onClick={() => (profile ? setOpen(p.docs) : onAuth?.('register'))}
                 className={`mt-4 w-full rounded-lg py-2.5 text-[14px] font-bold ${featured ? 'bg-white text-brand-700 hover:bg-brand-50' : 'border border-[#1D4ED8]/40 text-[#1D4ED8] hover:bg-[#1D4ED8]/5'}`}
@@ -58,6 +60,7 @@ export function BuyOffers({ onAuth, onPro }: { onAuth?: (p: 'login' | 'register'
           <p className="text-[13px] text-ink-600">
             {PRO_MONTHLY_DOCS} documents a month · {prices.pro.perDoc.label} each
           </p>
+          <HireLine apps={PRO_MONTHLY_DOCS} perMonth />
           <ul className="mt-2 space-y-1 text-[12px] text-ink-600">
             {['Instant job alerts', 'Full company reply data'].map((t) => (
               <li key={t} className="flex items-center gap-1.5">
@@ -92,5 +95,18 @@ export function BuyOffers({ onAuth, onPro }: { onAuth?: (p: 'login' | 'register'
         />
       )}
     </div>
+  );
+}
+
+/** "2.3× hire chance on 5 applications" — the multiplier each document gives, per purchase. */
+function HireLine({ apps, featured = false, perMonth = false }: { apps: number; featured?: boolean; perMonth?: boolean }) {
+  return (
+    <p className={`mt-2 flex items-center gap-1.5 rounded-md px-2 py-1 text-[12.5px] font-semibold ${featured ? 'bg-emerald-400/15 text-emerald-200' : 'bg-emerald-50 text-emerald-700'}`}>
+      <TrendingUp className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
+      <span>
+        <strong className={featured ? 'text-emerald-300' : 'text-emerald-600'}>{OFFER_HIRE_MULTIPLIER}</strong> hire chance on {apps} application{apps === 1 ? '' : 's'}
+        {perMonth ? ' a month' : ''}
+      </span>
+    </p>
   );
 }

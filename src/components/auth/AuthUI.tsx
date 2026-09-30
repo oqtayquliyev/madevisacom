@@ -15,12 +15,24 @@ export function AuthCard({
   title,
   subtitle,
   onHome,
+  embedded = false,
 }: {
   children: ReactNode;
   title: string;
   subtitle?: string;
   onHome?: () => void;
+  /** Inside a dialog: just the form, no page around it. */
+  embedded?: boolean;
 }) {
+  if (embedded) {
+    return (
+      <div>
+        <h2 className="pr-8 text-2xl font-bold tracking-tight text-ink-950">{title}</h2>
+        {subtitle && <p className="mt-1.5 text-sm leading-relaxed text-ink-500">{subtitle}</p>}
+        <div className="mt-6">{children}</div>
+      </div>
+    );
+  }
 
   const goBack = () => {
     // Back to wherever the visitor came from on MadeVisa; home otherwise.

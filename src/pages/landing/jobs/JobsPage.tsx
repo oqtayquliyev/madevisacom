@@ -42,6 +42,7 @@ import { jobPath } from '@/lib/jobUrl';
 import { experienceBucket } from '@/lib/jobText';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import { NewCompanyBadge } from '@/components/common/NewCompanyBadge';
+import { AuthDialog } from '@/components/auth/AuthDialog';
 
 type JobsPageProps = {
   go: (view: View) => void;
@@ -628,11 +629,14 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   const visibleJobs = filteredJobs.slice(0, visibleCount);
   const hasMore = visibleCount < filteredJobs.length;
 
+  // Guests sign up right here, in a dialog — then the next jobs appear.
+  const [authOpen, setAuthOpen] = useState(false);
+
   const handleShowMore = () => {
     // Guests see the first page; more pages need a (free, email-code) account.
     if (!session) {
       rememberAuthIntent({ reason: 'more-jobs', next: window.location.pathname + window.location.search });
-      onAuth?.('register');
+      setAuthOpen(true);
       return;
     }
     setLoadingMore(true);
@@ -1113,6 +1117,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
         </p>
       </main>
 
+      <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} onDone={() => setVisibleCount((v) => v + PAGE_SIZE)} />
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );

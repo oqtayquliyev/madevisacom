@@ -1,4 +1,5 @@
-import { lazy, useEffect, useState } from 'react';
+import { lazyPage } from '@/lib/lazyPage';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -19,30 +20,30 @@ import type { View } from '@/types';
 
 // Pages load their code only when opened, so a visitor to /jobs doesn't
 // download the admin panel, the blog, profiles… (Suspense is in main.tsx).
-const CompaniesPage = lazy(() => import('@/pages/companies/CompaniesPage').then((m) => ({ default: m.CompaniesPage })));
-const CompanyProfilePage = lazy(() => import('@/pages/companies/CompanyProfilePage').then((m) => ({ default: m.CompanyProfilePage })));
-const FeedbackPage = lazy(() => import('@/pages/feedback/FeedbackPage').then((m) => ({ default: m.FeedbackPage })));
-const ProgramsPage = lazy(() => import('@/pages/landing/programs/ProgramsPage').then((m) => ({ default: m.ProgramsPage })));
-const SponsoredProgramsPage = lazy(() => import('@/pages/programs/SponsoredProgramsPage').then((m) => ({ default: m.SponsoredProgramsPage })));
-const DestinationsPage = lazy(() => import('@/pages/destinations/DestinationsPage').then((m) => ({ default: m.DestinationsPage })));
-const CountryPage = lazy(() => import('@/pages/destinations/CountryPage').then((m) => ({ default: m.CountryPage })));
-const BriefPage = lazy(() => import('@/pages/brief/BriefPage').then((m) => ({ default: m.BriefPage })));
-const NetworkPage = lazy(() => import('@/pages/network/NetworkPage').then((m) => ({ default: m.NetworkPage })));
-const ProgramDetailPage = lazy(() => import('@/pages/programs/ProgramDetailPage').then((m) => ({ default: m.ProgramDetailPage })));
-const AdminPanelPage = lazy(() => import('@/pages/admin/AdminPanelPage').then((m) => ({ default: m.AdminPanelPage })));
-const AdminJobEditorPage = lazy(() => import('@/pages/admin/AdminJobEditorPage').then((m) => ({ default: m.AdminJobEditorPage })));
-const CompanyManagerPage = lazy(() => import('@/pages/company/CompanyManagerPage').then((m) => ({ default: m.CompanyManagerPage })));
-const OfficialPartnersPage = lazy(() => import('@/pages/partners/OfficialPartnersPage').then((m) => ({ default: m.OfficialPartnersPage })));
-const PublicProfilePage = lazy(() => import('@/pages/u/PublicProfilePage').then((m) => ({ default: m.PublicProfilePage })));
-const LegalPage = lazy(() => import('@/pages/legal/LegalPage').then((m) => ({ default: m.LegalPage })));
-const InfoPage = lazy(() => import('@/pages/info/InfoPage').then((m) => ({ default: m.InfoPage })));
-const JobMarketPage = lazy(() => import('@/pages/info/JobMarketPage').then((m) => ({ default: m.JobMarketPage })));
-const BlogPage = lazy(() => import('@/pages/blog/BlogPage').then((m) => ({ default: m.BlogPage })));
-const ArticlePage = lazy(() => import('@/pages/blog/ArticlePage').then((m) => ({ default: m.ArticlePage })));
-const SubmitJobPage = lazy(() => import('@/pages/submit/SubmitJobPage').then((m) => ({ default: m.SubmitJobPage })));
-const OffersPage = lazy(() => import('@/pages/offers/OffersPage').then((m) => ({ default: m.OffersPage })));
-const PricingPage = lazy(() => import('@/pages/pricing/PricingPage').then((m) => ({ default: m.PricingPage })));
-const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
+const CompaniesPage = lazyPage(() => import('@/pages/companies/CompaniesPage').then((m) => ({ default: m.CompaniesPage })));
+const CompanyProfilePage = lazyPage(() => import('@/pages/companies/CompanyProfilePage').then((m) => ({ default: m.CompanyProfilePage })));
+const FeedbackPage = lazyPage(() => import('@/pages/feedback/FeedbackPage').then((m) => ({ default: m.FeedbackPage })));
+const ProgramsPage = lazyPage(() => import('@/pages/landing/programs/ProgramsPage').then((m) => ({ default: m.ProgramsPage })));
+const SponsoredProgramsPage = lazyPage(() => import('@/pages/programs/SponsoredProgramsPage').then((m) => ({ default: m.SponsoredProgramsPage })));
+const DestinationsPage = lazyPage(() => import('@/pages/destinations/DestinationsPage').then((m) => ({ default: m.DestinationsPage })));
+const CountryPage = lazyPage(() => import('@/pages/destinations/CountryPage').then((m) => ({ default: m.CountryPage })));
+const BriefPage = lazyPage(() => import('@/pages/brief/BriefPage').then((m) => ({ default: m.BriefPage })));
+const NetworkPage = lazyPage(() => import('@/pages/network/NetworkPage').then((m) => ({ default: m.NetworkPage })));
+const ProgramDetailPage = lazyPage(() => import('@/pages/programs/ProgramDetailPage').then((m) => ({ default: m.ProgramDetailPage })));
+const AdminPanelPage = lazyPage(() => import('@/pages/admin/AdminPanelPage').then((m) => ({ default: m.AdminPanelPage })));
+const AdminJobEditorPage = lazyPage(() => import('@/pages/admin/AdminJobEditorPage').then((m) => ({ default: m.AdminJobEditorPage })));
+const CompanyManagerPage = lazyPage(() => import('@/pages/company/CompanyManagerPage').then((m) => ({ default: m.CompanyManagerPage })));
+const OfficialPartnersPage = lazyPage(() => import('@/pages/partners/OfficialPartnersPage').then((m) => ({ default: m.OfficialPartnersPage })));
+const PublicProfilePage = lazyPage(() => import('@/pages/u/PublicProfilePage').then((m) => ({ default: m.PublicProfilePage })));
+const LegalPage = lazyPage(() => import('@/pages/legal/LegalPage').then((m) => ({ default: m.LegalPage })));
+const InfoPage = lazyPage(() => import('@/pages/info/InfoPage').then((m) => ({ default: m.InfoPage })));
+const JobMarketPage = lazyPage(() => import('@/pages/info/JobMarketPage').then((m) => ({ default: m.JobMarketPage })));
+const BlogPage = lazyPage(() => import('@/pages/blog/BlogPage').then((m) => ({ default: m.BlogPage })));
+const ArticlePage = lazyPage(() => import('@/pages/blog/ArticlePage').then((m) => ({ default: m.ArticlePage })));
+const SubmitJobPage = lazyPage(() => import('@/pages/submit/SubmitJobPage').then((m) => ({ default: m.SubmitJobPage })));
+const OffersPage = lazyPage(() => import('@/pages/offers/OffersPage').then((m) => ({ default: m.OffersPage })));
+const PricingPage = lazyPage(() => import('@/pages/pricing/PricingPage').then((m) => ({ default: m.PricingPage })));
+const ProfilePage = lazyPage(() => import('@/pages/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 
 type AuthPage = 'login' | 'register' | 'reset-password' | 'pending-confirmation';
 
