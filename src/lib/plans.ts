@@ -19,12 +19,11 @@ const STANDARD = new Set(
 export const priceRegionFor = (country: string | null | undefined): PriceRegion => (country && STANDARD.has(country) ? 'standard' : 'reduced');
 
 export const PRO_PRICES: Record<PriceRegion, { monthly: number; yearly: number }> = {
-  standard: { monthly: 9, yearly: 79 },
-  reduced: { monthly: 5, yearly: 39 },
+  // Includes 10 sponsorship documents a month ($150 at $15 each).
+  standard: { monthly: 49, yearly: 490 },
+  reduced: { monthly: 29, yearly: 290 },
 };
 export const RELOCATION_PRICE: Record<PriceRegion, number> = { standard: 29, reduced: 19 };
-/** Pack of 10 sponsor offers (the first 5 are free). */
-export const OFFER_PACK_PRICE: Record<PriceRegion, number> = { standard: 9, reduced: 5 };
 
 export const PLAN_NAME: Record<PlanId, string> = {
   pro: 'MadeVisa Pro',
@@ -33,14 +32,14 @@ export const PLAN_NAME: Record<PlanId, string> = {
   featured_social: 'Featured in social posts',
   employer: 'Employer plan',
   hiring_brief: 'Hiring Brief',
-  brief_credits: '10 sponsor offers',
+  brief_credits: 'Document credit',
 };
 
 export const PRO_FEATURES = [
   { title: 'Instant job alerts', text: 'New roles matching your role and country, as soon as companies post them — be an early applicant.' },
   { title: 'Full company response data', text: 'Exact reply rate, typical time to reply and hiring activity before you apply.' },
   { title: 'Companies that sponsor visas', text: 'Who is hiring with visa sponsorship in each country, updated live.' },
-  { title: 'Unlimited sponsor offers', text: 'A signed-ready cost-sharing offer for every job you apply to.' },
+  { title: '10 sponsorship documents a month', text: 'Worth $150 at $15 each. A signed-ready offer for the jobs you apply to.' },
   { title: 'First access to new Pro tools', text: 'Your own application stats and salary ranges are next — Pro members get them first.' },
 ];
 

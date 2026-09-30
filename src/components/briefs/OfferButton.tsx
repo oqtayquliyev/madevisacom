@@ -18,7 +18,7 @@ export function OfferButton({ jobId, variant, country, onAuth }: { jobId: string
     if (session) fetchMyBriefForJob(jobId).then((b) => setExisting(b?.share_id ?? null));
   }, [session, jobId]);
 
-  const out = credits && !credits.unlimited && credits.left === 0 && !existing;
+  const out = credits && credits.left === 0 && !existing;
   const href = existing ? briefPath(existing) : out ? '/pricing#offers' : `${newOfferPath(jobId)}${country ? `&country=${country}` : ''}`;
   const hero = variant === 'hero';
 
@@ -35,7 +35,7 @@ export function OfferButton({ jobId, variant, country, onAuth }: { jobId: string
       }`}
     >
       {existing ? <FileDown className="h-4 w-4" /> : <FileSignature className="h-4 w-4" />}
-      {existing ? 'Your document is ready' : out ? 'Get more offers' : 'Sponsorship offer'}
+      {existing ? 'Your document is ready' : out ? 'Top up credit' : 'Sponsorship offer'}
       {!existing && !out && (
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${hero ? 'bg-white text-brand-700' : 'bg-[#1D4ED8] text-white'}`}>{creditsBadge(credits)}</span>
       )}

@@ -490,7 +490,7 @@ export function LandingHero(_props: LandingHeroProps) {
                 className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-[15px] font-bold text-brand-700 shadow-sm hover:bg-brand-50"
               >
                 <FileSignature className="h-4 w-4" /> Make a sponsorship offer
-                <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-bold text-white">5 free</span>
+                <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-bold text-white">First one free</span>
               </a>
               <span className="hidden sm:inline-flex">
                 <OfferFlags size={28} />

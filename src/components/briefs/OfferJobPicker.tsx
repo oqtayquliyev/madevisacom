@@ -4,7 +4,8 @@ import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
 import { jobPath } from '@/lib/jobUrl';
 import { getRecentlyViewedJobs, type ViewedJobSnapshot } from '@/lib/viewedJobs';
-import { briefPath, fetchMyBriefs, newOfferPath } from '@/lib/briefs';
+import { briefPath, fetchMyBriefs, isCountryCode, newOfferPath } from '@/lib/briefs';
+import { allCountries } from '@/data/allCountries';
 import { briefCountries, uuidFromBoardId } from '@/lib/sponsorOffer';
 import { visaGuideByCode } from '@/data/visa';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -29,10 +30,9 @@ export function OfferJobPicker({ limit = 6, onAuth, title = 'Your last visited j
   const rows: Row[] = viewed
     .map((v) => {
       const uuid = uuidFromBoardId(v.id);
-      return uuid ? { ...v, uuid, ok: briefCountries.has((v.countryCode ?? '').toUpperCase()), offer: offers.get(uuid) ?? null } : null;
+      return uuid ? { ...v, uuid, ok: isCountryCode(v.countryCode), offer: offers.get(uuid) ?? null } : null;
     })
     .filter((r): r is Row => Boolean(r))
-    .sort((a, b) => Number(b.ok) - Number(a.ok))
     .slice(0, limit);
 
   const go = (href: string) => (e: MouseEvent) => {
@@ -44,7 +44,7 @@ export function OfferJobPicker({ limit = 6, onAuth, title = 'Your last visited j
     return (
       <div className="flex flex-col items-start gap-3 rounded-xl bg-white p-5 ring-1 ring-ink-200 sm:flex-row sm:items-center">
         <OfferFlags size={26} />
-        <p className="min-w-0 flex-1 text-[15px] font-semibold text-ink-900">Sign up and get 5 offers free.</p>
+        <p className="min-w-0 flex-1 text-[15px] font-semibold text-ink-900">Sign up: $20 credit, your first document is free.</p>
         <button onClick={() => onAuth?.('register')} className="rounded-lg bg-[#1D4ED8] px-4 py-2.5 text-[14px] font-bold text-white hover:bg-brand-800">
           Create free account
         </button>
@@ -99,21 +99,31 @@ export function OfferJobPicker({ limit = 6, onAuth, title = 'Your last visited j
   );
 }
 
-/** Job's own country isn't covered: pick where you'd work, then prepare. */
+/** Job has no country ("Various", remote): pick where you'd work, then prepare. */
 function PickCountry({ uuid }: { uuid: string }) {
-  const list = [...briefCountries].map((c) => ({ code: c, name: visaGuideByCode.get(c)?.name ?? c })).sort((a, b) => a.name.localeCompare(b.name));
-  const [code, setCode] = useState(list[0]?.code ?? 'DE');
+  const checked = [...briefCountries].map((c) => ({ code: c, name: visaGuideByCode.get(c)?.name ?? c })).sort((a, b) => a.name.localeCompare(b.name));
+  const others = allCountries.filter((c) => !briefCountries.has(c.code));
+  const [code, setCode] = useState(checked[0]?.code ?? 'DE');
   const href = `${newOfferPath(uuid)}&country=${code}`;
   return (
     <span className="flex items-center gap-2">
       <span className="flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white py-1 pl-2 pr-1">
         <CircleFlag countryCode={code} size={18} />
-        <select value={code} onChange={(e) => setCode(e.target.value)} aria-label="Country you'd work in" className="bg-transparent py-1 text-[13px] font-semibold text-ink-800 outline-none">
-          {list.map((c) => (
-            <option key={c.code} value={c.code}>
-              Work in {c.name}
-            </option>
-          ))}
+        <select value={code} onChange={(e) => setCode(e.target.value)} aria-label="Country you'd work in" className="max-w-[150px] bg-transparent py-1 text-[13px] font-semibold text-ink-800 outline-none">
+          <optgroup label="Checked visa routes">
+            {checked.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Choose another country">
+            {others.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </span>
       <a

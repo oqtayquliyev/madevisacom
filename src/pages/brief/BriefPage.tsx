@@ -15,6 +15,7 @@ import {
   BRIEF_STATUS_CHOICES,
   BRIEF_STATUS_LABEL,
   briefEligibility,
+  GENERIC_ROUTE_ID,
   briefMessage,
   briefPath,
   briefUrl,
@@ -33,6 +34,9 @@ import {
   briefCountries,
   buildTerms,
   cleanWebsite,
+  DOC_PRICE,
+  SIGNUP_CREDIT,
+  usd,
   currencyFor,
   employerFromPublisher,
   fetchOfferCredits,
@@ -49,6 +53,7 @@ import {
 } from '@/lib/sponsorOffer';
 import { searchPublishers, type PublisherMatch } from '@/lib/companyExperiences';
 import { visaGuideByCode } from '@/data/visa';
+import { allCountries } from '@/data/allCountries';
 import { nav } from '@/lib/pageLayout';
 
 type Props = { shareId: string; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
@@ -140,7 +145,7 @@ function NewOffer({ go, onAuth }: Props) {
   }, [session]);
 
   const ready = state.k === 'ready' ? state : null;
-  const el = ready ? briefEligibility({ countryCode: ready.job.ownCode, visa: null, closed: ready.job.closed, override: country || DEFAULT_COUNTRY }) : null;
+  const el = ready ? briefEligibility({ countryCode: ready.job.ownCode, closed: ready.job.closed, override: country || null, fallback: DEFAULT_COUNTRY }) : null;
 
   if (state.k === 'missing' || (ready && el && !el.ok)) return <NotFoundPage go={go} onAuth={onAuth} />;
   if (!ready || !el || !el.ok || authLoading || !employer) return <Desk go={go} onAuth={onAuth} loading />;
@@ -151,7 +156,7 @@ function NewOffer({ go, onAuth }: Props) {
   const allowed = route.employer!.candidateMayCover;
   const cur = currencyFor(el.code);
   const terms: OfferTerms = { ...buildTerms(split, allowed), salaryOffset: offset, currency: cur.code, employer };
-  const noCredits = credits && !credits.unlimited && credits.left === 0;
+  const noCredits = credits && credits.left === 0;
 
   const doc: DocData = {
     ref: 'MV-DRAFT',
@@ -205,21 +210,21 @@ function NewOffer({ go, onAuth }: Props) {
       paper={<OfferDocument doc={doc} terms={terms} guide={guide} route={route} code={el.code} draft />}
       panel={
         <>
-          {picked && (
-            <Panel className="ring-amber-300">
-              <label className="block">
-                <span className="text-[13px] font-semibold text-ink-800">Where will you work?</span>
-                <CountrySelect
-                  value={el.code}
-                  onChange={(c) => {
-                    setCountry(c);
-                    setRouteId('');
-                    setOffset(0);
-                  }}
-                />
-              </label>
-            </Panel>
-          )}
+          <Panel>
+            <label className="block">
+              <span className="text-[13px] font-semibold text-ink-800">Where will you work?</span>
+              <CountrySelect
+                value={el.code}
+                jobCode={job.ownCode}
+                onChange={(c) => {
+                  setCountry(c);
+                  setRouteId('');
+                  setOffset(0);
+                }}
+              />
+            </label>
+            {!el.checked && <p className="mt-2 text-[12px] leading-5 text-ink-500">General work-permit terms. The company confirms the exact route.</p>}
+          </Panel>
 
           <SplitControl split={split} terms={terms} onChange={setSplit} />
           <OffsetControl code={el.code} value={offset} onChange={setOffset} />
@@ -256,12 +261,12 @@ function NewOffer({ go, onAuth }: Props) {
             {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{error}</p>}
             {noCredits ? (
               <a href="/pricing#offers" onClick={(e) => (e.preventDefault(), nav('/pricing#offers'))} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800">
-                Get more offers
+                Top up credit
               </a>
             ) : (
               <button onClick={generate} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800 disabled:opacity-60">
                 {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                {session ? (credits?.unlimited ? 'Generate my PDF' : 'Generate my PDF · 1 credit') : 'Sign up to generate — 5 free'}
+                {session ? (credits?.pro && credits.proLeft > 0 ? `Generate my PDF · Pro ${credits.proLeft} left` : `Generate my PDF · ${usd(DOC_PRICE)}`) : `Sign up — ${usd(SIGNUP_CREDIT)} credit free`}
               </button>
             )}
             <div className="flex items-center justify-between">
@@ -458,18 +463,36 @@ function SplitControl({ split, terms, onChange, onCommit, status }: { split: num
   );
 }
 
-/** Covered countries, flag + name. */
-function CountrySelect({ value, onChange }: { value: string; onChange: (code: string) => void }) {
-  const list = [...briefCountries].map((c) => ({ code: c, name: visaGuideByCode.get(c)?.name ?? c })).sort((a, b) => a.name.localeCompare(b.name));
+/** Checked countries first, then every other country ("Choose another country"). */
+function CountrySelect({ value, jobCode, onChange }: { value: string; jobCode?: string; onChange: (code: string) => void }) {
+  const checked = [...briefCountries].map((c) => ({ code: c, name: visaGuideByCode.get(c)?.name ?? c })).sort((a, b) => a.name.localeCompare(b.name));
+  const others = allCountries.filter((c) => !briefCountries.has(c.code));
+  const job = jobCode ? allCountries.find((c) => c.code === jobCode) : undefined;
   return (
     <div className="mt-1 flex items-center gap-2">
       <CircleFlag countryCode={value} size={22} />
       <select value={value} onChange={(e) => onChange(e.target.value)} className={`${INPUT} mt-0`}>
-        {list.map((c) => (
-          <option key={c.code} value={c.code}>
-            {c.name}
-          </option>
-        ))}
+        {job && !briefCountries.has(job.code) && (
+          <optgroup label="This job’s country">
+            <option value={job.code}>{job.name}</option>
+          </optgroup>
+        )}
+        <optgroup label="Checked visa routes">
+          {checked.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name}
+            </option>
+          ))}
+        </optgroup>
+        <optgroup label="Choose another country">
+          {others
+            .filter((c) => c.code !== job?.code)
+            .map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+        </optgroup>
       </select>
     </div>
   );
@@ -771,14 +794,14 @@ function OfferDocument({ doc, terms, guide, route, code, draft }: { doc: DocData
         />
         <Party
           k="Visa route"
-          v={route.name}
+          v={route.id === GENERIC_ROUTE_ID ? 'National work permit (to be confirmed)' : route.name}
           sub={
-            <a href={route.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#1D4ED8] print:text-ink-600">
+            !route.url ? null : <a href={route.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#1D4ED8] print:text-ink-600">
               Official source <ExternalLink className="h-3 w-3 print:hidden" />
             </a>
           }
         />
-        <Party k="Sponsor licence" v={employer.licenceNeeded ? 'Required' : 'Not required'} />
+        <Party k="Sponsor licence" v={route.id === GENERIC_ROUTE_ID ? 'To be confirmed by the Employer' : employer.licenceNeeded ? 'Required' : 'Not required'} />
       </dl>
 
       {/* The split, at a glance */}

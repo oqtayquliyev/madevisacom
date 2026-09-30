@@ -22,7 +22,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
-import type { CandidateCover } from '@/data/visa';
+import { visaGuideByCode, type CandidateCover } from '@/data/visa';
 
 export type Payer = 'employer' | 'shared' | 'candidate';
 
@@ -61,18 +61,25 @@ export type OfferEmployer = {
   logo?: string | null;
 };
 
-/** Pay currency by country, for the salary-offset amount. */
-export function currencyFor(code: string): { code: string; symbol: string; max: number; step: number } {
-  switch (code.toUpperCase()) {
-    case 'GB':
-      return { code: 'GBP', symbol: '£', max: 5000, step: 250 };
-    case 'SE':
-      return { code: 'SEK', symbol: 'SEK ', max: 60000, step: 2500 };
-    case 'DK':
-      return { code: 'DKK', symbol: 'DKK ', max: 40000, step: 2000 };
-    default:
-      return { code: 'EUR', symbol: '€', max: 6000, step: 250 };
-  }
+/** Pay currency by country, for the salary-offset amount (and a sensible slider range). */
+const RANGE: Record<string, { symbol: string; max: number; step: number }> = {
+  EUR: { symbol: '€', max: 6000, step: 250 },
+  GBP: { symbol: '£', max: 5000, step: 250 },
+  USD: { symbol: '$', max: 6000, step: 250 },
+  CAD: { symbol: 'CA$', max: 8000, step: 250 },
+  AUD: { symbol: 'A$', max: 8000, step: 250 },
+  NZD: { symbol: 'NZ$', max: 8000, step: 250 },
+  CHF: { symbol: 'CHF ', max: 6000, step: 250 },
+  SEK: { symbol: 'SEK ', max: 60000, step: 2500 },
+  NOK: { symbol: 'NOK ', max: 60000, step: 2500 },
+  DKK: { symbol: 'DKK ', max: 40000, step: 2000 },
+  PLN: { symbol: 'PLN ', max: 25000, step: 1000 },
+};
+export function currencyFor(countryCode: string): { code: string; symbol: string; max: number; step: number } {
+  const c = countryCode.toUpperCase();
+  const iso = c === 'GB' ? 'GBP' : c === 'US' ? 'USD' : (visaGuideByCode.get(c)?.currency ?? 'EUR').toUpperCase();
+  const r = RANGE[iso];
+  return r ? { code: iso, ...r } : { code: iso, symbol: `${iso} `, max: 6000, step: 250 };
 }
 
 export const money = (amount: number, code: string) => `${currencyFor(code).symbol}${amount.toLocaleString('en-GB')}`;
@@ -126,26 +133,43 @@ export function splitWord(split: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Credits: 5 free sponsor offers per account, more from packs, unlimited on Pro.
+// Pricing: every document costs $15 of account credit. New accounts start
+// with $20 (one document). Pro includes 10 documents a month; after that,
+// Pro members pay from credit like everyone else.
 // ---------------------------------------------------------------------------
 
-export const FREE_OFFER_CREDITS = 5;
-export const CREDIT_PACK_SIZE = 10;
+export const DOC_PRICE = 15;
+export const SIGNUP_CREDIT = 20;
+export const PRO_MONTHLY_DOCS = 10;
+/** Top-up choices, in documents. */
+export const TOP_UP_DOCS = [1, 3, 5] as const;
 
-export type OfferCredits = { total: number; used: number; left: number; unlimited: boolean };
+export type OfferCredits = {
+  /** Account credit in USD. */
+  balance: number;
+  /** Documents you can make right now (Pro allowance + credit). */
+  left: number;
+  pro: boolean;
+  /** Pro documents left this calendar month. */
+  proLeft: number;
+  used: number;
+};
+
+export const usd = (n: number) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
 export async function fetchOfferCredits(): Promise<OfferCredits | null> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return null;
   const { data, error } = await supabase.rpc('brief_credits');
   if (!error && data) {
-    const d = data as { total: number; used: number; left: number; unlimited: boolean };
-    return { total: d.total, used: d.used, left: d.left, unlimited: d.unlimited };
+    const d = data as { balance?: number; left: number; pro?: boolean; pro_left?: number; used: number };
+    if (typeof d.balance === 'number') return { balance: Number(d.balance), left: d.left, pro: Boolean(d.pro), proLeft: d.pro_left ?? 0, used: d.used };
   }
-  // Before the credits migration: count briefs against the free allowance.
+  // Before the pricing migration: $20 minus $15 per document made.
   const { count } = await supabase.from('hiring_briefs').select('id', { count: 'exact', head: true }).eq('user_id', auth.user.id);
   const used = count ?? 0;
-  return { total: FREE_OFFER_CREDITS, used, left: Math.max(0, FREE_OFFER_CREDITS - used), unlimited: false };
+  const balance = Math.max(0, SIGNUP_CREDIT - DOC_PRICE * used);
+  return { balance, left: Math.floor(balance / DOC_PRICE), pro: false, proLeft: 0, used };
 }
 
 /** Countries with checked employer data, for the flag row. */
@@ -184,10 +208,9 @@ export function useOfferCredits(): OfferCredits | null {
   return credits;
 }
 
-/** "3 left", "Unlimited", or "5 free" for guests — the menu / button badge. */
+/** Menu / button badge: "1 left", or "$20 free" for guests. */
 export function creditsBadge(c: OfferCredits | null): string {
-  if (!c) return `${FREE_OFFER_CREDITS} free`;
-  if (c.unlimited) return 'Unlimited';
+  if (!c) return `${usd(SIGNUP_CREDIT)} free`;
   return `${c.left} left`;
 }
 

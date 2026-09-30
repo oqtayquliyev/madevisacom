@@ -8,7 +8,7 @@ import { splitWord } from '@/lib/sponsorOffer';
 // Admin → Offers: who made sponsor offers, who opened the builder and
 // didn't finish, and totals. Data: admin_offer_activity() (migration 20261110090000).
 
-type Credits = { left: number; total: number; unlimited: boolean };
+type Credits = { balance?: number; left: number; pro?: boolean; pro_left?: number };
 type OfferRow = {
   share_id: string;
   created_at: string;
@@ -21,6 +21,8 @@ type OfferRow = {
   views: number;
   pdf_saves: number;
   company_pdf_saves: number;
+  paid_with?: 'legacy' | 'credit' | 'pro';
+  cost_usd?: number;
   user_id: string;
   user_name: string | null;
   user_email: string | null;
@@ -82,7 +84,7 @@ export function OffersSection() {
         <Tile v={t.builder_users} k="Opened the builder" />
         <Tile v={t.pdf_saves} k="PDF saves" />
         <Tile v={t.company_opens} k="Opened by a company" />
-        <Tile v={t.credits_sold} k="Credits sold" />
+        <Tile v={t.credits_sold} k="Credit sold ($)" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -111,7 +113,7 @@ export function OffersSection() {
                 <th className="px-3 py-2 font-semibold">Status</th>
                 <th className="px-3 py-2 text-right font-semibold">Opens</th>
                 <th className="px-3 py-2 text-right font-semibold">PDF (company)</th>
-                <th className="px-3 py-2 font-semibold">Credits left</th>
+                <th className="px-3 py-2 font-semibold">Credit now</th>
                 <th className="px-3 py-2 font-semibold">Created</th>
               </tr>
             </thead>
@@ -136,13 +138,16 @@ export function OffersSection() {
                       Open document <ExternalLink className="h-3 w-3" />
                     </a>
                   </td>
-                  <td className="px-3 py-2.5 text-xs text-ink-700">{o.split != null ? `${splitWord(o.split)} (${o.split})` : 'Before slider'}</td>
+                  <td className="px-3 py-2.5 text-xs text-ink-700">
+                    {o.split != null ? `${splitWord(o.split)} (${o.split})` : 'Before slider'}
+                    <span className="block text-ink-400">{o.paid_with === 'pro' ? 'Pro allowance' : o.paid_with === 'credit' ? `Paid $${o.cost_usd ?? 15}` : 'Before pricing'}</span>
+                  </td>
                   <td className="px-3 py-2.5 text-xs font-semibold text-ink-700">{BRIEF_STATUS_LABEL[o.status] ?? o.status}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{o.views}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     {o.pdf_saves} <span className="text-ink-400">({o.company_pdf_saves})</span>
                   </td>
-                  <td className="px-3 py-2.5 text-xs text-ink-700">{o.credits ? (o.credits.unlimited ? 'Pro — unlimited' : `${o.credits.left} of ${o.credits.total}`) : '—'}</td>
+                  <td className="px-3 py-2.5 text-xs text-ink-700">{o.credits ? `$${o.credits.balance ?? 0} · ${o.credits.left} doc${o.credits.left === 1 ? '' : 's'}${o.credits.pro ? ` · Pro ${o.credits.pro_left ?? 0}/10` : ''}` : '—'}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-xs text-ink-500">{when(o.created_at)}</td>
                 </tr>
               ))}

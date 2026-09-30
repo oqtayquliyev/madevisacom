@@ -12,7 +12,7 @@ export function LandingPage({ go, onAuth }: LandingProps) {
   useSeo({
     title: 'MadeVisa | Find a job abroad. Get the visa sponsored.',
     description:
-      'Live jobs from company career pages, plus a sponsorship offer you attach to your application: the visa route, the steps for the employer and who pays what. 5 free.',
+      'Live jobs from company career pages, plus a sponsorship offer you attach to your application: the visa route, the steps for the employer and who pays what. Your first one is free.',
     path: '/',
   });
 

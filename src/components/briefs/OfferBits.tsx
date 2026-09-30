@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Info } from 'lucide-react';
 import { visaGuideByCode } from '@/data/visa';
-import { briefCountries, type OfferCredits } from '@/lib/sponsorOffer';
+import { briefCountries, DOC_PRICE, PRO_MONTHLY_DOCS, SIGNUP_CREDIT, usd, type OfferCredits } from '@/lib/sponsorOffer';
 
 /** (i) button: what a sponsor offer does, in four lines. */
 export function OfferInfo({ className = '', light = false }: { className?: string; light?: boolean }) {
@@ -38,7 +38,7 @@ export function OfferInfo({ className = '', light = false }: { className?: strin
             <span className="flex gap-2"><Dot />Which visa costs you’ll carry — you choose with the slider</span>
             <span className="flex gap-2"><Dot />Signature lines, so HR can file it with the contract</span>
           </span>
-          <span className="mt-3 block border-t border-ink-100 pt-2 text-[12px] leading-5 text-ink-500">Every account gets 5 free. Editing an offer later is free.</span>
+          <span className="mt-3 block border-t border-ink-100 pt-2 text-[12px] leading-5 text-ink-500">Each document is {usd(DOC_PRICE)}. New accounts get {usd(SIGNUP_CREDIT)} credit, so your first one is free. Editing later is free.</span>
         </span>
       )}
     </span>
@@ -47,20 +47,19 @@ export function OfferInfo({ className = '', light = false }: { className?: strin
 
 const Dot = () => <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#1D4ED8]" aria-hidden="true" />;
 
-/** "3 of 5 left" with a dot per credit. */
+/** "$20 credit · 1 document" — plus the Pro allowance for members. */
 export function CreditMeter({ credits, light = false }: { credits: OfferCredits; light?: boolean }) {
-  if (credits.unlimited) return <span className={`text-[13px] font-semibold ${light ? 'text-white' : 'text-ink-700'}`}>Unlimited with Pro</span>;
-  const dots = Math.min(credits.total, 10);
+  const strong = light ? 'text-white' : 'text-ink-950';
+  const soft = light ? 'text-white/75' : 'text-ink-500';
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className="flex gap-1" aria-hidden="true">
-        {Array.from({ length: dots }, (_, i) => (
-          <span key={i} className={`h-2 w-2 rounded-full ${i < credits.left ? (light ? 'bg-white' : 'bg-[#1D4ED8]') : light ? 'bg-white/25' : 'bg-ink-200'}`} />
-        ))}
+    <span className="inline-flex flex-wrap items-baseline gap-x-2 text-[13px]">
+      <span className={`text-[15px] font-bold tabular-nums ${strong}`}>{usd(credits.balance)}</span>
+      <span className={soft}>credit</span>
+      <span className={soft}>·</span>
+      <span className={`font-semibold tabular-nums ${strong}`}>
+        {credits.left} {credits.left === 1 ? 'document' : 'documents'}
       </span>
-      <span className={`text-[13px] font-semibold tabular-nums ${light ? 'text-white' : 'text-ink-700'}`}>
-        {credits.left} of {credits.total} left
-      </span>
+      {credits.pro && <span className={soft}>(Pro: {credits.proLeft} of {PRO_MONTHLY_DOCS} this month)</span>}
     </span>
   );
 }

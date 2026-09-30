@@ -110,9 +110,9 @@ export function PlanCard() {
           <OfferInfo />
         </div>
         <div className="mt-1.5">{credits ? <CreditMeter credits={credits} /> : <span className="text-[13px] text-ink-400">…</span>}</div>
-        {credits && !credits.unlimited && credits.left === 0 && (
+        {credits && credits.left === 0 && (
           <a href="/pricing#offers" onClick={(e) => (e.preventDefault(), nav('/pricing#offers'))} className="mt-2 inline-block text-[13px] font-semibold text-[#1D4ED8] hover:underline">
-            Get 10 more
+            Top up credit
           </a>
         )}
       </div>

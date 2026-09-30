@@ -32,7 +32,7 @@ export function HiringBriefCallout(props: Props) {
   const { session } = useAuth();
   const credits = useOfferCredits();
   const el = useMemo(
-    () => briefEligibility({ countryCode: props.countryCode, visa: props.visa, closed: props.closed, override: FALLBACK }),
+    () => briefEligibility({ countryCode: props.countryCode, visa: props.visa, closed: props.closed, fallback: FALLBACK }),
     [props.countryCode, props.visa, props.closed],
   );
   const [existing, setExisting] = useState<string | null | undefined>(undefined);
@@ -44,7 +44,7 @@ export function HiringBriefCallout(props: Props) {
   }, [session, props.jobId]);
 
   if (!el.ok) return null;
-  const out = credits && !credits.unlimited && credits.left === 0;
+  const out = credits && credits.left === 0;
   const start = el.picked ? `${newOfferPath(props.jobId)}&country=${el.code}` : newOfferPath(props.jobId);
 
   const primary =
@@ -83,7 +83,7 @@ export function HiringBriefCallout(props: Props) {
               </a>
             ) : out ? (
               <a href="/pricing#offers" onClick={go('/pricing#offers')} className={primary}>
-                Get more offers
+                Top up credit
               </a>
             ) : (
               <a href={start} onClick={go(start)} className={primary}>

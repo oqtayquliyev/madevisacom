@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { usePersonalization } from '@/lib/personalization';
 import { countryName } from '@/lib/visaFit';
 import { missingProfileFields, PRO_FEATURES, PRO_PRICES, priceRegionFor, RELOCATION_PRICE, useMyPlan, type Billing, type PlanId } from '@/lib/plans';
-import { FREE_OFFER_CREDITS } from '@/lib/sponsorOffer';
+import { DOC_PRICE, PRO_MONTHLY_DOCS, SIGNUP_CREDIT, usd } from '@/lib/sponsorOffer';
 import { OfferInfo } from '@/components/briefs/OfferBits';
 import { OfferJobPicker } from '@/components/briefs/OfferJobPicker';
 import { BuyOffers } from '@/components/briefs/BuyOffers';
@@ -18,7 +18,7 @@ import { AppLink, Faq } from '@/pages/info/InfoPage';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
-const FREE = ['Every job, straight from company career pages', `${FREE_OFFER_CREDITS} sponsor offers to send employers`, 'Reply-rate and hiring-activity line on every job', 'Your visa route for every job', 'Track your applications, with reminders', 'Visa guides for 20+ countries'];
+const FREE = ['Every job, straight from company career pages', `${usd(SIGNUP_CREDIT)} credit: your first sponsorship document free`, 'Reply-rate and hiring-activity line on every job', 'Your visa route for every job', 'Track your applications, with reminders', 'Visa guides for 20+ countries'];
 
 const EMPLOYER: { id: PlanId; name: string; price: string; unit: string; text: string; points: string[] }[] = [
   { id: 'sponsored_job', name: 'Sponsored job', price: '$299', unit: 'per job · 30 days', text: 'Pinned at the top of /jobs and on the homepage, labelled Sponsored.', points: ['Reviewed within a day', 'Nothing charged before approval', 'Packs of 3+ at a discount'] },
@@ -137,6 +137,9 @@ export function PricingPage({ go, onAuth }: Props) {
               <span className="text-base font-medium text-ink-500"> / {billing === 'monthly' ? 'month' : 'year'}</span>
             </p>
             <p className="text-sm text-ink-500">{billing === 'yearly' ? `$${(pro.yearly / 12).toFixed(2)} a month, billed yearly` : 'Cancel any time'}</p>
+            <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+              {PRO_MONTHLY_DOCS} sponsorship documents a month · worth {usd(PRO_MONTHLY_DOCS * DOC_PRICE)}
+            </p>
             <ul className="mt-5 flex-1 space-y-3">
               <li className="text-sm font-semibold text-ink-900">Everything in Free, plus:</li>
               {PRO_FEATURES.map((f) => (
@@ -207,8 +210,9 @@ export function PricingPage({ go, onAuth }: Props) {
               items={[
                 { q: 'Is a sponsor offer legally binding?', a: 'Not on its own. It’s a proposal that becomes binding only when both you and the employer sign it, or when its terms go into your employment contract. It never covers costs the law puts on the employer, never touches salary, and isn’t legal advice.' },
                 { q: 'How do I attach a sponsor offer to my application?', a: 'Open the offer, press Save as PDF, and upload it as an extra document next to your CV. If the form has no upload field, paste the offer’s link into your cover letter or message.' },
+                { q: 'How much does a sponsorship document cost?', a: `${usd(DOC_PRICE)} each, paid from your account credit. Every new account gets ${usd(SIGNUP_CREDIT)} credit, so the first one is free. Pro includes ${PRO_MONTHLY_DOCS} a month; after those, documents come from your credit. Changing a document you already made is always free.` },
                 { q: 'How do I pay?', a: 'Choose a plan and send the short form. We email you a secure payment link within one working day, and your plan starts as soon as it’s paid. No card is needed to send the request.' },
-                { q: 'Why is the price lower in my country?', a: 'Prices follow local incomes, so Pro is affordable wherever you’re applying from. The features are the same.' },
+                { q: 'Why is the price lower in my country?', a: 'Pro prices follow local incomes, so Pro is affordable wherever you’re applying from. The features and the 10 monthly documents are the same. Single documents are $15 everywhere.' },
                 { q: 'Can I cancel?', a: 'Yes. Monthly plans stop at the end of the month; yearly plans at the end of the year. Email hello@madevisa.com.' },
                 { q: 'Does paying change Company Scores?', a: 'Never. Scores and reply rates are calculated the same way for every company — see our Advertising Policy.' },
                 { q: 'Why do you ask for my role and experience?', a: 'Job alerts and visa matching use them to send you only the roles that fit. You can change them any time in your profile.' },

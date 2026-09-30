@@ -123,8 +123,17 @@ export function PlansSection() {
                 {r.status !== 'active' && (
                   <>
                     {r.user_id && r.plan === 'brief_credits' ? (
-                      <button onClick={() => void activate(r, 1)} disabled={busy === r.id} className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Activate (+10 offers)
+                      <button
+                        onClick={() => {
+                          // Documents bought: read from "$45 for 3 documents", confirm with the admin.
+                          const guess = Number(/for (\d+) document/i.exec(r.price_label ?? '')?.[1] ?? 1);
+                          const n = Number(window.prompt('How many documents were paid for? ($15 each)', String(guess)));
+                          if (Number.isInteger(n) && n > 0 && n <= 100) void activate(r, n);
+                        }}
+                        disabled={busy === r.id}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Add credit
                       </button>
                     ) : r.user_id && (r.plan === 'pro' || r.plan === 'relocation') ? (
                       <>

@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 import { Briefcase, FileDown, Paperclip, SlidersHorizontal, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
-import { FREE_OFFER_CREDITS, useOfferCredits } from '@/lib/sponsorOffer';
+import { SIGNUP_CREDIT, usd, useOfferCredits } from '@/lib/sponsorOffer';
 import { OfferFlags } from '@/components/briefs/OfferBits';
 
 const KEY = (id: string) => `madevisa:offerWelcome:${id}`;
 const NEW_FOR_DAYS = 14;
 
 /**
- * Once per new account: "You have 5 free sponsorship offers — here's how."
+ * Once per new account: "$20 credited — your first sponsorship document is free."
  * Not shown on the offer pages themselves.
  */
 export function OfferWelcome() {
@@ -52,7 +52,7 @@ export function OfferWelcome() {
   }, [open]);
 
   if (!open) return null;
-  const left = credits?.unlimited ? 'Unlimited' : String(credits?.left ?? FREE_OFFER_CREDITS);
+  const balance = usd(credits?.balance ?? SIGNUP_CREDIT);
 
   const steps = [
     { icon: Briefcase, t: 'Open a job' },
@@ -69,9 +69,9 @@ export function OfferWelcome() {
             <X className="h-5 w-5" />
           </button>
           <OfferFlags size={26} />
-          <p className="mt-4 text-[56px] font-bold leading-none tabular-nums">{left}</p>
-          <h2 id="offer-welcome" className="mt-1 text-[20px] font-bold leading-tight">free sponsorship offers</h2>
-          <p className="mt-1 text-[14px] text-white/80">Attach one to an application. Get the visa sponsored.</p>
+          <p className="mt-4 text-[56px] font-bold leading-none tabular-nums">{balance}</p>
+          <h2 id="offer-welcome" className="mt-1 text-[20px] font-bold leading-tight">credited to your account</h2>
+          <p className="mt-1 text-[14px] text-white/80">Enough for your first sponsorship document ($15). Attach it to an application. Get the visa sponsored.</p>
         </div>
         <ol className="space-y-2 px-6 py-5">
           {steps.map(({ icon: Icon, t }, i) => (
@@ -94,7 +94,7 @@ export function OfferWelcome() {
             }}
             className="flex-1 rounded-xl bg-[#1D4ED8] py-3 text-[15px] font-bold text-white hover:bg-brand-800"
           >
-            Make my first offer
+            Make my free document
           </button>
           <button onClick={close} className="rounded-xl px-4 py-3 text-[14px] font-semibold text-ink-600 hover:bg-ink-50">
             Later

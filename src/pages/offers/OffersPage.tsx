@@ -20,7 +20,7 @@ export function OffersPage({ go, onAuth }: Props) {
 
   useSeo({
     title: 'Make a sponsor offer — MadeVisa',
-    description: 'Show employers how hiring you works: the visa route, the steps on their side and which costs you carry. One page, ready to sign. 5 free.',
+    description: 'Show employers how hiring you works: the visa route, the steps on their side and which costs you carry. One page, ready to sign. $15 each; your first is free.',
     path: '/offers',
   });
 

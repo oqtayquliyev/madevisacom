@@ -12,6 +12,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { briefRoutesFor, visaGuideByCode, type CandidateCover, type VisaGuide, type VisaRoute } from '@/data/visa';
+import { allCountries } from '@/data/allCountries';
 import type { OfferTerms } from '@/lib/sponsorOffer';
 
 export type BriefStatus = 'created' | 'sent' | 'replied' | 'interview' | 'offer' | 'declined' | 'no_reply' | 'withdrawn';
@@ -80,28 +81,81 @@ export const briefUrl = (shareId: string) => `${window.location.origin}${briefPa
  * sponsorship is "not offered" (we respect that). Jobs that already offer
  * sponsorship qualify too: the offer then speeds up and de-risks it.
  */
+/** Route id used when we have no checked employer data for a country. */
+export const GENERIC_ROUTE_ID = 'work-permit';
+
+const countryName = (code: string) => visaGuideByCode.get(code)?.name ?? allCountries.find((c) => c.code === code)?.name ?? code;
+export const isCountryCode = (code: string | null | undefined): code is string => Boolean(code && allCountries.some((c) => c.code === code.toUpperCase()));
+
+/** A guide object for any country (a real one when we have it). */
+function guideFor(code: string): VisaGuide {
+  return visaGuideByCode.get(code) ?? ({ code, name: countryName(code), routes: [], currency: 'EUR' } as unknown as VisaGuide);
+}
+
+/**
+ * Any country without checked employer data still gets an offer, on a
+ * general "national work permit" route: the employer confirms the exact
+ * route, and anything the local law puts on the employer stays theirs.
+ */
+export function genericRoute(code: string): VisaRoute {
+  const name = countryName(code);
+  const official = visaGuideByCode.get(code)?.routes[0]?.url ?? '';
+  return {
+    id: GENERIC_ROUTE_ID,
+    name: 'national work permit',
+    kind: 'work',
+    summary: '',
+    validity: '',
+    leadsToPR: false,
+    requires: ['job-offer'],
+    url: official,
+    employer: {
+      licenceNeeded: false,
+      steps: [
+        { text: `Confirm with the immigration authority of ${name} which work permit or visa fits this role.`, effort: 'A short check' },
+        { text: 'Offer a contract that meets that route’s salary and job requirements.', effort: 'Part of your normal offer' },
+        { text: 'File the employer’s part of the application, if the route has one. The Candidate files the rest.', effort: 'Depends on the route' },
+      ],
+      timeline: `Depends on the route. The Candidate will check current processing times with the authorities of ${name}.`,
+      candidateMayCover: ['visa-fee', 'relocation', 'translations', 'own-adviser'],
+      employerCosts: `Any fee or charge that the law of ${name} reserves to the employer. If that law puts one of the costs in clause 4 on the Employer, the Employer pays it and clause 4 does not apply to that cost.`,
+    },
+  } as VisaRoute;
+}
+
+/**
+ * Where the offer is for and which routes apply.
+ * - `override`: the candidate's choice in the country menu (always wins).
+ * - the job's own country otherwise, if it's a real country.
+ * - `fallback`: for jobs with no country ("Various", remote).
+ * Countries without checked data get the general work-permit route.
+ */
 export function briefEligibility(input: {
   countryCode: string | null | undefined;
-  visa: 'offered' | 'not_offered' | null | undefined;
+  visa?: 'offered' | 'not_offered' | null | undefined;
   closed?: boolean;
-  /** Candidate's pick when the job's own country isn't covered (or unknown). */
   override?: string | null;
-}): { ok: true; guide: VisaGuide; routes: VisaRoute[]; code: string; picked: boolean } | { ok: false } {
+  fallback?: string | null;
+}): { ok: true; guide: VisaGuide; routes: VisaRoute[]; code: string; picked: boolean; checked: boolean } | { ok: false } {
   if (input.closed) return { ok: false };
-  const routesOf = (code: string) => {
-    const g = visaGuideByCode.get(code);
-    return g ? briefRoutesFor(g) : [];
-  };
   const own = (input.countryCode ?? '').toUpperCase();
-  const ownRoutes = routesOf(own);
-  if (ownRoutes.length) return { ok: true, guide: visaGuideByCode.get(own)!, routes: ownRoutes, code: own, picked: false };
-  const alt = (input.override ?? '').toUpperCase();
-  const altRoutes = routesOf(alt);
-  if (altRoutes.length) return { ok: true, guide: visaGuideByCode.get(alt)!, routes: altRoutes, code: alt, picked: true };
-  return { ok: false };
+  const override = (input.override ?? '').toUpperCase();
+  const code = isCountryCode(override) ? override : isCountryCode(own) ? own : (input.fallback ?? '').toUpperCase();
+  if (!isCountryCode(code)) return { ok: false };
+  const g = visaGuideByCode.get(code);
+  const checkedRoutes = g ? briefRoutesFor(g) : [];
+  return {
+    ok: true,
+    guide: guideFor(code),
+    routes: checkedRoutes.length ? checkedRoutes : [genericRoute(code)],
+    code,
+    picked: code !== own,
+    checked: checkedRoutes.length > 0,
+  };
 }
 
 export function findRoute(countryCode: string, routeId: string): { guide: VisaGuide; route: VisaRoute } | null {
+  if (routeId === GENERIC_ROUTE_ID && isCountryCode(countryCode)) return { guide: guideFor(countryCode), route: genericRoute(countryCode) };
   const guide = visaGuideByCode.get(countryCode);
   const route = guide?.routes.find((r) => r.id === routeId);
   return guide && route ? { guide, route } : null;

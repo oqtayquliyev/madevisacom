@@ -238,7 +238,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const visa = job.visaStatus ?? (job.visaSponsorship ? 'offered' : detected.visa);
   // Sponsorship offer next to Apply, on every open job. Jobs outside the
   // covered countries start the builder with a country picker.
-  const offerEl = raw ? briefEligibility({ countryCode: raw.country?.iso_code ?? (countryOk ? job.countryCode : null), visa: visa ?? null, closed: Boolean(job.closed), override: 'DE' }) : null;
+  const offerEl = raw ? briefEligibility({ countryCode: raw.country?.iso_code ?? (countryOk ? job.countryCode : null), visa: visa ?? null, closed: Boolean(job.closed), fallback: 'DE' }) : null;
   const offerOk = Boolean(offerEl?.ok);
   const offerCountry = offerEl?.ok && offerEl.picked ? offerEl.code : null;
   const details: { icon: typeof Briefcase; label: string; value: ReactNode }[] = [

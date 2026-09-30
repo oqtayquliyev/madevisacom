@@ -640,7 +640,7 @@ function EmployerSideDetails({ route }: { route: VisaRoute }) {
           <p className="text-ink-600">
             <strong className="text-ink-800">The candidate can cover:</strong> {e.candidateMayCover.map((c) => CANDIDATE_COVER_THIRD_PERSON[c].toLowerCase()).join(', ')}.
           </p>
-          <p className="rounded-md bg-[#1D4ED8]/5 px-2.5 py-2 text-ink-600">Candidates can turn this into a sponsor offer from any matching job on MadeVisa — 5 free per account.</p>
+          <p className="rounded-md bg-[#1D4ED8]/5 px-2.5 py-2 text-ink-600">Candidates can turn this into a sponsor offer from any matching job on MadeVisa — the first one is free.</p>
         </div>
       )}
     </div>
