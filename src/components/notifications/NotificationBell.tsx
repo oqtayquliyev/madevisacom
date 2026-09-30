@@ -52,12 +52,12 @@ export function NotificationBell() {
         {unread > 0 && <span className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-xl border border-ink-200 bg-white shadow-xl">
+        <div className="fixed inset-x-3 top-[4.75rem] z-50 max-h-[calc(100dvh-6rem)] overflow-hidden rounded-xl border border-ink-200 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-[22rem]">
           <p className="border-b border-ink-100 px-4 py-3 text-sm font-bold text-ink-950">Notifications</p>
           {!items.length ? (
             <p className="px-4 py-8 text-center text-sm text-ink-500">Nothing yet. Jobs you apply to, your sponsor offers and job alerts appear here.</p>
           ) : (
-            <ul className="max-h-96 divide-y divide-ink-100 overflow-y-auto">
+            <ul className="max-h-[calc(100dvh-10rem)] divide-y sm:max-h-96 divide-ink-100 overflow-y-auto">
               {items.map((n) => {
                 const Icon = KIND_ICON[n.kind];
                 const content = (

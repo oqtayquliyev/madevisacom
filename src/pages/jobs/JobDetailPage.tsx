@@ -299,6 +299,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const stillHiring = isImported && postedAgeDays > 30;
   const stillHiringTitle = `Still listed on ${job.company}'s careers page${job.lastSeenAt ? ` (checked ${formatRelativeTime(job.lastSeenAt, '')})` : ''} — they're still looking.`;
   if (job.spotsAvailable != null) details.push({ icon: Users, label: 'Positions available', value: String(job.spotsAvailable) });
+  // Only what the listing actually says — boxes it doesn't mention are left out
+  // (while the description is still being read, placeholders show instead).
+  const shownDetails = factsPending ? details : details.filter((d) => d.value !== see);
 
   // Taken down from the company's careers page: shown greyed for 24 h, no applying.
   const closed = Boolean(job.closed);
@@ -478,9 +481,22 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
         </div>
       </section>
 
-      <main className="mx-auto max-w-4xl px-5 py-8 sm:px-8 sm:py-10">
+      <main className="mx-auto flex max-w-4xl flex-col px-5 py-8 sm:px-8 sm:py-10 md:block">
+        {raw && !localJob && !closed && (
+          // Mobile: the full section is long, so it sits at the end of the page and this link jumps there.
+          <a
+            href="#get-sponsored"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById('get-sponsored')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+            className="-mt-2 mb-4 inline-flex items-center gap-1.5 self-start text-[15px] font-bold text-brand-700 underline decoration-brand-300 decoration-2 underline-offset-4 md:hidden"
+          >
+            <Plane className="h-4 w-4" /> Get sponsored for this job
+          </a>
+        )}
         {raw && !localJob && (
-          <div className="-mt-4 mb-6">
+          <div id="get-sponsored" className="order-last mt-6 scroll-mt-24 md:order-none md:-mt-4 md:mb-6">
           <HiringBriefCallout
             jobId={raw.id}
             publisherId={raw.publisher_id ?? null}
@@ -518,11 +534,13 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2 sm:grid-cols-3">
-            {details.map((d) => (
-              <InfoRow key={d.label} icon={d.icon} label={d.label} value={d.value} />
-            ))}
-          </div>
+          {shownDetails.length > 0 && (
+            <div className="grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2 sm:grid-cols-3">
+              {shownDetails.map((d) => (
+                <InfoRow key={d.label} icon={d.icon} label={d.label} value={d.value} />
+              ))}
+            </div>
+          )}
 
           {cleaned?.html && <CollapsibleDescription html={cleaned.html} />}
 

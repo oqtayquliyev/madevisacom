@@ -44,24 +44,25 @@ export function MyBriefsSection() {
   return (
     <section aria-labelledby="docs-title" className="overflow-hidden rounded-xl border border-ink-200 bg-white">
       {/* Header: what it is + your money */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 bg-brand-700 px-4 py-4 text-white sm:px-6">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1">
-            <h2 id="docs-title" className="flex items-center gap-2 text-[17px] font-bold">
-              <FileSignature className="h-[18px] w-[18px]" /> Your sponsorship documents
+      <div className="flex flex-col gap-4 bg-brand-700 px-4 py-4 text-white sm:flex-row sm:items-center sm:gap-6 sm:px-6">
+        <div className="min-w-0 sm:flex-1">
+          <div className="flex items-center gap-1.5">
+            <FileSignature className="h-[18px] w-[18px] shrink-0" aria-hidden />
+            <h2 id="docs-title" className="text-[17px] font-bold leading-snug">
+              Your sponsorship documents
             </h2>
             <OfferInfo light />
           </div>
-          <p className="mt-0.5 text-[13px] text-white/80">Attach one to an application so the employer sees exactly how to sponsor you.</p>
+          <p className="mt-1 text-[13px] leading-5 text-white/80">Attach one to an application so the employer sees exactly how to sponsor you.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
+        <div className="flex items-center justify-between gap-3 border-t border-white/15 pt-3 sm:justify-end sm:border-0 sm:pt-0">
+          <div className="sm:text-right">
             <p className="text-[22px] font-bold leading-none tabular-nums">{credits ? usd(credits.balance) : '…'}</p>
-            <p className="text-[12px] text-white/75">
+            <p className="mt-1 text-[12px] text-white/75">
               credit · {usd(DOC_PRICE)} per document{credits?.pro ? ` · Pro ${credits.proLeft}/${PRO_MONTHLY_DOCS} left` : ''}
             </p>
           </div>
-          <a href="/pricing#offers" onClick={(e) => (e.preventDefault(), nav('/pricing#offers'))} className="rounded-lg bg-white px-3.5 py-2 text-[13px] font-bold text-brand-700 hover:bg-brand-50">
+          <a href="/pricing#offers" onClick={(e) => (e.preventDefault(), nav('/pricing#offers'))} className="shrink-0 rounded-lg bg-white px-3.5 py-2 text-[13px] font-bold text-brand-700 hover:bg-brand-50">
             Add credit
           </a>
         </div>

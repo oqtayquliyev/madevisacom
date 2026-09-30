@@ -43,6 +43,7 @@ import {
   OFFER_ITEM_LABEL,
   PAYER_LABEL,
   pingNotifications,
+  recommendedSplit,
   recordOfferDraft,
   recordOfferPdf,
   splitWord,
@@ -56,6 +57,7 @@ import { visaGuideByCode } from '@/data/visa';
 import { allCountries } from '@/data/allCountries';
 import { nav } from '@/lib/pageLayout';
 import { EXPERIENCE_OPTIONS } from '@/lib/plans';
+import { usePersonalization } from '@/lib/personalization';
 
 type Props = { shareId: string; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
@@ -142,6 +144,9 @@ function NewOffer({ go, onAuth }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // Starts on the recommended, balanced terms until the candidate changes them.
+  const [useRec, setUseRec] = useState(true);
+  const { profile: visitor } = usePersonalization();
 
   useSeo({ title: 'Prepare your sponsorship document', description: 'Create a sponsorship cost-sharing offer for an employer.', path: '/brief/new', noindex: true });
 
@@ -211,7 +216,11 @@ function NewOffer({ go, onAuth }: Props) {
   const picked = custom ? el.code !== ready.job.ownCode : pickedCountry;
   const route = routes.find((r) => r.id === routeId) ?? routes[0];
   const allowed = route.employer!.candidateMayCover;
-  const terms = termsFrom(ed, allowed, el.code);
+  const recSplit = recommendedSplit(allowed);
+  const edNow: Editable = useRec ? { ...ed, split: recSplit, overrides: {} } : ed;
+  const terms = termsFrom(edNow, allowed, el.code);
+  const recTerms = termsFrom({ ...ed, split: recSplit, overrides: {} }, allowed, el.code);
+  const isRecommended = edNow.split === recSplit && Object.keys(edNow.overrides).length === 0;
   const usesPro = Boolean(credits?.pro && credits.proLeft > 0);
   const canPay = Boolean(credits && (usesPro || credits.balance >= DOC_PRICE));
 
@@ -274,19 +283,39 @@ function NewOffer({ go, onAuth }: Props) {
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
-  const patch = (p: Partial<Editable>) => setEd((d) => (d ? { ...d, ...p } : d));
+  const patch = (p: Partial<Editable>) => {
+    const leavesRec = 'split' in p || Boolean(p.overrides && Object.keys(p.overrides).length);
+    setEd((d) => (d ? { ...(useRec && leavesRec ? { ...d, split: recSplit, overrides: {} } : d), ...p } : d));
+    if (leavesRec) setUseRec(false);
+  };
+  const from = (visitor.currentLocation ?? visitor.citizenship ?? '').toUpperCase() || null;
 
   return (
     <Desk
       go={go}
       onAuth={onAuth}
+      panelFirstOnMobile
       paper={<OfferDocument doc={doc} terms={terms} guide={guide} route={route} code={el.code} locked />}
       panel={
         <>
+          <RecommendedPanel
+            company={ed.employer.name || job.company || 'this company'}
+            from={from}
+            to={el.code}
+            toName={guide.name}
+            terms={recTerms}
+            code={el.code}
+            active={isRecommended}
+            onApply={() => {
+              setUseRec(true);
+              setEd((d) => (d ? { ...d, overrides: {} } : d));
+            }}
+          />
+          <EmployerControl value={ed.employer} onChange={(e) => patch({ employer: e })} />
           {custom && (
             <Panel>
               <p className="text-[15px] font-bold text-ink-950">Custom offer</p>
-              <p className="mt-0.5 text-[12px] leading-5 text-ink-500">For a company or role that isn’t on MadeVisa. Change the company name under Employer below.</p>
+              <p className="mt-0.5 text-[12px] leading-5 text-ink-500">For a company or role that isn’t on MadeVisa. Change the company name in Company above.</p>
               <label className="mt-2 block">
                 <span className="text-[13px] font-semibold text-ink-800">Role you’re applying for</span>
                 <input value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} maxLength={300} placeholder="e.g. Data Engineer" className={INPUT} />
@@ -321,7 +350,7 @@ function NewOffer({ go, onAuth }: Props) {
             )}
           </Panel>
 
-          <EditorPanels ed={ed} terms={terms} code={el.code} onChange={patch} />
+          <EditorPanels ed={edNow} terms={terms} code={el.code} onChange={patch} hideEmployer />
 
           <Panel>
             <p className="text-[15px] font-bold text-ink-950">About you</p>
@@ -493,7 +522,24 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
 }
 
 /** The editable parts, shared by the new and saved document. */
-function EditorPanels({ ed, terms, code, onChange, onCommit, status }: { ed: Editable; terms: OfferTerms; code: string; onChange: (p: Partial<Editable>) => void; onCommit?: (p: Partial<Editable>) => void; status?: string }) {
+function EditorPanels({
+  ed,
+  terms,
+  code,
+  onChange,
+  onCommit,
+  status,
+  hideEmployer = false,
+}: {
+  ed: Editable;
+  terms: OfferTerms;
+  code: string;
+  onChange: (p: Partial<Editable>) => void;
+  onCommit?: (p: Partial<Editable>) => void;
+  status?: string;
+  /** The company block is shown separately (first) by the builder. */
+  hideEmployer?: boolean;
+}) {
   const both = (p: Partial<Editable>) => {
     onChange(p);
     onCommit?.(p);
@@ -510,7 +556,7 @@ function EditorPanels({ ed, terms, code, onChange, onCommit, status }: { ed: Edi
       />
       <CostRows terms={terms} salary={ed.salary} code={code} onPick={(key, payer) => both({ overrides: { ...ed.overrides, [key]: payer } })} />
       <SalaryControl code={code} salary={ed.salary} offset={ed.offset} onChange={onChange} onCommit={onCommit} />
-      <EmployerControl value={ed.employer} onChange={(e) => both({ employer: e })} />
+      {!hideEmployer && <EmployerControl value={ed.employer} onChange={(e) => both({ employer: e })} />}
     </>
   );
 }
@@ -632,14 +678,35 @@ function legacySplit(b: PublicBrief): number {
 // Layout: a desk with the paper on it, controls to the side.
 // ---------------------------------------------------------------------------
 
-function Desk({ go, onAuth, paper, panel, loading }: { go: Props['go']; onAuth: Props['onAuth']; paper?: ReactNode; panel?: ReactNode; loading?: boolean }) {
+function Desk({
+  go,
+  onAuth,
+  paper,
+  panel,
+  loading,
+  panelFirstOnMobile = false,
+}: {
+  go: Props['go'];
+  onAuth: Props['onAuth'];
+  paper?: ReactNode;
+  panel?: ReactNode;
+  loading?: boolean;
+  /** Builder on phones: settings first (company, terms), the full document preview at the end. */
+  panelFirstOnMobile?: boolean;
+}) {
   return (
     <div className="min-h-screen bg-[#e9edf3] text-ink-900 print:bg-white">
       <div className="print:hidden">
         <LandingHeader go={go} onAuth={onAuth} />
       </div>
       <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-3 py-6 sm:px-6 sm:py-10 lg:grid-cols-[minmax(0,1fr)_340px] print:block print:max-w-none print:p-0">
-        <div className="min-w-0">
+        <div className={`min-w-0 ${panelFirstOnMobile ? 'order-last lg:order-none' : ''}`}>
+          {panelFirstOnMobile && !loading && (
+            <div className="mb-3 flex items-baseline justify-between gap-2 px-1 lg:hidden print:hidden">
+              <p className="text-[17px] font-bold text-ink-950">Document preview</p>
+              <p className="text-[12px] text-ink-500">Updates as you change the terms</p>
+            </div>
+          )}
           {loading ? (
             <div className="grid min-h-[70vh] place-items-center rounded-sm bg-white shadow-soft-lg">
               <Loader2 className="h-6 w-6 animate-spin text-ink-300" />
@@ -656,6 +723,93 @@ function Desk({ go, onAuth, paper, panel, loading }: { go: Props['go']; onAuth: 
 
 function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`rounded-xl bg-white p-4 shadow-sm ring-1 ring-ink-200 ${className}`}>{children}</div>;
+}
+
+/**
+ * Top of the builder: where you're moving (your flag › the job's country)
+ * and the recommended, balanced conditions for this company — the
+ * default, so nobody starts from a blank page.
+ */
+function RecommendedPanel({
+  company,
+  from,
+  to,
+  toName,
+  terms,
+  code,
+  active,
+  onApply,
+}: {
+  company: string;
+  from: string | null;
+  to: string;
+  toName: string;
+  terms: OfferTerms;
+  code: string;
+  active: boolean;
+  onApply: () => void;
+}) {
+  const fromName = from ? allCountries.find((c) => c.code === from)?.name ?? from : null;
+  const groups: { payer: Payer; label: string; tone: string }[] = [
+    { payer: 'employer', label: 'Employer pays', tone: 'bg-[#1D4ED8] text-white' },
+    { payer: 'shared', label: 'Shared 50/50', tone: 'bg-[#1D4ED8]/10 text-[#1D4ED8]' },
+    { payer: 'candidate', label: 'You cover', tone: 'bg-ink-100 text-ink-700' },
+  ];
+  return (
+    <Panel className="ring-2 ring-emerald-300">
+      <div className="flex items-center gap-2 text-[13px] font-semibold text-ink-700">
+        {from && from !== to ? (
+          <>
+            <CircleFlag countryCode={from} size={22} label={fromName ?? from} />
+            <span className="truncate">{fromName}</span>
+            <ChevronRightIcon />
+          </>
+        ) : null}
+        <CircleFlag countryCode={to} size={22} label={toName} />
+        <span className="truncate">{toName}</span>
+      </div>
+      <p className="mt-3 text-[16px] font-bold leading-snug text-ink-950">Recommended conditions for {company}</p>
+      <p className="mt-1 text-[12.5px] leading-5 text-ink-600">
+        A balanced start most employers can say yes to: you carry about {terms.candidateShare}% of the shareable costs, {company} keeps what the law expects of an
+        employer. Adjust anything below.
+      </p>
+      <ul className="mt-3 space-y-2">
+        {groups.map((g) => {
+          const items = terms.items.filter((i) => i.payer === g.payer);
+          if (!items.length) return null;
+          return (
+            <li key={g.payer} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[12.5px] leading-5 text-ink-800">
+              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ${g.tone}`}>{g.label}</span>
+              <span>{items.map((i) => OFFER_ITEM_LABEL[i.key]).join(', ')}</span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-2 text-[12px] text-ink-500">
+        Start within {terms.startWeeks} weeks of the visa{terms.repayMonths ? ` · repay window ${terms.repayMonths} months` : ''}
+        {terms.remoteStart ? ' · remote start offered' : ''} · pay in {currencyFor(code).code}
+      </p>
+      <div className="mt-3">
+        {active ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[12px] font-bold text-emerald-700">
+            <Check className="h-3.5 w-3.5" strokeWidth={3} /> Using the recommended terms
+          </span>
+        ) : (
+          <button onClick={onApply} className="rounded-lg bg-emerald-600 px-3.5 py-2 text-[13px] font-bold text-white hover:bg-emerald-700">
+            Use recommended terms
+          </button>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-ink-400" aria-label="to" role="img">
+      <path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 /** The drag bar: left favours the candidate, right the company. */

@@ -242,3 +242,25 @@ export async function employerFromPublisher(id: string, fallbackName: string): P
 }
 
 export const cleanWebsite = (w?: string | null) => (w ? w.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, '') : null);
+
+/**
+ * Recommended starting point for every offer: balanced — the candidate
+ * carries about 30% of the shareable costs (their own paperwork and
+ * adviser, part of recognition), the employer keeps the visa fee and the
+ * move. Most employers can say yes to it, and it stays within fair
+ * recruitment rules. Worked out per visa route, since routes allow
+ * different cost items.
+ */
+export const RECOMMENDED_SHARE = 30;
+export function recommendedSplit(allowed: CandidateCover[]): number {
+  let best = 50;
+  let bestGap = Infinity;
+  for (let s = 5; s <= 95; s += 5) {
+    const gap = Math.abs(buildTerms(s, allowed).candidateShare - RECOMMENDED_SHARE);
+    if (gap < bestGap - 0.001) {
+      bestGap = gap;
+      best = s;
+    }
+  }
+  return best;
+}

@@ -1,4 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { CircleFlag } from '@/components/common/CircleFlag';
 
 /**
@@ -9,15 +10,46 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 
 export const BLUE = '#1D4ED8';
 
-export function InsightPanel({ title, right, children, foot }: { title: ReactNode; right?: ReactNode; children: ReactNode; foot?: ReactNode }) {
+export function InsightPanel({
+  title,
+  right,
+  children,
+  foot,
+  collapsible = false,
+  summary,
+}: {
+  title: ReactNode;
+  right?: ReactNode;
+  children: ReactNode;
+  foot?: ReactNode;
+  /** Starts closed with a Show / Hide button, so long pages stay short. */
+  collapsible?: boolean;
+  /** One line shown under the title while closed. */
+  summary?: ReactNode;
+}) {
+  const [open, setOpen] = useState(!collapsible);
+  const id = useId();
   return (
     <section className="rounded-xl border border-ink-200 bg-white p-4 text-ink-950 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-bold tracking-tight">{title}</h2>
-        {right}
+        {collapsible ? (
+          <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls={id} className="group flex min-w-0 flex-1 items-center gap-2 text-left">
+            <h2 className="text-base font-bold tracking-tight group-hover:text-[#1D4ED8]">{title}</h2>
+            <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-ink-100 px-2.5 py-1 text-[12px] font-semibold text-ink-700 group-hover:bg-[#1D4ED8]/10 group-hover:text-[#1D4ED8] sm:ml-2">
+              {open ? 'Hide' : 'Show'}
+              <ChevronDown className={`h-3.5 w-3.5 transition ${open ? 'rotate-180' : ''}`} />
+            </span>
+          </button>
+        ) : (
+          <h2 className="text-base font-bold tracking-tight">{title}</h2>
+        )}
+        {(!collapsible || open) && right}
       </div>
-      {children}
-      {foot && <div className="mt-3 text-[11px] leading-4 text-ink-600">{foot}</div>}
+      {collapsible && !open && summary && <p className="mt-1 text-[12.5px] text-ink-500">{summary}</p>}
+      <div id={id} hidden={!open}>
+        {children}
+        {foot && <div className="mt-3 text-[11px] leading-4 text-ink-600">{foot}</div>}
+      </div>
     </section>
   );
 }

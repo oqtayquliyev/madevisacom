@@ -56,6 +56,8 @@ export function JobInsights({
     <div className="mt-4">
       <InsightPanel
         title={`How ${company} hires`}
+        collapsible
+        summary="Reply rate, hiring from abroad and whether the job is still live."
         right={
           <p className="flex items-center gap-2 text-[11px] font-semibold text-ink-600">
             Measured on <Logo style={{ height: 16 }} />

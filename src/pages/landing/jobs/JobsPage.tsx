@@ -800,8 +800,8 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
             </button>
           </div>
 
-          {/* Date posted · Country · Category */}
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:grid-cols-3 sm:gap-3">
+          {/* Date posted · Country · Category — desktop; on mobile they're in the Filters panel */}
+          <div className="mt-4 hidden grid-cols-3 gap-3 sm:grid">
             <FilterCombo
               label="Date posted"
               icon={CalendarClock}
@@ -844,6 +844,47 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
       {showFilters && (
         <section className="border-b border-ink-200 bg-white">
           <div className="mx-auto max-w-5xl px-5 py-5 sm:px-8">
+            {/* Mobile: Date posted · Country · Category live here instead of the blue bar */}
+            <div className="mb-4 grid grid-cols-2 gap-2 sm:hidden">
+            <FilterCombo
+              tone="light"
+              label="Date posted"
+              icon={CalendarClock}
+              value={datePosted}
+              allValue="Any time"
+              allLabel="Any time"
+              options={dateOptions}
+              onChange={(v) => setDatePosted(asDateOption(v))}
+            />
+            <FilterCombo
+              tone="light"
+              label="Country"
+              icon={Globe2}
+              value={country}
+              allValue="All countries"
+              allLabel="All countries"
+              options={countryComboOptions}
+              onChange={setCountry}
+              searchable
+              searchPlaceholder="Search countries"
+            />
+            <FilterCombo
+              tone="light"
+              label="Category"
+              icon={LayoutGrid}
+              value={category}
+              allValue={ALL_CATEGORIES}
+              allLabel={ALL_CATEGORIES}
+              options={categoryComboOptions}
+              onChange={setCategory}
+              searchable
+              searchPlaceholder="Search categories, e.g. nurse, driver, data"
+              groupValue={(g) => `group:${g}`}
+              displayFor={categoryValueLabel}
+              align="right"
+              className="col-span-2"
+            />
+            </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <TextField label="City" value={city} onChange={setCity} placeholder={cityOptions.slice(0, 3).join(', ') || 'Any city'} />
               <SelectField label="Employment type" value={jobType} options={jobTypeOptions} onChange={setJobType} />
@@ -907,7 +948,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
                   Clear all filters
                 </button>
               ) : (
-                <span className="text-xs text-ink-400">Date posted, country and category are in the blue bar above.</span>
+                <span className="hidden text-xs text-ink-400 sm:inline">Date posted, country and category are in the blue bar above.</span>
               )}
               <button
                 type="button"

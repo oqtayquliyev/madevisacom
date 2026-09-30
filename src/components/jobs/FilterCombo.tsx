@@ -31,6 +31,8 @@ type Props = {
   /** Which edge the list lines up with on larger screens. */
   align?: 'left' | 'right';
   className?: string;
+  /** 'dark' = on the blue hero (default); 'light' = inside the white Filters panel. */
+  tone?: 'dark' | 'light';
 };
 
 /**
@@ -38,7 +40,7 @@ type Props = {
  * a list (searchable, grouped, with job counts). On phones the list opens
  * as a centred sheet so it never runs off the screen.
  */
-export function FilterCombo({ label, icon: Icon, value, allValue, allLabel, options, onChange, searchable, searchPlaceholder, groupValue, displayFor, align = 'left', className = '' }: Props) {
+export function FilterCombo({ label, icon: Icon, value, allValue, allLabel, options, onChange, searchable, searchPlaceholder, groupValue, displayFor, align = 'left', className = '', tone = 'dark' }: Props) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -108,12 +110,18 @@ export function FilterCombo({ label, icon: Icon, value, allValue, allLabel, opti
         aria-haspopup="listbox"
         aria-expanded={open}
         className={`flex h-11 w-full min-w-0 items-center gap-2 rounded-md border px-3 text-left transition ${
-          active ? 'border-white bg-white text-brand-700' : 'border-white/25 bg-white/10 text-white hover:border-white/60 hover:bg-white/15'
+          tone === 'light'
+            ? active
+              ? 'border-brand-600 bg-brand-50 text-brand-700'
+              : 'border-ink-300 bg-white text-ink-800 hover:border-brand-400'
+            : active
+              ? 'border-white bg-white text-brand-700'
+              : 'border-white/25 bg-white/10 text-white hover:border-white/60 hover:bg-white/15'
         }`}
       >
         {active && current?.flag ? <CircleFlag countryCode={current.flag} label={current.label} size={16} /> : <Icon className="h-4 w-4 shrink-0 opacity-80" />}
         <span className="min-w-0 flex-1">
-          <span className={`block text-[10px] font-semibold uppercase leading-3 tracking-wide ${active ? 'text-brand-500' : 'text-white/60'}`}>{label}</span>
+          <span className={`block text-[10px] font-semibold uppercase leading-3 tracking-wide ${active ? 'text-brand-500' : tone === 'light' ? 'text-ink-500' : 'text-white/60'}`}>{label}</span>
           <span className="block truncate text-[13px] font-semibold leading-5">{shown}</span>
         </span>
         <ChevronDown className={`h-4 w-4 shrink-0 transition ${open ? 'rotate-180' : ''}`} />
