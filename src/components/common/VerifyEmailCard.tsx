@@ -49,7 +49,7 @@ export function VerifyEmailCard({ email, reason, className = '' }: { email: stri
           <>
             <p className="text-sm font-bold text-amber-900">Verify your email</p>
             <p className="mt-1 text-xs leading-5 text-amber-800">
-              {reason ?? 'You can use MadeVisa as usual.'} Verifying <strong>{email}</strong> gives you the Verified badge and lets you manage or register a company.
+              {reason ?? 'Needed to register or manage a company.'} We’ll send a link to <strong>{email}</strong>.
             </p>
           </>
         )}

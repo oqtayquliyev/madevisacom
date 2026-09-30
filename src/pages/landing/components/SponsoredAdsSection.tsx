@@ -5,7 +5,7 @@ import { SPONSORED_JOB_DAYS, SPONSORED_JOB_PRICE, TERMS_PATH } from '@/lib/listi
 /**
  * One "For organizations" section with two clear paths:
  *   1. Post for free — request a free job listing; reviewed within 24 hours.
- *   2. Boost it — a sponsored, "Ad"-labelled job ($299 / 30 days), requested
+ *   2. Boost it — a sponsored, "Ad"-labelled job ($149 / 30 days), requested
  *      on /submit-job and paid only after approval.
  * Programs open later, so the program options are shown greyed with "Soon".
  */

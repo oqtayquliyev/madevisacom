@@ -536,7 +536,7 @@ async function staticPage(slug: string): Promise<Page | null> {
       jsonld: [crumbsLd([['MadeVisa', '/'], ['Pricing', path]])],
       body:
         '<h1>Pricing</h1><p>Every job, reply rate and visa route on MadeVisa is free. MadeVisa Pro adds instant job alerts, full company response data and the companies that sponsor visas.</p>' +
-        '<h2>For employers</h2><p>Sponsored jobs ($299 for 30 days), featured placement in social posts, employer plans and Hiring Briefs.</p>' +
+        '<h2>For employers</h2><p>Sponsored jobs ($149 for 30 days), featured placement in social posts, employer plans and Hiring Briefs.</p>' +
         footerLinks(),
       maxAge: 3600,
     };

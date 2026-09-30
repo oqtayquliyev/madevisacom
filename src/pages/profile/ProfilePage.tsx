@@ -413,7 +413,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         <div className="min-w-0">
         <h2 id="profile-section" className="text-[26px] font-bold text-ink-950 lg:flex lg:h-[92px] lg:items-start lg:text-white">{tab === 'dashboard' ? 'Dashboard' : tab === 'partner' ? (publisher ? 'Organization' : 'For organizations') : 'Settings'}</h2>
 
-        {!isEmailConfirmed && profile.email && <VerifyEmailCard email={profile.email} className="mb-6" />}
+        {/* Email verification is only asked for where it matters: registering or managing a company (Organizations tab). */}
 
         {/* DASHBOARD — applications at a glance + recently viewed */}
         {tab === 'dashboard' && (

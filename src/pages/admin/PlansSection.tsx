@@ -125,9 +125,9 @@ export function PlansSection() {
                     {r.user_id && r.plan === 'brief_credits' ? (
                       <button
                         onClick={() => {
-                          // Documents bought: read from "$45 for 3 documents", confirm with the admin.
-                          const guess = Number(/for (\d+) document/i.exec(r.price_label ?? '')?.[1] ?? 1);
-                          const n = Number(window.prompt('How many documents were paid for? ($15 each)', String(guess)));
+                          // Documents bought: read from "5 documents · AZN 35 ($20) · AZ/B", confirm with the admin.
+                          const guess = Number(/(\d+) document/i.exec(r.price_label ?? '')?.[1] ?? 1);
+                          const n = Number(window.prompt(`How many document credits were paid for?\n${r.price_label ?? ''}`, String(guess)));
                           if (Number.isInteger(n) && n > 0 && n <= 100) void activate(r, n);
                         }}
                         disabled={busy === r.id}

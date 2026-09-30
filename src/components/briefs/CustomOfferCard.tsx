@@ -1,24 +1,26 @@
 import { forwardRef, useEffect, useState } from 'react';
+import { searchPublishers, type PublisherMatch } from '@/lib/companyExperiences';
 import { FileSignature, Lock, PenLine, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
 import { customOfferPath } from '@/lib/briefs';
-import { briefCountries, DOC_PRICE, usd, useOfferCredits } from '@/lib/sponsorOffer';
+import { briefCountries, canMakeDocument, docsLabel, useOfferCredits } from '@/lib/sponsorOffer';
 import { visaGuideByCode } from '@/data/visa';
 import { allCountries } from '@/data/allCountries';
 import { CircleFlag } from '@/components/common/CircleFlag';
-import type { OfferCompanyPick } from '@/components/briefs/OfferCompaniesRow';
+export type OfferCompanyPick = { id: string | null; name: string; countryCode: string | null };
 
 const INPUT =
   'mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-[14px] text-ink-900 outline-none placeholder:text-ink-400 focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/15';
 
 /**
- * Custom sponsorship document: any company and role — typed in, or picked
- * from the companies row. Opens the offer builder (/brief/new?custom=1).
+ * Custom sponsorship document: any company and role. Type a company — ones
+ * already on MadeVisa are suggested — then the role and country. Opens the
+ * offer builder (/brief/new?custom=1).
  * Without enough credit the form is shown blurred with a way to get it.
  */
-export const CustomOfferCard = forwardRef<HTMLElement, { pick: OfferCompanyPick | null; onAuth?: (p: 'login' | 'register') => void; onClearPick: () => void }>(
-  function CustomOfferCard({ pick, onAuth, onClearPick }, ref) {
+export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick | null; onAuth?: (p: 'login' | 'register') => void; onClearPick?: () => void }>(
+  function CustomOfferCard({ pick = null, onAuth, onClearPick }, ref) {
     const { user } = useAuth();
     const credits = useOfferCredits();
     const [company, setCompany] = useState('');
@@ -26,19 +28,30 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick: OfferCompanyPick 
     const [country, setCountry] = useState('DE');
     const [city, setCity] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [pub, setPub] = useState<{ id: string; name: string } | null>(null);
+    const [hits, setHits] = useState<PublisherMatch[]>([]);
+    const [focus, setFocus] = useState(false);
 
-    // A company picked above fills the form.
+    // A company handed in from elsewhere fills the form.
     useEffect(() => {
       if (!pick) return;
       setCompany(pick.name);
+      setPub(pick.id ? { id: pick.id, name: pick.name } : null);
       if (pick.countryCode && allCountries.some((c) => c.code === pick.countryCode)) setCountry(pick.countryCode);
       setError(null);
     }, [pick]);
 
-    const canPay = Boolean(credits && ((credits.pro && credits.proLeft > 0) || credits.balance >= DOC_PRICE));
+    // Suggestions from companies already on MadeVisa.
+    useEffect(() => {
+      if (pub?.name === company || company.trim().length < 2) return setHits([]);
+      const t = window.setTimeout(() => searchPublishers(company).then((r) => setHits(r.slice(0, 6))), 200);
+      return () => window.clearTimeout(t);
+    }, [company, pub]);
+
+    const canPay = canMakeDocument(credits);
     // Signed out, or signed in without credit → blurred. (While credits load, don't flash the lock.)
     const locked = !user || (credits !== null && !canPay);
-    const pickedId = pick && pick.name === company ? pick.id : null;
+    const pickedId = pub && pub.name === company ? pub.id : null;
 
     const checked = [...briefCountries].map((c) => ({ code: c, name: visaGuideByCode.get(c)?.name ?? c })).sort((a, b) => a.name.localeCompare(b.name));
     const others = allCountries.filter((c) => !briefCountries.has(c.code));
@@ -61,12 +74,12 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick: OfferCompanyPick 
           </div>
           {credits && !locked && (
             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
-              {credits.pro && credits.proLeft > 0 ? `Included in Pro · ${credits.proLeft} left this month` : `${usd(DOC_PRICE)} · you have ${usd(credits.balance)}`}
+              {credits.pro && credits.proLeft > 0 ? `Included in Pro · ${credits.proLeft} left this month` : `1 credit · ${docsLabel(credits.left)} left`}
             </span>
           )}
         </div>
 
-        <div className={`relative mt-3 overflow-hidden rounded-xl bg-white ring-1 ring-ink-200 ${locked ? 'min-h-[300px]' : ''}`}>
+        <div className={`relative mt-3 rounded-xl bg-white ring-1 ring-ink-200 ${locked ? 'min-h-[230px] overflow-hidden' : ''}`}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -78,12 +91,45 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick: OfferCompanyPick 
             <label className="block">
               <span className="text-[13px] font-semibold text-ink-800">Company</span>
               <span className="relative block">
-                <input value={company} onChange={(e) => setCompany(e.target.value)} maxLength={200} placeholder="e.g. Siemens" className={INPUT} tabIndex={locked ? -1 : 0} />
+                <input
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  onFocus={() => setFocus(true)}
+                  onBlur={() => window.setTimeout(() => setFocus(false), 150)}
+                  maxLength={200}
+                  placeholder="Search or type a company"
+                  autoComplete="off"
+                  className={INPUT}
+                  tabIndex={locked ? -1 : 0}
+                />
+                {focus && hits.length > 0 && !pickedId && (
+                  <span role="listbox" className="absolute inset-x-0 top-full z-20 mt-1 block overflow-hidden rounded-lg bg-white shadow-xl ring-1 ring-ink-200">
+                    {hits.map((h) => (
+                      <button
+                        key={h.id}
+                        type="button"
+                        role="option"
+                        aria-selected={false}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setCompany(h.name);
+                          setPub({ id: h.id, name: h.name });
+                          setHits([]);
+                        }}
+                        className="flex w-full items-baseline justify-between gap-2 px-3 py-2 text-left text-[14px] hover:bg-[#1D4ED8]/5"
+                      >
+                        <span className="truncate font-semibold text-ink-900">{h.name}</span>
+                        {h.country?.name && <span className="shrink-0 text-[12px] text-ink-500">{h.country.name}</span>}
+                      </button>
+                    ))}
+                  </span>
+                )}
                 {pickedId && (
                   <button
                     type="button"
                     onClick={() => {
-                      onClearPick();
+                      onClearPick?.();
+                      setPub(null);
                       setCompany('');
                     }}
                     aria-label="Clear company"
@@ -129,7 +175,7 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick: OfferCompanyPick 
               <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-[#1D4ED8] px-5 py-3 text-[14px] font-bold text-white hover:bg-brand-800" tabIndex={locked ? -1 : 0}>
                 <FileSignature className="h-4 w-4" /> Prepare custom PDF
               </button>
-              <span className="text-[13px] text-ink-500">You’ll set the terms and see the document before anything is charged.</span>
+              <span className="text-[13px] text-ink-500">You’ll set the terms and see the document before a credit is used.</span>
               {error && <span className="text-[13px] font-semibold text-rose-600">{error}</span>}
             </div>
           </form>
@@ -143,16 +189,16 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick: OfferCompanyPick 
                 {!user ? (
                   <>
                     <p className="text-[15px] font-bold text-ink-950">Sign up to make custom offers</p>
-                    <p className="text-[13px] text-ink-500">New accounts get $20 credit — your first document is free.</p>
+                    <p className="text-[13px] text-ink-500">Your first document is free.</p>
                     <button onClick={() => onAuth?.('register')} className="mt-1 rounded-lg bg-[#1D4ED8] px-4 py-2.5 text-[14px] font-bold text-white hover:bg-brand-800">
                       Create free account
                     </button>
                   </>
                 ) : (
                   <>
-                    <p className="text-[15px] font-bold text-ink-950">Custom documents need credit</p>
+                    <p className="text-[15px] font-bold text-ink-950">Get credits to continue</p>
                     <p className="text-[13px] text-ink-500">
-                      Each document is {usd(DOC_PRICE)}. You have {usd(credits?.balance ?? 0)}.
+                      Each document uses 1 credit, and you have none left. Credits are priced for your country.
                     </p>
                     <a
                       href="#buy"

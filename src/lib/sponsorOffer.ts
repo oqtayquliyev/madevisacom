@@ -138,21 +138,17 @@ export function splitWord(split: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Pricing: every document costs $15 of account credit. New accounts start
-// with $20 (one document). Pro includes 10 documents a month; after that,
-// Pro members pay from credit like everyone else.
+// Credits: 1 credit = 1 sponsorship document, everywhere. Every account has
+// 1 free document; Pro includes 10 a month. What credit costs to buy depends
+// on the country — see src/lib/pricing.ts.
 // ---------------------------------------------------------------------------
 
-export const DOC_PRICE = 15;
-export const SIGNUP_CREDIT = 20;
-export const PRO_MONTHLY_DOCS = 10;
-/** Top-up choices, in documents. */
-export const TOP_UP_DOCS = [1, 3, 5] as const;
+export { PRO_MONTHLY_DOCS, SIGNUP_DOCS } from '@/lib/pricing';
 
 export type OfferCredits = {
-  /** Account credit in USD. */
-  balance: number;
-  /** Documents you can make right now (Pro allowance + credit). */
+  /** Document credits you own (free + bought − used). */
+  docs: number;
+  /** Documents you can make right now (Pro allowance + credits). */
   left: number;
   pro: boolean;
   /** Pro documents left this calendar month. */
@@ -160,22 +156,32 @@ export type OfferCredits = {
   used: number;
 };
 
-export const usd = (n: number) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
+/** "1 document" / "5 documents". */
+export const docsLabel = (n: number) => `${n} document${n === 1 ? '' : 's'}`;
+/** "1 credit" / "5 credits". */
+export const creditsLabel = (n: number) => `${n} credit${n === 1 ? '' : 's'}`;
 
 export async function fetchOfferCredits(): Promise<OfferCredits | null> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return null;
   const { data, error } = await supabase.rpc('brief_credits');
   if (!error && data) {
-    const d = data as { balance?: number; left: number; pro?: boolean; pro_left?: number; used: number };
-    if (typeof d.balance === 'number') return { balance: Number(d.balance), left: d.left, pro: Boolean(d.pro), proLeft: d.pro_left ?? 0, used: d.used };
+    const d = data as { unit?: string; docs?: number; balance?: number; left: number; pro?: boolean; pro_left?: number; used: number };
+    const pro = Boolean(d.pro);
+    const proLeft = d.pro_left ?? 0;
+    // Current database: counted in documents.
+    if (d.unit === 'documents' && typeof d.docs === 'number') return { docs: d.docs, left: d.left, pro, proLeft, used: d.used };
+    // Before migration 20261113090000: dollars, $15 a document.
+    if (typeof d.balance === 'number') return { docs: Math.floor(Number(d.balance) / 15), left: d.left, pro, proLeft, used: d.used };
   }
-  // Before the pricing migration: $20 minus $15 per document made.
   const { count } = await supabase.from('hiring_briefs').select('id', { count: 'exact', head: true }).eq('user_id', auth.user.id);
   const used = count ?? 0;
-  const balance = Math.max(0, SIGNUP_CREDIT - DOC_PRICE * used);
-  return { balance, left: Math.floor(balance / DOC_PRICE), pro: false, proLeft: 0, used };
+  const docs = Math.max(0, 1 - used);
+  return { docs, left: docs, pro: false, proLeft: 0, used };
 }
+
+/** Can this person prepare a document right now? */
+export const canMakeDocument = (c: OfferCredits | null) => Boolean(c && ((c.pro && c.proLeft > 0) || c.docs >= 1));
 
 /** Countries with checked employer data, for the flag row. */
 export { briefCountries } from '@/data/visa';
@@ -213,9 +219,9 @@ export function useOfferCredits(): OfferCredits | null {
   return credits;
 }
 
-/** Menu / button badge: "1 left", or "$20 free" for guests. */
+/** Menu / button badge: "3 left", or "1 free" for guests. */
 export function creditsBadge(c: OfferCredits | null): string {
-  if (!c) return `${usd(SIGNUP_CREDIT)} free`;
+  if (!c) return '1 free';
   return `${c.left} left`;
 }
 

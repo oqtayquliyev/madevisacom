@@ -3,7 +3,7 @@ import { FileDown, FileSignature, Lock } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
 import { briefPath, fetchMyBriefForJob, newOfferPath } from '@/lib/briefs';
-import { creditsBadge, DOC_PRICE, usd, useOfferCredits } from '@/lib/sponsorOffer';
+import { creditsBadge, useOfferCredits } from '@/lib/sponsorOffer';
 
 /**
  * "Sponsorship offer · 3 left" — next to Apply on every open job page.
@@ -39,7 +39,7 @@ export function OfferButton({ jobId, variant, country, onAuth }: { jobId: string
         <span className="flex flex-col items-start leading-tight">
           <span>Unlock sponsored agreement</span>
           <span className={`text-[11px] font-semibold ${hero ? 'text-white/75' : 'text-ink-500'}`}>
-            {usd(DOC_PRICE)} · you have {usd(credits?.balance ?? 0)}
+            1 credit · you have 0
           </span>
         </span>
       ) : existing ? (
@@ -48,7 +48,7 @@ export function OfferButton({ jobId, variant, country, onAuth }: { jobId: string
         'Sponsorship offer'
       )}
       {!existing && !out && (
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${hero ? 'bg-white text-brand-700' : 'bg-[#1D4ED8] text-white'}`}>{credits ? usd(credits.balance) : creditsBadge(null)}</span>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${hero ? 'bg-white text-brand-700' : 'bg-[#1D4ED8] text-white'}`}>{creditsBadge(credits)}</span>
       )}
     </a>
   );

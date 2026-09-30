@@ -10,7 +10,7 @@ import { formatRelativeTime } from '@/lib/dates';
 import { nav } from '@/lib/pageLayout';
 import { useMyPlan } from '@/lib/plans';
 import { BRIEF_STATUS_LABEL, briefPath, fetchMyBriefs, type MyBrief } from '@/lib/briefs';
-import { DOC_PRICE, fetchOfferCredits, PRO_MONTHLY_DOCS, SIGNUP_CREDIT, usd, useOfferCredits, type OfferCredits } from '@/lib/sponsorOffer';
+import { fetchOfferCredits, PRO_MONTHLY_DOCS, useOfferCredits, type OfferCredits } from '@/lib/sponsorOffer';
 import { CreditMeter, OfferFlags, OfferInfo } from '@/components/briefs/OfferBits';
 
 const STATUS_TONE: Record<string, string> = {
@@ -57,12 +57,12 @@ export function MyBriefsSection() {
         </div>
         <div className="flex items-center justify-between gap-3 border-t border-white/15 pt-3 sm:justify-end sm:border-0 sm:pt-0">
           <div className="sm:text-right">
-            <p className="text-[22px] font-bold leading-none tabular-nums">{credits ? usd(credits.balance) : '…'}</p>
+            <p className="text-[22px] font-bold leading-none tabular-nums">{credits ? credits.left : '…'}</p>
             <p className="mt-1 text-[12px] text-white/75">
-              credit · {usd(DOC_PRICE)} per document{credits?.pro ? ` · Pro ${credits.proLeft}/${PRO_MONTHLY_DOCS} left` : ''}
+              {credits?.left === 1 ? 'document' : 'documents'} left · 1 credit each{credits?.pro ? ` · Pro ${credits.proLeft}/${PRO_MONTHLY_DOCS} this month` : ''}
             </p>
           </div>
-          <a href="/pricing#offers" onClick={(e) => (e.preventDefault(), nav('/pricing#offers'))} className="shrink-0 rounded-lg bg-white px-3.5 py-2 text-[13px] font-bold text-brand-700 hover:bg-brand-50">
+          <a href="/offers#buy" onClick={(e) => (e.preventDefault(), nav('/offers#buy'))} className="shrink-0 rounded-lg bg-white px-3.5 py-2 text-[13px] font-bold text-brand-700 hover:bg-brand-50">
             Add credit
           </a>
         </div>
@@ -90,7 +90,7 @@ export function MyBriefsSection() {
           ) : list.length === 0 ? (
             <div className="mt-2 flex flex-col items-start gap-3 rounded-lg bg-[#1D4ED8]/5 p-4">
               <OfferFlags size={22} />
-              <p className="text-[14px] leading-6 text-ink-700">Open any job and press “Sponsorship offer”. Your first document is covered by your {usd(SIGNUP_CREDIT)} credit.</p>
+              <p className="text-[14px] leading-6 text-ink-700">Open any job and press “Sponsorship offer”. Your first document is free.</p>
               <a href="/offers" onClick={(e) => (e.preventDefault(), nav('/offers'))} className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-[13px] font-bold text-white hover:bg-brand-800">
                 Pick a job
               </a>
@@ -263,7 +263,7 @@ export function PlanCard() {
         </div>
         <div className="mt-1.5">{credits ? <CreditMeter credits={credits} /> : <span className="text-[13px] text-ink-400">…</span>}</div>
         {credits && credits.left === 0 && (
-          <a href="/pricing#offers" onClick={(e) => (e.preventDefault(), nav('/pricing#offers'))} className="mt-2 inline-block text-[13px] font-semibold text-[#1D4ED8] hover:underline">
+          <a href="/offers#buy" onClick={(e) => (e.preventDefault(), nav('/offers#buy'))} className="mt-2 inline-block text-[13px] font-semibold text-[#1D4ED8] hover:underline">
             Top up credit
           </a>
         )}

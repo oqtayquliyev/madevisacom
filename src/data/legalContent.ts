@@ -381,7 +381,7 @@ export const legalPages: Record<string, LegalPageContent> = {
     title: 'Sponsored Listing Terms',
     description: 'Price, review, 30-day period, cancellations and refunds for sponsored jobs on MadeVisa.',
     intro: `These terms apply when a company asks ${ENTITY} to publish a sponsored job. By ticking "I agree" on the Post a job form you accept them. Last updated ${LEGAL_LAST_UPDATED}.`,
-    summary: ['$299 per job for 30 days.', 'Nothing is charged before we approve the job.', 'Full refund if we don’t publish within 3 working days.'],
+    summary: ['$149 per job for 30 days.', 'Nothing is charged before we approve the job.', 'Full refund if we don’t publish within 3 working days.'],
     sections: [
       {
         heading: 'What a sponsored job includes',
@@ -393,7 +393,7 @@ export const legalPages: Record<string, LegalPageContent> = {
       {
         heading: 'Price',
         paragraphs: [
-          'A sponsored job costs $299 (USD) per job for 30 days, plus any tax that applies in your country. The price shown when you send your request is the price you pay.',
+          'A sponsored job costs $149 (USD) per job for 30 days, plus any tax that applies in your country. The price shown when you send your request is the price you pay.',
           'Small fixes to a live job (typos, a changed link) are free — email us. A different role is a new listing.',
         ],
       },
@@ -443,10 +443,10 @@ export const legalPages: Record<string, LegalPageContent> = {
     description: 'Price, credit, Pro allowance, finality and refunds for MadeVisa sponsorship documents.',
     intro: `These terms apply when you prepare a sponsorship document (a sponsorship cost-sharing agreement) on ${ENTITY}. Last updated ${LEGAL_LAST_UPDATED}.`,
     summary: [
-      '$15 per document, paid from account credit.',
-      'Every new account gets $20 credit, so the first document is free.',
-      'Pro: $99 a month ($990 a year) with 10 documents a month.',
-      'You review and approve the terms before paying. After that the document is final.',
+      'Each document uses 1 credit. Your first document is free.',
+      'Credits come in packs of 1, 5 or 15, priced for your country and shown before you request them. They don’t expire.',
+      'Pro includes 10 documents a month.',
+      'You review and approve the terms before a credit is used. After that the document is final.',
     ],
     sections: [
       {
@@ -460,22 +460,22 @@ export const legalPages: Record<string, LegalPageContent> = {
       {
         heading: 'Price and credit',
         paragraphs: [
-          'Each document costs $15 (USD), taken from your account credit when you approve it. You can add credit for 1, 3 or 5 documents at a time.',
-          'Every new account starts with $20 credit, enough for one document. Sign-up credit has no cash value and can’t be transferred.',
-          'Previewing, adjusting the terms and seeing the demo are free. You pay only when you approve a document.',
+          'Each document uses one document credit, taken when you approve it. Credits are sold in packs of 1, 5 or 15. The price depends on the country you are in, which we detect from your internet connection, and is shown in your local currency where possible (otherwise in US dollars). The price shown when you send your request is the price you pay. Bought credits don’t expire.',
+          'Every new account can prepare its first document free. The free document has no cash value and can’t be transferred.',
+          'Previewing, adjusting the terms and seeing the demo are free. A credit is used only when you approve a document.',
         ],
       },
       {
         heading: 'Pro',
         paragraphs: [
-          'MadeVisa Pro costs $99 a month or $990 a year (lower in some countries; the price shown when you request it is the price you pay). It includes 10 sponsorship documents each calendar month.',
-          'Unused Pro documents don’t carry over to the next month. Once they’re used, further documents come from your credit at $15 each.',
+          'MadeVisa Pro is billed monthly or yearly at the price shown for your country when you request it. It includes 10 sponsorship documents each calendar month.',
+          'Unused Pro documents don’t carry over to the next month. Once they’re used, further documents use your credits.',
         ],
       },
       {
         heading: 'Review, approval and finality',
         paragraphs: [
-          'Before you pay, you see every term in a final review and confirm that it is correct. Once approved, the document is fixed: its terms, the parties and the role can’t be edited, and the employer sees exactly the approved version.',
+          'Before a credit is used, you see every term in a final review and confirm that it is correct. Once approved, the document is fixed: its terms, the parties and the role can’t be edited, and the employer sees exactly the approved version.',
           'You can still mark its status (sent, replied, interview and so on) or withdraw it, which stops the link from working. Withdrawing does not return the credit.',
           'If something in an approved document is wrong because of a mistake on our side, email us and we will correct it or refund it.',
         ],

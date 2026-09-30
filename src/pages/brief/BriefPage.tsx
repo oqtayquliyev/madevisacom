@@ -33,15 +33,13 @@ import {
   briefCountries,
   buildTerms,
   cleanWebsite,
-  DOC_PRICE,
-  SIGNUP_CREDIT,
-  usd,
   currencyFor,
   employerFromPublisher,
   fetchOfferCredits,
   money,
   OFFER_ITEM_LABEL,
   PAYER_LABEL,
+  canMakeDocument,
   pingNotifications,
   recommendedSplit,
   recordOfferDraft,
@@ -222,7 +220,7 @@ function NewOffer({ go, onAuth }: Props) {
   const recTerms = termsFrom({ ...ed, split: recSplit, overrides: {} }, allowed, el.code);
   const isRecommended = edNow.split === recSplit && Object.keys(edNow.overrides).length === 0;
   const usesPro = Boolean(credits?.pro && credits.proLeft > 0);
-  const canPay = Boolean(credits && (usesPro || credits.balance >= DOC_PRICE));
+  const canPay = canMakeDocument(credits);
 
   const doc: DocData = {
     ref: 'MV-PREVIEW',
@@ -240,7 +238,7 @@ function NewOffer({ go, onAuth }: Props) {
   // Step 1: check, then show the final review. Step 2 (confirmed): pay and create.
   const review = () => {
     if (!session) return onAuth?.('register');
-    if (!canPay) return nav('/pricing#offers');
+    if (!canPay) return nav('/offers#buy');
     if (!name.trim()) return setError('Add the name the employer should see.');
     if (!job.title) return setError('Add the role you are applying for.');
     if (!ed.employer.name.trim()) return setError('Add the company this document is for.');
@@ -387,7 +385,7 @@ function NewOffer({ go, onAuth }: Props) {
               headline={headline.trim()}
               company={ed.employer.name}
               role={job.title}
-              price={usesPro ? 'Included in Pro' : usd(DOC_PRICE)}
+              price={usesPro ? 'Included in Pro' : '1 credit'}
               onBack={() => setConfirming(false)}
               onConfirm={() => void generate()}
             />
@@ -477,18 +475,17 @@ function headlineFromProfile(p: { occupation?: string | null; specialization?: s
 
 /** Cost, balance and the one button: unlock + download. */
 function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { credits: OfferCredits | null; signedIn: boolean; usesPro: boolean; canPay: boolean; busy: boolean; error: string | null; onGo: () => void }) {
-  const short = credits ? Math.max(0, DOC_PRICE - credits.balance) : 0;
   return (
     <div className="space-y-3">
       <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-ink-200">
         <dl className="space-y-1.5 text-[14px]">
           <div className="flex justify-between">
             <dt className="text-ink-600">This document</dt>
-            <dd className="font-semibold tabular-nums text-ink-950">{usesPro ? 'Included in Pro' : usd(DOC_PRICE)}</dd>
+            <dd className="font-semibold tabular-nums text-ink-950">{usesPro ? 'Included in Pro' : '1 credit'}</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-ink-600">Your credit</dt>
-            <dd className="font-semibold tabular-nums text-ink-950">{signedIn ? (credits ? usd(credits.balance) : '…') : `${usd(SIGNUP_CREDIT)} on sign-up`}</dd>
+            <dt className="text-ink-600">Your credits</dt>
+            <dd className="font-semibold tabular-nums text-ink-950">{signedIn ? (credits ? credits.docs : '…') : '1 free on sign-up'}</dd>
           </div>
           {credits?.pro && (
             <div className="flex justify-between">
@@ -499,7 +496,7 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
           {signedIn && credits && !canPay && (
             <div className="flex justify-between border-t border-ink-100 pt-1.5">
               <dt className="font-semibold text-rose-700">Needed</dt>
-              <dd className="font-bold tabular-nums text-rose-700">{usd(short)} more</dd>
+              <dd className="font-bold tabular-nums text-rose-700">1 credit</dd>
             </div>
           )}
         </dl>
@@ -508,13 +505,13 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
       <button onClick={onGo} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800 disabled:opacity-60">
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : canPay ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
         {!signedIn
-          ? `Sign up to unlock · ${usd(SIGNUP_CREDIT)} free`
+          ? 'Sign up · your first document is free'
           : canPay
-            ? `Prepare & download · ${usesPro ? 'Pro' : usd(DOC_PRICE)}`
-            : `Unlock for ${usd(DOC_PRICE)} · add credit`}
+            ? `Prepare & download · ${usesPro ? 'Pro' : '1 credit'}`
+            : 'Get credits to unlock'}
       </button>
       <div className="flex items-center justify-between text-[12px] text-ink-500">
-        <span>You review everything before paying. After that it’s final.</span>
+        <span>You review everything before using a credit. After that it’s final.</span>
         <OfferInfo />
       </div>
     </div>

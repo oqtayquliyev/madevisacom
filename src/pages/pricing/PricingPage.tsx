@@ -4,10 +4,10 @@ import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { WRAP } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
-import { usePersonalization } from '@/lib/personalization';
 import { countryName } from '@/lib/visaFit';
-import { missingProfileFields, PRO_FEATURES, PRO_PRICES, priceRegionFor, RELOCATION_PRICE, useMyPlan, type Billing, type PlanId } from '@/lib/plans';
-import { DOC_PRICE, PRO_MONTHLY_DOCS, SIGNUP_CREDIT, usd } from '@/lib/sponsorOffer';
+import { missingProfileFields, PRO_FEATURES, useMyPlan, type Billing, type PlanId } from '@/lib/plans';
+import { EMPLOYER_PRICES, priceNote, PRO_MONTHLY_DOCS, usePrices } from '@/lib/pricing';
+import { priceRequestLabel } from '@/components/briefs/BuyOffers';
 import { OfferInfo } from '@/components/briefs/OfferBits';
 import { OfferJobPicker } from '@/components/briefs/OfferJobPicker';
 import { BuyOffers } from '@/components/briefs/BuyOffers';
@@ -18,18 +18,17 @@ import { AppLink, Faq } from '@/pages/info/InfoPage';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
-const FREE = ['Every job, straight from company career pages', `${usd(SIGNUP_CREDIT)} credit: your first sponsorship document free`, 'Reply-rate and hiring-activity line on every job', 'Your visa route for every job', 'Track your applications, with reminders', 'Visa guides for 20+ countries'];
+const FREE = ['Every job, straight from company career pages', 'Your first sponsorship document, free', 'Reply-rate and hiring-activity line on every job', 'Your visa route for every job', 'Track your applications, with reminders', 'Visa guides for 20+ countries'];
 
 const EMPLOYER: { id: PlanId; name: string; price: string; unit: string; text: string; points: string[] }[] = [
-  { id: 'sponsored_job', name: 'Sponsored job', price: '$299', unit: 'per job · 30 days', text: 'Pinned at the top of /jobs and on the homepage, labelled Sponsored.', points: ['Reviewed within a day', 'Nothing charged before approval', 'Packs of 3+ at a discount'] },
-  { id: 'featured_social', name: 'Featured in social posts', price: '+$99', unit: 'per job', text: 'Your role in MadeVisa’s LinkedIn, Instagram and Facebook job posts, labelled Sponsored.', points: ['Real job seekers, fresh posts', 'Direct link to your job', 'Add to any sponsored job'] },
-  { id: 'employer', name: 'Employer plan', price: 'from $199', unit: 'per month', text: 'Always-on sponsored slots, applicant-interest stats and your reply speed vs. similar companies.', points: ['Verified company page', 'Team access', 'Monthly hiring report'] },
-  { id: 'hiring_brief', name: 'Hiring Brief', price: '$49', unit: 'per brief', text: 'What hiring one person from a given country involves: route, timeline, costs and who pays what.', points: ['Plain language', 'Official sources', 'Delivered in 2 working days'] },
+  { id: 'sponsored_job', name: 'Sponsored job', price: `$${EMPLOYER_PRICES.sponsoredJob}`, unit: 'per job · 30 days', text: 'Pinned at the top of /jobs and on the homepage, labelled Sponsored.', points: ['Reviewed within a day', 'Nothing charged before approval', 'Packs of 3+ at a discount'] },
+  { id: 'featured_social', name: 'Featured in social posts', price: `+$${EMPLOYER_PRICES.featuredSocial}`, unit: 'per job', text: 'Your role in MadeVisa’s LinkedIn, Instagram and Facebook job posts, labelled Sponsored.', points: ['Real job seekers, fresh posts', 'Direct link to your job', 'Add to any sponsored job'] },
+  { id: 'employer', name: 'Employer plan', price: `from $${EMPLOYER_PRICES.employerPlanFrom}`, unit: 'per month', text: 'Always-on sponsored slots, applicant-interest stats and your reply speed vs. similar companies.', points: ['Verified company page', 'Team access', 'Monthly hiring report'] },
+  { id: 'hiring_brief', name: 'Hiring Brief', price: `$${EMPLOYER_PRICES.hiringBrief}`, unit: 'per brief', text: 'What hiring one person from a given country involves: route, timeline, costs and who pays what.', points: ['Plain language', 'Official sources', 'Delivered in 2 working days'] },
 ];
 
 export function PricingPage({ go, onAuth }: Props) {
   const { profile } = useAuth();
-  const { profile: personal } = usePersonalization();
   const { isPro, sub } = useMyPlan();
   const [billing, setBilling] = useState<Exclude<Billing, 'one_time'>>('yearly');
   const [dialog, setDialog] = useState<{ plan: PlanId; billing: Billing; label: string } | null>(null);
@@ -40,11 +39,11 @@ export function PricingPage({ go, onAuth }: Props) {
     path: '/pricing',
   });
 
-  const country = personal.currentLocation ?? personal.citizenship ?? null;
-  const region = priceRegionFor(country);
-  const pro = PRO_PRICES[region];
-  const proLabel = billing === 'monthly' ? `$${pro.monthly} / month` : `$${pro.yearly} / year`;
-  const saving = Math.round(100 - (pro.yearly / (pro.monthly * 12)) * 100);
+  const prices = usePrices();
+  const region = prices.tier;
+  const pro = prices.pro;
+  const proLabel = priceRequestLabel(prices, billing === 'monthly' ? 'Pro monthly' : 'Pro yearly', billing === 'monthly' ? pro.monthly : pro.yearly);
+  const saving = pro.saving;
   const missing = useMemo(() => (profile ? missingProfileFields(profile) : []), [profile]);
   useEffect(() => {
     const id = window.location.hash.slice(1);
@@ -69,12 +68,7 @@ export function PricingPage({ go, onAuth }: Props) {
               </button>
             ))}
           </div>
-          {country && (
-            <p className="mt-3 text-xs text-ink-500">
-              Prices for {countryName(country)}
-              {region === 'reduced' ? ' — reduced to match local incomes.' : '.'}
-            </p>
-          )}
+          <p className="mt-3 text-xs text-ink-500">{priceNote(prices, countryName)}</p>
         </div>
       </section>
 
@@ -110,7 +104,7 @@ export function PricingPage({ go, onAuth }: Props) {
           {/* Free */}
           <div className="flex flex-col rounded-2xl border border-ink-200 bg-white p-6">
             <p className="text-lg font-bold text-ink-950">Free</p>
-            <p className="mt-2 text-3xl font-bold text-ink-950">$0</p>
+            <p className="mt-2 text-3xl font-bold text-ink-950">{prices.m(0).label}</p>
             <p className="text-sm text-ink-500">forever</p>
             <ul className="mt-5 flex-1 space-y-2.5">
               {FREE.map((f) => (
@@ -133,12 +127,12 @@ export function PricingPage({ go, onAuth }: Props) {
             </span>
             <p className="text-lg font-bold text-ink-950">MadeVisa Pro</p>
             <p className="mt-2 text-3xl font-bold text-ink-950">
-              ${billing === 'monthly' ? pro.monthly : pro.yearly}
+              {billing === 'monthly' ? pro.monthly.label : pro.yearly.label}
               <span className="text-base font-medium text-ink-500"> / {billing === 'monthly' ? 'month' : 'year'}</span>
             </p>
-            <p className="text-sm text-ink-500">{billing === 'yearly' ? `$${(pro.yearly / 12).toFixed(2)} a month, billed yearly` : 'Cancel any time'}</p>
+            <p className="text-sm text-ink-500">{billing === 'yearly' ? `${pro.yearlyPerMonth.label} a month, billed yearly` : 'Cancel any time'}</p>
             <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
-              {PRO_MONTHLY_DOCS} sponsorship documents a month · worth {usd(PRO_MONTHLY_DOCS * DOC_PRICE)}
+              {PRO_MONTHLY_DOCS} sponsorship documents a month · {pro.perDoc.label} each
             </p>
             <ul className="mt-5 flex-1 space-y-3">
               <li className="text-sm font-semibold text-ink-900">Everything in Free, plus:</li>
@@ -163,7 +157,7 @@ export function PricingPage({ go, onAuth }: Props) {
           {/* Relocation plan */}
           <div className="flex flex-col rounded-2xl border border-ink-200 bg-white p-6">
             <p className="text-lg font-bold text-ink-950">Relocation plan</p>
-            <p className="mt-2 text-3xl font-bold text-ink-950">${RELOCATION_PRICE[region]}</p>
+            <p className="mt-2 text-3xl font-bold text-ink-950">{prices.relocation.label}</p>
             <p className="text-sm text-ink-500">one-time, per country</p>
             <ul className="mt-5 flex-1 space-y-2.5">
               {['The visa routes that fit your passport and profile', 'Document checklist and step-by-step timeline', 'Real costs: fees, deposits, first months', 'Employers there that sponsor visas', '3 months of Pro included'].map((f) => (
@@ -172,7 +166,7 @@ export function PricingPage({ go, onAuth }: Props) {
                 </li>
               ))}
             </ul>
-            <button onClick={() => setDialog({ plan: 'relocation', billing: 'one_time', label: `$${RELOCATION_PRICE[region]} one-time` })} className="mt-6 rounded-lg border border-brand-600 py-2.5 text-sm font-semibold text-brand-700 hover:bg-brand-50">
+            <button onClick={() => setDialog({ plan: 'relocation', billing: 'one_time', label: priceRequestLabel(prices, 'Relocation plan', prices.relocation) })} className="mt-6 rounded-lg border border-brand-600 py-2.5 text-sm font-semibold text-brand-700 hover:bg-brand-50">
               Get a relocation plan
             </button>
           </div>
@@ -210,10 +204,10 @@ export function PricingPage({ go, onAuth }: Props) {
               items={[
                 { q: 'Is a sponsor offer legally binding?', a: 'Not on its own. It’s a proposal that becomes binding only when both you and the employer sign it, or when its terms go into your employment contract. It never covers costs the law puts on the employer, never touches salary, and isn’t legal advice.' },
                 { q: 'How do I attach a sponsor offer to my application?', a: 'Open the offer, press Save as PDF, and upload it as an extra document next to your CV. If the form has no upload field, paste the offer’s link into your cover letter or message.' },
-                { q: 'How much does a sponsorship document cost?', a: `${usd(DOC_PRICE)} each, paid from your account credit. Every new account gets ${usd(SIGNUP_CREDIT)} credit, so the first one is free. Pro includes ${PRO_MONTHLY_DOCS} a month; after those, documents come from your credit. You review every document before paying; once approved it’s final and can’t be edited.` },
-                { q: 'Can I get a refund?', a: `Unused credit you bought can be refunded within 14 days of purchase. A prepared document is delivered instantly and is final, so its ${usd(DOC_PRICE)} can’t be refunded — unless something went wrong on our side, such as a double charge or a document that didn’t generate. The ${usd(SIGNUP_CREDIT)} sign-up credit has no cash value. Pro can be cancelled any time and stops at the end of the period; see the Sponsorship Document Terms.` },
+                { q: 'How much does a sponsorship document cost?', a: `One credit each. Your first document is free. Credits come in packs of 1, 5 or 15 — from ${prices.packs[0].price.label} for one, down to ${prices.packs[2].perDoc.label} each in the pack of 15 — and never expire. Pro includes ${PRO_MONTHLY_DOCS} a month. You review every document before a credit is used; once approved it’s final and can’t be edited.` },
+                { q: 'Can I get a refund?', a: 'Unused credits you bought can be refunded within 14 days of purchase. A prepared document is delivered instantly and is final, so its credit can’t be refunded — unless something went wrong on our side, such as a double charge or a document that didn’t generate. The free first document has no cash value. Pro can be cancelled any time and stops at the end of the period; see the Sponsorship Document Terms.' },
                 { q: 'How do I pay?', a: 'Choose a plan and send the short form. We email you a secure payment link within one working day, and your plan starts as soon as it’s paid. No card is needed to send the request.' },
-                { q: 'Why is the price lower in my country?', a: 'Pro prices follow local incomes, so Pro is affordable wherever you’re applying from. The features and the 10 monthly documents are the same. Single documents are $15 everywhere.' },
+                { q: 'Why is the price different in my country?', a: 'Prices follow local incomes, so MadeVisa is affordable wherever you’re applying from. We check where you are from your internet connection and show prices in your currency when we can (otherwise in US dollars). A credit is worth one document everywhere, and Pro includes the same features and documents in every country.' },
                 { q: 'Can I cancel?', a: 'Yes. Monthly plans stop at the end of the month; yearly plans at the end of the year. Email hello@madevisa.com.' },
                 { q: 'Does paying change Company Scores?', a: 'Never. Scores and reply rates are calculated the same way for every company — see our Advertising Policy.' },
                 { q: 'Why do you ask for my role and experience?', a: 'Job alerts and visa matching use them to send you only the roles that fit. You can change them any time in your profile.' },

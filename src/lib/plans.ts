@@ -6,24 +6,12 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
+import { PRO_MONTHLY_DOCS, type PriceTier } from '@/lib/pricing';
 
 export type PlanId = 'pro' | 'relocation' | 'sponsored_job' | 'featured_social' | 'employer' | 'hiring_brief' | 'brief_credits';
 export type Billing = 'monthly' | 'yearly' | 'one_time';
-export type PriceRegion = 'standard' | 'reduced';
-
-// Fair pricing: lower prices where incomes are lower. Countries not listed
-// here get the reduced price.
-const STANDARD = new Set(
-  'AT BE CY CZ DK EE FI FR DE GR IE IT LV LT LU MT NL PT SK SI ES SE IS LI NO CH GB US CA AU NZ JP KR SG HK TW IL AE QA KW BH SA OM'.split(' ')
-);
-export const priceRegionFor = (country: string | null | undefined): PriceRegion => (country && STANDARD.has(country) ? 'standard' : 'reduced');
-
-export const PRO_PRICES: Record<PriceRegion, { monthly: number; yearly: number }> = {
-  // Includes 10 sponsorship documents a month ($150 at $15 each).
-  standard: { monthly: 99, yearly: 990 },
-  reduced: { monthly: 59, yearly: 590 },
-};
-export const RELOCATION_PRICE: Record<PriceRegion, number> = { standard: 29, reduced: 19 };
+/** Price tier (A / B / C) — see src/lib/pricing.ts. Kept under this name for plan requests. */
+export type PriceRegion = PriceTier;
 
 export const PLAN_NAME: Record<PlanId, string> = {
   pro: 'MadeVisa Pro',
@@ -39,7 +27,7 @@ export const PRO_FEATURES = [
   { title: 'Instant job alerts', text: 'New roles matching your role and country, as soon as companies post them — be an early applicant.' },
   { title: 'Full company response data', text: 'Exact reply rate, typical time to reply and hiring activity before you apply.' },
   { title: 'Companies that sponsor visas', text: 'Who is hiring with visa sponsorship in each country, updated live.' },
-  { title: '10 sponsorship documents a month', text: 'Worth $150 at $15 each. A signed-ready offer for the jobs you apply to.' },
+  { title: `${PRO_MONTHLY_DOCS} sponsorship documents a month`, text: 'A sign-ready offer for the jobs you apply to — about a fifth of the single-document price.' },
   { title: 'First access to new Pro tools', text: 'Your own application stats and salary ranges are next — Pro members get them first.' },
 ];
 

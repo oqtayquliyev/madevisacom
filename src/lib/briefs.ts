@@ -60,6 +60,8 @@ export type PublicBrief = {
 
 export type MyBrief = PublicBrief & {
   id: string;
+  /** How it was paid: 'credit', 'pro' or 'legacy' (made before credits). */
+  paid_with?: 'credit' | 'pro' | 'legacy' | null;
   status: BriefStatus;
   view_count: number;
   first_viewed_at: string | null;
@@ -243,10 +245,10 @@ const MY_BRIEF_COLUMNS =
 export async function fetchMyBriefs(): Promise<MyBrief[] | null> {
   const { data, error } = await supabase
     .from('hiring_briefs')
-    .select(`${MY_BRIEF_COLUMNS}, split`)
+    .select(`${MY_BRIEF_COLUMNS}, split, paid_with`)
     .neq('status', 'withdrawn')
     .order('created_at', { ascending: false });
-  if (error && /split|column/i.test(error.message)) {
+  if (error && /split|paid_with|column/i.test(error.message)) {
     const old = await supabase.from('hiring_briefs').select(MY_BRIEF_COLUMNS).neq('status', 'withdrawn').order('created_at', { ascending: false });
     if (old.error) return MISSING_TABLE.test(old.error.message) ? null : [];
     return ((old.data ?? []) as MyBrief[]).map((b) => ({ ...b, is_owner: true }));

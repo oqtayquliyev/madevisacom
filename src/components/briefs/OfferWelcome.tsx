@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 import { Briefcase, FileDown, Paperclip, SlidersHorizontal, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
-import { SIGNUP_CREDIT, usd, useOfferCredits } from '@/lib/sponsorOffer';
+import { useOfferCredits } from '@/lib/sponsorOffer';
 import { OfferFlags } from '@/components/briefs/OfferBits';
 
 const KEY = (id: string) => `madevisa:offerWelcome:${id}`;
 const NEW_FOR_DAYS = 14;
 
 /**
- * Once per new account: "$20 credited — your first sponsorship document is free."
+ * Once per new account: "1 free sponsorship document".
  * Not shown on the offer pages themselves.
  */
 export function OfferWelcome() {
@@ -52,7 +52,7 @@ export function OfferWelcome() {
   }, [open]);
 
   if (!open) return null;
-  const balance = usd(credits?.balance ?? SIGNUP_CREDIT);
+  const free = credits?.left ?? 1;
 
   const steps = [
     { icon: Briefcase, t: 'Open a job' },
@@ -69,9 +69,9 @@ export function OfferWelcome() {
             <X className="h-5 w-5" />
           </button>
           <OfferFlags size={26} />
-          <p className="mt-4 text-[56px] font-bold leading-none tabular-nums">{balance}</p>
-          <h2 id="offer-welcome" className="mt-1 text-[20px] font-bold leading-tight">credited to your account</h2>
-          <p className="mt-1 text-[14px] text-white/80">Enough for your first sponsorship document ($15). Attach it to an application. Get the visa sponsored.</p>
+          <p className="mt-4 text-[56px] font-bold leading-none tabular-nums">{free}</p>
+          <h2 id="offer-welcome" className="mt-1 text-[20px] font-bold leading-tight">free sponsorship document{free === 1 ? '' : 's'}</h2>
+          <p className="mt-1 text-[14px] text-white/80">Prepare it for any job, attach it to your application, and show the employer exactly how to sponsor you.</p>
         </div>
         <ol className="space-y-2 px-6 py-5">
           {steps.map(({ icon: Icon, t }, i) => (

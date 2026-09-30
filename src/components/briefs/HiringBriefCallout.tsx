@@ -3,7 +3,7 @@ import { FileCheck2, FileSignature, Loader2, Lock, PlayCircle, X } from 'lucide-
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
 import { briefEligibility, briefPath, fetchMyBriefForJob, newOfferPath } from '@/lib/briefs';
-import { creditsBadge, DOC_PRICE, usd, useOfferCredits } from '@/lib/sponsorOffer';
+import { creditsBadge, useOfferCredits } from '@/lib/sponsorOffer';
 import { OfferFlags, OfferInfo } from '@/components/briefs/OfferBits';
 import { OfferDemo, OfferSteps } from '@/components/briefs/OfferDemo';
 
@@ -82,19 +82,19 @@ export function HiringBriefCallout(props: Props) {
                 <FileCheck2 className="h-4 w-4" /> Open my document
               </a>
             ) : out ? (
-              <a href="/pricing#offers" onClick={go('/pricing#offers')} className={primary}>
+              <a href="/offers#buy" onClick={go('/offers#buy')} className={primary}>
                 <Lock className="h-4 w-4" />
                 <span className="flex flex-col items-start leading-tight">
                   <span>Unlock sponsored agreement</span>
                   <span className="text-[11px] font-semibold text-brand-700/70">
-                    {usd(DOC_PRICE)} · you have {usd(credits?.balance ?? 0)}
+                    1 credit · you have 0
                   </span>
                 </span>
               </a>
             ) : (
               <a href={start} onClick={go(start)} className={primary}>
                 <FileSignature className="h-4 w-4" /> Prepare my offer PDF
-                <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-bold text-white">{credits ? `${usd(DOC_PRICE)} · you have ${usd(credits.balance)}` : creditsBadge(null)}</span>
+                <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-bold text-white">{credits ? `1 credit · ${credits.left} left` : creditsBadge(null)}</span>
               </a>
             )}
             <button onClick={() => setDemo(true)} className="inline-flex items-center gap-2 rounded-full px-5 py-3.5 text-[14px] font-bold text-white ring-1 ring-white/40 hover:bg-white/10">

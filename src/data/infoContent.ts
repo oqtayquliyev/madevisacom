@@ -62,7 +62,7 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
         heading: 'What MadeVisa does',
         intro: 'Five things, in one place, so every application is a better-informed one.',
         items: [
-          { icon: 'send', title: 'Sponsorship agreements', text: 'Pick a job, drag to decide who pays each visa cost, review, and download a signed-ready agreement to attach when you apply. $15 each; your first one is free.' },
+          { icon: 'send', title: 'Sponsorship agreements', text: 'Pick a job, drag to decide who pays each visa cost, review, and download a signed-ready agreement to attach when you apply. Your first one is free; more from a few dollars, priced for your country.' },
           { icon: 'source', title: 'Jobs from the source', text: 'Roles come from the employer’s own careers page — not reposts — so you see them early, with the real posting date. When a job closes there, it closes here.' },
           { icon: 'score', title: 'Company Scores', text: 'Reply rates, reply times and “was the job as described?” — built from outcomes applicants share, weighted so no single account can tilt a score.' },
           { icon: 'chart', title: 'Hiring insights', text: 'Who is hiring this week, where, for which roles, how much is remote and which companies offer visa sponsorship — updated through the day.' },
@@ -119,7 +119,7 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
       },
     ],
     faq: [
-      { q: 'Is MadeVisa free?', a: 'Searching, saving and tracking applications, Company Scores and visa guides are free. A sponsorship agreement costs $15; every new account gets $20 credit, so the first one is free. Pro ($99 a month) includes 10 a month. Companies can pay to sponsor a listing; sponsored listings are always labelled and never change scores.' },
+      { q: 'Is MadeVisa free?', a: 'Searching, saving and tracking applications, Company Scores and visa guides are free. A sponsorship agreement uses one credit; the first one is free, and credit packs are priced for your country. Pro includes 10 a month. Companies can pay to sponsor a listing; sponsored listings are always labelled and never change scores.' },
       { q: 'What is a sponsorship agreement?', a: 'A one-page proposal you attach to an application: the visa route, what the employer has to do, and who pays each visa-related cost. You review and approve it before paying, and after that it’s final. It becomes binding only when both you and the employer sign it.' },
       { q: 'Where do the jobs come from?', a: 'Mostly straight from employers’ own career pages, plus jobs companies post with us directly. Every listing links to the original posting, where you apply.' },
       { q: 'How fresh are the listings?', a: 'New roles arrive throughout the day, and jobs that close on the employer’s page are marked closed and then removed. Each listing shows when the employer posted it.' },
@@ -151,7 +151,7 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
           { icon: 'source', title: 'We go to the source', text: 'MadeVisa follows the career pages of hundreds of employers — with more added every day — and brings new roles in as they appear, often before they reach the big job boards.' },
           { icon: 'check', title: 'Every listing is checked', text: 'Before a job appears we check that it is a real job ad and pull out the essentials: location, remote or on-site, salary, experience, visa sponsorship. What the ad doesn’t say shows as “not mentioned” — never guessed.' },
           { icon: 'search', title: 'Search by what matters to you', text: 'Filter by country, visa sponsorship, remote or hybrid, salary transparency, experience and category. Set your location once and the routes open to you are highlighted.' },
-          { icon: 'lock', title: 'Prepare your sponsorship agreement', text: 'On any job, drag to decide who pays each visa cost, set an optional salary deduction, pick the company from MadeVisa, then review and approve. $15 from your credit (the first is free); final once approved.' },
+          { icon: 'lock', title: 'Prepare your sponsorship agreement', text: 'On any job, drag to decide who pays each visa cost, set an optional salary deduction, pick the company from MadeVisa, then review and approve. One credit (the first is free); final once approved.' },
           { icon: 'send', title: 'Apply at the source — with the agreement attached', text: 'You apply on the employer’s own page and attach the PDF next to your CV, or paste its link in your cover letter. MadeVisa never stands between you and the employer, and never passes on your details.' },
           { icon: 'track', title: 'Track what happens', text: 'Mark when you applied and what happened next. Gentle check-ins ask at the right time. Your outcome, combined anonymously with others’, becomes the company’s reply rate.' },
           { icon: 'plane', title: 'Plan the move', text: 'For each country: the visa routes you may qualify for, fees, validity, years to permanent residence and citizenship — with the official source one click away.' },
@@ -184,7 +184,7 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
       { q: 'Why does a job show “Location on source”?', a: 'Some employers don’t state a clear location in the ad. Rather than guess, we point you to the original posting, where the employer gives the details.' },
       { q: 'Do I need an account?', a: 'No — you can search and read everything without one. An account lets you save jobs, track applications and get check-in reminders.' },
       { q: 'Can I trust a Company Score with only a few applicants?', a: 'Scores only appear once several people have shared an outcome, and while data is early they show as a range. The more people track, the sharper they get.' },
-      { q: 'How much does a sponsorship agreement cost?', a: '$15, paid from account credit when you approve it. New accounts get $20 credit, so the first one is free. Pro is $99 a month with 10 included. Unused bought credit is refundable within 14 days; see the Sponsorship Document Terms.' },
+      { q: 'How much does a sponsorship agreement cost?', a: 'One document credit, used when you approve it. The first document is free. Credit packs of 1, 5 or 15 are priced for your country, and Pro includes 10 a month. Unused bought credits are refundable within 14 days; see the Sponsorship Document Terms.' },
       { q: 'Is the visa information official?', a: 'Each guide summarises the official rules and links to the government source, with the month it was last checked. Always confirm with the official source before you apply.' },
     ],
     cta: {

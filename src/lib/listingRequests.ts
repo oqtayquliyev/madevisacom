@@ -5,7 +5,7 @@
 
 import { supabase } from '@/lib/supabase';
 
-export const SPONSORED_JOB_PRICE = 299;
+export const SPONSORED_JOB_PRICE = 149;
 export const SPONSORED_JOB_DAYS = 30;
 export const TERMS_PATH = '/sponsored-listing-terms';
 

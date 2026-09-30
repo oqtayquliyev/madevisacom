@@ -84,7 +84,7 @@ export function OffersSection() {
         <Tile v={t.builder_users} k="Opened the builder" />
         <Tile v={t.pdf_saves} k="PDF saves" />
         <Tile v={t.company_opens} k="Opened by a company" />
-        <Tile v={t.credits_sold} k="Credit sold ($)" />
+        <Tile v={t.credits_sold} k="Dollar credit sold (before Oct 2026)" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -147,7 +147,7 @@ export function OffersSection() {
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     {o.pdf_saves} <span className="text-ink-400">({o.company_pdf_saves})</span>
                   </td>
-                  <td className="px-3 py-2.5 text-xs text-ink-700">{o.credits ? `$${o.credits.balance ?? 0} · ${o.credits.left} doc${o.credits.left === 1 ? '' : 's'}${o.credits.pro ? ` · Pro ${o.credits.pro_left ?? 0}/10` : ''}` : '—'}</td>
+                  <td className="px-3 py-2.5 text-xs text-ink-700">{o.credits ? `${o.credits.left} doc${o.credits.left === 1 ? '' : 's'} left${o.credits.pro ? ` · Pro ${o.credits.pro_left ?? 0}/10` : ''}` : '—'}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-xs text-ink-500">{when(o.created_at)}</td>
                 </tr>
               ))}
