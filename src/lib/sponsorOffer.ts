@@ -40,7 +40,42 @@ export type OfferTerms = {
   remoteStart: boolean;
   /** Share (0–100) of the shareable costs the candidate carries, weighted by typical size. */
   candidateShare: number;
+  /**
+   * Optional salary offset: the candidate accepts up to this amount deducted
+   * from first-year gross pay to cover costs the employer pays in clause 4.
+   * Never below minimum wage or the visa salary threshold; never for
+   * costs the law puts on the employer. 0 / missing = none.
+   */
+  salaryOffset?: number;
+  currency?: string;
+  /** Who the offer is addressed to, filled from MadeVisa where we can. */
+  employer?: OfferEmployer;
 };
+
+export type OfferEmployer = {
+  name: string;
+  publisherId?: string | null;
+  website?: string | null;
+  hq?: string | null;
+  contact?: string | null;
+  logo?: string | null;
+};
+
+/** Pay currency by country, for the salary-offset amount. */
+export function currencyFor(code: string): { code: string; symbol: string; max: number; step: number } {
+  switch (code.toUpperCase()) {
+    case 'GB':
+      return { code: 'GBP', symbol: '£', max: 5000, step: 250 };
+    case 'SE':
+      return { code: 'SEK', symbol: 'SEK ', max: 60000, step: 2500 };
+    case 'DK':
+      return { code: 'DKK', symbol: 'DKK ', max: 40000, step: 2000 };
+    default:
+      return { code: 'EUR', symbol: '€', max: 6000, step: 250 };
+  }
+}
+
+export const money = (amount: number, code: string) => `${currencyFor(code).symbol}${amount.toLocaleString('en-GB')}`;
 
 /** Smallest costs move first. */
 const ORDER: CandidateCover[] = ['translations', 'own-adviser', 'recognition', 'visa-fee', 'relocation'];
@@ -169,3 +204,13 @@ export async function recordOfferDraft(jobId: string): Promise<void> {
 
 /** Job id (uuid) from a board job id like "sponsored-<uuid>". */
 export const uuidFromBoardId = (id: string) => (id.startsWith('sponsored-') ? id.slice('sponsored-'.length) : null);
+
+/** What MadeVisa knows about a company, for the offer's Employer block. */
+export async function employerFromPublisher(id: string, fallbackName: string): Promise<OfferEmployer> {
+  const { data } = await supabase.from('program_publishers').select('id, name, website, logo_url, country:countries(name)').eq('id', id).maybeSingle();
+  const p = data as { id: string; name: string; website: string | null; logo_url: string | null; country: { name: string } | null } | null;
+  if (!p) return { name: fallbackName, publisherId: id };
+  return { name: p.name, publisherId: p.id, website: p.website, hq: p.country?.name ?? null, logo: p.logo_url };
+}
+
+export const cleanWebsite = (w?: string | null) => (w ? w.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, '') : null);

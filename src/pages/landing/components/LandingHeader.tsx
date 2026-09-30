@@ -5,6 +5,7 @@ import { ChevronDown, Building2, Briefcase, FileSignature, GraduationCap, Layout
 import { useAuth } from "@/lib/auth";
 import { creditsBadge, useOfferCredits } from "@/lib/sponsorOffer";
 import { CheckInReminder } from "@/components/jobs/CheckInReminder";
+import { OfferWelcome } from "@/components/briefs/OfferWelcome";
 import { fetchMyManagedPublishers } from "@/lib/companyManager";
 import { handleNavClick } from "@/lib/navLink";
 import type { View } from "@/types";
@@ -403,6 +404,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
       </header>
       {/* Outside the header: its backdrop blur would trap a fixed-position child. */}
       <CheckInReminder />
+      <OfferWelcome />
     </>
   );
 }

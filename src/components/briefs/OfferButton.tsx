@@ -6,10 +6,11 @@ import { briefPath, fetchMyBriefForJob, newOfferPath } from '@/lib/briefs';
 import { creditsBadge, useOfferCredits } from '@/lib/sponsorOffer';
 
 /**
- * "Make offer · 3 left" — sits next to Apply on job pages whose country
- * is covered. Opens the builder, or the existing offer PDF.
+ * "Sponsorship offer · 3 left" — next to Apply on every open job page.
+ * Opens the builder (with a covered country picked if the job's isn't),
+ * or "Your document is ready" once made.
  */
-export function OfferButton({ jobId, variant, onAuth }: { jobId: string; variant: 'hero' | 'body'; onAuth?: (p: 'login' | 'register') => void }) {
+export function OfferButton({ jobId, variant, country, onAuth }: { jobId: string; variant: 'hero' | 'body'; country?: string | null; onAuth?: (p: 'login' | 'register') => void }) {
   const { session } = useAuth();
   const credits = useOfferCredits();
   const [existing, setExisting] = useState<string | null>(null);
@@ -18,7 +19,7 @@ export function OfferButton({ jobId, variant, onAuth }: { jobId: string; variant
   }, [session, jobId]);
 
   const out = credits && !credits.unlimited && credits.left === 0 && !existing;
-  const href = existing ? briefPath(existing) : out ? '/pricing#offers' : newOfferPath(jobId);
+  const href = existing ? briefPath(existing) : out ? '/pricing#offers' : `${newOfferPath(jobId)}${country ? `&country=${country}` : ''}`;
   const hero = variant === 'hero';
 
   return (
@@ -34,7 +35,7 @@ export function OfferButton({ jobId, variant, onAuth }: { jobId: string; variant
       }`}
     >
       {existing ? <FileDown className="h-4 w-4" /> : <FileSignature className="h-4 w-4" />}
-      {existing ? 'Your offer PDF' : out ? 'Get more offers' : 'Make offer'}
+      {existing ? 'Your document is ready' : out ? 'Get more offers' : 'Sponsorship offer'}
       {!existing && !out && (
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${hero ? 'bg-white text-brand-700' : 'bg-[#1D4ED8] text-white'}`}>{creditsBadge(credits)}</span>
       )}

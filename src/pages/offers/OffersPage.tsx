@@ -35,7 +35,7 @@ export function OffersPage({ go, onAuth }: Props) {
             {credits && <CreditMeter credits={credits} light />}
           </div>
           <div className="mt-6 flex items-start gap-2">
-            <h1 className="max-w-3xl text-[32px] font-bold leading-[1.1] tracking-tight sm:text-[48px]">Make an offer they can sign.</h1>
+            <h1 className="max-w-3xl text-[32px] font-bold leading-[1.1] tracking-tight sm:text-[48px]">Attach an offer. Get sponsored.</h1>
             <OfferInfo light className="mt-2" />
           </div>
           <div className="mt-6">

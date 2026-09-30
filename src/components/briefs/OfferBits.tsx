@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Info } from 'lucide-react';
-import { CircleFlag } from '@/components/common/CircleFlag';
 import { visaGuideByCode } from '@/data/visa';
 import { briefCountries, type OfferCredits } from '@/lib/sponsorOffer';
 
@@ -70,12 +69,36 @@ export function CreditMeter({ credits, light = false }: { credits: OfferCredits;
 export function OfferFlags({ size = 26, highlight }: { size?: number; highlight?: string | null }) {
   const codes = [...briefCountries].sort((a, b) => (a === highlight ? -1 : b === highlight ? 1 : 0));
   return (
-    <span className="inline-flex items-center">
+    <span className="inline-flex items-center" aria-label={`Works in ${codes.map((c) => visaGuideByCode.get(c)?.name ?? c).join(', ')}`}>
       {codes.map((c, i) => (
-        <span key={c} className="rounded-full ring-2 ring-white" style={{ marginLeft: i ? -size * 0.28 : 0, zIndex: codes.length - i }} title={visaGuideByCode.get(c)?.name}>
-          <CircleFlag countryCode={c} label={visaGuideByCode.get(c)?.name} size={size} />
+        <span key={c} className="relative rounded-full bg-white ring-2 ring-white" style={{ marginLeft: i ? -size * 0.22 : 0, zIndex: codes.length - i }} title={visaGuideByCode.get(c)?.name}>
+          <FlagDot code={c} size={size} />
         </span>
       ))}
     </span>
+  );
+}
+
+/** Flag image; if it can't load, the country code in a circle (never an empty ring). */
+function FlagDot({ code, size }: { code: string; size: number }) {
+  const [failed, setFailed] = useState(false);
+  if (failed)
+    return (
+      <span className="grid place-items-center rounded-full bg-ink-100 font-bold text-ink-700" style={{ width: size, height: size, fontSize: size * 0.36 }}>
+        {code}
+      </span>
+    );
+  return (
+    <img
+      src={`https://hatscripts.github.io/circle-flags/flags/${code.toLowerCase()}.svg`}
+      alt=""
+      loading="eager"
+      decoding="async"
+      width={size}
+      height={size}
+      onError={() => setFailed(true)}
+      className="block rounded-full object-cover"
+      style={{ width: size, height: size }}
+    />
   );
 }

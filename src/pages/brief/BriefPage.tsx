@@ -29,7 +29,26 @@ import {
   type BriefStatus,
   type PublicBrief,
 } from '@/lib/briefs';
-import { buildTerms, fetchOfferCredits, OFFER_ITEM_LABEL, PAYER_LABEL, pingNotifications, recordOfferDraft, recordOfferPdf, splitWord, type OfferCredits, type OfferTerms } from '@/lib/sponsorOffer';
+import {
+  briefCountries,
+  buildTerms,
+  cleanWebsite,
+  currencyFor,
+  employerFromPublisher,
+  fetchOfferCredits,
+  money,
+  OFFER_ITEM_LABEL,
+  PAYER_LABEL,
+  pingNotifications,
+  recordOfferDraft,
+  recordOfferPdf,
+  splitWord,
+  type OfferCredits,
+  type OfferEmployer,
+  type OfferTerms,
+} from '@/lib/sponsorOffer';
+import { searchPublishers, type PublisherMatch } from '@/lib/companyExperiences';
+import { visaGuideByCode } from '@/data/visa';
 import { nav } from '@/lib/pageLayout';
 
 type Props = { shareId: string; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
@@ -62,14 +81,21 @@ export function BriefPage(props: Props) {
 
 function NewOffer({ go, onAuth }: Props) {
   const { session, profile, loading: authLoading } = useAuth();
-  const jobId = new URLSearchParams(window.location.search).get('job') ?? '';
+  const params = new URLSearchParams(window.location.search);
+  const jobId = params.get('job') ?? '';
   const [state, setState] = useState<
     | { k: 'loading' }
     | { k: 'missing' }
-    | { k: 'ready'; job: { id: string; publisherId: string | null; title: string; company: string; fn: string | null; city: string | null; code: string }; guide: VisaGuide; routes: VisaRoute[] }
+    | {
+        k: 'ready';
+        job: { id: string; publisherId: string | null; title: string; company: string; fn: string | null; city: string | null; ownCode: string; contact: string | null; closed: boolean };
+      }
   >({ k: 'loading' });
+  const [country, setCountry] = useState<string>((params.get('country') ?? '').toUpperCase());
   const [routeId, setRouteId] = useState<string>('');
   const [split, setSplit] = useState(50);
+  const [offset, setOffset] = useState(0);
+  const [employer, setEmployer] = useState<OfferEmployer | null>(null);
   const [name, setName] = useState('');
   const [headline, setHeadline] = useState('');
   const [note, setNote] = useState('');
@@ -86,16 +112,17 @@ function NewOffer({ go, onAuth }: Props) {
       if (!alive) return;
       if (!raw) return setState({ k: 'missing' });
       const board = sponsoredJobToBoardJob(raw);
-      const code = (raw.country?.iso_code ?? '').toUpperCase();
-      const el = briefEligibility({ countryCode: code, visa: raw.visa_status ?? (raw.visa_sponsorship ? 'offered' : null), closed: Boolean(board.closed) });
-      if (!el.ok) return setState({ k: 'missing' });
       // Already made one for this job → open it instead of spending a credit.
       const mine = await fetchMyBriefForJob(raw.id);
       if (mine) return nav(briefPath(mine.share_id));
-      setRouteId(el.routes[0].id);
       void recordOfferDraft(raw.id);
       const city = raw.city && !/^(all|any|various|remote)$/i.test(raw.city.trim()) ? raw.city : null;
-      setState({ k: 'ready', job: { id: raw.id, publisherId: raw.publisher_id ?? null, title: board.title, company: board.company, fn: raw.job_function ?? null, city, code }, guide: el.guide, routes: el.routes });
+      const contact = raw.contact_email && !/madevisa/i.test(raw.contact_email) ? raw.contact_email : null;
+      const job = { id: raw.id, publisherId: raw.publisher_id ?? null, title: board.title, company: board.company, fn: raw.job_function ?? null, city, ownCode: (raw.country?.iso_code ?? '').toUpperCase(), contact, closed: Boolean(board.closed) };
+      setState({ k: 'ready', job });
+      const base: OfferEmployer = { name: board.company, publisherId: job.publisherId, contact, logo: raw.publisher?.logo_url ?? null };
+      setEmployer(base);
+      if (job.publisherId) employerFromPublisher(job.publisherId, board.company).then((e) => alive && setEmployer({ ...e, contact }));
     });
     return () => {
       alive = false;
@@ -112,13 +139,18 @@ function NewOffer({ go, onAuth }: Props) {
     if (session) fetchOfferCredits().then(setCredits);
   }, [session]);
 
-  if (state.k === 'missing') return <NotFoundPage go={go} onAuth={onAuth} />;
-  if (state.k === 'loading' || authLoading) return <Desk go={go} onAuth={onAuth} loading />;
+  const ready = state.k === 'ready' ? state : null;
+  const el = ready ? briefEligibility({ countryCode: ready.job.ownCode, visa: null, closed: ready.job.closed, override: country || DEFAULT_COUNTRY }) : null;
 
-  const { job, guide, routes } = state;
+  if (state.k === 'missing' || (ready && el && !el.ok)) return <NotFoundPage go={go} onAuth={onAuth} />;
+  if (!ready || !el || !el.ok || authLoading || !employer) return <Desk go={go} onAuth={onAuth} loading />;
+
+  const { job } = ready;
+  const { guide, routes, picked } = el;
   const route = routes.find((r) => r.id === routeId) ?? routes[0];
   const allowed = route.employer!.candidateMayCover;
-  const terms = buildTerms(split, allowed);
+  const cur = currencyFor(el.code);
+  const terms: OfferTerms = { ...buildTerms(split, allowed), salaryOffset: offset, currency: cur.code, employer };
   const noCredits = credits && !credits.unlimited && credits.left === 0;
 
   const doc: DocData = {
@@ -126,8 +158,8 @@ function NewOffer({ go, onAuth }: Props) {
     issuedAt: new Date().toISOString(),
     shareId: null,
     jobTitle: job.title,
-    companyName: job.company,
-    city: job.city,
+    companyName: employer.name,
+    city: picked ? null : job.city,
     candidateName: name.trim() || 'Your name',
     headline: headline.trim() || null,
     linkedin: null,
@@ -137,16 +169,17 @@ function NewOffer({ go, onAuth }: Props) {
   const generate = async () => {
     if (!session) return onAuth?.('register');
     if (!name.trim()) return setError('Add the name the employer should see.');
+    if (!employer.name.trim()) return setError('Add the company this offer is for.');
     setBusy(true);
     setError(null);
     const res = await createBrief({
       jobId: job.id,
-      publisherId: job.publisherId,
+      publisherId: employer.publisherId ?? null,
       jobTitle: job.title,
-      companyName: job.company,
+      companyName: employer.name.trim(),
       jobFunction: job.fn,
-      jobCity: job.city,
-      countryCode: job.code,
+      jobCity: picked ? null : job.city,
+      countryCode: el.code,
       routeId: route.id,
       candidateName: name.trim(),
       candidateHeadline: headline.trim() || null,
@@ -165,22 +198,38 @@ function NewOffer({ go, onAuth }: Props) {
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
-  const input = 'mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-[14px] text-ink-900 outline-none focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/15';
-
   return (
     <Desk
       go={go}
       onAuth={onAuth}
-      paper={<OfferDocument doc={doc} terms={terms} guide={guide} route={route} code={job.code} draft />}
+      paper={<OfferDocument doc={doc} terms={terms} guide={guide} route={route} code={el.code} draft />}
       panel={
         <>
+          {picked && (
+            <Panel className="ring-amber-300">
+              <label className="block">
+                <span className="text-[13px] font-semibold text-ink-800">Where will you work?</span>
+                <CountrySelect
+                  value={el.code}
+                  onChange={(c) => {
+                    setCountry(c);
+                    setRouteId('');
+                    setOffset(0);
+                  }}
+                />
+              </label>
+            </Panel>
+          )}
+
           <SplitControl split={split} terms={terms} onChange={setSplit} />
+          <OffsetControl code={el.code} value={offset} onChange={setOffset} />
+          <EmployerControl value={employer} onChange={setEmployer} />
 
           <Panel>
             {routes.length > 1 && (
-              <label className="block">
+              <label className="mb-3 block">
                 <span className="text-[13px] font-semibold text-ink-800">Visa route</span>
-                <select value={route.id} onChange={(e) => setRouteId(e.target.value)} className={input}>
+                <select value={route.id} onChange={(e) => setRouteId(e.target.value)} className={INPUT}>
                   {routes.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name} {r.employer?.licenceNeeded ? '· sponsor licence' : '· no licence'}
@@ -189,17 +238,17 @@ function NewOffer({ go, onAuth }: Props) {
                 </select>
               </label>
             )}
-            <label className="mt-3 block first:mt-0">
+            <label className="block">
               <span className="text-[13px] font-semibold text-ink-800">Your name</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} className={input} />
+              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} className={INPUT} />
             </label>
             <label className="mt-3 block">
               <span className="text-[13px] font-semibold text-ink-800">Headline</span>
-              <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={140} placeholder="Backend engineer, 6 years in fintech" className={input} />
+              <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={140} placeholder="Backend engineer, 6 years in fintech" className={INPUT} />
             </label>
             <label className="mt-3 block">
               <span className="text-[13px] font-semibold text-ink-800">Note to the hiring manager</span>
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={600} rows={2} placeholder="Optional" className={input} />
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={600} rows={2} placeholder="Optional" className={INPUT} />
             </label>
           </Panel>
 
@@ -212,7 +261,7 @@ function NewOffer({ go, onAuth }: Props) {
             ) : (
               <button onClick={generate} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800 disabled:opacity-60">
                 {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                {session ? (credits?.unlimited ? 'Generate offer' : 'Generate offer · 1 credit') : 'Sign up to generate — 5 free'}
+                {session ? (credits?.unlimited ? 'Generate my PDF' : 'Generate my PDF · 1 credit') : 'Sign up to generate — 5 free'}
               </button>
             )}
             <div className="flex items-center justify-between">
@@ -226,6 +275,9 @@ function NewOffer({ go, onAuth }: Props) {
   );
 }
 
+const DEFAULT_COUNTRY = 'DE';
+const INPUT = 'mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-[14px] text-ink-900 outline-none focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/15';
+
 // ---------------------------------------------------------------------------
 // Saved offer: /brief/<share id> — owner edits, everyone else reads.
 // ---------------------------------------------------------------------------
@@ -233,6 +285,8 @@ function NewOffer({ go, onAuth }: Props) {
 function SavedOffer({ shareId, go, onAuth }: Props) {
   const [brief, setBrief] = useState<PublicBrief | null | undefined>(undefined);
   const [split, setSplit] = useState(50);
+  const [offset, setOffset] = useState(0);
+  const [employer, setEmployer] = useState<OfferEmployer | null>(null);
   const [saved, setSaved] = useState<'idle' | 'saving' | 'saved' | string>('idle');
 
   useEffect(() => {
@@ -243,6 +297,8 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
       setBrief(b);
       if (!b) return;
       setSplit(b.split ?? legacySplit(b));
+      setOffset(b.terms?.salaryOffset ?? 0);
+      setEmployer(b.terms?.employer ?? { name: b.company_name, publisherId: b.publisher_id });
       if (!b.is_owner) recordBriefView(shareId);
     });
     return () => {
@@ -252,13 +308,20 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
 
   const found = brief ? findRoute(brief.country_code, brief.route_id) : null;
   const allowed: CandidateCover[] = found?.route.employer?.candidateMayCover ?? [];
+  const code = brief?.country_code ?? 'DE';
+  const liveTerms = (s: number, o: number, e: OfferEmployer | null): OfferTerms => ({
+    ...buildTerms(s, allowed),
+    salaryOffset: o,
+    currency: currencyFor(code).code,
+    employer: e ?? undefined,
+  });
   // Owners see live terms; everyone else sees exactly what was saved.
   const terms: OfferTerms | null = useMemo(() => {
     if (!brief) return null;
-    if (brief.is_owner) return buildTerms(split, allowed);
+    if (brief.is_owner) return liveTerms(split, offset, employer);
     return brief.terms ?? buildTerms(brief.split ?? legacySplit(brief), allowed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brief, split, allowed.join()]);
+  }, [brief, split, offset, employer, allowed.join()]);
 
   useSeo({
     title: brief ? `Sponsor offer — ${brief.candidate_name} for ${brief.job_title} at ${brief.company_name}` : 'Sponsor offer',
@@ -275,7 +338,7 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
     issuedAt: brief.created_at,
     shareId: brief.share_id,
     jobTitle: brief.job_title,
-    companyName: brief.company_name,
+    companyName: terms.employer?.name ?? brief.company_name,
     city: brief.job_city,
     candidateName: brief.candidate_name,
     headline: brief.candidate_headline,
@@ -283,11 +346,12 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
     note: brief.note,
   };
 
-  const commit = async (v: number) => {
+  const commit = async (next: { split?: number; offset?: number; employer?: OfferEmployer }) => {
+    const t = liveTerms(next.split ?? split, next.offset ?? offset, next.employer ?? employer);
     setSaved('saving');
-    const res = await updateBriefTerms(brief.share_id, v, allowed);
+    const res = await updateBriefTerms(brief.share_id, t);
     if (res.ok) {
-      setBrief({ ...brief, split: v, terms: res.terms });
+      setBrief({ ...brief, split: t.split, terms: t, company_name: t.employer?.name ?? brief.company_name });
       setSaved('saved');
       window.setTimeout(() => setSaved((s) => (s === 'saved' ? 'idle' : s)), 1800);
     } else setSaved(res.error ?? 'Could not save');
@@ -310,7 +374,17 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
       paper={paper}
       panel={
         <>
-          <SplitControl split={split} terms={terms} onChange={setSplit} onCommit={commit} status={saved} />
+          <SplitControl split={split} terms={terms} onChange={setSplit} onCommit={(v) => commit({ split: v })} status={saved} />
+          <OffsetControl code={code} value={offset} onChange={setOffset} onCommit={(v) => commit({ offset: v })} />
+          {employer && (
+            <EmployerControl
+              value={employer}
+              onChange={(e) => {
+                setEmployer(e);
+                void commit({ employer: e });
+              }}
+            />
+          )}
           <OwnerActions brief={brief} onStatus={(status) => setBrief({ ...brief, status })} />
         </>
       }
@@ -380,6 +454,130 @@ function SplitControl({ split, terms, onChange, onCommit, status }: { split: num
         <Stat k="Start after visa" v={`${terms.startWeeks} wks`} />
         <Stat k="Remote start" v={terms.remoteStart ? 'Yes' : 'No'} />
       </dl>
+    </Panel>
+  );
+}
+
+/** Covered countries, flag + name. */
+function CountrySelect({ value, onChange }: { value: string; onChange: (code: string) => void }) {
+  const list = [...briefCountries].map((c) => ({ code: c, name: visaGuideByCode.get(c)?.name ?? c })).sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <div className="mt-1 flex items-center gap-2">
+      <CircleFlag countryCode={value} size={22} />
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={`${INPUT} mt-0`}>
+        {list.map((c) => (
+          <option key={c.code} value={c.code}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** "I'll take up to X less in first-year pay" — optional, 0 = none. */
+function OffsetControl({ code, value, onChange, onCommit }: { code: string; value: number; onChange: (v: number) => void; onCommit?: (v: number) => void }) {
+  const cur = currencyFor(code);
+  const toPct = (amount: number) => Math.round((amount / cur.max) * 100);
+  const toAmount = (pct: number) => Math.round((pct / 100) * cur.max / cur.step) * cur.step;
+  return (
+    <Panel>
+      <p className="text-[15px] font-bold text-ink-950">Take it from my salary</p>
+      <p className="text-[12px] text-ink-500">Optional. Paid back monthly in year one.</p>
+      <DragSlider
+        size="sm"
+        tone={value ? 'green' : 'grey'}
+        value={toPct(value)}
+        step={(cur.step / cur.max) * 100}
+        onChange={(p) => onChange(toAmount(p))}
+        onCommit={onCommit ? (p) => onCommit(toAmount(p)) : undefined}
+        label="Amount you accept to have deducted from first-year pay"
+        valueText={value ? `Up to ${money(value, code)}` : 'No salary offset'}
+        bubble={value ? `Up to ${money(value, code)}` : 'None'}
+        left="None"
+        right={money(cur.max, code)}
+      />
+    </Panel>
+  );
+}
+
+/** Who the offer is for: prefilled from the job, searchable across MadeVisa companies. */
+function EmployerControl({ value, onChange }: { value: OfferEmployer; onChange: (e: OfferEmployer) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<PublisherMatch[]>([]);
+  useEffect(() => {
+    if (!editing || q.trim().length < 2) return setHits([]);
+    const t = window.setTimeout(() => searchPublishers(q).then(setHits), 200);
+    return () => window.clearTimeout(t);
+  }, [q, editing]);
+
+  const pick = async (m: PublisherMatch) => {
+    const e = await employerFromPublisher(m.id, m.name);
+    onChange({ ...e, contact: value.publisherId === m.id ? value.contact : null });
+    setEditing(false);
+    setQ('');
+  };
+
+  return (
+    <Panel>
+      <div className="flex items-center justify-between">
+        <p className="text-[15px] font-bold text-ink-950">Company</p>
+        <button onClick={() => setEditing((v) => !v)} className="text-[13px] font-semibold text-[#1D4ED8] hover:underline">
+          {editing ? 'Cancel' : 'Change'}
+        </button>
+      </div>
+      {!editing ? (
+        <div className="mt-2 flex items-center gap-3">
+          {value.logo ? (
+            <img src={value.logo} alt="" className="h-9 w-9 rounded-md object-contain ring-1 ring-ink-100" />
+          ) : (
+            <span className="grid h-9 w-9 place-items-center rounded-md bg-ink-100 text-[14px] font-bold text-ink-600">{value.name.slice(0, 1)}</span>
+          )}
+          <div className="min-w-0 text-[13px]">
+            <p className="truncate font-semibold text-ink-900">{value.name}</p>
+            <p className="truncate text-ink-500">{[cleanWebsite(value.website), value.hq].filter(Boolean).join(' · ') || 'Details added from MadeVisa when available'}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-2">
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search MadeVisa companies" className={INPUT} />
+          <ul className="mt-1 max-h-56 overflow-y-auto">
+            {hits.map((m) => (
+              <li key={m.id}>
+                <button onClick={() => void pick(m)} className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-[13px] hover:bg-[#1D4ED8]/5">
+                  <span className="truncate font-semibold text-ink-900">{m.name}</span>
+                  <span className="shrink-0 text-ink-400">{m.country?.name ?? ''}</span>
+                </button>
+              </li>
+            ))}
+            {q.trim().length >= 2 && (
+              <li>
+                <button
+                  onClick={() => {
+                    onChange({ name: q.trim().slice(0, 200), publisherId: null });
+                    setEditing(false);
+                    setQ('');
+                  }}
+                  className="w-full rounded-md px-2 py-2 text-left text-[13px] font-semibold text-[#1D4ED8] hover:bg-[#1D4ED8]/5"
+                >
+                  + Add “{q.trim()}”
+                </button>
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+      <label className="mt-3 block">
+        <span className="text-[12px] font-semibold text-ink-600">HR contact (optional)</span>
+        <input
+          defaultValue={value.contact ?? ''}
+          key={value.name}
+          onBlur={(e) => e.target.value.trim() !== (value.contact ?? '') && onChange({ ...value, contact: e.target.value.trim().slice(0, 160) || null })}
+          placeholder="name@company.com"
+          className={INPUT}
+        />
+      </label>
     </Panel>
   );
 }
@@ -557,7 +755,11 @@ function OfferDocument({ doc, terms, guide, route, code, draft }: { doc: DocData
       {/* Parties */}
       <dl className="mt-8 grid gap-x-8 gap-y-4 border-y border-ink-200 py-5 font-sans text-[14px] sm:grid-cols-2">
         <Party k="Candidate" v={doc.candidateName} sub={doc.headline} />
-        <Party k="Employer" v={doc.companyName} />
+        <Party
+          k="Employer"
+          v={doc.companyName}
+          sub={[cleanWebsite(terms.employer?.website), terms.employer?.hq ? `HQ ${terms.employer.hq}` : null, terms.employer?.contact].filter(Boolean).join(' · ') || null}
+        />
         <Party k="Position" v={doc.jobTitle} />
         <Party
           k="Place of work"
@@ -662,6 +864,14 @@ function OfferDocument({ doc, terms, guide, route, code, draft }: { doc: DocData
           <>Costs the Employer pays under clause 4 are not repayable by the Candidate.</>
         )}
       </Clause>
+
+      {terms.salaryOffset ? (
+        <Clause n={clause()} title="Salary offset">
+          To help with costs the Employer pays under clause 4, the Candidate agrees that up to {money(terms.salaryOffset, code)} may be deducted from their gross pay during the first 12
+          months, in equal monthly amounts and with their written consent. The deduction stops once the costs the Employer actually paid are recovered, never covers costs in clause 3,
+          and never takes pay below the legal minimum wage or the {route.name} salary requirement. Any amount deducted counts towards repayment under clause 5.
+        </Clause>
+      ) : null}
 
       <Clause n={clause()} title="Start">
         The Candidate can start work in {guide.name} within {terms.startWeeks} weeks of the visa being granted.

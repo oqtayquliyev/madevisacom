@@ -6,6 +6,7 @@ import { jobPath } from '@/lib/jobUrl';
 import { getRecentlyViewedJobs, type ViewedJobSnapshot } from '@/lib/viewedJobs';
 import { briefPath, fetchMyBriefs, newOfferPath } from '@/lib/briefs';
 import { briefCountries, uuidFromBoardId } from '@/lib/sponsorOffer';
+import { visaGuideByCode } from '@/data/visa';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { OfferFlags } from '@/components/briefs/OfferBits';
 
@@ -69,7 +70,7 @@ export function OfferJobPicker({ limit = 6, onAuth, title = 'Your last visited j
           {rows.map((r) => {
             const job = jobPath({ id: r.id, title: r.title, company: r.organization });
             return (
-              <li key={r.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${r.ok ? '' : 'opacity-60'}`}>
+              <li key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <CircleFlag countryCode={r.countryCode} label={r.country} size={24} />
                 <a href={job} onClick={go(job)} className="min-w-0 flex-1">
                   <span className="block truncate text-[14px] font-semibold text-ink-900 hover:text-[#1D4ED8]">{r.title}</span>
@@ -87,7 +88,7 @@ export function OfferJobPicker({ limit = 6, onAuth, title = 'Your last visited j
                     <FileSignature className="h-4 w-4" /> Prepare PDF to apply
                   </a>
                 ) : (
-                  <span className="text-[12px] font-semibold text-ink-400">Country not covered yet</span>
+                  <PickCountry uuid={r.uuid} />
                 )}
               </li>
             );
@@ -95,5 +96,36 @@ export function OfferJobPicker({ limit = 6, onAuth, title = 'Your last visited j
         </ul>
       )}
     </section>
+  );
+}
+
+/** Job's own country isn't covered: pick where you'd work, then prepare. */
+function PickCountry({ uuid }: { uuid: string }) {
+  const list = [...briefCountries].map((c) => ({ code: c, name: visaGuideByCode.get(c)?.name ?? c })).sort((a, b) => a.name.localeCompare(b.name));
+  const [code, setCode] = useState(list[0]?.code ?? 'DE');
+  const href = `${newOfferPath(uuid)}&country=${code}`;
+  return (
+    <span className="flex items-center gap-2">
+      <span className="flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white py-1 pl-2 pr-1">
+        <CircleFlag countryCode={code} size={18} />
+        <select value={code} onChange={(e) => setCode(e.target.value)} aria-label="Country you'd work in" className="bg-transparent py-1 text-[13px] font-semibold text-ink-800 outline-none">
+          {list.map((c) => (
+            <option key={c.code} value={c.code}>
+              Work in {c.name}
+            </option>
+          ))}
+        </select>
+      </span>
+      <a
+        href={href}
+        onClick={(e) => {
+          e.preventDefault();
+          nav(href);
+        }}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D4ED8] px-3 py-2 text-[13px] font-bold text-white hover:bg-brand-800"
+      >
+        <FileSignature className="h-4 w-4" /> Prepare PDF
+      </a>
+    </span>
   );
 }

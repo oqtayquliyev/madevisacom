@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, FileSignature, Loader2, Paperclip } from 'lucide-react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { FileCheck2, FileSignature, Loader2, PlayCircle, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
 import { briefEligibility, briefPath, fetchMyBriefForJob, newOfferPath } from '@/lib/briefs';
-import { fetchOfferCredits, type OfferCredits } from '@/lib/sponsorOffer';
-import { CreditMeter, OfferFlags, OfferInfo } from '@/components/briefs/OfferBits';
-import { briefCountries, visaGuideByCode } from '@/data/visa';
-
-const countryList = () => [...briefCountries].map((c) => visaGuideByCode.get(c)?.name ?? c).join(', ');
+import { creditsBadge, useOfferCredits } from '@/lib/sponsorOffer';
+import { OfferFlags, OfferInfo } from '@/components/briefs/OfferBits';
+import { OfferDemo, OfferSteps } from '@/components/briefs/OfferDemo';
 
 type Props = {
   jobId: string;
@@ -22,92 +20,129 @@ type Props = {
   onAuth?: (page: 'login' | 'register') => void;
 };
 
+/** Default country for jobs whose own country isn't covered yet. */
+const FALLBACK = 'DE';
 
 /**
- * "Prepare your sponsor offer" — on job pages in countries with checked
- * employer data. Opens the offer builder (/brief/new?job=…), which spends
- * one credit when the document is generated.
+ * "Get sponsored for this job" — on every open job page. Prepare the offer
+ * PDF (or open it: "Your document is ready"), or see a demo filled in with
+ * this job first.
  */
 export function HiringBriefCallout(props: Props) {
   const { session } = useAuth();
-  const eligibility = useMemo(() => briefEligibility({ countryCode: props.countryCode, visa: props.visa, closed: props.closed }), [props.countryCode, props.visa, props.closed]);
+  const credits = useOfferCredits();
+  const el = useMemo(
+    () => briefEligibility({ countryCode: props.countryCode, visa: props.visa, closed: props.closed, override: FALLBACK }),
+    [props.countryCode, props.visa, props.closed],
+  );
   const [existing, setExisting] = useState<string | null | undefined>(undefined);
-  const [credits, setCredits] = useState<OfferCredits | null>(null);
+  const [demo, setDemo] = useState(false);
 
   useEffect(() => {
-    if (!session || !eligibility.ok) {
-      setExisting(null);
-      return;
-    }
+    if (!session) return setExisting(null);
     fetchMyBriefForJob(props.jobId).then((b) => setExisting(b?.share_id ?? null));
-    fetchOfferCredits().then(setCredits);
-  }, [session, props.jobId, eligibility.ok]);
+  }, [session, props.jobId]);
 
-  if (!eligibility.ok) return null;
-  const { guide } = eligibility;
-  const offered = props.visa === 'offered';
-  const noCredits = credits && !credits.unlimited && credits.left === 0;
+  if (!el.ok) return null;
+  const out = credits && !credits.unlimited && credits.left === 0;
+  const start = el.picked ? `${newOfferPath(props.jobId)}&country=${el.code}` : newOfferPath(props.jobId);
 
-  const primary = 'inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-[15px] font-bold text-brand-700 shadow-sm transition hover:bg-brand-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white';
+  const primary =
+    'inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 text-[15px] font-bold text-brand-700 shadow-sm transition hover:bg-brand-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white';
+  const go = (href: string) => (e: MouseEvent) => {
+    e.preventDefault();
+    if (!session) return props.onAuth?.('register');
+    nav(href);
+  };
 
   return (
     <section aria-labelledby="offer-cta" className="mt-4 overflow-hidden rounded-2xl bg-brand-700 text-white">
-      <div className="p-5 sm:p-7">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <OfferFlags size={24} highlight={guide.code} />
-          <span className="text-[13px] font-semibold text-white/80">Works for jobs in {countryList()}</span>
-        </div>
-
-        <div className="mt-4 flex items-start gap-2">
-          <h2 id="offer-cta" className="text-[22px] font-bold leading-tight tracking-tight sm:text-[26px]">
-            {existing ? 'Your sponsor offer is ready' : offered ? `Make ${props.companyName}'s visa decision easy` : 'Prepare your sponsor offer'}
-          </h2>
-          <OfferInfo light className="mt-1" />
-        </div>
-        <p className="mt-2 max-w-2xl text-[15px] leading-6 text-white/85">
-          {existing
-            ? 'Save it as a PDF and attach it to your application, or send the link to the recruiter.'
-            : offered
-              ? `A signed-ready document showing the ${guide.name} route, the steps on their side, and which visa costs you'll carry.`
-              : `This job doesn't mention sponsorship. Show ${props.companyName} exactly how hiring you in ${guide.name} works, and which costs you'll carry — one page they can sign.`}
-        </p>
-
-        <ol className="mt-5 grid gap-2 text-[13px] sm:grid-cols-3">
-          {['Drag to decide who pays what', 'Save it as a PDF', 'Attach it when you apply'].map((t, i) => (
-            <li key={t} className="flex items-center gap-2.5 rounded-lg bg-white/10 px-3 py-2.5 ring-1 ring-white/15">
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white text-[12px] font-bold text-brand-700">{i + 1}</span>
-              <span className="font-semibold text-white">{t}</span>
-              {i === 2 && <Paperclip className="ml-auto h-4 w-4 text-white/60" />}
-            </li>
-          ))}
-        </ol>
-
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-          {!session ? (
-            <button onClick={() => props.onAuth?.('register')} className={primary}>
-              <FileSignature className="h-4 w-4" /> Sign up — 5 offers free
+      <div className="grid gap-6 p-5 sm:p-7 md:grid-cols-[minmax(0,1fr)_200px] md:items-center">
+        <div className="min-w-0">
+          <OfferFlags size={24} highlight={el.code} />
+          <div className="mt-4 flex items-start gap-2">
+            <h2 id="offer-cta" className="text-[24px] font-bold leading-tight tracking-tight sm:text-[28px]">
+              {existing ? 'Your document is ready' : 'Get sponsored for this job'}
+            </h2>
+            <OfferInfo light className="mt-1" />
+          </div>
+          <p className="mt-2 text-[15px] leading-6 text-white/85">
+            {existing ? 'Attach the PDF to your application.' : `Attach a sponsorship offer to your application. ${props.companyName} sees exactly how to hire you.`}
+          </p>
+          <div className="mt-5">
+            <OfferSteps light active={existing ? 3 : 0} />
+          </div>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            {session && existing === undefined ? (
+              <span className="inline-flex items-center gap-2 text-[14px] text-white/80">
+                <Loader2 className="h-4 w-4 animate-spin" /> Checking…
+              </span>
+            ) : existing ? (
+              <a href={briefPath(existing)} onClick={go(briefPath(existing))} className={primary}>
+                <FileCheck2 className="h-4 w-4" /> Open my document
+              </a>
+            ) : out ? (
+              <a href="/pricing#offers" onClick={go('/pricing#offers')} className={primary}>
+                Get more offers
+              </a>
+            ) : (
+              <a href={start} onClick={go(start)} className={primary}>
+                <FileSignature className="h-4 w-4" /> Prepare my offer PDF
+                <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-bold text-white">{creditsBadge(credits)}</span>
+              </a>
+            )}
+            <button onClick={() => setDemo(true)} className="inline-flex items-center gap-2 rounded-full px-5 py-3.5 text-[14px] font-bold text-white ring-1 ring-white/40 hover:bg-white/10">
+              <PlayCircle className="h-4 w-4" /> See demo for this job
             </button>
-          ) : existing === undefined ? (
-            <span className="inline-flex items-center gap-2 text-[14px] text-white/80">
-              <Loader2 className="h-4 w-4 animate-spin" /> Checking…
-            </span>
-          ) : existing ? (
-            <a href={briefPath(existing)} onClick={(e) => (e.preventDefault(), nav(briefPath(existing)))} className={primary}>
-              Open your offer <ArrowRight className="h-4 w-4" />
-            </a>
-          ) : noCredits ? (
-            <a href="/pricing#offers" onClick={(e) => (e.preventDefault(), nav('/pricing#offers'))} className={primary}>
-              Get more offers <ArrowRight className="h-4 w-4" />
-            </a>
-          ) : (
-            <a href={newOfferPath(props.jobId)} onClick={(e) => (e.preventDefault(), nav(newOfferPath(props.jobId)))} className={primary}>
-              <FileSignature className="h-4 w-4" /> Prepare your sponsor offer
-            </a>
-          )}
-          {session && credits && !existing && <CreditMeter credits={credits} light />}
-          {!session && <span className="text-[13px] text-white/75">Free account. Your email and phone are never shown.</span>}
+          </div>
         </div>
+
+        {/* A small "paper" so it's obvious what you get. */}
+        <button onClick={() => setDemo(true)} aria-label="See demo for this job" className="hidden rotate-2 rounded-sm bg-white p-4 text-left text-ink-900 shadow-2xl transition hover:rotate-0 md:block">
+          <p className="border-b-2 border-ink-900 pb-1 text-[10px] font-extrabold">
+            made<span className="text-[#1D4ED8]">visa</span>
+          </p>
+          <p className="mt-2 font-serif text-[13px] font-semibold leading-tight">Sponsorship cost-sharing offer</p>
+          <p className="mt-1 line-clamp-2 text-[10px] text-ink-500">
+            {props.jobTitle} · {props.companyName}
+          </p>
+          {['Visa fee', 'Relocation', 'Translations'].map((r, i) => (
+            <div key={r} className="mt-1.5 flex items-center justify-between text-[9px]">
+              <span className="text-ink-600">{r}</span>
+              <span className={`rounded px-1 font-semibold ${i === 1 ? 'bg-[#1D4ED8]/15 text-[#1D4ED8]' : i ? 'bg-ink-100' : 'bg-[#1D4ED8] text-white'}`}>{i === 1 ? 'Shared' : i ? 'Candidate' : 'Employer'}</span>
+            </div>
+          ))}
+          <div className="mt-4 grid grid-cols-2 gap-2 text-[8px] text-ink-400">
+            <span className="border-t border-ink-400 pt-0.5">Candidate</span>
+            <span className="border-t border-ink-400 pt-0.5">Employer</span>
+          </div>
+        </button>
       </div>
+
+      {demo && (
+        <div role="dialog" aria-modal="true" aria-label="Offer demo" className="fixed inset-0 z-[60] grid place-items-center bg-ink-950/60 p-3" onClick={() => setDemo(false)}>
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-[#e9edf3] p-4 text-ink-900 sm:p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <OfferSteps active={1} />
+              <button onClick={() => setDemo(false)} aria-label="Close demo" className="grid h-9 w-9 place-items-center rounded-full bg-white text-ink-600 hover:text-ink-900">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <OfferDemo job={{ title: props.jobTitle, company: props.companyName, code: el.code }} />
+            <div className="mt-5 flex justify-end">
+              {existing ? (
+                <a href={briefPath(existing)} onClick={go(briefPath(existing))} className="inline-flex items-center gap-2 rounded-full bg-[#1D4ED8] px-6 py-3 text-[15px] font-bold text-white hover:bg-brand-800">
+                  <FileCheck2 className="h-4 w-4" /> Open my document
+                </a>
+              ) : (
+                <a href={start} onClick={go(start)} className="inline-flex items-center gap-2 rounded-full bg-[#1D4ED8] px-6 py-3 text-[15px] font-bold text-white hover:bg-brand-800">
+                  <FileSignature className="h-4 w-4" /> Make mine for this job
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

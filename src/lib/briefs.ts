@@ -12,7 +12,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { briefRoutesFor, visaGuideByCode, type CandidateCover, type VisaGuide, type VisaRoute } from '@/data/visa';
-import { buildTerms, type OfferTerms } from '@/lib/sponsorOffer';
+import type { OfferTerms } from '@/lib/sponsorOffer';
 
 export type BriefStatus = 'created' | 'sent' | 'replied' | 'interview' | 'offer' | 'declined' | 'no_reply' | 'withdrawn';
 
@@ -80,14 +80,25 @@ export const briefUrl = (shareId: string) => `${window.location.origin}${briefPa
  * sponsorship is "not offered" (we respect that). Jobs that already offer
  * sponsorship qualify too: the offer then speeds up and de-risks it.
  */
-export function briefEligibility(input: { countryCode: string | null | undefined; visa: 'offered' | 'not_offered' | null | undefined; closed?: boolean }):
-  | { ok: true; guide: VisaGuide; routes: VisaRoute[] }
-  | { ok: false } {
-  if (input.closed || input.visa === 'not_offered') return { ok: false };
-  const guide = input.countryCode ? visaGuideByCode.get(input.countryCode.toUpperCase()) : undefined;
-  if (!guide) return { ok: false };
-  const routes = briefRoutesFor(guide);
-  return routes.length ? { ok: true, guide, routes } : { ok: false };
+export function briefEligibility(input: {
+  countryCode: string | null | undefined;
+  visa: 'offered' | 'not_offered' | null | undefined;
+  closed?: boolean;
+  /** Candidate's pick when the job's own country isn't covered (or unknown). */
+  override?: string | null;
+}): { ok: true; guide: VisaGuide; routes: VisaRoute[]; code: string; picked: boolean } | { ok: false } {
+  if (input.closed) return { ok: false };
+  const routesOf = (code: string) => {
+    const g = visaGuideByCode.get(code);
+    return g ? briefRoutesFor(g) : [];
+  };
+  const own = (input.countryCode ?? '').toUpperCase();
+  const ownRoutes = routesOf(own);
+  if (ownRoutes.length) return { ok: true, guide: visaGuideByCode.get(own)!, routes: ownRoutes, code: own, picked: false };
+  const alt = (input.override ?? '').toUpperCase();
+  const altRoutes = routesOf(alt);
+  if (altRoutes.length) return { ok: true, guide: visaGuideByCode.get(alt)!, routes: altRoutes, code: alt, picked: true };
+  return { ok: false };
 }
 
 export function findRoute(countryCode: string, routeId: string): { guide: VisaGuide; route: VisaRoute } | null {
@@ -209,14 +220,15 @@ export async function updateBriefStatus(shareId: string, status: BriefStatus): P
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
-/** Owner re-drags the slider: new terms, same link. Free — credits are only spent on creating. */
-export async function updateBriefTerms(shareId: string, split: number, allowed: CandidateCover[]): Promise<{ ok: boolean; terms?: OfferTerms; error?: string }> {
-  const terms = buildTerms(split, allowed);
+/** Owner changes the terms (slider, salary offset, employer): same link, no credit. */
+export async function updateBriefTerms(shareId: string, terms: OfferTerms): Promise<{ ok: boolean; terms?: OfferTerms; error?: string }> {
   const covers = terms.items.filter((i) => i.payer !== 'employer').map((i) => i.key);
-  const { error } = await supabase
-    .from('hiring_briefs')
-    .update({ split: terms.split, terms, covers, remote_first: terms.remoteStart, terms_updated_at: new Date().toISOString() })
-    .eq('share_id', shareId);
+  const patch: Record<string, unknown> = { split: terms.split, terms, covers, remote_first: terms.remoteStart, terms_updated_at: new Date().toISOString() };
+  if (terms.employer?.name) {
+    patch.company_name = terms.employer.name.slice(0, 200);
+    patch.publisher_id = terms.employer.publisherId ?? null;
+  }
+  const { error } = await supabase.from('hiring_briefs').update(patch).eq('share_id', shareId);
   return error ? { ok: false, error: /column|schema cache/i.test(error.message) ? 'Run migration 20261109090000 to save offer terms.' : error.message } : { ok: true, terms };
 }
 

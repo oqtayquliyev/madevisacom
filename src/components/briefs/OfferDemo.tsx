@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Briefcase, ChevronRight, FileDown, Paperclip, SlidersHorizontal } from 'lucide-react';
 import { DragSlider } from '@/components/common/DragSlider';
 import { buildTerms, OFFER_ITEM_LABEL, PAYER_LABEL, splitWord } from '@/lib/sponsorOffer';
-import type { CandidateCover } from '@/data/visa';
+import { visaGuideByCode, briefRoutesFor, type CandidateCover } from '@/data/visa';
+import { CircleFlag } from '@/components/common/CircleFlag';
 
 const ALL: CandidateCover[] = ['visa-fee', 'relocation', 'translations', 'recognition', 'own-adviser'];
 
@@ -41,9 +42,11 @@ export function OfferSteps({ active, light = false }: { active?: number; light?:
 }
 
 /** A small live document: drag the bar, watch the rows change. */
-export function OfferDemo() {
+export function OfferDemo({ job }: { job?: { title: string; company: string; code: string } }) {
   const [split, setSplit] = useState(35);
-  const t = buildTerms(split, ALL);
+  const guide = job ? visaGuideByCode.get(job.code) : undefined;
+  const route = guide ? briefRoutesFor(guide)[0] : undefined;
+  const t = buildTerms(split, route?.employer?.candidateMayCover ?? ALL);
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)] lg:items-center">
       <div className="rounded-sm bg-white p-5 font-serif text-ink-900 shadow-soft-lg ring-1 ring-ink-100 sm:p-7" aria-live="polite">
@@ -54,6 +57,13 @@ export function OfferDemo() {
           <span className="text-[11px] text-ink-500">Sponsor offer</span>
         </div>
         <p className="mt-4 text-[20px] font-semibold leading-tight tracking-tight">Sponsorship cost-sharing offer</p>
+        {job && (
+          <p className="mt-1 flex items-center gap-2 font-sans text-[13px] text-ink-600">
+            {guide && <CircleFlag countryCode={job.code} size={16} />}
+            {job.title} · {job.company}
+            {route ? ` · ${route.name}` : ''}
+          </p>
+        )}
         <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-ink-100">
           <span className="bg-[#1D4ED8] transition-[width] duration-300" style={{ width: `${100 - t.candidateShare}%` }} />
           <span className="bg-[#1D4ED8]/25 transition-[width] duration-300" style={{ width: `${t.candidateShare}%` }} />

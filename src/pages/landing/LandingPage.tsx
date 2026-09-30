@@ -10,9 +10,9 @@ type LandingProps = { go: (view: View) => void; onAuth?: (page: 'login' | 'regis
 
 export function LandingPage({ go, onAuth }: LandingProps) {
   useSeo({
-    title: 'MadeVisa | Jobs from the Source + Hiring Insights',
+    title: 'MadeVisa | Find a job abroad. Get the visa sponsored.',
     description:
-      'Live jobs straight from company career pages, plus hiring insights: company scores, reply rates and hiring trends. Programs, study and visas too — in one place.',
+      'Live jobs from company career pages, plus a sponsorship offer you attach to your application: the visa route, the steps for the employer and who pays what. 5 free.',
     path: '/',
   });
 

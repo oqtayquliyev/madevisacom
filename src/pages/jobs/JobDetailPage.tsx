@@ -236,10 +236,11 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const arrangement = job.workArrangement ?? detected.workArrangement ?? (job.remote ? 'remote' : null);
   const employmentType = isMeaningfulJobType(job.type) ? job.type : detected.employmentType;
   const visa = job.visaStatus ?? (job.visaSponsorship ? 'offered' : detected.visa);
-  // "Make offer" next to Apply, when the country has checked employer data.
-  const offerOk = Boolean(
-    raw && briefEligibility({ countryCode: raw.country?.iso_code ?? (countryOk ? job.countryCode : null), visa: visa ?? null, closed: Boolean(job.closed) }).ok
-  );
+  // Sponsorship offer next to Apply, on every open job. Jobs outside the
+  // covered countries start the builder with a country picker.
+  const offerEl = raw ? briefEligibility({ countryCode: raw.country?.iso_code ?? (countryOk ? job.countryCode : null), visa: visa ?? null, closed: Boolean(job.closed), override: 'DE' }) : null;
+  const offerOk = Boolean(offerEl?.ok);
+  const offerCountry = offerEl?.ok && offerEl.picked ? offerEl.code : null;
   const details: { icon: typeof Briefcase; label: string; value: ReactNode }[] = [
     { icon: Banknote, label: 'Compensation', value: salary ? <span className="font-bold text-ink-950">{salary}</span> : see },
     {
@@ -428,7 +429,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {applyButton('flex-1 bg-white text-brand-700 shadow-sm hover:bg-brand-50 focus-visible:outline-white md:flex-none')}
-              {offerOk && raw && <OfferButton jobId={raw.id} variant="hero" onAuth={onAuth} />}
+              {offerOk && raw && <OfferButton jobId={raw.id} variant="hero" country={offerCountry} onAuth={onAuth} />}
               <span className="relative shrink-0">
                 <button
                   onClick={share}
@@ -469,6 +470,22 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       </section>
 
       <main className="mx-auto max-w-4xl px-5 py-8 sm:px-8 sm:py-10">
+        {raw && (
+          <div className="-mt-4 mb-6">
+          <HiringBriefCallout
+            jobId={raw.id}
+            publisherId={raw.publisher_id ?? null}
+            jobTitle={job.title}
+            companyName={job.company}
+            jobFunction={raw.job_function ?? null}
+            jobCity={cityOk ? job.city : null}
+            countryCode={raw.country?.iso_code ?? (countryOk ? job.countryCode : null)}
+            visa={visa ?? null}
+            closed={closed}
+            onAuth={onAuth}
+          />
+          </div>
+        )}
         {closed && (
           <div className="mb-5 flex flex-col gap-3 rounded-xl border border-ink-200 bg-white p-4 sm:flex-row sm:items-center">
             <p className="min-w-0 flex-1 text-sm leading-6 text-ink-700">
@@ -521,7 +538,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {applyButton('flex-1 bg-brand-600 text-white shadow-soft-lg hover:bg-brand-700 focus-visible:outline-brand-600 md:flex-none')}
-              {offerOk && raw && <OfferButton jobId={raw.id} variant="body" onAuth={onAuth} />}
+              {offerOk && raw && <OfferButton jobId={raw.id} variant="body" country={offerCountry} onAuth={onAuth} />}
               <span className="relative shrink-0">
                 <button
                   onClick={share}
@@ -546,20 +563,6 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
           )}
         </div>
 
-        {raw && (
-          <HiringBriefCallout
-            jobId={raw.id}
-            publisherId={raw.publisher_id ?? null}
-            jobTitle={job.title}
-            companyName={job.company}
-            jobFunction={raw.job_function ?? null}
-            jobCity={cityOk ? job.city : null}
-            countryCode={raw.country?.iso_code ?? (countryOk ? job.countryCode : null)}
-            visa={visa ?? null}
-            closed={closed}
-            onAuth={onAuth}
-          />
-        )}
 
         {raw?.publisher_id && (
           <JobInsights

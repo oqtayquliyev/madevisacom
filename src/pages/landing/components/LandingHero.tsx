@@ -22,6 +22,8 @@ import { LocationMatchSection, fetchLandingItems, countNewWithin24h, type MatchI
 import { useSiteStats } from '@/lib/siteStats';
 import { allCountries, type CountryEntry } from '@/data/allCountries';
 import { CircleFlag } from '@/components/common/CircleFlag';
+import { OfferFlags } from '@/components/briefs/OfferBits';
+import { FileSignature } from 'lucide-react';
 
 type LandingHeroProps = {
   go: (view: View) => void;
@@ -463,18 +465,37 @@ export function LandingHero(_props: LandingHeroProps) {
 
           <div className="hidden items-center gap-2 text-sm font-medium text-white/70 sm:flex">
             <Sparkles className="h-4 w-4" />
-            Jobs + hiring insights, in one platform
+            Jobs abroad · Sponsorship offers · Hiring insights
           </div>
 
           <div className="max-w-4xl sm:mt-5">
 
             <h1 className="text-3xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
-              Find your path with MadeVisa.
+              Find a job abroad. Get the visa sponsored.
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75 sm:mt-4 sm:text-lg sm:leading-7">
-              Live jobs straight from company career pages — with insights on who's hiring, who replies and how fast. Plus programs, study and visas.
+              Apply to live jobs from company career pages, and attach a sponsorship offer that shows the employer exactly how to hire you.
             </p>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3 sm:mt-7">
+              <a
+                href="/offers"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.history.pushState({}, '', '/offers');
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                  window.scrollTo({ top: 0 });
+                }}
+                className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-[15px] font-bold text-brand-700 shadow-sm hover:bg-brand-50"
+              >
+                <FileSignature className="h-4 w-4" /> Make a sponsorship offer
+                <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-bold text-white">5 free</span>
+              </a>
+              <span className="hidden sm:inline-flex">
+                <OfferFlags size={28} />
+              </span>
+            </div>
 
           </div>
 
