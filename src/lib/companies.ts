@@ -217,6 +217,8 @@ export async function recordApplication(input: { publisherId: string; kind: 'job
       { publisher_id: input.publisherId, listing_kind: input.kind, listing_id: input.listingId, listing_title: input.title },
       { onConflict: 'user_id,listing_kind,listing_id', ignoreDuplicates: true }
     );
+    // The database adds a "track it here" notification — show it now.
+    window.dispatchEvent(new Event('madevisa:notifications'));
   } catch {
     /* tracking must never block applying */
   }
@@ -288,7 +290,9 @@ export function respondedWithinWeek(r: Pick<ApplicationReport, 'applied_at' | 'r
 
 /** "Yes, I applied" — starts tracking this application. */
 export async function confirmApplication(id: string) {
-  return updateApplicationReport(id, { status: 'applied' });
+  const res = await updateApplicationReport(id, { status: 'applied' });
+  if (res.ok) window.dispatchEvent(new Event('madevisa:notifications'));
+  return res;
 }
 
 export async function setApplicationPublic(id: string, isPublic: boolean): Promise<{ ok: boolean; error?: string }> {

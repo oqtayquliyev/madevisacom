@@ -50,10 +50,10 @@ export function CheckInReminder() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-ink-950">Did {due.company} reply?</p>
-            <p className="mt-0.5 line-clamp-2 text-xs text-ink-600">3 quick questions about {due.listing_title ?? 'your application'} — takes 10 seconds.</p>
+            <p className="mt-0.5 line-clamp-2 text-xs text-ink-600">Drag to update {due.listing_title ?? 'your application'} — takes 5 seconds.</p>
             <div className="mt-3 flex gap-2">
               <a href={`/profile?track=${due.listing_id}`} className="rounded-lg bg-[#2563EB] px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-700">
-                Answer now
+                Update it
               </a>
               <button
                 onClick={() => {

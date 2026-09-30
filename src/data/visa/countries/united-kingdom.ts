@@ -27,6 +27,18 @@ export const unitedKingdom: VisaGuide = {
       requires: ['job-offer', 'degree', 'salary-threshold'],
       note: 'Since July 2025 most roles must be at graduate level.',
       url: 'https://www.gov.uk/skilled-worker-visa',
+      employer: {
+        licenceNeeded: true,
+        licenceNote: 'Only employers with a Home Office sponsor licence can hire on this route. If you don\'t have one, you apply once; the fee is lower for small and charitable sponsors.',
+        steps: [
+          { text: 'Get a sponsor licence from the Home Office, if you don\'t have one already.', effort: 'One-off application', optional: true },
+          { text: 'Offer a role in an eligible occupation at or above the Skilled Worker salary threshold.', effort: 'Part of your normal offer' },
+          { text: 'Assign a Certificate of Sponsorship to the candidate through the sponsor management system.', effort: 'About 1 hour' },
+        ],
+        timeline: 'Once the certificate is assigned, most applications from outside the UK are decided in about 3 weeks.',
+        candidateMayCover: ['visa-fee', 'relocation', 'translations', 'own-adviser'],
+        employerCosts: 'The Certificate of Sponsorship fee and the Immigration Skills Charge are the employer\'s by law and can\'t be passed on to the worker.',
+      },
     },
     {
       id: 'gb-global-talent',

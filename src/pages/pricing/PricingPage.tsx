@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react';
-import { Check, CheckCircle2, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Check, CheckCircle2, FileSignature, Sparkles } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { WRAP } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
 import { usePersonalization } from '@/lib/personalization';
 import { countryName } from '@/lib/visaFit';
-import { missingProfileFields, PRO_FEATURES, PRO_PRICES, priceRegionFor, RELOCATION_PRICE, useMyPlan, type Billing, type PlanId } from '@/lib/plans';
+import { missingProfileFields, OFFER_PACK_PRICE, PRO_FEATURES, PRO_PRICES, priceRegionFor, RELOCATION_PRICE, useMyPlan, type Billing, type PlanId } from '@/lib/plans';
+import { fetchOfferCredits, FREE_OFFER_CREDITS, type OfferCredits } from '@/lib/sponsorOffer';
+import { CreditMeter, OfferFlags, OfferInfo } from '@/components/briefs/OfferBits';
 import { PlanRequestDialog } from '@/components/pro/PlanRequestDialog';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -14,7 +16,7 @@ import { AppLink, Faq } from '@/pages/info/InfoPage';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
-const FREE = ['Every job, straight from company career pages', 'Reply-rate and hiring-activity line on every job', 'Your visa route for every job', 'Track your applications, with reminders', 'Visa guides for 20+ countries'];
+const FREE = ['Every job, straight from company career pages', `${FREE_OFFER_CREDITS} sponsor offers to send employers`, 'Reply-rate and hiring-activity line on every job', 'Your visa route for every job', 'Track your applications, with reminders', 'Visa guides for 20+ countries'];
 
 const EMPLOYER: { id: PlanId; name: string; price: string; unit: string; text: string; points: string[] }[] = [
   { id: 'sponsored_job', name: 'Sponsored job', price: '$299', unit: 'per job · 30 days', text: 'Pinned at the top of /jobs and on the homepage, labelled Sponsored.', points: ['Reviewed within a day', 'Nothing charged before approval', 'Packs of 3+ at a discount'] },
@@ -42,6 +44,14 @@ export function PricingPage({ go, onAuth }: Props) {
   const proLabel = billing === 'monthly' ? `$${pro.monthly} / month` : `$${pro.yearly} / year`;
   const saving = Math.round(100 - (pro.yearly / (pro.monthly * 12)) * 100);
   const missing = useMemo(() => (profile ? missingProfileFields(profile) : []), [profile]);
+  const [credits, setCredits] = useState<OfferCredits | null>(null);
+  useEffect(() => {
+    if (profile) fetchOfferCredits().then(setCredits);
+  }, [profile]);
+  useEffect(() => {
+    if (window.location.hash === '#offers') window.setTimeout(() => document.getElementById('offers')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+  }, []);
+  const pack = OFFER_PACK_PRICE[region];
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
@@ -157,6 +167,53 @@ export function PricingPage({ go, onAuth }: Props) {
           </div>
         </div>
 
+        <section id="offers" className="mt-16 scroll-mt-24 overflow-hidden rounded-2xl bg-brand-700 text-white">
+          <div className="p-6 sm:p-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <OfferFlags size={26} />
+              {credits && <CreditMeter credits={credits} light />}
+            </div>
+            <div className="mt-4 flex items-start gap-2">
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Sponsor offers</h2>
+              <OfferInfo light className="mt-1" />
+            </div>
+            <p className="mt-2 max-w-2xl text-[15px] leading-6 text-white/85">
+              A one-page document for the employer: the legal visa route, the steps on their side, and which visa costs you’ll carry. Drag to set the terms, save it as a PDF, attach it
+              when you apply.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <OfferTier name="Free" price="$0" unit={`${FREE_OFFER_CREDITS} offers, on every account`} />
+              <OfferTier
+                name="Offer pack"
+                price={`$${pack}`}
+                unit="10 more offers, one-time"
+                action={
+                  profile ? (
+                    <button onClick={() => setDialog({ plan: 'brief_credits', billing: 'one_time', label: `$${pack} for 10 offers` })} className="mt-4 w-full rounded-lg bg-white py-2.5 text-sm font-bold text-brand-700 hover:bg-brand-50">
+                      Get 10 offers
+                    </button>
+                  ) : (
+                    <button onClick={() => onAuth?.('register')} className="mt-4 w-full rounded-lg bg-white py-2.5 text-sm font-bold text-brand-700 hover:bg-brand-50">
+                      Create free account
+                    </button>
+                  )
+                }
+              />
+              <OfferTier
+                name="With Pro"
+                price="Unlimited"
+                unit="Included in MadeVisa Pro"
+                action={
+                  <a href="#pro" onClick={(e) => (e.preventDefault(), document.getElementById('pro')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))} className="mt-4 block w-full rounded-lg py-2.5 text-center text-sm font-bold text-white ring-1 ring-white/40 hover:bg-white/10">
+                    See Pro
+                  </a>
+                }
+              />
+            </div>
+            <p className="mt-4 text-xs text-white/70">A credit is used when an offer is generated. Changing its terms later is free.</p>
+          </div>
+        </section>
+
         <section className="mt-16">
           <h2 className="text-2xl font-bold tracking-tight text-ink-950">For employers</h2>
           <p className="mt-1 text-[15px] text-ink-600">Reach people looking for exactly your roles — including the ones ready to relocate. Paying never changes Company Scores or rankings.</p>
@@ -187,6 +244,8 @@ export function PricingPage({ go, onAuth }: Props) {
           <div className="mt-5">
             <Faq
               items={[
+                { q: 'Is a sponsor offer legally binding?', a: 'Not on its own. It’s a proposal that becomes binding only when both you and the employer sign it, or when its terms go into your employment contract. It never covers costs the law puts on the employer, never touches salary, and isn’t legal advice.' },
+                { q: 'How do I attach a sponsor offer to my application?', a: 'Open the offer, press Save as PDF, and upload it as an extra document next to your CV. If the form has no upload field, paste the offer’s link into your cover letter or message.' },
                 { q: 'How do I pay?', a: 'Choose a plan and send the short form. We email you a secure payment link within one working day, and your plan starts as soon as it’s paid. No card is needed to send the request.' },
                 { q: 'Why is the price lower in my country?', a: 'Prices follow local incomes, so Pro is affordable wherever you’re applying from. The features are the same.' },
                 { q: 'Can I cancel?', a: 'Yes. Monthly plans stop at the end of the month; yearly plans at the end of the year. Email hello@madevisa.com.' },
@@ -200,6 +259,19 @@ export function PricingPage({ go, onAuth }: Props) {
 
       {dialog && <PlanRequestDialog plan={dialog.plan} billing={dialog.billing} priceLabel={dialog.label} region={region} onClose={() => setDialog(null)} onAuth={onAuth} />}
       <LandingFooter go={go} onAuth={onAuth} />
+    </div>
+  );
+}
+
+function OfferTier({ name, price, unit, action }: { name: string; price: string; unit: string; action?: ReactNode }) {
+  return (
+    <div className="flex flex-col rounded-xl bg-white/10 p-5 ring-1 ring-white/15">
+      <p className="flex items-center gap-2 text-sm font-semibold text-white/80">
+        <FileSignature className="h-4 w-4" /> {name}
+      </p>
+      <p className="mt-2 text-2xl font-bold">{price}</p>
+      <p className="text-xs text-white/75">{unit}</p>
+      <div className="mt-auto">{action}</div>
     </div>
   );
 }

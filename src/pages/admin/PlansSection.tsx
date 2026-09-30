@@ -122,7 +122,11 @@ export function PlansSection() {
               <div className="mt-3 flex flex-wrap gap-2">
                 {r.status !== 'active' && (
                   <>
-                    {r.user_id && (r.plan === 'pro' || r.plan === 'relocation') ? (
+                    {r.user_id && r.plan === 'brief_credits' ? (
+                      <button onClick={() => void activate(r, 1)} disabled={busy === r.id} className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Activate (+10 offers)
+                      </button>
+                    ) : r.user_id && (r.plan === 'pro' || r.plan === 'relocation') ? (
                       <>
                         <button onClick={() => void activate(r, r.plan === 'relocation' ? 3 : r.billing === 'yearly' ? 12 : 1)} disabled={busy === r.id} className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
                           <CheckCircle2 className="h-3.5 w-3.5" /> Activate ({r.plan === 'relocation' ? '3 months Pro' : r.billing === 'yearly' ? '12 months' : '1 month'})

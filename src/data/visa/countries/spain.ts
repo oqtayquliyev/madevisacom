@@ -38,6 +38,16 @@ export const spain: VisaGuide = {
       leadsToPR: true,
       requires: ['degree', 'job-offer', 'salary-threshold'],
       url: 'https://www.exteriores.gob.es/en/ServiciosAlCiudadano/Paginas/Visados.aspx',
+      employer: {
+        licenceNeeded: false,
+        steps: [
+          { text: 'Offer a qualified role at or above the salary threshold for highly qualified professionals.', effort: 'Part of your normal offer' },
+          { text: 'Apply online to the Large Companies Unit (UGE) with the contract and company documents.', effort: 'About 1–2 hours online' },
+        ],
+        timeline: 'The UGE aims to decide within about 20 working days; the candidate then collects the visa at a consulate.',
+        candidateMayCover: ['visa-fee', 'relocation', 'translations', 'recognition', 'own-adviser'],
+        employerCosts: 'No sponsor licence. Company documents and the UGE application are on the employer\'s side.',
+      },
     },
     {
       id: 'es-non-lucrative',

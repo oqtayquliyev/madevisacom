@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Bell,
-  BellOff,
   Briefcase,
   Check,
   ChevronDown,
+  FileSignature,
   Globe,
   Loader2,
-  Lock,
   Trash2,
 } from "lucide-react";
+import { DragSlider } from "@/components/common/DragSlider";
+import { briefPath, fetchMyBriefs } from "@/lib/briefs";
 import {
   NEVER_HEARD_BACK_DAYS,
   NO_RESPONSE_WEEK_DAYS,
@@ -69,6 +69,7 @@ type Choice =
   | "applied"
   | "responded"
   | "interview"
+  | "offer"
   | "rejected"
   | "no_response_week"
   | "no_response"
@@ -84,18 +85,14 @@ function choiceOf(r: ApplicationReport): Choice {
     case "responded":
       return r.status;
     case "offer":
-      return "interview";
+      return "offer";
     default:
       return hasResponse(r) ? "responded" : "applied";
   }
 }
 
 const isResponse = (c: Choice) =>
-  c === "responded" || c === "interview" || c === "rejected";
-const checkInsDone = (r: ApplicationReport) =>
-  (choiceOf(r) !== "applied" ? 1 : 0) +
-  (r.match_answer ? 1 : 0) +
-  (r.accuracy_answer ? 1 : 0);
+  c === "responded" || c === "interview" || c === "offer" || c === "rejected";
 
 type Filter = "all" | "waiting" | "responded";
 
@@ -146,6 +143,19 @@ export function ApplicantReport({
   const [confirmDelete, setConfirmDelete] = useState<ApplicationReport | null>(
     null,
   );
+  // Sponsor offers made for these jobs (job id → share id).
+  const [offers, setOffers] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    fetchMyBriefs().then((list) =>
+      setOffers(
+        new Map(
+          (list ?? [])
+            .filter((b) => b.job_id)
+            .map((b) => [b.job_id as string, b.share_id]),
+        ),
+      ),
+    );
+  }, []);
 
   useEffect(() => {
     // Apply clicks made before signing in are added first.
@@ -194,6 +204,87 @@ export function ApplicantReport({
         onEditProfile={onEditProfile}
       />
 
+      <section aria-labelledby="report-heading">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 id="report-heading" className="text-lg font-bold text-ink-950">
+            Your applications
+          </h2>
+          <span className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-600">
+            <Globe className="h-3 w-3" /> Shown on your profile — switch any off
+          </span>
+          <div className="ml-auto flex rounded-lg bg-[#2563EB]/10 p-0.5">
+            {(["all", "waiting", "responded"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${filter === f ? "bg-white text-ink-950 shadow-sm" : "text-ink-600 hover:text-[#2563EB]"}`}
+              >
+                {f === "all"
+                  ? `All ${tracked.length}`
+                  : f === "waiting"
+                    ? "In progress"
+                    : "Replied"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {rows === null ? (
+          <div className="mt-4 flex items-center gap-2 rounded-xl bg-[#2563EB]/[0.06] px-5 py-6 text-sm text-ink-500">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading your
+            applications…
+          </div>
+        ) : tracked.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-[#2563EB]/30 bg-[#2563EB]/[0.04] px-5 py-10 text-center">
+            <Briefcase className="mx-auto h-8 w-8 text-[#2563EB]/40" />
+            <p className="mt-2 text-sm font-semibold text-ink-800">
+              {pending.length
+                ? "Confirm an application below to start tracking"
+                : "No applications tracked yet"}
+            </p>
+            <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-ink-500">
+              Apply to a job on MadeVisa, then press{" "}
+              <strong>I applied — track this job</strong> at the end of the job
+              page.
+            </p>
+          </div>
+        ) : shown.length === 0 ? (
+          <p className="mt-4 rounded-xl bg-[#2563EB]/[0.06] px-5 py-6 text-sm text-ink-500">
+            Nothing here.
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {withFocused(shown, shownLimit, focusListingId).map((r) => (
+              <TrackCard
+                key={r.id}
+                r={r}
+                me={me}
+                listing={listing.get(r.id)}
+                rate={rates.get(r.publisher_id)}
+                hasPublicProfile={hasPublicProfile}
+                offerShareId={offers.get(r.listing_id) ?? null}
+                focused={r.listing_id === focusListingId}
+                onPatch={(p) => patchLocal(r.id, p)}
+                onDelete={() => setConfirmDelete(r)}
+              />
+            ))}
+          </ul>
+        )}
+        {shown.length > 0 && (
+          <LoadMore
+            total={shown.length}
+            limit={shownLimit}
+            onMore={() => setShownLimit((n) => n + PAGE)}
+          />
+        )}
+
+        <p className="mt-3 text-[11px] leading-5 text-ink-400">
+          Only applications tracked through MadeVisa appear here. Company pages
+          show anonymous numbers only — never your name — and only once enough
+          different people have answered.
+        </p>
+      </section>
+
       {pending.length > 0 && (
         <section
           aria-labelledby="confirm-heading"
@@ -235,85 +326,6 @@ export function ApplicantReport({
         </section>
       )}
 
-      <section aria-labelledby="report-heading">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 id="report-heading" className="text-lg font-bold text-ink-950">
-            Your applications
-          </h2>
-          <span className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-600">
-            <Globe className="h-3 w-3" /> Shown on your profile — switch any off
-          </span>
-          <div className="ml-auto flex rounded-lg bg-[#2563EB]/10 p-0.5">
-            {(["all", "waiting", "responded"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${filter === f ? "bg-white text-ink-950 shadow-sm" : "text-ink-600 hover:text-[#2563EB]"}`}
-              >
-                {f === "all"
-                  ? `All ${tracked.length}`
-                  : f === "waiting"
-                    ? "In progress"
-                    : "Replied"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {rows === null ? (
-          <div className="mt-4 flex items-center gap-2 rounded-xl bg-[#2563EB]/[0.06] px-5 py-6 text-sm text-ink-500">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading your
-            applications…
-          </div>
-        ) : tracked.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-dashed border-[#2563EB]/30 bg-[#2563EB]/[0.04] px-5 py-10 text-center">
-            <Briefcase className="mx-auto h-8 w-8 text-[#2563EB]/40" />
-            <p className="mt-2 text-sm font-semibold text-ink-800">
-              {pending.length
-                ? "Confirm an application above to start tracking"
-                : "No applications tracked yet"}
-            </p>
-            <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-ink-500">
-              Apply to a job on MadeVisa, then press{" "}
-              <strong>I applied — track this job</strong> at the end of the job
-              page.
-            </p>
-          </div>
-        ) : shown.length === 0 ? (
-          <p className="mt-4 rounded-xl bg-[#2563EB]/[0.06] px-5 py-6 text-sm text-ink-500">
-            Nothing here.
-          </p>
-        ) : (
-          <ul className="mt-4 space-y-3">
-            {withFocused(shown, shownLimit, focusListingId).map((r) => (
-              <TrackCard
-                key={r.id}
-                r={r}
-                me={me}
-                listing={listing.get(r.id)}
-                rate={rates.get(r.publisher_id)}
-                hasPublicProfile={hasPublicProfile}
-                focused={r.listing_id === focusListingId}
-                onPatch={(p) => patchLocal(r.id, p)}
-                onDelete={() => setConfirmDelete(r)}
-              />
-            ))}
-          </ul>
-        )}
-        {shown.length > 0 && (
-          <LoadMore
-            total={shown.length}
-            limit={shownLimit}
-            onMore={() => setShownLimit((n) => n + PAGE)}
-          />
-        )}
-
-        <p className="mt-3 text-[11px] leading-5 text-ink-400">
-          Only applications tracked through MadeVisa appear here. Company pages
-          show anonymous numbers only — never your name — and only once enough
-          different people have answered.
-        </p>
-      </section>
 
       {confirmDelete && (
         <ConfirmDelete
@@ -370,6 +382,7 @@ function Overview({
       dot: "rgba(37,99,235,0.5)",
     },
     { key: "i", label: "Interview", n: byChoice("interview"), dot: "#2563EB" },
+    { key: "o", label: "Offer", n: byChoice("offer"), dot: "#059669" },
     { key: "x", label: "Rejection", n: byChoice("rejected"), dot: "#94a3b8" },
     { key: "n", label: "No reply", n: byChoice("no_response"), dot: "#cbd5e1" },
   ];
@@ -408,7 +421,7 @@ function Overview({
     !me.emailVerified && "Verify your email",
     !me.nationalitySet && "Add your nationality",
     applied.length < 5 && "Track your applications",
-    answered < 5 && "Answer check-ins",
+    answered < 5 && "Drag your match on each job",
   ].filter(Boolean) as string[];
 
   return (
@@ -461,7 +474,7 @@ function Overview({
             <strong className="text-2xl font-bold tabular-nums text-ink-950">
               {Math.min(100, score)}
             </strong>{" "}
-            / 100 · {plural(answered, "check-in")} answered
+            / 100 · {plural(answered, "match")} rated
           </p>
           {hasTrend ? (
             <AreaTrend
@@ -594,6 +607,7 @@ function TrackCard({
   listing,
   rate,
   hasPublicProfile,
+  offerShareId,
   focused,
   onPatch,
   onDelete,
@@ -603,6 +617,7 @@ function TrackCard({
   listing?: ListingStatus;
   rate?: CompanyResponseRate;
   hasPublicProfile: boolean;
+  offerShareId: string | null;
   focused: boolean;
   onPatch: (p: Partial<ApplicationReport>) => void;
   onDelete: () => void;
@@ -619,18 +634,14 @@ function TrackCard({
     listing &&
     ["expired", "deleted", "rejected", "archived"].includes(listing.status),
   );
-  const due = Boolean(
-    r.remind_at && new Date(r.remind_at).getTime() <= Date.now(),
-  );
-  const done = checkInsDone(r);
-  const [open, setOpen] = useState(focused || due);
   const ref = useRef<HTMLLIElement>(null);
   useEffect(() => {
-    if (focused) {
-      setOpen(true);
+    if (focused)
       ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
   }, [focused]);
+  // Live values while dragging; saved when the drag ends.
+  const [stageDrag, setStageDrag] = useState<number | null>(null);
+  const [matchDrag, setMatchDrag] = useState<number | null>(null);
 
   const save = async (
     patch: Parameters<typeof updateApplicationReport>[1],
@@ -752,96 +763,53 @@ function TrackCard({
         />
       )}
 
-      {/* Check-in */}
-      <div className="mt-4 rounded-lg bg-white ring-1 ring-[#2563EB]/15">
-        <button
-          onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-center gap-2 px-4 py-3 text-left"
-        >
-          <span className="text-sm font-bold text-ink-950">Check-in</span>
-          <span className="flex gap-1">
-            {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className={`h-1.5 w-5 rounded-full ${i < done ? "bg-[#2563EB]" : "bg-[#2563EB]/15"}`}
-              />
-            ))}
-          </span>
-          <span className="text-xs text-ink-500">{done}/3</span>
-          {due && <Tag tone="amber">Due now</Tag>}
-          <ChevronDown
-            className={`ml-auto h-4 w-4 text-ink-400 transition ${open ? "rotate-180" : ""}`}
-          />
-        </button>
-        {open && (
-          <div className="space-y-4 border-t border-ink-100 px-4 py-4">
-            <Question
-              q={`Did ${company} reply?`}
-              value={choice === "no_response_week" ? "applied" : choice}
-              options={[
-                { v: "applied", label: "Not yet" },
-                { v: "responded", label: "Replied" },
-                { v: "interview", label: "Interview" },
-                { v: "rejected", label: "Rejection" },
-                {
-                  v: "no_response",
-                  label: "Never heard back",
-                  lockedFor: Math.max(0, NEVER_HEARD_BACK_DAYS - daysIn),
-                },
-              ]}
-              onPick={(v) => setChoice(v as Choice)}
-            />
-            <Question
-              q="Did your experience match what they asked for?"
-              value={r.match_answer ?? null}
-              options={[
-                { v: "full", label: "Yes, fully" },
-                { v: "partly", label: "Partly" },
-                { v: "no", label: "Not really" },
-              ]}
-              onPick={(v) =>
-                save(
-                  { match_answer: v as ApplicationReport["match_answer"] },
-                  { match_answer: v as ApplicationReport["match_answer"] },
+      {/* Where it is + how well you matched — drag to update */}
+      <div className="mt-4 grid gap-x-6 gap-y-2 rounded-lg bg-white px-4 pb-3 pt-2 ring-1 ring-[#2563EB]/15 sm:grid-cols-2">
+        <StageSlider
+          choice={choice}
+          drag={stageDrag}
+          lockedDays={Math.max(0, NEVER_HEARD_BACK_DAYS - daysIn)}
+          onDrag={setStageDrag}
+          onCommit={(c) => {
+            setStageDrag(null);
+            setChoice(c);
+          }}
+        />
+        <div>
+          <p className="text-xs font-semibold text-ink-800">Your match</p>
+          <DragSlider
+            size="sm"
+            value={matchDrag ?? matchValue(r.match_answer)}
+            onChange={setMatchDrag}
+            onCommit={(v) => {
+              const next = matchBucket(v);
+              if (next !== r.match_answer)
+                void save(
+                  { match_answer: next },
+                  { match_answer: next },
                   { match_answer: r.match_answer ?? null },
-                )
-              }
-            />
-            <Question
-              q="Was the job as described? (salary, location, visa)"
-              value={r.accuracy_answer ?? null}
-              options={[
-                { v: "yes", label: "Yes" },
-                { v: "mostly", label: "Mostly" },
-                { v: "no", label: "No" },
-              ]}
-              onPick={(v) =>
-                save(
-                  {
-                    accuracy_answer: v as ApplicationReport["accuracy_answer"],
-                  },
-                  {
-                    accuracy_answer: v as ApplicationReport["accuracy_answer"],
-                  },
-                  { accuracy_answer: r.accuracy_answer ?? null },
-                )
-              }
-            />
-            {!isResponse(choice) && choice !== "no_response" && (
-              <Reminder
-                r={r}
-                onSave={(iso) =>
-                  save(
-                    { remind_at: iso },
-                    { remind_at: iso },
-                    { remind_at: r.remind_at ?? null },
-                  )
-                }
-              />
-            )}
-          </div>
-        )}
+                );
+            }}
+            label="How well you matched the job requirements"
+            valueText={matchDrag ?? matchValue(r.match_answer) == null ? "Not rated" : matchWord(matchDrag ?? matchValue(r.match_answer)!)}
+            bubble={(() => {
+              const v = matchDrag ?? matchValue(r.match_answer);
+              return v == null ? "Drag me" : `${v}% · ${matchWord(v)}`;
+            })()}
+            left="Long shot"
+            right="Made for it"
+          />
+        </div>
       </div>
+
+      {offerShareId && (
+        <a
+          href={briefPath(offerShareId)}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#2563EB] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-brand-700"
+        >
+          <FileSignature className="h-3.5 w-3.5" /> Sponsor offer attached · open
+        </a>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px]">
         <label
@@ -889,109 +857,100 @@ function TrackCard({
   );
 }
 
-function Question({
-  q,
-  value,
-  options,
-  onPick,
+// ---------------------------------------------------------------------------
+// Drag bars on each application
+// ---------------------------------------------------------------------------
+
+/** Left to right: worst to best outcome. */
+const STAGES: { c: Choice; at: number }[] = [
+  { c: "no_response", at: 0 },
+  { c: "rejected", at: 20 },
+  { c: "applied", at: 40 },
+  { c: "responded", at: 60 },
+  { c: "interview", at: 80 },
+  { c: "offer", at: 100 },
+];
+const STAGE_LABEL: Record<Choice, string> = {
+  no_response: "Never heard back",
+  rejected: "Rejected",
+  applied: "Waiting",
+  no_response_week: "Waiting",
+  responded: "Replied",
+  interview: "Interview",
+  offer: "Offer",
+  withdrawn: "Withdrawn",
+};
+const stageAt = (c: Choice) =>
+  STAGES.find((s) => s.c === (c === "no_response_week" ? "applied" : c))?.at ??
+  40;
+const stageFrom = (v: number): Choice =>
+  STAGES.reduce((b, s) => (Math.abs(s.at - v) < Math.abs(b.at - v) ? s : b))
+    .c;
+
+function StageSlider({
+  choice,
+  drag,
+  lockedDays,
+  onDrag,
+  onCommit,
 }: {
-  q: string;
-  value: string | null;
-  options: { v: string; label: string; lockedFor?: number }[];
-  onPick: (v: string) => void;
+  choice: Choice;
+  drag: number | null;
+  lockedDays: number;
+  onDrag: (v: number) => void;
+  onCommit: (c: Choice) => void;
 }) {
+  const v = drag ?? stageAt(choice);
+  const c = stageFrom(v);
+  const tone =
+    c === "no_response" || c === "rejected"
+      ? "grey"
+      : c === "applied"
+        ? "brand"
+        : "green";
   return (
     <div>
-      <p className="text-xs font-semibold text-ink-800">{q}</p>
-      <div
-        className="mt-2 flex flex-wrap gap-1.5"
-        role="radiogroup"
-        aria-label={q}
-      >
-        {options.map((o) => {
-          const locked = (o.lockedFor ?? 0) > 0;
-          const active = value === o.v;
-          return (
-            <button
-              key={o.v}
-              role="radio"
-              aria-checked={active}
-              disabled={locked}
-              onClick={() => onPick(o.v)}
-              title={
-                locked
-                  ? `Available in ${plural(o.lockedFor!, "day")}`
-                  : undefined
-              }
-              className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                active
-                  ? "border-[#2563EB] bg-[#2563EB] text-white"
-                  : locked
-                    ? "cursor-not-allowed border-dashed border-ink-200 text-ink-300"
-                    : "border-ink-200 bg-white text-ink-700 hover:border-[#2563EB] hover:text-[#2563EB]"
-              }`}
-            >
-              {locked && <Lock className="h-3 w-3" />}
-              {o.label}
-              {locked && <span className="font-medium">· {o.lockedFor}d</span>}
-            </button>
-          );
-        })}
-      </div>
+      <p className="text-xs font-semibold text-ink-800">
+        Where it is
+        {lockedDays > 0 && (
+          <span className="font-normal text-ink-400">
+            {" "}
+            · “Never heard back” in {plural(lockedDays, "day")}
+          </span>
+        )}
+      </p>
+      <DragSlider
+        size="sm"
+        tone={tone}
+        value={v}
+        stops={STAGES.map((s) => s.at)}
+        locked={lockedDays > 0 ? [0] : []}
+        onChange={onDrag}
+        onCommit={(x) => onCommit(stageFrom(x))}
+        label="Where this application is"
+        valueText={STAGE_LABEL[c]}
+        bubble={STAGE_LABEL[c]}
+        left="No reply"
+        right="Offer"
+      />
     </div>
   );
 }
 
-function Reminder({
-  r,
-  onSave,
-}: {
-  r: ApplicationReport;
-  onSave: (iso: string | null) => void;
-}) {
-  const choices = [3, 7, 14];
-  const current = r.remind_at ? new Date(r.remind_at) : null;
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-[#2563EB]/[0.06] px-3 py-2.5">
-      {current ? (
-        <Bell className="h-3.5 w-3.5 text-[#2563EB]" />
-      ) : (
-        <BellOff className="h-3.5 w-3.5 text-ink-400" />
-      )}
-      <span className="text-xs text-ink-700">
-        {current ? (
-          current.getTime() <= Date.now() ? (
-            <strong>Check-in due now</strong>
-          ) : (
-            <>
-              Next check-in <strong>{fmtShort(current.toISOString())}</strong>
-            </>
-          )
-        ) : (
-          "No reminder"
-        )}{" "}
-        · remind me in
-      </span>
-      {choices.map((d) => (
-        <button
-          key={d}
-          onClick={() => onSave(new Date(Date.now() + d * DAY).toISOString())}
-          className="rounded-full border border-[#2563EB]/30 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#2563EB] hover:bg-[#2563EB] hover:text-white"
-        >
-          {d} days
-        </button>
-      ))}
-      {current && (
-        <button
-          onClick={() => onSave(null)}
-          className="text-[11px] font-semibold text-ink-500 hover:text-ink-900"
-        >
-          Off
-        </button>
-      )}
-    </div>
-  );
-}
+const matchValue = (a: ApplicationReport["match_answer"]) =>
+  a === "full" ? 85 : a === "partly" ? 55 : a === "no" ? 20 : null;
+const matchBucket = (v: number): NonNullable<ApplicationReport["match_answer"]> =>
+  v >= 75 ? "full" : v >= 40 ? "partly" : "no";
+const matchWord = (v: number) =>
+  v >= 85
+    ? "Made for it"
+    : v >= 70
+      ? "Great match"
+      : v >= 40
+        ? "Decent fit"
+        : v >= 20
+          ? "Stretch"
+          : "Long shot";
 
 /** Applied → day 7 → day 21, with the applicant's photo where they are now. */
 function Path({

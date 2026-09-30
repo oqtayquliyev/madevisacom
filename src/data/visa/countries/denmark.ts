@@ -27,6 +27,17 @@ export const denmark: VisaGuide = {
       leadsToPR: true,
       requires: ['job-offer', 'salary-threshold'],
       url: 'https://www.nyidanmark.dk/en-GB/You-want-to-apply/Work/Pay-limit-scheme',
+      employer: {
+        licenceNeeded: false,
+        steps: [
+          { text: 'Offer a contract with an annual salary above the pay limit, paid into a Danish bank account.', effort: 'Part of your normal offer' },
+          { text: 'Fill in your part of the application and, if you like, submit it for the candidate with a power of attorney.', effort: 'About 1 hour' },
+          { text: 'Optionally, become a SIRI-certified company to use the faster Fast-track scheme.', effort: 'One-off application', optional: true },
+        ],
+        timeline: 'SIRI usually decides within about a month; certified companies can use the Fast-track scheme.',
+        candidateMayCover: ['visa-fee', 'relocation', 'translations', 'own-adviser'],
+        employerCosts: 'No sponsor licence needed on the Pay Limit Scheme.',
+      },
     },
     {
       id: 'dk-positive-list',

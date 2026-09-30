@@ -27,6 +27,17 @@ export const sweden: VisaGuide = {
       leadsToPR: true,
       requires: ['job-offer', 'salary-threshold'],
       url: 'https://www.migrationsverket.se/English/',
+      employer: {
+        licenceNeeded: false,
+        steps: [
+          { text: 'Advertise the job in Sweden and the EU (for example on Platsbanken/EURES) for at least 10 days before the offer.', effort: 'A job ad you may already have' },
+          { text: 'Offer terms at least equal to the collective agreement or industry norm, including insurance, and above the salary requirement.', effort: 'Part of your normal offer' },
+          { text: 'Create the employment offer in the Swedish Migration Agency\'s online service; the candidate then applies.', effort: 'About 1 hour' },
+        ],
+        timeline: 'Certified employers get faster decisions; otherwise it can take a few months, so starting early helps.',
+        candidateMayCover: ['visa-fee', 'relocation', 'translations', 'own-adviser'],
+        employerCosts: 'No sponsor licence. The application fee is usually paid by the applicant.',
+      },
     },
     {
       id: 'se-blue-card',

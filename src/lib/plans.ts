@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 
-export type PlanId = 'pro' | 'relocation' | 'sponsored_job' | 'featured_social' | 'employer' | 'hiring_brief';
+export type PlanId = 'pro' | 'relocation' | 'sponsored_job' | 'featured_social' | 'employer' | 'hiring_brief' | 'brief_credits';
 export type Billing = 'monthly' | 'yearly' | 'one_time';
 export type PriceRegion = 'standard' | 'reduced';
 
@@ -23,6 +23,8 @@ export const PRO_PRICES: Record<PriceRegion, { monthly: number; yearly: number }
   reduced: { monthly: 5, yearly: 39 },
 };
 export const RELOCATION_PRICE: Record<PriceRegion, number> = { standard: 29, reduced: 19 };
+/** Pack of 10 sponsor offers (the first 5 are free). */
+export const OFFER_PACK_PRICE: Record<PriceRegion, number> = { standard: 9, reduced: 5 };
 
 export const PLAN_NAME: Record<PlanId, string> = {
   pro: 'MadeVisa Pro',
@@ -31,12 +33,14 @@ export const PLAN_NAME: Record<PlanId, string> = {
   featured_social: 'Featured in social posts',
   employer: 'Employer plan',
   hiring_brief: 'Hiring Brief',
+  brief_credits: '10 sponsor offers',
 };
 
 export const PRO_FEATURES = [
   { title: 'Instant job alerts', text: 'New roles matching your role and country, as soon as companies post them — be an early applicant.' },
   { title: 'Full company response data', text: 'Exact reply rate, typical time to reply and hiring activity before you apply.' },
   { title: 'Companies that sponsor visas', text: 'Who is hiring with visa sponsorship in each country, updated live.' },
+  { title: 'Unlimited sponsor offers', text: 'A signed-ready cost-sharing offer for every job you apply to.' },
   { title: 'First access to new Pro tools', text: 'Your own application stats and salary ranges are next — Pro members get them first.' },
 ];
 

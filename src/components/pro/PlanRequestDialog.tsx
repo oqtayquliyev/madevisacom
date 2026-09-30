@@ -11,7 +11,7 @@ import { EXPERIENCE_OPTIONS, PLAN_NAME, submitPlanRequest, type Billing, type Pl
 // passport, target country) and saves them to the person's profile.
 
 const input = 'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-950 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200';
-const PERSONAL: PlanId[] = ['pro', 'relocation'];
+const PERSONAL: PlanId[] = ['pro', 'relocation', 'brief_credits'];
 
 async function countryIdFor(code: string | undefined): Promise<string | null> {
   if (!code) return null;
@@ -41,6 +41,8 @@ export function PlanRequestDialog({
 }) {
   const { user, profile, refreshProfile } = useAuth();
   const personal = PERSONAL.includes(plan);
+  // Credit packs only need an account and an email.
+  const profileFields = personal && plan !== 'brief_credits';
   const [f, setF] = useState({
     name: profile?.full_name ?? '',
     email: profile?.email ?? user?.email ?? '',
@@ -77,7 +79,7 @@ export function PlanRequestDialog({
   const submit = async () => {
     setErr(null);
     if (!f.email.trim()) return setErr('Add your email so we can send the payment link.');
-    if (personal && (!f.occupation.trim() || !f.experience || !f.passport)) return setErr('Please add your role, experience and passport — alerts and visa matching use them.');
+    if (profileFields && (!f.occupation.trim() || !f.experience || !f.passport)) return setErr('Please add your role, experience and passport — alerts and visa matching use them.');
     setBusy(true);
     const res = await submitPlanRequest({
       plan,
@@ -94,7 +96,7 @@ export function PlanRequestDialog({
       targetCountries: f.target ? [f.target] : [],
       message: f.message,
     });
-    if (res.ok && user && personal) {
+    if (res.ok && user && profileFields) {
       // Save the matching details to the profile too.
       const [nat, dest] = await Promise.all([countryIdFor(f.passport), countryIdFor(f.target)]);
       await supabase
@@ -168,7 +170,7 @@ export function PlanRequestDialog({
                 <input className={`${input} mt-1`} value={f.company} onChange={(e) => set({ company: e.target.value })} />
               </label>
             )}
-            {personal && (
+            {profileFields && (
               <>
                 <p className="pt-1 text-xs font-semibold text-ink-500">Your profile — used for job alerts and visa matching</p>
                 <div className="grid gap-3 sm:grid-cols-2">

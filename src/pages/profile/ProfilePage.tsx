@@ -35,7 +35,7 @@ import { isEmailVerified, useAuth, type Profile } from '@/lib/auth';
 import { VerifyEmailCard } from '@/components/common/VerifyEmailCard';
 import { TwoFactorSettings } from '@/components/auth/TwoFactorSettings';
 import { NetworkSettingsCard } from '@/components/network/NetworkSettingsCard';
-import { MyBriefsSection } from '@/components/briefs/MyBriefsSection';
+import { MyBriefsSection, PlanCard } from '@/components/briefs/MyBriefsSection';
 import { supabase } from '@/lib/supabase';
 import {
   createPublisherProfile,
@@ -398,6 +398,8 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
               </div>
             </div>
           </div>
+
+          <PlanCard />
 
           {/* Section nav — vertical on desktop, scrolling chips on mobile */}
           <nav className="grid grid-cols-3 gap-1 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-ink-200 lg:flex lg:flex-col" aria-label="Profile sections">

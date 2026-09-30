@@ -22,7 +22,13 @@ export function useNotifications() {
     void load();
     if (!user) return;
     const id = window.setInterval(() => document.visibilityState === 'visible' && void load(), 60_000);
-    return () => window.clearInterval(id);
+    // Something just happened here (offer generated, application tracked) → refresh now.
+    const now = () => window.setTimeout(() => void load(), 800);
+    window.addEventListener('madevisa:notifications', now);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('madevisa:notifications', now);
+    };
   }, [load, user]);
 
   const markAllRead = useCallback(async () => {
