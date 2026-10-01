@@ -12,6 +12,7 @@ import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { HiringBriefCallout } from '@/components/briefs/HiringBriefCallout';
 import { ApplyNudge } from '@/components/briefs/ApplyNudge';
+import { SalaryCheck } from '@/components/jobs/SalaryCheck';
 import { UkSponsorPill } from '@/components/companies/SponsorProof';
 import { OfferButton } from '@/components/briefs/OfferButton';
 import { briefEligibility } from '@/lib/briefs';
@@ -551,6 +552,17 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                 <InfoRow key={d.label} icon={d.icon} label={d.label} value={d.value} />
               ))}
             </div>
+          )}
+
+          {raw && !localJob && (
+            <SalaryCheck
+              countryCode={raw.country?.iso_code}
+              min={raw.salary_min}
+              max={raw.salary_max}
+              currency={raw.salary_currency}
+              period={raw.salary_period}
+              disclosed={raw.salary_status === 'disclosed'}
+            />
           )}
 
           {cleaned?.html && <CollapsibleDescription html={cleaned.html} />}
