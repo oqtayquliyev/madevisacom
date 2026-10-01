@@ -263,16 +263,112 @@ export async function fetchBrief(shareId: string): Promise<PublicBrief | null> {
   return ((data as PublicBrief[] | null) ?? [])[0] ?? null;
 }
 
-export async function recordBriefView(shareId: string): Promise<void> {
-  // Once per browser session per brief, so refreshes don't inflate "viewed".
+/**
+ * Count an open — only after the page has been visible for 4 seconds in a
+ * real browser, so mail scanners and link previews don't count as "opened".
+ * Owners call it too: the server remembers their network so their own
+ * logged-out visits never count (see migration 20261115090000).
+ */
+export function recordBriefView(shareId: string): () => void {
   const key = `madevisa.briefView.${shareId}`;
   try {
-    if (window.sessionStorage.getItem(key)) return;
-    window.sessionStorage.setItem(key, '1');
+    if (window.sessionStorage.getItem(key)) return () => undefined;
   } catch {
-    // storage blocked — still count it
+    /* storage blocked — the server de-duplicates anyway */
   }
-  await supabase.rpc('record_hiring_brief_view', { p_share_id: shareId });
+  if ((navigator as Navigator & { webdriver?: boolean }).webdriver) return () => undefined;
+  let visibleMs = 0;
+  let last = document.visibilityState === 'visible' ? Date.now() : 0;
+  let done = false;
+  const fire = () => {
+    if (done) return;
+    done = true;
+    try {
+      window.sessionStorage.setItem(key, '1');
+    } catch {
+      /* ignore */
+    }
+    void supabase.rpc('record_hiring_brief_view', { p_share_id: shareId });
+  };
+  const tick = window.setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      const now = Date.now();
+      if (last) visibleMs += now - last;
+      last = now;
+      if (visibleMs >= 4000) {
+        window.clearInterval(tick);
+        fire();
+      }
+    } else {
+      last = 0;
+    }
+  }, 500);
+  return () => window.clearInterval(tick);
+}
+
+// ---------------------------------------------------------------------------
+// Employer replies (migration 20261115090000)
+// ---------------------------------------------------------------------------
+
+export type ReplyKind = 'interested' | 'more_info' | 'not_now';
+
+export const REPLY_LABEL: Record<ReplyKind, string> = {
+  interested: 'Interested — let’s talk',
+  more_info: 'Need more information',
+  not_now: 'Not right now',
+};
+
+export const REPLY_MESSAGE_MAX = 500;
+
+export type BriefReply = {
+  id: string;
+  kind: ReplyKind;
+  name: string | null;
+  email: string | null;
+  message: string | null;
+  verified: boolean;
+  created_at: string;
+};
+
+export async function submitBriefReply(input: {
+  shareId: string;
+  kind: ReplyKind;
+  name: string;
+  email: string;
+  message: string;
+  website: string;
+  startedAt: number;
+  pow: { ts: number; nonce: string };
+}): Promise<{ ok: boolean; verified?: boolean; error?: string }> {
+  const { data, error } = await supabase.rpc('submit_brief_reply', {
+    p_share_id: input.shareId,
+    p_kind: input.kind,
+    p_name: input.name.slice(0, 80),
+    p_email: input.email.slice(0, 120),
+    p_message: input.message.slice(0, REPLY_MESSAGE_MAX),
+    p_website: input.website,
+    p_started_at: input.startedAt,
+    p_pow_ts: input.pow.ts,
+    p_pow_nonce: input.pow.nonce,
+  });
+  if (error) {
+    const missing = /submit_brief_reply|schema cache/i.test(error.message);
+    return { ok: false, error: missing ? 'Replies aren’t available yet. Please contact the candidate directly.' : error.message };
+  }
+  const d = data as { ok?: boolean; verified?: boolean } | null;
+  return { ok: Boolean(d?.ok), verified: Boolean(d?.verified) };
+}
+
+export async function fetchMyBriefReplies(shareId: string): Promise<{ uniqueViewers: number; replies: BriefReply[] } | null> {
+  const { data, error } = await supabase.rpc('my_brief_replies', { p_share_id: shareId });
+  if (error || !data) return null;
+  const d = data as { unique_viewers?: number; replies?: BriefReply[] };
+  return { uniqueViewers: d.unique_viewers ?? 0, replies: d.replies ?? [] };
+}
+
+export async function reportBriefReply(id: string): Promise<boolean> {
+  const { error } = await supabase.rpc('report_brief_reply', { p_reply_id: id });
+  return !error;
 }
 
 export async function fetchBriefProof(countryCode: string, jobFunction: string | null): Promise<BriefProof | null> {

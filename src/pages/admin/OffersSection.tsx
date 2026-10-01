@@ -83,9 +83,11 @@ export function OffersSection() {
         <Tile v={t.offers_7d} k="Last 7 days" />
         <Tile v={t.builder_users} k="Opened the builder" />
         <Tile v={t.pdf_saves} k="PDF saves" />
-        <Tile v={t.company_opens} k="Opened by a company" />
+        <Tile v={t.company_opens} k="Opened by someone else" />
         <Tile v={t.credits_sold} k="Dollar credit sold (before Oct 2026)" />
       </div>
+
+      <ReplyStats />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg bg-ink-100 p-0.5 text-sm font-semibold">
@@ -192,10 +194,10 @@ export function OffersSection() {
   );
 }
 
-function Tile({ v, k }: { v: number; k: string }) {
+function Tile({ v, k }: { v: number | string; k: string }) {
   return (
     <div className="rounded-xl border border-ink-200 bg-white px-4 py-3">
-      <p className="text-2xl font-bold tabular-nums text-ink-950">{Number(v ?? 0).toLocaleString()}</p>
+      <p className="text-2xl font-bold tabular-nums text-ink-950">{typeof v === 'string' ? v : Number(v ?? 0).toLocaleString()}</p>
       <p className="text-xs text-ink-500">{k}</p>
     </div>
   );
@@ -208,5 +210,41 @@ function EmptyRow({ cols }: { cols: number }) {
         Nothing yet.
       </td>
     </tr>
+  );
+}
+
+type ReplyStatsData = {
+  documents: { documents: number; opened: number; any_reply: number; button_reply: number; verified_reply: number; interested: number; reply_rate: number | null };
+  applications: { applications: number; any_reply: number; reply_rate: number | null };
+  lift: number | null;
+  note: string;
+};
+
+/**
+ * The real number behind "2.3×": reply rate of documents vs. ordinary
+ * tracked applications (both 21+ days old). Data: admin_offer_reply_stats()
+ * (migration 20261115090000). Once `lift` appears, copy it into
+ * OFFER_LIFT and the reply rate into BASELINE_REPLY_RATE (OfferOddsStat.tsx).
+ */
+function ReplyStats() {
+  const [d, setD] = useState<ReplyStatsData | null>(null);
+  const [missing, setMissing] = useState(false);
+  useEffect(() => {
+    supabase.rpc('admin_offer_reply_stats').then(({ data, error }) => (error ? setMissing(true) : setD(data as ReplyStatsData)));
+  }, []);
+  if (missing) return <p className="text-sm text-ink-500">Run migration 20261115090000_employer_replies.sql to see measured reply rates.</p>;
+  if (!d) return null;
+  const pct = (v: number | null) => (v == null ? 'not enough data' : `${v}%`);
+  return (
+    <div className="rounded-xl bg-white p-4 ring-1 ring-ink-200">
+      <p className="text-sm font-bold text-ink-950">Measured reply rate (sent 21+ days ago)</p>
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Tile v={pct(d.documents.reply_rate)} k={`With a document (${d.documents.documents})`} />
+        <Tile v={pct(d.applications.reply_rate)} k={`Without (${d.applications.applications} applications)`} />
+        <Tile v={d.lift == null ? '—' : `${d.lift}×`} k="Real lift" />
+        <Tile v={`${d.documents.verified_reply} / ${d.documents.button_reply}`} k="Verified / all button replies" />
+      </div>
+      <p className="mt-2 text-xs text-ink-500">{d.note} When the real lift appears, put it in OFFER_LIFT in OfferOddsStat.tsx.</p>
+    </div>
   );
 }

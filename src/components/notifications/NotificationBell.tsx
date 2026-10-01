@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, Briefcase, FileSignature, Sparkles } from 'lucide-react';
+import { Bell, Briefcase, Eye, FileSignature, MessageSquareReply, Sparkles } from 'lucide-react';
 import { useNotifications } from '@/lib/notifications';
 import { handleNavClick } from '@/lib/navLink';
 import { nav } from '@/lib/pageLayout';
@@ -16,12 +16,16 @@ const KIND_ICON: Record<string, typeof Bell> = {
   application: Briefcase,
   application_confirm: Briefcase,
   offer_ready: FileSignature,
+  offer_viewed: Eye,
+  offer_reply: MessageSquareReply,
   credits_added: Sparkles,
 };
 const CTA: Record<string, string> = {
   application: 'Track it here',
   application_confirm: 'Confirm and track it here',
   offer_ready: 'Open and save as PDF',
+  offer_viewed: 'See your document',
+  offer_reply: 'Read the reply',
   credits_added: 'See your credits',
 };
 

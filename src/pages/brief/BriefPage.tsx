@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Check, Copy, Download, Eye, Link2, Loader2, Lock, Paperclip, Unlock } from 'lucide-react';
+import { Check, Copy, Download, Link2, Loader2, Lock, Paperclip, Unlock } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { useAuth } from '@/lib/auth';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { CircleFlag } from '@/components/common/CircleFlag';
-import { LinkedInLogo } from '@/components/common/LinkedInLogo';
+import { EmployerReply, OwnerReplies } from '@/components/briefs/EmployerReply';
 import { DragSlider } from '@/components/common/DragSlider';
 import { OfferInfo } from '@/components/briefs/OfferBits';
 import { type CandidateCover, type VisaGuide, type VisaRoute } from '@/data/visa';
@@ -571,6 +571,7 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
 
   useEffect(() => {
     let alive = true;
+    let stopView: (() => void) | null = null;
     setBrief(undefined);
     fetchBrief(shareId).then((b) => {
       if (!alive) return;
@@ -583,7 +584,8 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
         overrides: b.terms?.overrides ?? {},
         employer: b.terms?.employer ?? { name: b.company_name, publisherId: b.publisher_id },
       });
-      if (!b.is_owner) recordBriefView(shareId);
+      // Everyone, owner included: the server counts only real visitors who aren't the owner.
+      stopView = recordBriefView(shareId);
       // Just generated → open the PDF dialog once.
       try {
         if (b.is_owner && window.sessionStorage.getItem(PRINT_ON_OPEN) === shareId) {
@@ -596,6 +598,7 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
     });
     return () => {
       alive = false;
+      stopView?.();
     };
   }, [shareId]);
 
@@ -1109,6 +1112,8 @@ function OwnerActions({ brief, onStatus }: { brief: PublicBrief; onStatus: (s: B
         </button>
       </div>
 
+      <OwnerReplies shareId={brief.share_id} />
+
       <Panel>
         <p className="flex items-center gap-2 text-[13px] font-bold text-ink-950">
           <Paperclip className="h-4 w-4 text-[#1D4ED8]" /> Attach it when you apply
@@ -1118,9 +1123,7 @@ function OwnerActions({ brief, onStatus }: { brief: PublicBrief; onStatus: (s: B
 
       <Panel>
         <div className="flex items-center justify-between gap-2 text-[13px]">
-          <span className="inline-flex items-center gap-1.5 text-ink-600">
-            <Eye className="h-4 w-4 text-ink-400" /> {brief.view_count ?? 0} {brief.view_count === 1 ? 'open' : 'opens'} by others
-          </span>
+          <span className="font-semibold text-ink-700">Status</span>
           <select
             value={brief.status ?? 'created'}
             onChange={async (e) => {
@@ -1154,21 +1157,14 @@ function OwnerActions({ brief, onStatus }: { brief: PublicBrief; onStatus: (s: B
 }
 
 function ReaderPanel({ brief }: { brief: PublicBrief }) {
-  const first = brief.candidate_name.split(/\s+/)[0];
   return (
     <>
-      <Panel>
-        <p className="text-[15px] font-bold text-ink-950">Interested?</p>
-        <p className="mt-1 text-[13px] leading-5 text-ink-600">Sign the PDF and send it back to {first}, or reply with changes. Nothing is binding until both sides sign.</p>
-        <button onClick={() => savePdf({ candidate: brief.candidate_name, company: brief.company_name, shareId: brief.share_id })} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#1D4ED8] px-4 py-3 text-[14px] font-bold text-white hover:bg-brand-800">
-          <Download className="h-4 w-4" /> Save as PDF
-        </button>
-        {brief.candidate_linkedin && (
-          <a href={brief.candidate_linkedin} target="_blank" rel="noopener noreferrer" className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-ink-200 px-4 py-2.5 text-[14px] font-semibold text-ink-800 hover:border-[#1D4ED8]/40">
-            <LinkedInLogo size={16} /> Message {first}
-          </a>
-        )}
-      </Panel>
+      <EmployerReply
+        shareId={brief.share_id}
+        candidateName={brief.candidate_name}
+        candidateLinkedin={brief.candidate_linkedin}
+        onSavePdf={() => savePdf({ candidate: brief.candidate_name, company: brief.company_name, shareId: brief.share_id })}
+      />
       <p className="px-1 text-[12px] leading-5 text-ink-500">
         Need help with the paperwork? Find a verified immigration adviser in the{' '}
         <a href="/network?tab=experts" onClick={(e) => (e.preventDefault(), nav('/network?tab=experts'))} className="font-semibold text-[#1D4ED8]">
@@ -1405,6 +1401,20 @@ function OfferDocument({ doc, terms, guide, route, code, locked, approvedAt }: {
         {guide.name} and is valid for {VALID_DAYS} days from issue. It was prepared with MadeVisa from official government sources and is not legal advice; check the details with the
         official source or a qualified immigration adviser before signing.
       </Clause>
+
+      {/* Printed only: the company replies in one click (links stay clickable in PDFs). */}
+      {doc.shareId && !L && (
+        <a
+          href={`https://madevisa.com${briefPath(doc.shareId)}`}
+          className="mt-8 hidden break-inside-avoid items-center justify-between gap-4 rounded-lg border-2 border-[#1D4ED8] px-5 py-4 font-sans no-underline print:flex"
+        >
+          <span>
+            <span className="block text-[14px] font-bold text-ink-950">Reply to {doc.candidateName.split(/\s+/)[0]} in one click</span>
+            <span className="block text-[12px] text-ink-600">Interested · Need more information · Not right now — no account needed</span>
+          </span>
+          <span className="shrink-0 text-[13px] font-bold text-[#1D4ED8]">madevisa.com{briefPath(doc.shareId)}</span>
+        </a>
+      )}
 
       {/* Signatures */}
       {L ? (
