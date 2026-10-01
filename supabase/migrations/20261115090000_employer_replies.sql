@@ -45,15 +45,11 @@ SET lock_timeout = '5s';
 -- ---------------------------------------------------------------------------
 -- 0. A server-only secret for hashing visitors (never exposed to clients).
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.app_secrets (
-  key text PRIMARY KEY,
-  value text NOT NULL
-);
-ALTER TABLE public.app_secrets ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.app_secrets FROM anon, authenticated;
-INSERT INTO public.app_secrets (key, value)
-VALUES ('visitor_pepper', encode(extensions.gen_random_bytes(32), 'hex'))
-ON CONFLICT (key) DO NOTHING;
+-- public.app_secrets already exists (migration 20261031090000, columns
+-- name/value — it also holds cron_secret and resend_api_key). Only add a row.
+INSERT INTO public.app_secrets (name, value)
+VALUES ('visitor_pepper', replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''))
+ON CONFLICT (name) DO NOTHING;
 
 -- Salted hash of this request's network + browser. NULL when unknown.
 CREATE OR REPLACE FUNCTION public.request_visitor_hash()
@@ -70,7 +66,7 @@ DECLARE
   pepper text;
 BEGIN
   IF coalesce(ip, '') = '' THEN RETURN NULL; END IF;
-  SELECT value INTO pepper FROM public.app_secrets WHERE key = 'visitor_pepper';
+  SELECT value INTO pepper FROM public.app_secrets WHERE name = 'visitor_pepper';
   RETURN encode(digest(coalesce(pepper, '') || '|' || ip || '|' || ua, 'sha256'), 'hex');
 END;
 $$;

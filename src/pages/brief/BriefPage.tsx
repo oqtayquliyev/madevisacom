@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, Download, Link2, Loader2, Lock, Paperclip, Unlock } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { CircleFlag } from '@/components/common/CircleFlag';
+import { rememberAuthIntent } from '@/lib/authIntent';
 import { EmployerReply, OwnerReplies } from '@/components/briefs/EmployerReply';
 import { DragSlider } from '@/components/common/DragSlider';
 import { OfferInfo } from '@/components/briefs/OfferBits';
@@ -117,6 +118,34 @@ function salaryFromJob(raw: { salary_min: number | null; salary_max: number | nu
 
 const PRINT_ON_OPEN = 'madevisa:printOffer';
 
+// A signed-out visitor fills in the builder, then signs up (often via a
+// Google redirect, which reloads the page). Their choices are kept here for
+// the tab's lifetime and restored when they land back on the same URL.
+type OfferDraft = { ed: Editable; name: string; headline: string; note: string; country: string; routeId: string; useRec: boolean; roleTitle: string };
+const draftKey = () => `mv:offerDraft:${window.location.pathname}${window.location.search}`;
+function saveOfferDraft(d: OfferDraft) {
+  try {
+    window.sessionStorage.setItem(draftKey(), JSON.stringify(d));
+  } catch {
+    /* storage blocked — they'll just start again */
+  }
+}
+function takeOfferDraft(): OfferDraft | null {
+  try {
+    const raw = window.sessionStorage.getItem(draftKey());
+    return raw ? (JSON.parse(raw) as OfferDraft) : null;
+  } catch {
+    return null;
+  }
+}
+function clearOfferDraft() {
+  try {
+    window.sessionStorage.removeItem(draftKey());
+  } catch {
+    /* ignore */
+  }
+}
+
 function NewOffer({ go, onAuth }: Props) {
   const { session, profile, loading: authLoading } = useAuth();
   const params = new URLSearchParams(window.location.search);
@@ -185,6 +214,24 @@ function NewOffer({ go, onAuth }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId, custom]);
 
+  // Restore what a visitor chose before signing up (once, after the job loads).
+  const restored = useRef(false);
+  const readyId = state.k === 'ready' ? state.job.id || 'custom' : null;
+  useEffect(() => {
+    if (!readyId || restored.current) return;
+    restored.current = true;
+    const d = takeOfferDraft();
+    if (!d) return;
+    setEd(d.ed);
+    setName(d.name);
+    setHeadline(d.headline);
+    setNote(d.note);
+    if (d.country) setCountry(d.country);
+    if (d.routeId) setRouteId(d.routeId);
+    setUseRec(d.useRec);
+    if (d.roleTitle) setRoleTitle(d.roleTitle);
+  }, [readyId]);
+
   useEffect(() => {
     if (!profile) return;
     setName((n) => n || profile.full_name || '');
@@ -237,7 +284,11 @@ function NewOffer({ go, onAuth }: Props) {
 
   // Step 1: check, then show the final review. Step 2 (confirmed): pay and create.
   const review = () => {
-    if (!session) return onAuth?.('register');
+    if (!session) {
+      saveOfferDraft({ ed, name, headline, note, country, routeId, useRec, roleTitle });
+      rememberAuthIntent({ reason: 'offer', next: `${window.location.pathname}${window.location.search}` });
+      return onAuth?.('register');
+    }
     if (!canPay) return nav('/offers#buy');
     if (!name.trim()) return setError('Add the name the employer should see.');
     if (!job.title) return setError('Add the role you are applying for.');
@@ -273,6 +324,7 @@ function NewOffer({ go, onAuth }: Props) {
     if (!res.ok) return setError(res.error);
     pingNotifications();
     try {
+      clearOfferDraft();
       window.sessionStorage.setItem(PRINT_ON_OPEN, res.shareId);
     } catch {
       /* ignore */

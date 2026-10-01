@@ -10,7 +10,7 @@ import { creditsBadge, useOfferCredits } from '@/lib/sponsorOffer';
  * Opens the builder (with a covered country picked if the job's isn't),
  * or "Your document is ready" once made.
  */
-export function OfferButton({ jobId, variant, country, onAuth }: { jobId: string; variant: 'hero' | 'body'; country?: string | null; onAuth?: (p: 'login' | 'register') => void }) {
+export function OfferButton({ jobId, variant, country }: { jobId: string; variant: 'hero' | 'body'; country?: string | null; onAuth?: (p: 'login' | 'register') => void }) {
   const { session } = useAuth();
   const credits = useOfferCredits();
   const [existing, setExisting] = useState<string | null>(null);
@@ -27,7 +27,7 @@ export function OfferButton({ jobId, variant, country, onAuth }: { jobId: string
       href={href}
       onClick={(e) => {
         e.preventDefault();
-        if (!session) return onAuth?.('register');
+        // Guests try the builder first; it asks for an account only at "Prepare".
         nav(href);
       }}
       className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 ${out ? 'py-2' : 'py-3.5'} text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${

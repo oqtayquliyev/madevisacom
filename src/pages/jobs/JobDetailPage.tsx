@@ -11,6 +11,7 @@ import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { HiringBriefCallout } from '@/components/briefs/HiringBriefCallout';
+import { ApplyNudge } from '@/components/briefs/ApplyNudge';
 import { OfferButton } from '@/components/briefs/OfferButton';
 import { briefEligibility } from '@/lib/briefs';
 import { fetchSponsoredJobById, fetchSponsoredJobByShortId, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
@@ -43,6 +44,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const [job, setJob] = useState<Job | null | undefined>(undefined);
   const [raw, setRaw] = useState<SponsoredJob | null>(null);
   const [copied, setCopied] = useState(false);
+  // Set when Apply is clicked on a job without sponsorship; reset for each job.
+  const [nudgeArmed, setNudgeArmed] = useState(false);
+  useEffect(() => setNudgeArmed(false), [id]);
   const { session } = useAuth();
   const { profile: visitor } = usePersonalization();
   // Signed-out visitors: after 3 job views, invite them to create an account.
@@ -321,6 +325,8 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
         // Signed-in users: remember this application so they can report the
         // outcome later — that's what builds company response statistics.
         if (raw?.publisher_id) recordApplication({ publisherId: raw.publisher_id, kind: 'job', listingId: raw.id, title: job.title });
+        // No visa in the ad → offer the sponsorship document when they come back.
+        if (offerOk && raw && visa !== 'offered') setNudgeArmed(true);
       }}
       className={`inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${extra}`}
     >
@@ -332,6 +338,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
+      {offerOk && raw && <ApplyNudge jobId={raw.id} company={job.company} country={offerCountry} armed={nudgeArmed} />}
 
       <section className={`${closed ? 'bg-ink-500' : 'bg-brand-700'} text-white transition-colors`}>
         <div className="mx-auto max-w-4xl px-5 pb-10 pt-6 sm:px-8 sm:pb-14 sm:pt-8">

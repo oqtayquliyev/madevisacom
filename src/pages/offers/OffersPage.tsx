@@ -14,6 +14,7 @@ import { BuyOffers } from '@/components/briefs/BuyOffers';
 import { CustomOfferCard } from '@/components/briefs/CustomOfferCard';
 import { OfferOddsStat } from '@/components/briefs/OfferOddsStat';
 import { OfferFlip } from '@/components/briefs/OfferFlip';
+import { InviteCard } from '@/components/briefs/InviteCard';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
@@ -139,6 +140,11 @@ export function OffersPage({ go, onAuth }: Props) {
           <div className="mt-3">
             <BuyOffers onAuth={onAuth} onPro={() => nav('/pricing#pro')} />
           </div>
+          {user && (
+            <div className="mt-3">
+              <InviteCard />
+            </div>
+          )}
         </section>
       </main>
 

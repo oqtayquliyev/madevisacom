@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { AddNameStep, FinishAuth, goToNextAfterAuth, nameSkipped } from '@/components/auth/AfterSignIn';
 import { readAuthIntent } from '@/lib/authIntent';
+import { useReferralCapture } from '@/lib/referrals';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { LandingPage } from '@/pages/landing/LandingPage';
@@ -87,6 +88,7 @@ function viewForPath(pathname: string): View | null {
 
 export default function App() {
   const { session, profile, loading } = useAuth();
+  useReferralCapture();
 
   const [view, setView] = useState<View>(
     viewForPath(window.location.pathname) ?? 'home'
