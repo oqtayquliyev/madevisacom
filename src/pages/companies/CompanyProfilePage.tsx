@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { useUkSponsor } from '@/lib/sponsorRegister';
+import { SponsorAnswer } from '@/components/companies/SponsorProof';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { HireCountries } from '@/components/companies/HireCountries';
@@ -98,10 +100,13 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
     if (jobs && programs && jobs.length === 0 && programs.length > 0) setTab('programs');
   }, [jobs, programs]);
 
+  const ukSponsor = useUkSponsor(company?.id);
   useSeo({
-    title: company ? `${company.name} — jobs, hiring activity & applicant response` : 'Company',
+    title: company ? `${company.name} — visa sponsorship, jobs & applicant response` : 'Company',
     description: company
-      ? `Open jobs and programs at ${company.name}, plus real hiring activity and applicant response data tracked on MadeVisa.`
+      ? ukSponsor
+        ? `Does ${company.name} sponsor visas? Yes — it holds a UK sponsor licence (Home Office register). Open jobs, hiring activity and applicant response data on MadeVisa.`
+        : `Open jobs and programs at ${company.name}, plus real hiring activity and applicant response data tracked on MadeVisa.`
       : 'Company profile on MadeVisa.',
     path: `/companies/${slug}`,
   });
@@ -317,6 +322,7 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
 
         {/* RIGHT CONTENT */}
         <main className="min-w-0 space-y-8">
+          {company && <SponsorAnswer publisherId={company.id} companyName={company.name} />}
           <section id="overview" className="scroll-mt-40">
             <h2 className="text-[24px] font-medium text-ink-900">Overview</h2>
 

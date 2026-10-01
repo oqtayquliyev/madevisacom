@@ -20,7 +20,7 @@ type PlatformRow = { platform: Platform; enabled: boolean; size: 'portrait' | 's
 type Campaign = {
   id: string;
   name: string;
-  kind: 'fresh' | 'student' | 'category' | 'company';
+  kind: 'fresh' | 'student' | 'category' | 'company' | 'sponsor' | 'visa' | 'remote' | 'offer';
   platforms: Platform[];
   every_minutes: number;
   format: 'list' | 'carousel' | 'single' | 'company' | 'cards' | 'mix';
@@ -398,6 +398,10 @@ function CampaignForm({ c, onDone }: { c: Partial<Campaign>; onDone: () => void 
             <option value="fresh">All fresh jobs</option>
             <option value="student">Students & internships</option>
             <option value="category">A role / category</option>
+            <option value="sponsor">UK companies licensed to sponsor</option>
+            <option value="visa">Ads that offer visa sponsorship</option>
+            <option value="remote">Remote & hybrid</option>
+            <option value="offer">No visa line → pitch the sponsorship offer</option>
           </select>
         </label>
         <label className="text-xs font-medium text-ink-700">
@@ -499,7 +503,7 @@ export function SocialSection() {
     setCampaigns((c.data ?? []) as Campaign[]);
     setPosts((q.data ?? []) as Post[]);
     const st = await supabase.rpc('auto_release_status');
-    const entries = ((st.data as { log?: { at: string; kind: string; ok: boolean; summary: string }[] } | null)?.log ?? []).filter((l) => l.kind === 'social');
+    const entries = ((st.data as { log?: { at: string; kind: string; ok: boolean; summary: string }[] } | null)?.log ?? []).filter((l) => l.kind === 'social' || l.kind === 'sponsors');
     setLog(entries);
   }, []);
 
@@ -556,6 +560,16 @@ export function SocialSection() {
         <div className="flex items-center gap-2">
           <button onClick={() => void load()} className="rounded-md p-2 text-ink-500 hover:bg-ink-100" title="Refresh">
             <RefreshCw className="h-4 w-4" />
+          </button>
+          <button
+            onClick={async () => {
+              const { error } = await supabase.rpc('sponsors_run_now');
+              setMsg(error ? `UK sponsor list: ${error.message}` : 'UK sponsor list update started — takes 1–3 minutes. The result appears in the pipeline log below.');
+            }}
+            className="rounded-lg border border-ink-200 px-3 py-2 text-sm font-semibold text-ink-700 hover:bg-ink-50"
+            title="Download today's UK Home Office register of licensed sponsors (runs automatically every day)"
+          >
+            Update UK sponsor list
           </button>
           <button onClick={() => void runNow()} disabled={running} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} Run now

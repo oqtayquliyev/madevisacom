@@ -30,7 +30,7 @@ type PlatformRow = { platform: Platform; enabled: boolean; size: 'portrait' | 's
 type Campaign = {
   id: string;
   name: string;
-  kind: 'fresh' | 'student' | 'category' | 'company';
+  kind: 'fresh' | 'student' | 'category' | 'company' | 'sponsor' | 'visa' | 'remote' | 'offer';
   platforms: Platform[];
   every_minutes: number;
   format: 'list' | 'carousel' | 'single' | 'company' | 'cards' | 'mix';
@@ -125,6 +125,8 @@ function tagsFor(c: Campaign, jobs: Job[]): string[] {
   for (const cat of c.categories ?? []) if (tagWord(cat)) field.add(tagWord(cat));
   const extra: string[] = [];
   if (c.kind === 'student' || jobs.some((j) => j.student)) extra.push('internships');
+  if (c.kind === 'sponsor') extra.push('ukvisa', 'skilledworkervisa', 'sponsorlicence');
+  if (c.kind === 'offer') extra.push('visasponsorship', 'workabroad');
   if (jobs.some((j) => j.visa)) extra.push('visasponsorship');
   if (jobs.some(isRemote)) extra.push('remotejobs');
   const all = [...company, ...role, ...field, ...city, 'hiring', ...country, ...extra, 'jobs'];
@@ -138,6 +140,10 @@ function jobLink(j: Job, p: Platform): string {
 /** Short headline for the image — what these jobs have in common. */
 function headlineFor(c: Campaign, jobs: Job[], seed: number): string {
   const n = jobs.length;
+  if (c.kind === 'sponsor') return pickBy([`Already licensed to sponsor visas`, `${n} UK employers with a sponsor licence`, `Hiring — and licensed to sponsor`], seed);
+  if (c.kind === 'visa') return pickBy([`${n} ${plural(n, 'role', 'roles')} offering visa sponsorship`, `Visa sponsorship: ${n} new ${plural(n, 'role', 'roles')}`, `Sponsorship mentioned in the ad`], seed);
+  if (c.kind === 'remote') return pickBy([`${n} remote-friendly ${plural(n, 'role', 'roles')}`, `Work from anywhere: ${n} new ${plural(n, 'role', 'roles')}`, `Remote & hybrid, posted this week`], seed);
+  if (c.kind === 'offer') return pickBy([`No visa line in the ad?`, `Make them a sponsorship offer`, `They didn't say no to visas`], seed);
   if (c.kind === 'student') return pickBy([`${n} student & internship ${plural(n, 'role', 'roles')}, fresh today`, `Students: ${n} new ${plural(n, 'role', 'roles')} to apply for`, `Internships and first jobs, posted today`], seed);
   if ((c.kind === 'category' || c.categories.length) && c.categories[0]) {
     const cat = c.categories[0].replace(/\b\w/g, (m) => m.toUpperCase());
@@ -159,6 +165,35 @@ function singleHeadline(_j: Job): string {
 function hookFor(c: Campaign, jobs: Job[], seed: number): string {
   const n = jobs.length;
   const companies = jobs.slice(0, 2).map((j) => j.company);
+  const both = `${companies.join(' and ')}${n > 2 ? ` and ${n - 2} more` : ''}`;
+  if (c.kind === 'sponsor')
+    return pickBy(
+      [
+        `${both} ${companies.length === 1 ? 'is' : 'are'} on the UK Home Office register of licensed visa sponsors — and hiring now.`,
+        `Skip the guesswork: every company here already holds a UK sponsor licence.`,
+        `Licensed to sponsor, and hiring. ${n} ${plural(n, 'role', 'roles')} checked against the official UK register.`,
+        `Want a UK Skilled Worker visa? Start with employers who already have the licence.`,
+      ],
+      seed
+    );
+  if (c.kind === 'visa')
+    return pickBy(
+      [
+        `These ads say it out loud: visa sponsorship available.`,
+        `${n} ${plural(n, 'role', 'roles')} where the company mentions sponsorship — straight from their careers pages.`,
+        `Sponsorship offered: ${both}.`,
+      ],
+      seed
+    );
+  if (c.kind === 'remote')
+    return pickBy(
+      [
+        `Remote and hybrid roles — a common first step before a move abroad.`,
+        `${n} remote-friendly ${plural(n, 'role', 'roles')} from ${both}.`,
+        `Work for a company abroad without moving yet. ${n} roles posted this week.`,
+      ],
+      seed
+    );
   if (c.kind === 'student')
     return pickBy(
       [
@@ -176,7 +211,6 @@ function hookFor(c: Campaign, jobs: Job[], seed: number): string {
     const j = jobs[0];
     return `${j.company} just posted this on its careers page.`;
   }
-  const both = `${companies.join(' and ')}${n > 2 ? ` and ${n - 2} more` : ''}`;
   return pickBy(
     [
       `${n} roles that went live in the last 24 hours.`,
@@ -388,8 +422,8 @@ async function planCampaign(service: Service, c: Campaign, platforms: Map<Platfo
     const pick = (cats: string[]) =>
       service.rpc('social_pick_jobs', {
         p_platform: p,
-        p_count: Math.min(want * 3, 15),
-        p_kind: c.kind === 'student' ? 'student' : 'fresh',
+        p_count: Math.min(want * 4, 20),
+        p_kind: ['student', 'sponsor', 'visa', 'remote', 'offer'].includes(c.kind) ? c.kind : 'fresh',
         p_categories: cats,
         p_countries: c.countries ?? [],
         p_salary_only: c.salary_only,
@@ -465,7 +499,8 @@ async function planCampaign(service: Service, c: Campaign, platforms: Map<Platfo
     }
 
     const weekCount = await recentPosts(service, p, 7 * 24 * 60);
-    const offerLed = weekCount % OFFER_EVERY === OFFER_EVERY - 1;
+    // The "offer" campaign always leads with the offer; others every third post.
+    const offerLed = c.kind === 'offer' || (c.kind !== 'visa' && weekCount % OFFER_EVERY === OFFER_EVERY - 1);
     // Re-roll the wording until it doesn't open like one of the last 8 posts.
     let caption = captionFor(c, jobs, p, seed, offerLed);
     for (let k = 1; k < 12 && recent.openings.has(opening(caption)); k++) caption = captionFor(c, jobs, p, seed + k * 7919, offerLed);

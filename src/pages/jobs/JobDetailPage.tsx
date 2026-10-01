@@ -12,6 +12,7 @@ import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { HiringBriefCallout } from '@/components/briefs/HiringBriefCallout';
 import { ApplyNudge } from '@/components/briefs/ApplyNudge';
+import { UkSponsorPill } from '@/components/companies/SponsorProof';
 import { OfferButton } from '@/components/briefs/OfferButton';
 import { briefEligibility } from '@/lib/briefs';
 import { fetchSponsoredJobById, fetchSponsoredJobByShortId, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
@@ -248,6 +249,8 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // covered countries start the builder with a country picker.
   const offerEl = raw ? briefEligibility({ countryCode: raw.country?.iso_code ?? (countryOk ? job.countryCode : null), visa: visa ?? null, closed: Boolean(job.closed), fallback: 'DE' }) : null;
   // Already in your country (or free to work there): no visa, so no sponsorship offer.
+  // UK jobs: show the Home Office sponsor-licence badge when the company is on the register.
+  const ukJob = (raw?.country?.iso_code ?? (countryOk ? job.countryCode : null)) === 'GB';
   const localJob = isLocalJobFor(raw?.country?.iso_code ?? (countryOk ? job.countryCode : null), visitor);
   const offerOk = Boolean(offerEl?.ok) && !localJob;
   const offerCountry = offerEl?.ok && offerEl.picked ? offerEl.code : null;
@@ -381,10 +384,11 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               ) : (
                 <p className="truncate text-base font-bold sm:text-lg">{job.company}</p>
               )}
-              {(job.sourceType === 'company_submitted' || isNewCompany(job.companyAddedAt)) && (
+              {(job.sourceType === 'company_submitted' || isNewCompany(job.companyAddedAt) || ukJob) && (
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   {job.sourceType === 'company_submitted' && <DirectListingBadge company={job.company} />}
                   <NewCompanyBadge addedAt={job.companyAddedAt} variant="hero" />
+                  {ukJob && <UkSponsorPill publisherId={raw?.publisher_id} />}
                 </div>
               )}
             </div>
