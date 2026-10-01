@@ -13,6 +13,7 @@ import { OfferJobPicker } from '@/components/briefs/OfferJobPicker';
 import { BuyOffers } from '@/components/briefs/BuyOffers';
 import { CustomOfferCard } from '@/components/briefs/CustomOfferCard';
 import { OfferOddsStat } from '@/components/briefs/OfferOddsStat';
+import { OfferFlip } from '@/components/briefs/OfferFlip';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
@@ -57,6 +58,7 @@ export function OffersPage({ go, onAuth }: Props) {
             you’ll cover.
           </p>
           <OfferOddsStat light className="mt-6" />
+          <OfferFlip light className="mt-6 max-w-4xl" />
           <div className="mt-7 flex flex-wrap items-center gap-3">
             {user ? (
               <a href="#jobs" onClick={jump('jobs')} className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3.5 text-[15px] font-bold text-brand-700 shadow-sm hover:bg-brand-50">
@@ -64,7 +66,7 @@ export function OffersPage({ go, onAuth }: Props) {
               </a>
             ) : (
               <button onClick={() => onAuth?.('register')} className="rounded-full bg-white px-6 py-3.5 text-[15px] font-bold text-brand-700 shadow-sm hover:bg-brand-50">
-                Try it free
+                Make my first offer — free
               </button>
             )}
             <a href="#custom" onClick={jump('custom')} className="rounded-full px-5 py-3.5 text-[15px] font-bold text-white ring-1 ring-white/40 hover:bg-white/10">

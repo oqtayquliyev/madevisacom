@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, Crown, TrendingUp, Wallet } from 'lucide-react';
-import { OFFER_HIRE_MULTIPLIER } from '@/components/briefs/OfferOddsStat';
+import { replyOdds } from '@/components/briefs/OfferOddsStat';
 import { useAuth } from '@/lib/auth';
 import { countryName } from '@/lib/visaFit';
 import { DEFAULT_PACK, priceNote, PRO_MONTHLY_DOCS, usePrices, type Prices } from '@/lib/pricing';
@@ -98,15 +98,29 @@ export function BuyOffers({ onAuth, onPro }: { onAuth?: (p: 'login' | 'register'
   );
 }
 
-/** "2.3× hire chance on 5 applications" — the multiplier each document gives, per purchase. */
+/**
+ * "46% chance of at least one employer reply · vs 23% without" — grows with
+ * the pack size, so bigger plans show bigger (and honest) numbers.
+ */
 function HireLine({ apps, featured = false, perMonth = false }: { apps: number; featured?: boolean; perMonth?: boolean }) {
+  const withDoc = replyOdds(apps, true);
+  const without = replyOdds(apps, false);
   return (
-    <p className={`mt-2 flex items-center gap-1.5 rounded-md px-2 py-1 text-[12.5px] font-semibold ${featured ? 'bg-emerald-400/15 text-emerald-200' : 'bg-emerald-50 text-emerald-700'}`}>
-      <TrendingUp className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
-      <span>
-        <strong className={featured ? 'text-emerald-300' : 'text-emerald-600'}>{OFFER_HIRE_MULTIPLIER}</strong> hire chance on {apps} application{apps === 1 ? '' : 's'}
-        {perMonth ? ' a month' : ''}
-      </span>
-    </p>
+    <div className={`mt-2 rounded-md px-2 py-1.5 ${featured ? 'bg-emerald-400/15' : 'bg-emerald-50'}`}>
+      <p className={`flex items-center gap-1.5 text-[12.5px] font-semibold ${featured ? 'text-emerald-200' : 'text-emerald-700'}`}>
+        <TrendingUp className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
+        <span>
+          <strong className={`tabular-nums text-[15px] ${featured ? 'text-emerald-300' : 'text-emerald-600'}`}>{withDoc}%</strong> chance of an employer reply
+          {perMonth ? ' every month' : ''}
+        </span>
+      </p>
+      {/* Bar: without (faint) vs with documents (solid) */}
+      <div className={`mt-1 h-1.5 w-full overflow-hidden rounded-full ${featured ? 'bg-white/15' : 'bg-emerald-100'}`} aria-hidden>
+        <div className={`relative h-full rounded-full ${featured ? 'bg-emerald-300' : 'bg-emerald-500'}`} style={{ width: `${withDoc}%` }} />
+      </div>
+      <p className={`mt-0.5 text-[11px] ${featured ? 'text-white/70' : 'text-ink-500'}`}>
+        across {apps} application{apps === 1 ? '' : 's'} · {without}% without a document
+      </p>
+    </div>
   );
 }

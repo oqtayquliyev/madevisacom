@@ -4,6 +4,7 @@ import { creditsBadge, useOfferCredits } from '@/lib/sponsorOffer';
 import { OfferFlags, OfferInfo } from '@/components/briefs/OfferBits';
 import { OfferDemo, OfferSteps } from '@/components/briefs/OfferDemo';
 import { OfferOddsStat } from '@/components/briefs/OfferOddsStat';
+import { OfferFlip } from '@/components/briefs/OfferFlip';
 
 /** Landing: what a sponsor offer is, shown rather than told. */
 export function OfferSection() {
@@ -33,6 +34,7 @@ export function OfferSection() {
           <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-brand-700">{creditsBadge(credits)}</span>
         </a>
       </div>
+      <OfferFlip className="mt-6" />
       <div className="mt-6">
         <OfferSteps active={1} />
       </div>

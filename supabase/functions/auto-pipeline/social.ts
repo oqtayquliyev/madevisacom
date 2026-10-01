@@ -176,12 +176,19 @@ function hookFor(c: Campaign, jobs: Job[], seed: number): string {
     const j = jobs[0];
     return `${j.company} just posted this on its careers page.`;
   }
+  const both = `${companies.join(' and ')}${n > 2 ? ` and ${n - 2} more` : ''}`;
   return pickBy(
     [
       `${n} roles that went live in the last 24 hours.`,
       `A few roles worth your attention today — straight from company career pages.`,
-      `${companies.join(' and ')}${n > 2 ? ` and ${n - 2} more` : ''} ${companies.length === 1 ? 'is' : 'are'} hiring. Posted today.`,
+      `${both} ${companies.length === 1 ? 'is' : 'are'} hiring. Posted today.`,
       `Fresh this morning: ${n} openings, no reposts.`,
+      `Early applicants get read first. ${n} roles that opened today:`,
+      `Today's shortlist: ${n} roles from ${both}.`,
+      `Planning a move abroad? Start with these ${n} roles, posted today.`,
+      `Before these fill up — ${n} new openings from company career pages.`,
+      `${both}: new roles today. Here's what's open.`,
+      `No job-board reposts here. ${n} roles taken straight from careers pages today.`,
     ],
     seed
   );
@@ -192,7 +199,35 @@ const flag = (iso: string | null | undefined) =>
   iso && /^[A-Z]{2}$/i.test(iso) ? String.fromCodePoint(...[...iso.toUpperCase()].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65)) : '📍';
 const HOOK_EMOJI = ['🚀', '✨', '🔥', '💼', '⚡', '🌍'];
 
-function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number): string {
+// --- The sponsorship offer, explained a different way each time ---------------
+// Followers mostly don't get "the candidate makes the offer" on first read.
+// Every post carries a one-line teaser; every third post leads with it.
+
+const OFFER_HOOKS = (co: string): string[] => [
+  `The ad for ${co} doesn't mention a visa. That's not a "no" — it's a question nobody asked yet.`,
+  `Most companies never say no to sponsorship. They just never think about it. Here's how you make them.`,
+  `Employers skip foreign candidates because they guess visas are slow and costly. Show them it isn't.`,
+  `Flip it: instead of waiting for a company to offer sponsorship, you offer them the plan.`,
+  `"Do you sponsor visas?" gets ignored. A one-page plan with the route and the costs gets read.`,
+  `You found the job at ${co}. Now remove the one reason they'd skip you.`,
+];
+
+const OFFER_EXPLAINERS: string[] = [
+  `📄 How it works: pick the job → choose which visa costs you'll share → attach a one-page PDF to your application. The employer sees the legal route, their 3–4 steps and the real cost.`,
+  `📄 A sponsorship offer is a one-page PDF you attach when you apply: the visa route for that country, what the employer has to do, and which costs you cover. Recruiters stop guessing.`,
+  `📄 Recruiters reject visa candidates when they can't see the cost or the steps. Your sponsorship offer answers both before they ask — on one page.`,
+  `📄 Think of it as a cover letter for the visa: the route, the timeline, who pays what. Built in 2 minutes from the job you already found.`,
+];
+
+const OFFER_TEASERS: string[] = [
+  `💡 No visa line in the ad? Attach a sponsorship offer — your first one is free.`,
+  `💡 Tip: a one-page sponsorship offer answers "can we hire you?" before the recruiter asks.`,
+  `💡 Companies don't advertise sponsorship they've never tried. Your offer shows them how.`,
+  `💡 Make the visa easy to say yes to — build a free sponsorship offer on madevisa.com/offers`,
+  `💡 Applying from abroad? Send the plan, not just the CV.`,
+];
+
+function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number, offerLed = false): string {
   const clickable = p === 'linkedin' || p === 'facebook';
   const blocks = jobs.map((j, i) => {
     const where = place(j);
@@ -209,12 +244,27 @@ function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number): string
 
   const tags = new Set<string>(tagsFor(c, jobs));
 
+  const offerUrl = clickable ? `${SITE}/offers?s=${SHORT[p]}` : 'madevisa.com/offers';
+  if (offerLed) {
+    tags.add('#visasponsorship');
+    tags.add('#workabroad');
+  }
+  const offerCta = p === 'instagram'
+    ? `🆓 Make your first sponsorship offer free on madevisa.com/offers — link in bio.`
+    : `🆓 Make your first sponsorship offer free: ${offerUrl}`;
+
   const limit = p === 'linkedin' ? 2900 : 2150;
-  const hook = `${pickBy(HOOK_EMOJI, seed)} ${hookFor(c, jobs, seed)}`;
-  let body = [hook, ...blocks, cta, [...tags].join(' ')].join('\n\n');
+  const hook = offerLed
+    ? `🛂 ${pickBy(OFFER_HOOKS(jobs[0]?.company ?? 'this company'), seed)}`
+    : `${pickBy(HOOK_EMOJI, seed)} ${hookFor(c, jobs, seed)}`;
+  const parts = (b: string[]) =>
+    offerLed
+      ? [hook, pickBy(OFFER_EXPLAINERS, seed >> 3), ...b, offerCta, [...tags].join(' ')]
+      : [hook, ...b, pickBy(OFFER_TEASERS, seed >> 2), cta, [...tags].join(' ')];
+  let body = parts(blocks).join('\n\n');
   while (body.length > limit && blocks.length > 1) {
     blocks.pop();
-    body = [hook, ...blocks, cta, [...tags].join(' ')].join('\n\n');
+    body = parts(blocks).join('\n\n');
   }
   return body.slice(0, limit);
 }
@@ -272,19 +322,41 @@ async function recentPosts(service: Service, p: Platform, minutes: number): Prom
 }
 
 /** The companies (and format) of the last few posts on a network — so the next post doesn't repeat them. */
-async function recentOnPlatform(service: Service, p: Platform, n = 3): Promise<{ companies: Set<string>; lastFormat: string | null }> {
+async function recentOnPlatform(service: Service, p: Platform, n = 8): Promise<{ companies: Set<string>; lastFormat: string | null; openings: Set<string> }> {
   const { data } = await service
     .from('social_posts')
-    .select('format, links')
+    .select('format, links, caption')
     .eq('platform', p)
     .not('status', 'in', '(rejected,expired)')
     .order('created_at', { ascending: false })
     .limit(n);
-  const rows = (data ?? []) as { format: string; links: { company?: string }[] }[];
+  const rows = (data ?? []) as { format: string; links: { company?: string }[]; caption: string | null }[];
   const companies = new Set<string>();
   for (const r of rows) for (const l of r.links ?? []) if (l.company) companies.add(l.company.trim().toLowerCase());
-  return { companies, lastFormat: rows[0]?.format ?? null };
+  const openings = new Set(rows.map((r) => opening(r.caption)).filter(Boolean));
+  return { companies, lastFormat: rows[0]?.format ?? null, openings };
 }
+
+/** First line of a caption without its emoji — used so two posts in a row never open the same way. */
+const opening = (caption: string | null | undefined) => (caption ?? '').split('\n')[0].replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
+
+/** Same role at the same company = same post to a follower, even when the ATS lists it 3 times. */
+const fingerprint = (j: Job) => `${j.company.trim().toLowerCase()}|${cleanTitle(j.title).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`;
+
+/** Roles at the same company with the same title posted on this network in the last 30 days. */
+async function recentFingerprints(service: Service, p: Platform): Promise<Set<string>> {
+  const { data } = await service
+    .from('social_post_jobs')
+    .select('fingerprint')
+    .eq('platform', p)
+    .not('fingerprint', 'is', null)
+    .gte('created_at', new Date(Date.now() - 30 * 86_400_000).toISOString())
+    .limit(2000);
+  return new Set(((data ?? []) as { fingerprint: string }[]).map((r) => r.fingerprint));
+}
+
+/** Every third post on a network leads with the sponsorship offer instead of just listing jobs. */
+const OFFER_EVERY = 3;
 
 const MIX: Campaign['format'][] = ['cards', 'list', 'company'];
 
@@ -357,11 +429,13 @@ async function planCampaign(service: Service, c: Campaign, platforms: Map<Platfo
       }
       jobs = (picked ?? []) as Job[];
     }
-    // Drop companies used in the last 3 posts, then one job per company, then trim to size.
+    // Drop companies used in the last 8 posts, roles already posted under another
+    // job id (same company + title), then one job per company, then trim to size.
+    const seenFp = await recentFingerprints(service, p);
     const usedCo = new Set<string>();
     jobs = jobs.filter((j) => {
       const k = j.company.trim().toLowerCase();
-      if (recent.companies.has(k) || usedCo.has(k)) return false;
+      if (recent.companies.has(k) || usedCo.has(k) || seenFp.has(fingerprint(j))) return false;
       usedCo.add(k);
       return true;
     }).slice(0, want);
@@ -390,7 +464,11 @@ async function planCampaign(service: Service, c: Campaign, platforms: Map<Platfo
       continue;
     }
 
-    const caption = captionFor(c, jobs, p, seed);
+    const weekCount = await recentPosts(service, p, 7 * 24 * 60);
+    const offerLed = weekCount % OFFER_EVERY === OFFER_EVERY - 1;
+    // Re-roll the wording until it doesn't open like one of the last 8 posts.
+    let caption = captionFor(c, jobs, p, seed, offerLed);
+    for (let k = 1; k < 12 && recent.openings.has(opening(caption)); k++) caption = captionFor(c, jobs, p, seed + k * 7919, offerLed);
     const imageKey = `${format}:${pr.size}:${jobs.map((j) => j.id).sort().join(',')}`;
     const { data: post, error: insErr } = await service
       .from('social_posts')
@@ -414,14 +492,14 @@ async function planCampaign(service: Service, c: Campaign, platforms: Map<Platfo
       log.push(`${c.name} → ${p}: ${insErr?.message ?? 'could not queue'}`);
       continue;
     }
-    const { error: claimErr } = await service.from('social_post_jobs').insert(jobs.map((j) => ({ platform: p, job_id: j.id, post_id: post.id })));
+    const { error: claimErr } = await service.from('social_post_jobs').insert(jobs.map((j) => ({ platform: p, job_id: j.id, post_id: post.id, fingerprint: fingerprint(j) })));
     if (claimErr) {
       // Another run took one of these jobs a moment ago — drop this post, try next time.
       await service.from('social_posts').delete().eq('id', post.id);
       log.push(`${c.name} → ${p}: jobs taken by another post — retrying next run`);
       continue;
     }
-    log.push(`${c.name} → ${p}: queued ${jobs.length} ${plural(jobs.length, 'job', 'jobs')}${c.require_approval ? ' (awaiting approval)' : ''}`);
+    log.push(`${c.name} → ${p}: queued ${jobs.length} ${plural(jobs.length, 'job', 'jobs')}${offerLed ? ' (offer-led)' : ''}${c.require_approval ? ' (awaiting approval)' : ''}`);
   }
 }
 
@@ -475,6 +553,7 @@ async function waitReady(container: string, token: string) {
     if (d.status_code === 'ERROR') throw new Error('Instagram could not process the image');
     await new Promise((r) => setTimeout(r, 2000));
   }
+  throw new Error('Instagram is still processing the image — will check and retry next run');
 }
 
 /**
@@ -575,10 +654,47 @@ async function publishTikTok(post: Post): Promise<Result> {
   return { id: d.data?.publish_id ?? '' };
 }
 
+// ---------------------------------------------------------------------------
+// Idempotency: never publish the same post twice.
+//
+// Why posts were repeating: a network call can succeed on Meta's side while
+// we see an error or time out (slow carousel processing, edge function
+// killed mid-run). The post went back to "approved" and was published again
+// on the next run — up to 3 times. Now, before any retry, we look at the
+// account's latest posts; if this caption is already there, we just mark it
+// published.
+// ---------------------------------------------------------------------------
+
+const captionKey = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, ' ').trim().slice(0, 160).toLowerCase();
+
+async function findExisting(post: Post): Promise<Result | null> {
+  const want = captionKey(post.caption);
+  if (!want) return null;
+  try {
+    if (post.platform === 'instagram') {
+      const ig = env('IG_USER_ID') || (igDirect() ? 'me' : '');
+      const token = env('IG_ACCESS_TOKEN') || env('FB_PAGE_TOKEN');
+      const res = await fetch(`${igBase()}/${ig}/media?fields=id,caption,permalink&limit=12&access_token=${token}`);
+      const d = await res.json().catch(() => ({}));
+      const hit = ((d.data ?? []) as { id: string; caption?: string; permalink?: string }[]).find((m) => captionKey(m.caption) === want);
+      return hit ? { id: hit.id, url: hit.permalink } : null;
+    }
+    if (post.platform === 'facebook') {
+      const res = await fetch(`https://graph.facebook.com/v21.0/${env('FB_PAGE_ID')}/posts?fields=id,message,permalink_url&limit=12&access_token=${env('FB_PAGE_TOKEN')}`);
+      const d = await res.json().catch(() => ({}));
+      const hit = ((d.data ?? []) as { id: string; message?: string; permalink_url?: string }[]).find((m) => captionKey(m.message) === want);
+      return hit ? { id: hit.id, url: hit.permalink_url } : null;
+    }
+  } catch {
+    /* lookup failed — fall through to the normal path */
+  }
+  return null;
+}
+
 const PUBLISHERS: Record<Platform, (p: Post, service: Service) => Promise<Result>> = { facebook: publishFacebook, instagram: publishInstagram, linkedin: publishLinkedIn, tiktok: publishTikTok };
 
 async function publishDue(service: Service, platforms: Map<Platform, PlatformRow>, log: string[]) {
-  // A run that stopped mid-publish: try again (the network call either happened or didn't).
+  // A run that stopped mid-publish: try again — the retry first checks whether it went live (findExisting).
   await service.from('social_posts').update({ status: 'approved' }).eq('status', 'publishing').lt('updated_at', new Date(Date.now() - 30 * 60_000).toISOString());
   const { data } = await service.from('social_posts').select('id, platform, format, caption, headline, images, job_ids, attempts, validation').eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8);
   for (const post of (data ?? []) as Post[]) {
@@ -610,9 +726,19 @@ async function publishDue(service: Service, platforms: Map<Platform, PlatformRow
       continue;
     }
 
-    await service.from('social_posts').update({ status: 'publishing', attempts: post.attempts + 1 }).eq('id', post.id);
+    // Claim the post atomically, so two overlapping runs can't both publish it.
+    const { data: claimed } = await service
+      .from('social_posts')
+      .update({ status: 'publishing', attempts: post.attempts + 1 })
+      .eq('id', post.id)
+      .eq('status', 'approved')
+      .select('id');
+    if (!claimed?.length) continue;
     try {
-      const r = await PUBLISHERS[post.platform](post, service);
+      // A retry (or a run that died mid-publish): did the earlier attempt actually go live?
+      const existing = post.attempts > 0 ? await findExisting(post) : null;
+      const r = existing ?? (await PUBLISHERS[post.platform](post, service));
+      if (existing) log.push(`${post.platform}: already live from an earlier attempt — not posting again`);
       await service.from('social_posts').update({ status: 'published', published_at: new Date().toISOString(), external_id: r.id, external_url: r.url ?? null, error: null }).eq('id', post.id);
       log.push(`${post.platform}: published`);
     } catch (e) {
