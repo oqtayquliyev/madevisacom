@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { AddNameStep, FinishAuth, goToNextAfterAuth, nameSkipped } from '@/components/auth/AfterSignIn';
-import { readAuthIntent } from '@/lib/authIntent';
+import { readAuthIntent, rememberReturnPage } from '@/lib/authIntent';
 import { useReferralCapture } from '@/lib/referrals';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
@@ -154,6 +154,8 @@ export default function App() {
   };
 
   const goToAuth = (page: AuthPage) => {
+    // Come back to this page after signing up / in (not the home page).
+    if (page === 'login' || page === 'register') rememberReturnPage();
     setAuthPage(page);
 
     // Clear the "sticky" current-page state — otherwise a public page

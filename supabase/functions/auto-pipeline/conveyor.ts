@@ -8,6 +8,7 @@
 // picked up on a later visit, so nothing piles up in a waiting list here.
 
 import { notifyGoogle } from './indexing.ts';
+import { logoCandidates, makeLogo } from '../company-finder/finder.ts';
 import {
   jobUrl,
   allRows,
@@ -228,7 +229,7 @@ async function syncOne(
     used++;
     const description = sanitizeJobHtml(j.descriptionHtml ?? '');
     // Too short to be a real job ad ("Read about our fees") → skip.
-    if (description.length < cfg.minChars || isJunkJob(j.title, description)) continue;
+    if (description.length < cfg.minChars || isJunkJob(j.title, description, j.url)) continue;
     const payload = analyse(j.title, description);
     rows.push(jobToRow(j, description, payload, { publisherId: src.publisher_id, importSourceId: src.id, status: src.auto_publish ? 'published' : 'pending', countryIdByIso: byIso, companyCountry }));
   }
@@ -259,6 +260,36 @@ async function syncOne(
   return { report, publishedIds, urls };
 }
 
+/**
+ * A company without a logo gets one on its next visit: Wikipedia logo →
+ * its careers page's own favicon → website icon → favicon services.
+ * Capped at ~30 s so it never holds up the sync.
+ */
+async function ensureLogo(service: Service, src: Source): Promise<void> {
+  const { data: pub } = await service.from('program_publishers').select('id, name, website, logo_url').eq('id', src.publisher_id).maybeSingle();
+  if (!pub || pub.logo_url) return;
+  const name = String(pub.name ?? src.publisher_name ?? '').trim();
+  if (!name) return;
+  const { data: sample } = await service
+    .from('sponsored_jobs')
+    .select('official_url')
+    .eq('publisher_id', src.publisher_id)
+    .not('official_url', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(3);
+  const pages = [
+    src.resolved_url,
+    /^https?:\/\//i.test(src.source_url) ? src.source_url : null,
+    ...((sample ?? []) as { official_url: string | null }[]).map((r) => r.official_url),
+  ];
+  const work = (async () => {
+    const icons = await logoCandidates({ name, website: pub.website ?? null, pages });
+    const logo = icons.length ? await makeLogo(service, icons, name) : null;
+    if (logo) await service.from('program_publishers').update({ logo_url: logo }).eq('id', pub.id).is('logo_url', null);
+  })();
+  await Promise.race([work.catch(() => undefined), new Promise((r) => setTimeout(r, 30_000))]);
+}
+
 export async function runConveyor(service: Service, want: number): Promise<void> {
   const deadline = Date.now() + 210_000; // well inside the Edge Function time limit
   const { data: claimed } = await service.rpc('pipeline_claim', { p_kind: 'sync', p_minutes: 6 });
@@ -281,6 +312,7 @@ export async function runConveyor(service: Service, want: number): Promise<void>
         ids.push(...r.publishedIds);
         urls.push(...r.urls);
         reports.push(r.report);
+        if (Date.now() < deadline - 50_000) await ensureLogo(service, src).catch(() => undefined);
       } catch (e) {
         reports.push({ name: src.publisher_name ?? 'Company', country: src.country, fetched: 0, added: 0, removed: 0, more: 0, complete: false, error: e instanceof Error ? e.message : 'Failed' });
       }

@@ -6,7 +6,7 @@
 // conveyor picks the new company up on its next pass through that country
 // and adds its jobs a few at a time.
 
-import { companyDetails, coreName, listCompanies, makeLogo, probe } from '../company-finder/finder.ts';
+import { companyDetails, coreName, listCompanies, logoCandidates, makeLogo, probe } from '../company-finder/finder.ts';
 import { callImporter, countryIds, fetchGreenhouse, allRows, type Service } from './shared.ts';
 
 type Candidate = { qid: string; name: string; website: string; domain: string; employees: number | null; industry: string | null; country: string | null };
@@ -88,7 +88,12 @@ async function handleCompany(service: Service, c: Candidate, code: string, deadl
       return { added: false, text: `${c.name} (${code}): unsure match (${hostOf(proven.url)}) — saved to check` };
     }
 
-    const logoUrl = icons.length ? await makeLogo(service, icons, c.name).catch(() => null) : null;
+    let logoUrl = icons.length ? await makeLogo(service, icons, c.name).catch(() => null) : null;
+    // Nothing usable on the homepage: Wikipedia logo, the careers page's icon, favicon services.
+    if (!logoUrl) {
+      const more = await logoCandidates({ name: c.name, website: c.website, pages: [proven.url, proven.resolvedUrl] }).catch(() => [] as string[]);
+      logoUrl = more.length ? await makeLogo(service, more, c.name).catch(() => null) : null;
+    }
     const byIso = await countryIds(service);
     const { data: pub, error } = await service
       .from('program_publishers')

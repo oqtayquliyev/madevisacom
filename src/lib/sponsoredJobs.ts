@@ -755,6 +755,7 @@ export function sponsoredJobToBoardJob(job: SponsoredJob): import('@/data/jobs')
     // A job without its own image shows the company's logo.
     imageUrl: job.image_url || job.publisher?.logo_url || null,
     postedDate: jobPostedAt(job),
+    sourcePostedAt: job.source_posted_at ?? null,
     sharedAt: job.approved_at ?? job.created_at,
     experienceLevel: job.experience_level,
     workArrangement: job.work_arrangement ?? null,

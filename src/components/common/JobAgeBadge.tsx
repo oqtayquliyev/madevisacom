@@ -1,4 +1,5 @@
-import { Clock, Flame } from 'lucide-react';
+import { CalendarPlus, Clock, Flame } from 'lucide-react';
+import { jobTime } from '@/lib/jobTime';
 
 const HOUR = 3_600_000;
 
@@ -24,12 +25,36 @@ export function jobAge(iso: string | null | undefined): { text: string; tier: 'f
 }
 
 /**
- * Posting-age pill: green (35%) within 24 hours, yellow (35%) for
- * 24–48 hours, grey date after that.
+ * Posting-age pill: green (35%) for jobs the source published today,
+ * yellow (35%) for yesterday, grey date after that. Jobs whose source
+ * shows no date get a grey "Added today" (the day MadeVisa added them).
  */
-export function JobAgeBadge({ iso, className = '' }: { iso: string | null | undefined; className?: string }) {
-  const a = jobAge(iso);
+export function JobAgeBadge({
+  iso,
+  source,
+  synced,
+  className = '',
+}: {
+  /** Any single date (programs) — shown as before. */
+  iso?: string | null;
+  /** Jobs: the date on the company's careers page (null when it shows none)… */
+  source?: string | null;
+  /** …and when the job went live on MadeVisa. With these, "x min ago" only shows for jobs the source published today. */
+  synced?: string | null;
+  className?: string;
+}) {
+  const isJob = source !== undefined || synced !== undefined;
+  const t = isJob ? jobTime(source, synced) : null;
+  const a = isJob ? t : jobAge(iso);
   if (!a) return null;
+  if (t && t.tier === 'added') {
+    return (
+      <span title="The company's page shows no posting date — this is when it was added to MadeVisa." className={`inline-flex items-center gap-1 rounded px-1.5 py-[3px] text-[10px] font-semibold tracking-wide bg-ink-100 text-ink-600 ${className}`}>
+        <CalendarPlus className="h-3 w-3" />
+        {t.text}
+      </span>
+    );
+  }
   const base = `inline-flex items-center gap-1 rounded px-1.5 py-[3px] text-[10px] font-bold tracking-wide ${className}`;
   if (a.tier === 'fresh') {
     return (

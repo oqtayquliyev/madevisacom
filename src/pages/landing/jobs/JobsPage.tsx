@@ -1,4 +1,5 @@
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
+import { boardJobDates, boardJobTime } from '@/lib/jobTime';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -71,10 +72,10 @@ const postedMs = (j: Job) => Date.parse(j.postedDate ?? j.sharedAt ?? '') || 0;
 const sharedMs = (j: Job) => Date.parse(j.sharedAt ?? j.postedDate ?? '') || 0;
 const DAY_MS = 86_400_000;
 
-/** Posted in the last 24 hours — worth applying early. */
+/** Published on the company's own page today — worth applying early. A job the
+ *  source shows no date for doesn't count just because it was synced today. */
 function isEarlyApplicantJob(j: Job): boolean {
-  const t = postedMs(j);
-  return !j.closed && t > 0 && Date.now() - t < DAY_MS;
+  return !j.closed && Boolean(boardJobTime(j)?.postedToday);
 }
 
 /** Strictly newest first. Jobs posted at the very same moment (a bulk
@@ -168,7 +169,8 @@ function FilterSwitch({ on, onChange, icon: Icon, label }: { on: boolean; onChan
 }
 
 function DateTag({ job }: { job: Job }) {
-  return <JobAgeBadge iso={job.postedDate} />;
+  const { source, synced } = boardJobDates(job);
+  return <JobAgeBadge source={source} synced={synced} />;
 }
 
 function SourceLabel({ job }: { job: Job }) {

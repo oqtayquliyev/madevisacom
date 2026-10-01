@@ -28,6 +28,7 @@ import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { useSeo } from '@/lib/seo';
 import { purifyJobHtml, sanitizeJobHtml } from '@/lib/atsImport';
 import { formatRelativeTime } from '@/lib/dates';
+import { boardJobDates, jobTime } from '@/lib/jobTime';
 import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
 import { EMPTY_FACTS, fetchJobFacts, isCurrentFacts, type JobContact, type StoredJobFacts } from '@/lib/jobFactsClient';
 import { allCountries } from '@/data/allCountries';
@@ -207,8 +208,12 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // the source's own labeled fields are more accurate then.
   const rawCategory = isPlaceholder(job.category) || isCodeLike(job.category) ? detected.department : job.category;
   const category = isCodeLike(rawCategory) ? null : displayJobCategory({ title: job.title, category: rawCategory });
-  const postedDate = pickPostedDate(job.postedDate, detected.postedAt);
-  const postedLabel = postedDate ? formatRelativeTime(postedDate, '') : '';
+  // The company's own date (stored, or printed in the ad) — never the sync time.
+  const dates = boardJobDates(job);
+  const sourceDate = pickPostedDate(dates.source, detected.postedAt);
+  const when = jobTime(sourceDate, dates.synced);
+  const postedDate = when?.iso ?? null;
+  const postedLabel = when?.words ?? '';
   const sourcePlace = parseSourceLocation(detected.location);
   const cityOk = !isPlaceholder(job.city) && job.city !== 'Remote';
   const countryOk = !isPlaceholder(job.country);
@@ -416,18 +421,24 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                   <CircleFlag countryCode={flagCode} label={placeLabel} size={16} />
                   {placeLabel}
                 </span>
-                {postedLabel && (
-                  <span className="flex items-center gap-1.5">
+                {postedLabel && when && (
+                  <span className="flex items-center gap-1.5" title={when.fromSource ? undefined : `${job.company}'s page shows no posting date — this is when it was added to MadeVisa.`}>
                     <Calendar className="h-4 w-4" />
-                    Posted {postedLabel}
-                    {isImported && (
+                    {when.fromSource ? (
                       <>
-                        {' '}on <strong className="font-bold text-white">{job.company}</strong>
+                        Posted {postedLabel}
+                        {isImported && (
+                          <>
+                            {' '}on <strong className="font-bold text-white">{job.company}</strong>
+                          </>
+                        )}
                       </>
+                    ) : (
+                      <>Added to MadeVisa {postedLabel}</>
                     )}
                   </span>
                 )}
-                {postedDate && !job.closed && postedAgeDays >= 0 && postedAgeDays < 1 && (
+                {when?.postedToday && !job.closed && (
                   <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-brand-700">
                     <Zap className="h-3 w-3 fill-current" />
                     Be an early applicant

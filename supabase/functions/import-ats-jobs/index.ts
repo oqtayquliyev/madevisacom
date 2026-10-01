@@ -230,6 +230,128 @@ function baseDomain(host: string): string {
   return parts.slice(-2).join(".");
 }
 
+// =========================================================================
+// "Not a job" filters — maps, consent walls, blog/marketing pages
+// =========================================================================
+
+/**
+ * URLs that can never be a job posting, wherever they were found: map
+ * links (an office address next to each job), Google/YouTube consent
+ * walls ("Before you continue to Google"), search/redirect links,
+ * social/share links. A job whose own link is one of these is dropped,
+ * and these links are never followed as "job pages".
+ */
+const NON_JOB_HOST_RE =
+  /(^|\.)(goo\.gl|maps\.app\.goo\.gl|g\.page|waze\.com|openstreetmap\.org|mapquest\.com|what3words\.com|wego\.here\.com|here\.com|tripadvisor\.[a-z.]+|trustpilot\.com|yelp\.[a-z.]+|wa\.me|whatsapp\.com|t\.me|telegram\.me|bit\.ly|tinyurl\.com|addtoany\.com|sharethis\.com|gstatic\.com|googleusercontent\.com|googleapis\.com|google-analytics\.com|googletagmanager\.com|doubleclick\.net|wikipedia\.org|wikimedia\.org)$/i;
+
+function isNonJobDestination(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  const h = u.hostname.toLowerCase();
+  const p = u.pathname.toLowerCase();
+  if (NON_JOB_HOST_RE.test(h)) return true;
+  // consent.google.co.uk, consent.youtube.com, accounts.google.com …
+  if (/^(consent|accounts|maps|translate|news|support|policies)\.(google|youtube)\./.test(h)) return true;
+  if (/^maps\.apple\.com$/.test(h) || /(^|\.)bing\.com$/.test(h) && /^\/maps/.test(p)) return true;
+  // www.google.<tld>/maps, /search, /url … (google.com/about/careers stays allowed)
+  if (/(^|\.)google\.[a-z.]+$/.test(h) && /^\/(maps|search|url|amp|imgres|travel|preferences|sorry)\b/.test(p)) return true;
+  if (/(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(h)) return true;
+  // A Google consent redirect carries the real destination in ?continue=
+  if (/consent|sorry/.test(h + p) && /google|youtube/.test(h)) return true;
+  return false;
+}
+
+/** Cookie / consent walls and "redirecting…" pages that got read as a job title. */
+const CONSENT_TITLE_RE =
+  /before you continue( to (google|youtube))?|bevor sie (zu (google|youtube) )?weitergehen|avant d'acc[eé]der [àa] (google|youtube)|antes de (ir|continuar) a (google|youtube)|prima di (continuare|procedere) (su|a) (google|youtube)|voordat je verdergaat naar (google|youtube)|zanim przejdziesz do (google|youtube)|prima di accedere a google|we value your privacy|cookie (settings|preferences|consent)|manage (your )?cookies|redirecting\.*$|you are being redirected/i;
+/** Text only a consent page has (Google's "we use cookies and data to …" list). */
+const CONSENT_TEXT_RE =
+  /deliver and maintain google services|track outages and protect against spam, fraud,? and abuse|google-dienste (bereitzustellen|zu erbringen) und zu warten|non-personali[sz]ed (content|ads) (is|are) influenced by|before you continue to google|bevor sie zu google weitergehen/i;
+
+function isConsentPage(title: string, html: string): boolean {
+  if (CONSENT_TITLE_RE.test(title)) return true;
+  return CONSENT_TEXT_RE.test(html.length > 200_000 ? html.slice(0, 200_000) : html);
+}
+
+/** Blog / news / article sections — some sites (e.g. Shopify "/blogs/job/…") post real jobs there, most posts aren't jobs. */
+const ARTICLE_PATH_RE = /\/(blogs?|news|articles?|posts?|press|press-releases?|stories|story|insights|magazine|journal|events?|updates|media|resources|guides?|inspiration|community)(\/|$)/i;
+/** Words a job title nearly always has. */
+const ROLE_WORD_RE =
+  /\b(assistant|associate|manager|management|engineer|engineering|developer|driver|operator|operative|technician|nurse|nursing|doctor|physician|pharmacist|pharmacy|dispenser|dispensing|analyst|specialist|coordinator|co-ordinator|administrator|administration|admin|executive|officer|lead|leader|head of|director|supervisor|intern|internship|trainee|apprentice|apprenticeship|graduate|consultant|advisor|adviser|architect|designer|scientist|researcher|accountant|bookkeeper|payroll|clerk|cashier|receptionist|representative|rep|agent|worker|labourer|laborer|chef|cook|kitchen|waiter|waitress|bartender|barista|cleaner|housekeeper|porter|warehouse|forklift|picker|packer|merchandiser|buyer|planner|controller|auditor|lawyer|solicitor|paralegal|teacher|tutor|lecturer|professor|carer|caregiver|care|therapist|mechanic|electrician|plumber|fitter|welder|machinist|installer|surveyor|estimator|sales|marketing|recruiter|staff|crew|team member|colleague|stocker|programmer|tester|support|security guard|guard|counsel|student|volunteer|praktikum|praktikant|werkstudent|mitarbeiter|ingenieur|leiter|sachbearbeiter|stagiaire|alternance|m[eé]dicos?|residentes?|vacature|stelle|vacancy|opening|position|role|job|(w\/m\/d)|(m\/w\/d)|(f\/m\/d)|(m\/f\/d))\b/i;
+/** Phrases job ads have and blog posts / marketing pages don't. Each group counts once. */
+const JOB_PHRASE_RES: RegExp[] = [
+  /responsibilit|key tasks|duties|what you('|’)?ll do|day[- ]to[- ]day|your role|the role|aufgaben|taken/i,
+  /requirements?\b|what you('|’)?ll need|what we('|’)?re looking for|you will have|you have|skills|qualifications?|qualifikation|profil\b|years of experience|experience (in|with|of)/i,
+  /closing date|application deadline|apply by|to apply|how to apply|apply (now|online|here|today)|submit (your|an) application|application form|send (your|a) cv|cv and cover|bewerbung|postuler/i,
+  /salary|per (hour|annum|year|month|week)|\bp\/?h\b|£\s?\d|€\s?\d|\$\s?\d|competitive pay|hourly rate|pay rate|compensation|gehalt/i,
+  /full[- ]time|part[- ]time|permanent|temporary|fixed[- ]term|\bcontract\b|\bcasual\b|\bshifts?\b|\brota\b|hours per week|working hours|\d+\s?hours|vollzeit|teilzeit|befristet|unbefristet/i,
+  /benefits|pension|annual leave|holiday entitlement|paid time off|health insurance|employee discount/i,
+  /we are (looking|seeking|hiring|recruiting)|we('|’)re (looking|seeking|hiring|recruiting)|join (our|the) team|successful (candidate|applicant)|ideal candidate|the candidate|you will be|wir suchen/i,
+  /job (description|title|type|reference|ref|id)|position:|role:|reporting to|reports to|location:|department:/i,
+  /equal opportunit|e-verify|right to work|background check|dbs check/i,
+];
+/** Titles of seasonal / marketing / account pages. */
+const MARKETING_TITLE_RE =
+  /\b(opt[- ]?out|opt[- ]?in|unsubscribe|subscribe|newsletter|gifts?|christmas|black friday|cyber monday|mother'?s day|father'?s day|valentine'?s?|easter|halloween|sale|discount|% off|offers?|deals?|competition|giveaway|prize|recipes?|tips|how to|top \d+|announce(s|ment)?|press release|webinar|podcast|thank you|thanks|order|delivery|returns?|faq|terms|privacy|cookies?|store finder|our story|about us)\b/i;
+
+function jobPhraseScore(text: string): number {
+  let n = 0;
+  for (const re of JOB_PHRASE_RES) if (re.test(text)) n++;
+  return n;
+}
+
+function isArticlePage(html: string): boolean {
+  if (/<meta[^>]+property=["']og:type["'][^>]*content=["']article["']/i.test(html) || /<meta[^>]+content=["']article["'][^>]*property=["']og:type["']/i.test(html)) return true;
+  return /"@type"\s*:\s*"(BlogPosting|NewsArticle|Article)"/i.test(html) && !/"@type"\s*:\s*"JobPosting"/i.test(html);
+}
+
+/**
+ * False when a page read through the generic (no structured data) path is
+ * clearly not a job ad: a blog/news post, a seasonal "opt out" page, a
+ * cookie/consent wall. Pages under /blog/ need real job-ad content (title
+ * that names a role + several job-ad phrases) — so real jobs posted on a
+ * blog (Shopify "/blogs/job/casual-sales-assistant") are still kept.
+ */
+function looksLikeJobAd(title: string, descriptionHtml: string, pageHtml: string, url: string): boolean {
+  if (isNonJobDestination(url) || isConsentPage(title, pageHtml)) return false;
+  let path = "";
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    /* ignore */
+  }
+  const roleTitle = ROLE_WORD_RE.test(title);
+  const text = `${stripTags(descriptionHtml)} ${htmlToLines(pageHtml).filter((l) => l.length <= 400).join(" ")}`.slice(0, 60_000);
+  const score = (roleTitle ? 2 : 0) + jobPhraseScore(text);
+  const contentish = ARTICLE_PATH_RE.test(path) || isArticlePage(pageHtml);
+  if (contentish) return score >= 4 && (roleTitle || score >= 6);
+  if (MARKETING_TITLE_RE.test(title) && !roleTitle) return score >= 4;
+  return roleTitle || score >= 2;
+}
+
+/** The page itself says it is a job (schema.org JobPosting or Phenom job data). */
+function hasStructuredJob(html: string): boolean {
+  if (extractJsonLdJobPosting(html)) return true;
+  return isPhenomSite(html) && Boolean(extractPhenomDdo(html)?.jobDetail?.data?.job);
+}
+
+/** Last check on every job before it leaves this function. */
+function isUsableJob(j: NormalizedJob): boolean {
+  if (!j.title || isGarbageTitle(j.title)) return false;
+  if (isNonJobDestination(j.url)) return false;
+  if (CONSENT_TEXT_RE.test(j.descriptionHtml.slice(0, 20_000))) return false;
+  return true;
+}
+
+function cleanJobs(jobs: NormalizedJob[]): NormalizedJob[] {
+  return jobs.filter(isUsableJob);
+}
+
 /** Best-effort ISO date. Handles unix s/ms, /Date(…)/, ISO, "September 20, 2026", "Posted 3 Days Ago". */
 function toIsoDate(v: any): string | null {
   if (v === null || v === undefined || v === "") return null;
@@ -798,7 +920,7 @@ const GARBAGE_TITLE_PATTERNS = [
 
 function isGarbageTitle(title: string): boolean {
   const t = title.trim();
-  return !t || t.length < 2 || GARBAGE_TITLE_PATTERNS.some((p) => p.test(t));
+  return !t || t.length < 2 || GARBAGE_TITLE_PATTERNS.some((p) => p.test(t)) || CONSENT_TITLE_RE.test(t);
 }
 
 /** Map any job-like object to a NormalizedJob. `base` resolves relative URLs; `pageLinks` recovers a URL by id when the JSON has none. */
@@ -813,7 +935,7 @@ function jobFromObject(obj: any, base: string, pageLinks: string[] = []): Normal
   let url: string | null = null;
   for (const key of K.url) {
     const r = resolveUrl(pick(src, [key]), base);
-    if (r) {
+    if (r && !isNonJobDestination(r)) {
       url = r;
       break;
     }
@@ -1027,12 +1149,13 @@ function stripTitleSuffix(title: string): string {
 
 function titleFromHtml(html: string): string | null {
   const og =
-    html.match(/<meta[^>]+property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ??
-    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
+    // Quote-aware, so "Father's Day" isn't cut at the apostrophe.
+    html.match(/<meta[^>]+property=["']og:title["'][^>]*content=(?:"([^"]+)"|'([^']+)')/i) ??
+    html.match(/<meta[^>]+content=(?:"([^"]+)"|'([^']+)')[^>]*property=["']og:title["']/i);
   const h1 = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
   const tag = html.match(/<title[^>]*>([^<]+)<\/title>/i);
   const candidates: [string | null | undefined, boolean][] = [
-    [og?.[1], true],
+    [og?.[1] ?? og?.[2], true],
     [h1 ? stripTags(h1[1]) : null, false], // an <h1> is the title itself — never trimmed
     [tag?.[1], true],
   ];
@@ -1255,8 +1378,13 @@ async function enrichFromDetailPages(ctx: Ctx, jobs: NormalizedJob[], listingUrl
   await pool(targets, ctx, DETAIL_BUDGET_MS, async (job) => {
     const page = await get(job.url, { ctx, timeoutMs: 10_000 });
     if (!page.ok) return;
+    // Redirected to a map / consent wall → the job's link is not a job page.
+    if (isNonJobDestination(page.url) || isConsentPage("", page.text)) {
+      if (isNonJobDestination(page.url)) job.url = `${listingUrl}#${encodeURIComponent(job.externalId)}`;
+      return;
+    }
     const d = jobFromDetailHtml(page.text, page.url);
-    if (!d || isBlockedPage(d.title, d.descriptionHtml)) return;
+    if (!d || isBlockedPage(d.title, d.descriptionHtml) || !isUsableJob(d)) return;
     if (plainLength(d.descriptionHtml) > plainLength(job.descriptionHtml)) job.descriptionHtml = d.descriptionHtml;
     if (d.title.length > job.title.length && d.title.toLowerCase().startsWith(job.title.toLowerCase())) job.title = d.title;
     if (d.offices.length && (job.offices.length === 0 || job.offices.every((o) => /various|multiple/i.test(o)))) {
@@ -1282,8 +1410,9 @@ function isBlockedPage(title: string, html: string): boolean {
 async function jobsFromDetailUrls(ctx: Ctx, links: string[]): Promise<NormalizedJob[]> {
   const jobs: { job: NormalizedJob; order: number }[] = [];
   let failures = 0;
+  let notJobs = 0;
   let lastFailure = "";
-  const indexed = links.map((l, i) => ({ l, i }));
+  const indexed = links.filter((l) => !isNonJobDestination(l)).map((l, i) => ({ l, i }));
   await pool(
     indexed,
     ctx,
@@ -1295,7 +1424,16 @@ async function jobsFromDetailUrls(ctx: Ctx, links: string[]): Promise<Normalized
         lastFailure = describeFailure(page);
         return;
       }
+      if (isNonJobDestination(page.url)) {
+        notJobs++;
+        return;
+      }
       const job = jobFromDetailHtml(page.text, page.url);
+      // Blog posts, seasonal "opt out" pages, consent walls … read like a page, not a job.
+      if (job && (!isUsableJob(job) || (!hasStructuredJob(page.text) && !looksLikeJobAd(job.title, job.descriptionHtml, page.text, page.url)))) {
+        notJobs++;
+        return;
+      }
       if (job && !isBlockedPage(job.title, job.descriptionHtml)) jobs.push({ job, order: i });
       else if (job) {
         failures++;
@@ -1306,6 +1444,7 @@ async function jobsFromDetailUrls(ctx: Ctx, links: string[]): Promise<Normalized
   );
 
   if (jobs.length === 0 && links.length) {
+    if (notJobs > 0 && notJobs >= links.length * 0.5) throw new NoJobsError(`found ${links.length} links but they were blog/news or other non-job pages`);
     if (failures >= links.length * 0.8) throw new Error(`found ${links.length} job links but the job pages couldn't be fetched (${lastFailure})`);
     throw new Error(`found ${links.length} job links but none of the pages had readable job data`);
   }
@@ -1328,7 +1467,7 @@ const NAV_WORDS = new Set([
   "all", "filter", "map", "students", "university", "early-careers", "internships", "apply", "talent-community", "join", "culture",
   "life", "about", "how-we-hire", "events", "blog", "news", "privacy", "cookies", "en", "us", "global", "index", "home",
 ]);
-const BAD_HOST_RE = /(^|\.)(linkedin|facebook|twitter|x|instagram|youtube|glassdoor|indeed|tiktok|pinterest|google-analytics|googletagmanager|doubleclick)\./i;
+const BAD_HOST_RE = /(^|\.)(linkedin|facebook|twitter|x|instagram|youtube|glassdoor|indeed|tiktok|pinterest|google-analytics|googletagmanager|doubleclick|whatsapp|telegram|threads|snapchat|vimeo|spotify|trustpilot|tripadvisor|yelp|waze|openstreetmap|mapquest|what3words)\./i;
 const BAD_EXT_RE = /\.(pdf|jpe?g|png|gif|svg|webp|css|js|ico|woff2?|ttf|mp4|mp3|zip|docx?|xlsx?|pptx?)$/i;
 const ID_PARAM_RE = /^(gh_jid|jobid|job_id|jobreqid|reqid|req_id|requisitionid|postingid|pid|jid|job|jobpostingid|positionid|vacancyid|id)$/i;
 
@@ -1339,7 +1478,7 @@ function isLikelyJobUrl(raw: string): boolean {
   } catch {
     return false;
   }
-  if (BAD_HOST_RE.test(u.hostname + ".") || BAD_EXT_RE.test(u.pathname)) return false;
+  if (BAD_HOST_RE.test(u.hostname + ".") || BAD_EXT_RE.test(u.pathname) || isNonJobDestination(raw)) return false;
   let segs: string[];
   try {
     segs = u.pathname.split("/").filter(Boolean).map((s) => decodeURIComponent(s).toLowerCase());
@@ -2831,6 +2970,7 @@ async function resolveAndRun(ctx: Ctx, inputUrl: string): Promise<Resolved> {
     tried.add(key);
     try {
       const r = await runPlan(ctx, p, 0);
+      r.jobs = cleanJobs(r.jobs);
       if (r.jobs.length > 0) return { ...r, plan: { ...p, state: r.state ?? p.state } };
       notes.push(`${p.label}: 0 jobs`);
     } catch (e) {
@@ -2954,8 +3094,9 @@ serve(async (req) => {
     if (body.mode === "detail") {
       const page = await get(parsedUrl.toString(), { ctx, timeoutMs: 15_000 });
       if (!page.ok) return reply({ ok: false, error: describeFailure(page) });
+      if (isNonJobDestination(page.url)) return reply({ ok: false, error: "That link leads to a map or consent page, not a job." });
       const job = jobFromDetailHtml(page.text, page.url);
-      if (!job) return reply({ ok: false, error: "Couldn't find a job on that page." });
+      if (!job || !isUsableJob(job)) return reply({ ok: false, error: "Couldn't find a job on that page." });
       return reply({ ok: true, job });
     }
 
@@ -2974,7 +3115,7 @@ serve(async (req) => {
       const p: Plan = { url: parsedUrl.toString(), state, label: LABELS[state.s] };
       const r = await runPlan(ctx, p, startFrom);
       return reply({
-        ok: true, jobs: r.jobs, nextFrom: r.nextFrom, totalHits: r.totalHits,
+        ok: true, jobs: cleanJobs(r.jobs), nextFrom: r.nextFrom, totalHits: r.totalHits,
         resolvedUrl: p.url, strategy: JSON.stringify(r.state ?? state), source: p.label,
       });
     }
@@ -2982,7 +3123,7 @@ serve(async (req) => {
     // First batch: detect (and crawl if needed).
     const r = await resolveAndRun(ctx, parsedUrl.toString());
     return reply({
-      ok: true, jobs: r.jobs, nextFrom: r.nextFrom, totalHits: r.totalHits,
+      ok: true, jobs: cleanJobs(r.jobs), nextFrom: r.nextFrom, totalHits: r.totalHits,
       resolvedUrl: r.plan.url, strategy: JSON.stringify(r.plan.state), source: r.plan.label,
     });
   } catch (err) {

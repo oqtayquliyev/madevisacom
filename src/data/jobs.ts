@@ -36,6 +36,8 @@ export type Job = {
   imageUrl?: string | null;
   /** Original posting date on the source career site (ISO string), when known — distinct from `published`. Null/undefined renders as "Not specified" rather than being silently hidden. */
   postedDate?: string | null;
+  /** The date shown on the company's own careers page (source_posted_at) — null when the source shows none. Drives the "x min ago" badge (see src/lib/jobTime.ts). */
+  sourcePostedAt?: string | null;
   /** When the job went live on MadeVisa (approved_at, else created_at) — drives "newest" ordering. */
   sharedAt?: string | null;
   experienceLevel?: string | null;

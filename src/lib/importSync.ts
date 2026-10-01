@@ -203,7 +203,7 @@ export async function fetchWholeSource(
     if (res.totalHits != null) total = res.totalHits;
     let fresh = 0;
     for (const j of res.jobs) {
-      if (isJunkJob(j.title, j.descriptionHtml)) continue;
+      if (isJunkJob(j.title, j.descriptionHtml, j.url)) continue;
       const key = j.externalId || normalizeJobUrl(j.url);
       if (seen.has(key)) continue;
       seen.add(key);

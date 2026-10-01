@@ -399,9 +399,9 @@ export function findIcons(html: string, base: string): string[] {
     const href = /href=["']([^"']+)["']/i.exec(tag)?.[1];
     if (!href || !/icon/.test(rel)) continue;
     const url = absolute(href, base);
-    if (!url || /\.svg(\?|$)/i.test(url) || /\.ico(\?|$)/i.test(url)) continue;
+    if (!url || /\.svg(\?|$)/i.test(url)) continue;
     const size = Number(/sizes=["'](\d+)x\d+/i.exec(tag)?.[1] ?? 0);
-    const score = (rel.includes('apple-touch') ? 1000 : 0) + (size || 100);
+    const score = (rel.includes('apple-touch') ? 1000 : 0) + (size || (/\.ico(\?|$)/i.test(url) ? 32 : 100));
     icons.push({ url, score });
   }
   icons.sort((a, b) => b.score - a.score);
@@ -412,10 +412,30 @@ export function findIcons(html: string, base: string): string[] {
       return '';
     }
   })();
+  // Meta tags that name an image the site uses as its logo/icon.
+  for (const m of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const tag = m[0];
+    if (!/(name|property|itemprop)=["'](msapplication-TileImage|og:logo|logo)["']/i.test(tag)) continue;
+    const href = /content=["']([^"']+)["']/i.exec(tag)?.[1];
+    const url = href ? absolute(href, base) : null;
+    if (url && !/\.svg(\?|$)/i.test(url)) icons.push({ url, score: 500 });
+  }
+  icons.sort((a, b) => b.score - a.score);
   const list = icons.map((i) => i.url);
-  if (origin) list.push(`${origin}/apple-touch-icon.png`);
-  list.push(`https://www.google.com/s2/favicons?domain=${hostOf(base)}&sz=256`);
-  return [...new Set(list)].slice(0, 6);
+  if (origin) list.push(`${origin}/apple-touch-icon.png`, `${origin}/apple-touch-icon-precomposed.png`, `${origin}/favicon.ico`);
+  list.push(...faviconServices(hostOf(base)));
+  return [...new Set(list)].slice(0, 10);
+}
+
+/** Public favicon services — they answer for almost any domain. */
+export function faviconServices(domain: string): string[] {
+  if (!domain) return [];
+  // gstatic + DuckDuckGo answer 404 when they have nothing; Google's s2 answers a grey globe, so it goes last.
+  return [
+    `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${domain}&size=256`,
+    `https://icons.duckduckgo.com/ip3/${domain}.ico`,
+    `https://www.google.com/s2/favicons?domain=${domain}&sz=256`,
+  ];
 }
 
 /** A host that belongs to this company: its domain, a subdomain, or e.g. jobs.bayer.de for bayer.com. */
@@ -600,17 +620,94 @@ function decodeImage(buf: Uint8Array): Bitmap | null {
       const img = jpeg.decode(b, { useTArray: true, formatAsRGBA: true, maxMemoryUsageInMB: 64 });
       return { width: img.width, height: img.height, data: new Uint8Array(img.data) };
     }
+    if (b[0] === 0 && b[1] === 0 && b[2] === 1 && b[3] === 0) return decodeIco(buf);
   } catch {
     return null;
   }
-  return null; // SVG / ICO / WebP — skipped
+  return null; // SVG / WebP — skipped
+}
+
+/** .ico files (what most sites' favicon.ico is): the biggest image inside, PNG or BMP. */
+function decodeIco(buf: Uint8Array): Bitmap | null {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const count = dv.getUint16(4, true);
+  let best: { w: number; size: number; offset: number } | null = null;
+  for (let i = 0; i < Math.min(count, 32); i++) {
+    const e = 6 + i * 16;
+    if (e + 16 > buf.length) break;
+    const w = buf[e] || 256;
+    const size = dv.getUint32(e + 8, true);
+    const offset = dv.getUint32(e + 12, true);
+    if (offset + size > buf.length || size < 40) continue;
+    if (!best || w > best.w) best = { w, size, offset };
+  }
+  if (!best) return null;
+  const part = buf.subarray(best.offset, best.offset + best.size);
+  if (part[0] === 0x89 && part[1] === 0x50) {
+    const png = PNG.sync.read(Buffer.from(part));
+    return { width: png.width, height: png.height, data: new Uint8Array(png.data) };
+  }
+  return decodeDib(part);
+}
+
+/** The BMP (DIB) inside an .ico: 32/24/8/4/1 bits, bottom-up, with the 1-bit transparency mask. */
+function decodeDib(p: Uint8Array): Bitmap | null {
+  const dv = new DataView(p.buffer, p.byteOffset, p.byteLength);
+  const header = dv.getUint32(0, true);
+  const width = dv.getInt32(4, true);
+  const height = Math.abs(dv.getInt32(8, true)) / 2; // XOR image + AND mask
+  const bpp = dv.getUint16(14, true);
+  const compression = dv.getUint32(16, true);
+  if (width <= 0 || height <= 0 || width > 512 || height > 512 || (compression !== 0 && compression !== 3)) return null;
+  const colors = bpp <= 8 ? dv.getUint32(32, true) || 1 << bpp : 0;
+  const palette = header;
+  const pixels = palette + colors * 4;
+  const rowBytes = Math.ceil((width * bpp) / 32) * 4;
+  const maskRow = Math.ceil(width / 32) * 4;
+  const maskStart = pixels + rowBytes * height;
+  const out = new Uint8Array(width * height * 4);
+  let anyAlpha = false;
+  for (let y = 0; y < height; y++) {
+    const row = pixels + (height - 1 - y) * rowBytes;
+    for (let x = 0; x < width; x++) {
+      const o = (y * width + x) * 4;
+      let r = 0, g = 0, b = 0, a = 255;
+      if (bpp === 32) {
+        b = p[row + x * 4]; g = p[row + x * 4 + 1]; r = p[row + x * 4 + 2]; a = p[row + x * 4 + 3];
+        if (a) anyAlpha = true;
+      } else if (bpp === 24) {
+        b = p[row + x * 3]; g = p[row + x * 3 + 1]; r = p[row + x * 3 + 2];
+      } else if (bpp === 8 || bpp === 4 || bpp === 1) {
+        const bit = x * bpp;
+        const byte = p[row + (bit >> 3)];
+        const idx = bpp === 8 ? byte : bpp === 4 ? (byte >> (4 - (bit & 7))) & 0x0f : (byte >> (7 - (bit & 7))) & 1;
+        const c = palette + idx * 4;
+        b = p[c]; g = p[c + 1]; r = p[c + 2];
+      } else return null;
+      out[o] = r; out[o + 1] = g; out[o + 2] = b; out[o + 3] = a;
+    }
+  }
+  // Without real alpha, transparency comes from the AND mask (1 = transparent).
+  if (bpp !== 32 || !anyAlpha) {
+    for (let y = 0; y < height; y++) {
+      const row = maskStart + (height - 1 - y) * maskRow;
+      if (row + maskRow > p.length) break;
+      for (let x = 0; x < width; x++) {
+        const masked = (p[row + (x >> 3)] >> (7 - (x & 7))) & 1;
+        out[(y * width + x) * 4 + 3] = masked ? 0 : 255;
+      }
+    }
+  }
+  return { width, height, data: out };
 }
 
 /** Box-filter downscale into a white size×size square, image centred with padding. */
 function toSquare(src: Bitmap, size = 128, pad = 8): Bitmap {
   const out = new Uint8Array(size * size * 4).fill(255);
   const inner = size - pad * 2;
-  const scale = Math.min(inner / src.width, inner / src.height, 1);
+  // Small favicons (16–48 px) are enlarged up to 4× (smoothly) so they don't sit as a dot in the middle.
+  const scale = Math.min(inner / src.width, inner / src.height, src.width >= inner || src.height >= inner ? 1 : 4);
+  if (scale > 1) return upscaleSquare(src, size, pad, scale);
   const w = Math.max(1, Math.round(src.width * scale));
   const h = Math.max(1, Math.round(src.height * scale));
   const ox = Math.floor((size - w) / 2);
@@ -645,31 +742,174 @@ function toSquare(src: Bitmap, size = 128, pad = 8): Bitmap {
   return { width: size, height: size, data: out };
 }
 
+/** Bilinear enlargement onto a white size×size square. */
+function upscaleSquare(src: Bitmap, size: number, pad: number, scale: number): Bitmap {
+  const out = new Uint8Array(size * size * 4).fill(255);
+  const w = Math.min(size - pad * 2, Math.round(src.width * scale));
+  const h = Math.min(size - pad * 2, Math.round(src.height * scale));
+  const ox = Math.floor((size - w) / 2);
+  const oy = Math.floor((size - h) / 2);
+  const px = (x: number, y: number, c: number) => src.data[(Math.min(src.height - 1, Math.max(0, y)) * src.width + Math.min(src.width - 1, Math.max(0, x))) * 4 + c];
+  for (let y = 0; y < h; y++) {
+    const fy = ((y + 0.5) * src.height) / h - 0.5;
+    const y0 = Math.floor(fy);
+    const dy = fy - y0;
+    for (let x = 0; x < w; x++) {
+      const fx = ((x + 0.5) * src.width) / w - 0.5;
+      const x0 = Math.floor(fx);
+      const dx = fx - x0;
+      const mix = (c: number) =>
+        px(x0, y0, c) * (1 - dx) * (1 - dy) + px(x0 + 1, y0, c) * dx * (1 - dy) + px(x0, y0 + 1, c) * (1 - dx) * dy + px(x0 + 1, y0 + 1, c) * dx * dy;
+      const a = mix(3) / 255;
+      const o = ((oy + y) * size + (ox + x)) * 4;
+      // Colour weighted by alpha, then over white.
+      for (let c = 0; c < 3; c++) out[o + c] = Math.round(a ? (mix(c) * a + 255 * (1 - a)) : 255);
+      out[o + 3] = 255;
+    }
+  }
+  return { width: size, height: size, data: out };
+}
+
 function encodePng(img: Bitmap): Uint8Array {
   const png = new PNG({ width: img.width, height: img.height });
   png.data = Buffer.from(img.data);
   return new Uint8Array(PNG.sync.write(png, { colorType: 2, deflateLevel: 9 }));
 }
 
-/** First usable square-ish icon → 128×128 PNG in storage → public URL (or null). */
+/** True when the picture is (nearly) one flat colour — a blank or placeholder icon, not a logo. */
+function isBlank(img: Bitmap): boolean {
+  let min = 255, max = 0, opaque = 0;
+  const step = Math.max(1, Math.floor((img.width * img.height) / 4096));
+  for (let i = 0; i < img.width * img.height; i += step) {
+    const o = i * 4;
+    if (img.data[o + 3] < 32) continue;
+    opaque++;
+    const l = (img.data[o] * 3 + img.data[o + 1] * 6 + img.data[o + 2]) / 10;
+    if (l < min) min = l;
+    if (l > max) max = l;
+  }
+  return opaque < 8 || max - min < 12;
+}
+
+/**
+ * Best usable icon → 128×128 PNG in storage → public URL (or null).
+ * First pass wants a proper square icon (64 px+); the second takes what
+ * there is — a 16/32 px favicon (enlarged smoothly) or a wider logo
+ * (Wikipedia logos are often wordmarks), so no company is left without one.
+ */
 // deno-lint-ignore no-explicit-any
 export async function makeLogo(service: any, icons: string[], name: string): Promise<string | null> {
-  for (const url of icons.slice(0, 6)) {
-    const res = await fetchWithTimeout(url, { headers: { 'User-Agent': BROWSER_UA } }, 8000);
-    if (!res || !res.ok) continue;
-    const buf = new Uint8Array(await res.arrayBuffer());
-    if (buf.length < 200 || buf.length > 2_000_000) continue;
-    const img = decodeImage(buf);
-    if (!img) continue;
-    const ratio = img.width / img.height;
-    if (img.width < 64 || img.height < 64 || ratio < 0.8 || ratio > 1.25) continue;
-    const png = encodePng(toSquare(img));
-    const slug = coreName(name).replace(/\s+/g, '-').slice(0, 40) || 'company';
-    const path = `company-logos/${slug}-${Date.now().toString(36)}.png`;
-    const { error } = await service.storage.from('listing-images').upload(path, png, { contentType: 'image/png', upsert: false });
-    if (error) throw new Error(`Logo upload failed: ${error.message}`);
-    return service.storage.from('listing-images').getPublicUrl(path).data.publicUrl;
+  const list = [...new Set(icons)].slice(0, 14);
+  const cache = new Map<string, Bitmap | null>();
+  const load = async (url: string): Promise<Bitmap | null> => {
+    if (cache.has(url)) return cache.get(url)!;
+    let img: Bitmap | null = null;
+    const res = await fetchWithTimeout(url, { headers: { 'User-Agent': /wikimedia|wikipedia/.test(url) ? UA : BROWSER_UA, Accept: 'image/png,image/jpeg,image/x-icon,image/*;q=0.8' } }, 8000);
+    if (res && res.ok) {
+      const buf = new Uint8Array(await res.arrayBuffer());
+      if (buf.length >= 70 && buf.length <= 3_000_000) img = decodeImage(buf);
+      if (img && isBlank(img)) img = null;
+    }
+    cache.set(url, img);
+    return img;
+  };
+  const passes = [
+    { min: 64, lo: 0.8, hi: 1.25 },
+    { min: 16, lo: 0.4, hi: 3.2 },
+  ];
+  for (const pass of passes) {
+    for (const url of list) {
+      const img = await load(url);
+      if (!img) continue;
+      const ratio = img.width / img.height;
+      if (Math.max(img.width, img.height) < pass.min || ratio < pass.lo || ratio > pass.hi) continue;
+      const png = encodePng(toSquare(img));
+      const slug = coreName(name).replace(/\s+/g, '-').slice(0, 40) || 'company';
+      const path = `company-logos/${slug}-${Date.now().toString(36)}.png`;
+      const { error } = await service.storage.from('listing-images').upload(path, png, { contentType: 'image/png', upsert: false });
+      if (error) throw new Error(`Logo upload failed: ${error.message}`);
+      return service.storage.from('listing-images').getPublicUrl(path).data.publicUrl;
+    }
   }
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Logo for a company that has none: Wikipedia/Wikidata logo → its careers
+// page's own icon → its website's icon → public favicon services.
+// ---------------------------------------------------------------------------
+
+/** Job-board / ATS hosts: their favicon is the platform's, not the company's. */
+const PLATFORM_HOST_RE =
+  /(myworkdayjobs|myworkdaysite|workday|greenhouse\.io|lever\.co|ashbyhq|smartrecruiters|oraclecloud|taleo|successfactors|icims|eightfold|avature|jobvite|workable|recruitee|teamtailor|personio|bamboohr|breezy\.hr|jazzhr|applytojob|brassring|phenompeople|radancy|tbcdn|talentbrew|jobs\.sap\.com|hire\.withgoogle|join\.com|softgarden|onlyfy|dvinci|rexx-systems|umantis|haufe|cornerstoneondemand|csod|ukg|ultipro|adp\.com|paylocity|paycom|dayforce|ceridian|zohorecruit|freshteam|pinpointhq|hibob|occupop|eploy|tal\.net|networx|webitrent|engageats|cezanneondemand|indeed|linkedin|glassdoor|google|consent|goo\.gl)/i;
+
+export function isPlatformHost(url: string): boolean {
+  return PLATFORM_HOST_RE.test(hostOf(url));
+}
+
+/** The company's own logo from Wikidata (P154), as a PNG rendering from Wikimedia Commons. */
+export async function wikiLogoUrls(name: string, domain: string): Promise<string[]> {
+  const q = name.trim().slice(0, 120);
+  if (!q) return [];
+  const search = await fetchWithTimeout(
+    `https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&language=en&type=item&limit=5&search=${encodeURIComponent(q)}`,
+    { headers: { 'User-Agent': UA } },
+    8000
+  );
+  const ids: string[] = search && search.ok ? ((await search.json().catch(() => null))?.search ?? []).map((s: { id: string }) => s.id) : [];
+  if (!ids.length) return [];
+  const ent = await fetchWithTimeout(
+    `https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims|labels&languages=en&ids=${ids.join('|')}`,
+    { headers: { 'User-Agent': UA } },
+    8000
+  );
+  const entities = ent && ent.ok ? ((await ent.json().catch(() => null))?.entities ?? {}) : {};
+  const core = coreName(name);
+  const root = (u: string) => u.split('.').slice(-2).join('.');
+  const out: string[] = [];
+  for (const id of ids) {
+    const e = entities[id];
+    if (!e?.claims) continue;
+    // deno-lint-ignore no-explicit-any
+    const vals = (p: string): string[] => (e.claims[p] ?? []).map((c: any) => c?.mainsnak?.datavalue?.value).filter((v: unknown) => typeof v === 'string');
+    const sites = vals('P856').map(hostOf).filter(Boolean);
+    const label = String(e.labels?.en?.value ?? '');
+    // Same company: its website is this domain — or, when we don't know the domain, the exact same name.
+    const same = domain ? sites.some((h) => h === domain || root(h) === root(domain)) : coreName(label) === core;
+    if (!same) continue;
+    for (const file of [...vals('P154'), ...vals('P8972'), ...vals('P2910')].slice(0, 3)) {
+      out.push(`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/ /g, '_'))}?width=256`);
+    }
+    if (out.length) break;
+  }
+  return out;
+}
+
+/**
+ * Every icon worth trying for a company, best first: its Wikipedia logo,
+ * the careers page's own favicon (when the careers page is on the
+ * company's own site, not a job platform), its website's icons, then
+ * favicon services for each of its domains.
+ */
+export async function logoCandidates(opts: { name: string; website?: string | null; pages?: (string | null | undefined)[] }): Promise<string[]> {
+  const pages = [...new Set([opts.website, ...(opts.pages ?? [])].filter((u): u is string => Boolean(u && /^https?:\/\//i.test(u))))].filter((u) => !isPlatformHost(u));
+  const domains = [...new Set(pages.map(hostOf).filter(Boolean))];
+  const websiteDomain = opts.website ? hostOf(opts.website) : domains[0] ?? '';
+  const list: string[] = [];
+  list.push(...(await wikiLogoUrls(opts.name, websiteDomain).catch(() => [])));
+  for (const page of pages.slice(0, 3)) {
+    const read = await readPage(page);
+    if (read && !isPlatformHost(read.finalUrl)) list.push(...findIcons(read.html, read.finalUrl).filter((u) => !/google\.com\/s2|gstatic|duckduckgo/.test(u)));
+    else {
+      try {
+        list.push(`${new URL(page).origin}/apple-touch-icon.png`, `${new URL(page).origin}/favicon.ico`);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  // Root domain too: careers.acme.com → acme.com
+  const roots = domains.map((d) => d.split('.').slice(-3).join('.').replace(/^(careers?|jobs?|karriere|work|join)\./, ''));
+  for (const d of [...new Set([...domains, ...roots])]) list.push(...faviconServices(d));
+  return [...new Set(list)];
+}

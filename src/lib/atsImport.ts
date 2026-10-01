@@ -18,10 +18,23 @@ export const JUNK_PHRASES = [
   'attention required',
   'access denied',
   'request unsuccessful',
+  'before you continue to google',
+  'bevor sie zu google weitergehen',
 ];
 const JUNK_RE = new RegExp(JUNK_PHRASES.map((p) => p.replace(/ /g, '\\s+')).join('|'), 'i');
 /** Titles that are an error page's title, not a job. */
 const JUNK_TITLE_RE = /^\s*(just a moment\.*|access denied|attention required.*|page not found|not found|40[134]\b.*|error|forbidden|security check|captcha|javascript is disabled)\s*$/i;
+
+/** Map links, Google/YouTube consent walls and the like — never a job's own page. */
+const NON_JOB_URL_RE =
+  /^https?:\/\/(?:[^/]*\.)?(?:consent\.(?:google|youtube)\.[a-z.]+|accounts\.google\.[a-z.]+|maps\.google\.[a-z.]+|maps\.apple\.com|goo\.gl|maps\.app\.goo\.gl|g\.page|waze\.com|openstreetmap\.org|mapquest\.com|what3words\.com|youtube\.com|youtu\.be)(?:[/?#:]|$)|^https?:\/\/(?:www\.)?google\.[a-z.]+\/(?:maps|search|url|sorry)\b/i;
+/** Cookie-consent pages read as a job ("Before you continue to Google"). */
+const CONSENT_RE =
+  /before you continue to (google|youtube)|bevor sie zu (google|youtube) weitergehen|avant d'acc[eé]der [àa] (google|youtube)|antes de (ir|continuar) a (google|youtube)|deliver and maintain google services|track outages and protect against spam, fraud,? and abuse/i;
+
+export function isNonJobUrl(url: string | null | undefined): boolean {
+  return Boolean(url) && NON_JOB_URL_RE.test(String(url).trim());
+}
 
 function plainText(html: string | null | undefined): string {
   return String(html ?? '')
@@ -37,10 +50,12 @@ function plainText(html: string | null | undefined): string {
  * "JavaScript is disabled … verify that you're not a robot".
  * A long real description that happens to mention JavaScript is kept.
  */
-export function isJunkJob(title: string | null | undefined, descriptionHtml?: string | null): boolean {
+export function isJunkJob(title: string | null | undefined, descriptionHtml?: string | null, url?: string | null): boolean {
   const t = String(title ?? '');
-  if (JUNK_TITLE_RE.test(t) || JUNK_RE.test(t)) return true;
+  if (JUNK_TITLE_RE.test(t) || JUNK_RE.test(t) || CONSENT_RE.test(t)) return true;
+  if (isNonJobUrl(url)) return true;
   const text = plainText(descriptionHtml);
+  if (CONSENT_RE.test(text.slice(0, 5000))) return true;
   return text.length > 0 && text.length < 600 && JUNK_RE.test(text);
 }
 

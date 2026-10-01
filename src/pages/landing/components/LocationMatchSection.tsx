@@ -1,4 +1,5 @@
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
+import { boardJobDates, jobTime } from '@/lib/jobTime';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { jobPath } from '@/lib/jobUrl';
 import { isJobViewed } from '@/lib/viewedJobs';
@@ -27,7 +28,7 @@ import type { Job } from '@/data/jobs';
 import { CircleFlag } from '@/components/common/CircleFlag';
 
 export type MatchItem =
-  | { kind: 'job'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; remote: boolean; salary?: string; imageUrl?: string | null; createdAt: string; description?: string | null; postedDate?: string | null }
+  | { kind: 'job'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; remote: boolean; salary?: string; imageUrl?: string | null; createdAt: string; description?: string | null; postedDate?: string | null; sourceDate: string | null; syncedAt: string | null }
   | { kind: 'program'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; funding: string | null; imageUrl?: string | null; createdAt: string; description?: string | null; postedDate?: string | null };
 
 
@@ -76,6 +77,10 @@ function buildMatchItems(
       createdAt: board.postedDate ?? j.created_at,
       description: board.description,
       postedDate: board.postedDate,
+      ...(() => {
+        const d = boardJobDates(board);
+        return { sourceDate: d.source, syncedAt: d.synced };
+      })(),
     };
   });
   const programItems: MatchItem[] = programs.map((p) => ({
@@ -428,8 +433,8 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
         {snippet && <p className="mt-2 line-clamp-2 text-xs leading-5 text-ink-500">{snippet}</p>}
 
         <div className="mt-auto pt-2">
-          {item.kind === 'job' ? <JobAgeBadge iso={item.createdAt} className="mb-2" /> : item.postedDate && <JobAgeBadge iso={item.postedDate} className="mb-2" />}
-          {item.kind === 'job' && Date.now() - (new Date(item.createdAt).getTime() || 0) < 86_400_000 && (
+          {item.kind === 'job' ? <JobAgeBadge source={item.sourceDate} synced={item.syncedAt} className="mb-2" /> : item.postedDate && <JobAgeBadge iso={item.postedDate} className="mb-2" />}
+          {item.kind === 'job' && jobTime(item.sourceDate, item.syncedAt)?.postedToday && (
             <span className="mb-2 ml-1 inline-flex items-center gap-1 rounded bg-brand-600 px-1.5 py-[3px] text-[10px] font-bold uppercase tracking-wide text-white">
               <Zap className="h-3 w-3 fill-current" />
               Early applicant
