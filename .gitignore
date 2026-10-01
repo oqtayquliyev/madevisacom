@@ -24,3 +24,6 @@ dist-ssr
 .vercel
 .env*
 madevisacom-ui.zip
+
+# Supabase CLI local state
+supabase/.temp
