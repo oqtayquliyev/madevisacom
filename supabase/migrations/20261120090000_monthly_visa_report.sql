@@ -1,22 +1,3 @@
-/*
-# Monthly Visa Hiring Report (Batch 6)
-Run AFTER 20261119090000_visa_plan_name.sql. Safe to run more than once.
-Then deploy:  supabase functions deploy auto-pipeline --no-verify-jwt
-
-On the 1st of each month the pipeline ({ cron: "monthly" }) writes one
-global article about the month before: new jobs, which countries and
-companies offered sponsorship, how many UK jobs came from licensed
-sponsors, and measured reply rates for Visa Plans vs ordinary applications.
-
-Fairness rules, built into the data:
-- A rate is only returned when it rests on enough data (30+ items);
-  otherwise it is NULL and the article leaves that section out.
-- Companies only appear in POSITIVE lists ("most sponsored jobs",
-  "replied most"), and the reply list needs 10+ tracked applications from
-  5+ different people per company. No "worst companies" list is ever made.
-- Everything is an aggregate. No candidate is identifiable.
-*/
-
 SET lock_timeout = '5s';
 
 CREATE OR REPLACE FUNCTION public.visa_hiring_monthly(p_from date, p_to date)
@@ -31,7 +12,6 @@ DECLARE
   result jsonb;
 BEGIN
   WITH live AS (
-    -- Jobs that went live on MadeVisa during the month.
     SELECT s.id, s.publisher_id, p.name AS company, co.iso_code AS iso, co.name AS country,
            (s.visa_status = 'offered' OR s.visa_sponsorship) AS visa
     FROM public.sponsored_jobs s
@@ -57,7 +37,6 @@ BEGIN
     WHERE applied_at >= p_from AND applied_at < p_to AND status <> 'withdrawn'
   ),
   responsive AS (
-    -- Last 90 days up to the end of the month; enough people per company.
     SELECT ar.publisher_id, p.name,
            count(*) AS tracked,
            count(*) FILTER (WHERE ar.status IN ('responded', 'interview', 'offer', 'rejected')) AS replied
@@ -128,7 +107,6 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.monthly_report_tick() FROM PUBLIC, anon, authenticated;
 
--- Admin: write last month's report now (does nothing if it already exists).
 CREATE OR REPLACE FUNCTION public.monthly_report_run_now()
 RETURNS text
 LANGUAGE plpgsql
@@ -148,7 +126,6 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
     PERFORM cron.unschedule(jobid) FROM cron.job WHERE jobname = 'madevisa-monthly-report';
-    -- 1st of each month, 07:00 UTC.
     PERFORM cron.schedule('madevisa-monthly-report', '0 7 1 * *', 'select public.monthly_report_tick()');
   END IF;
 END $$;

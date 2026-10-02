@@ -1,27 +1,5 @@
-/*
-# Employer inbox (Batch 7)
-Run AFTER 20261120090000_monthly_visa_report.sql. Safe to run more than once.
-
-A recruiter signs in with their WORK email and sees every Visa Plan that
-candidates sent to their company, at /employers/inbox.
-
-Who can see what:
-- The email must be confirmed (proves they control the inbox) and must not
-  be a personal mail service (gmail, outlook…).
-- The email's domain must match the company's website domain on MadeVisa
-  (acme.com, or a subdomain like uk.acme.com).
-- Websites on shared hiring hosts (greenhouse.io, workday, linkedin…) never
-  match anyone — otherwise everyone at that host would see every company.
-  This also fixes the "verified company email" badge on replies (Batch 1),
-  which used the same domain check.
-- Only Visa Plans the candidate actually sent: marked sent (or later), or
-  already opened by someone else, or already replied to. Unsent drafts stay
-  private.
-*/
-
 SET lock_timeout = '5s';
 
--- Personal mail services: an address here proves nothing about a company.
 CREATE OR REPLACE FUNCTION public.is_free_mail(p_domain text)
 RETURNS boolean
 LANGUAGE sql
@@ -30,8 +8,6 @@ AS $$
   SELECT coalesce(p_domain, '') ~* '^(gmail|googlemail|yahoo|ymail|outlook|hotmail|live|msn|icloud|me|mac|aol|proton|protonmail|pm|gmx|web|mail|yandex|zoho|tutanota|qq|163|126|rambler|bk|inbox|list)\.';
 $$;
 
--- "acme.co.uk" from "https://www.acme.co.uk/careers" — NULL for shared hiring
--- hosts and social sites, which don't identify one company.
 CREATE OR REPLACE FUNCTION public.bare_domain(p text)
 RETURNS text
 LANGUAGE sql
@@ -47,7 +23,6 @@ AS $$
   ) t;
 $$;
 
--- The signed-in employer's inbox.
 CREATE OR REPLACE FUNCTION public.employer_inbox()
 RETURNS jsonb
 LANGUAGE plpgsql
