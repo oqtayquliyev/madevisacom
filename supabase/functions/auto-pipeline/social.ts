@@ -13,6 +13,12 @@
 //             post to the network. No credentials → "manual" (ready to post
 //             by hand from the admin panel).
 //
+// 0. PROGRAM — when the content program is running (Admin → Social media →
+//             Start), program.ts plans the coming days, writes the posts that
+//             are close and hands them to the same queue. Campaigns then
+//             pause on the networks the program covers (a Telegram campaign
+//             with its own channel keeps running).
+//
 // Credentials (Supabase → Edge Functions → Secrets). Leave any out and that
 // network works in manual mode:
 //   Facebook   FB_PAGE_ID, FB_PAGE_TOKEN          (Page access token)
@@ -24,9 +30,10 @@ import { PNG } from 'npm:pngjs@7.0.0';
 import jpeg from 'npm:jpeg-js@0.4.4';
 import { Buffer } from 'node:buffer';
 import { SITE, type Service } from './shared.ts';
+import { runProgram } from './program.ts';
 
-type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'telegram';
-type PlatformRow = { platform: Platform; enabled: boolean; size: 'portrait' | 'square' | 'story'; min_gap_minutes: number; max_per_day: number };
+export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'telegram';
+export type PlatformRow = { platform: Platform; enabled: boolean; size: 'portrait' | 'square' | 'story'; min_gap_minutes: number; max_per_day: number };
 type Campaign = {
   id: string;
   name: string;
@@ -43,7 +50,7 @@ type Campaign = {
   salary_only: boolean;
   require_approval: boolean;
 };
-type Job = {
+export type Job = {
   id: string;
   title: string;
   company: string;
@@ -71,9 +78,12 @@ type Post = {
   validation?: { publish_now?: boolean } | null;
   /** Telegram: the channel to post to. */
   target?: string | null;
+  /** 'program' for posts planned by the content program. */
+  origin?: string | null;
+  scheduled_at?: string;
 };
 
-const DIMS = { portrait: [1080, 1350], square: [1080, 1080], story: [1080, 1920] } as const;
+export const DIMS = { portrait: [1080, 1350], square: [1080, 1080], story: [1080, 1920] } as const;
 const SHORT: Record<Platform, string> = { facebook: 'fb', instagram: 'ig', linkedin: 'li', tiktok: 'tt', telegram: 'tg' };
 const IMAGE_VERSION = '3'; // bump when the image template changes, so new posts get fresh images
 
@@ -81,14 +91,14 @@ const IMAGE_VERSION = '3'; // bump when the image template changes, so new posts
 // Words
 // ---------------------------------------------------------------------------
 
-const cleanTitle = (t: string) => t.replace(/\s*\((m|f|w|d|x)\/(m|f|w|d|x)(\/(m|f|w|d|x))?\)\s*/gi, ' ').replace(/\s+/g, ' ').trim();
-const place = (j: Job) => [j.city, j.country].filter(Boolean).join(', ') || (j.work_arrangement === 'remote' || j.remote ? 'Remote' : '');
-const isRemote = (j: Job) => j.work_arrangement === 'remote' || (Boolean(j.remote) && !j.work_arrangement);
+export const cleanTitle = (t: string) => t.replace(/\s*\((m|f|w|d|x)\/(m|f|w|d|x)(\/(m|f|w|d|x))?\)\s*/gi, ' ').replace(/\s+/g, ' ').trim();
+export const place = (j: Job) => [j.city, j.country].filter(Boolean).join(', ') || (j.work_arrangement === 'remote' || j.remote ? 'Remote' : '');
+export const isRemote = (j: Job) => j.work_arrangement === 'remote' || (Boolean(j.remote) && !j.work_arrangement);
 const pickBy = <T,>(items: T[], seed: number) => items[Math.abs(seed) % items.length];
 const hashtag = (s: string) => `#${s.replace(/[^A-Za-z0-9]+/g, '')}`;
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 /** Keep only this many finished posts (published / rejected / expired / failed). */
-const KEEP_HISTORY = 3;
+const KEEP_HISTORY = 40;
 
 // ---------------------------------------------------------------------------
 // Hashtags people actually search: company, role word, industry, city,
@@ -137,7 +147,7 @@ function tagsFor(c: Campaign, jobs: Job[]): string[] {
   return [...new Set(all)].filter(Boolean).slice(0, 15).map((t) => `#${t}`);
 }
 
-function jobLink(j: Job, p: Platform): string {
+export function jobLink(j: Job, p: Platform): string {
   return `${SITE}/j/${j.id.slice(0, 8)}?s=${SHORT[p]}`;
 }
 
@@ -309,7 +319,7 @@ function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number, offerLe
 
 // Every text on the image is a URL parameter (see api/og/social.ts), so the
 // admin panel can edit them before the post goes out.
-function imageUrl(layout: 'list' | 'single' | 'company' | 'cards', size: string, jobs: Job[], headline: string, date: string, p: Platform) {
+export function imageUrl(layout: 'list' | 'single' | 'company' | 'cards', size: string, jobs: Job[], headline: string, date: string, p: Platform) {
   const q = new URLSearchParams({ layout, size, ids: jobs.map((j) => j.id.slice(0, 8)).join(','), h: headline, d: date, s: SHORT[p], hi: 'zap', v: IMAGE_VERSION });
   return `${SITE}/api/og/social?${q.toString()}`;
 }
@@ -325,7 +335,7 @@ function pngSize(buf: Uint8Array): [number, number] | null {
   return [v.getUint32(16), v.getUint32(20)];
 }
 
-async function validateImage(url: string, w: number, h: number): Promise<{ ok: boolean; issues: string[] }> {
+export async function validateImage(url: string, w: number, h: number): Promise<{ ok: boolean; issues: string[] }> {
   const issues: string[] = [];
   try {
     const check = await fetch(`${url}&check=1`, { signal: AbortSignal.timeout(20_000) });
@@ -379,7 +389,7 @@ async function recentOnPlatform(service: Service, p: Platform, n = 8): Promise<{
 const opening = (caption: string | null | undefined) => (caption ?? '').split('\n')[0].replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
 
 /** Same role at the same company = same post to a follower, even when the ATS lists it 3 times. */
-const fingerprint = (j: Job) => `${j.company.trim().toLowerCase()}|${cleanTitle(j.title).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`;
+export const fingerprint = (j: Job) => `${j.company.trim().toLowerCase()}|${cleanTitle(j.title).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`;
 
 /** Roles at the same company with the same title posted on this network in the last 30 days. */
 async function recentFingerprints(service: Service, p: Platform): Promise<Set<string>> {
@@ -393,18 +403,52 @@ async function recentFingerprints(service: Service, p: Platform): Promise<Set<st
   return new Set(((data ?? []) as { fingerprint: string }[]).map((r) => r.fingerprint));
 }
 
+/**
+ * Fresh jobs for a program post: never posted on this network, not from a
+ * company in its last few posts, not a role already posted under another id,
+ * one per company. Returns [] when fewer than `min` are left.
+ */
+export async function pickFreshJobs(
+  service: Service,
+  p: Platform,
+  o: { kind: 'fresh' | 'student' | 'sponsor' | 'visa' | 'remote' | 'offer'; countries?: string[]; salaryOnly?: boolean; want: number; min: number }
+): Promise<Job[]> {
+  const { data, error } = await service.rpc('social_pick_jobs', {
+    p_platform: p,
+    p_count: Math.min(o.want * 4, 20),
+    p_kind: o.kind,
+    p_categories: [],
+    p_countries: o.countries ?? [],
+    p_salary_only: o.salaryOnly ?? false,
+  });
+  if (error) return [];
+  const [recent, seenFp] = await Promise.all([recentOnPlatform(service, p, 3), recentFingerprints(service, p)]);
+  const used = new Set<string>();
+  const jobs = ((data ?? []) as Job[])
+    .filter((j) => {
+      const k = j.company.trim().toLowerCase();
+      if (recent.companies.has(k) || used.has(k) || seenFp.has(fingerprint(j))) return false;
+      used.add(k);
+      return true;
+    })
+    .slice(0, o.want);
+  return jobs.length >= Math.max(1, o.min) ? jobs : [];
+}
+
 /** Every third post on a network leads with the Visa Plan instead of just listing jobs. */
 const OFFER_EVERY = 3;
 
 const MIX: Campaign['format'][] = ['cards', 'list', 'company'];
 
-async function planCampaign(service: Service, c: Campaign, platforms: Map<Platform, PlatformRow>, log: string[]) {
+async function planCampaign(service: Service, c: Campaign, platforms: Map<Platform, PlatformRow>, log: string[], covered: Set<Platform> = new Set()) {
   // A different seed every run → different hook, headline and emoji each post.
   const seed = Math.floor(Math.random() * 1_000_000);
   const date = `Fresh · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
   for (const p of c.platforms) {
     const pr = platforms.get(p);
     if (!pr?.enabled) continue;
+    // The content program plans this network; a Telegram campaign with its own channel keeps going.
+    if (covered.has(p) && !(p === 'telegram' && c.telegram_chat)) continue;
     if ((await recentPosts(service, p, pr.min_gap_minutes)) > 0) {
       log.push(`${c.name} → ${p}: waiting (posted less than ${pr.min_gap_minutes} min ago)`);
       continue;
@@ -562,7 +606,7 @@ export const connected = (p: Platform): boolean =>
 //    with "IG…", graph.instagram.com) — no Facebook Page link needed; IG_USER_ID
 //    is optional there ("me" is used).
 const igDirect = () => env('IG_ACCESS_TOKEN').startsWith('IG') || env('IG_API_HOST') === 'instagram';
-const igBase = () => (igDirect() ? 'https://graph.instagram.com/v21.0' : 'https://graph.facebook.com/v21.0');
+export const igBase = () => (igDirect() ? 'https://graph.instagram.com/v21.0' : 'https://graph.facebook.com/v21.0');
 
 async function graph(path: string, params: Record<string, string>, token: string, base = 'https://graph.facebook.com/v21.0') {
   const res = await fetch(`${base}/${path}`, { method: 'POST', body: new URLSearchParams({ ...params, access_token: token }) });
@@ -777,7 +821,12 @@ const PUBLISHERS: Record<Platform, (p: Post, service: Service) => Promise<Result
 async function publishDue(service: Service, platforms: Map<Platform, PlatformRow>, log: string[]) {
   // A run that stopped mid-publish: try again — the retry first checks whether it went live (findExisting).
   await service.from('social_posts').update({ status: 'approved' }).eq('status', 'publishing').lt('updated_at', new Date(Date.now() - 30 * 60_000).toISOString());
-  const { data } = await service.from('social_posts').select('id, platform, format, caption, headline, images, job_ids, attempts, validation, target').eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8);
+  // A program post that missed its time by hours (nobody approved it, the network was off) is not sent late.
+  const stale = new Date(Date.now() - 8 * 3_600_000).toISOString();
+  await service.from('social_posts').update({ status: 'expired', error: 'Missed its time — not sent late' }).eq('origin', 'program').in('status', ['approved', 'awaiting_approval']).lt('scheduled_at', stale);
+  // "Post by hand" program posts nobody posted within a day and a half are dropped, so they don't pile up.
+  await service.from('social_posts').update({ status: 'expired', error: 'Not posted by hand in time' }).eq('origin', 'program').eq('status', 'manual').lt('scheduled_at', new Date(Date.now() - 36 * 3_600_000).toISOString());
+  const { data } = await service.from('social_posts').select('id, platform, format, caption, headline, images, job_ids, attempts, validation, target, origin, scheduled_at').eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8);
   for (const post of (data ?? []) as Post[]) {
     const pr = platforms.get(post.platform);
     if (!pr?.enabled) continue;
@@ -848,6 +897,8 @@ async function pruneHistory(service: Service, log: string[]) {
     .from('social_posts')
     .select('id')
     .in('status', ['published', 'rejected', 'expired', 'failed'])
+    // The last two days stay: the program counts them when it fills a day.
+    .lt('scheduled_at', new Date(Date.now() - 2 * 86_400_000).toISOString())
     .order('created_at', { ascending: false })
     .range(KEEP_HISTORY, KEEP_HISTORY + 500);
   const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
@@ -860,6 +911,9 @@ async function pruneHistory(service: Service, log: string[]) {
   const cutoff = Date.now() - 2 * 24 * 3_600_000;
   const old = ((files ?? []) as { name: string; created_at?: string }[]).filter((f) => f.created_at && Date.parse(f.created_at) < cutoff).map((f) => `ig/${f.name}`);
   if (old.length) await service.storage.from('social-images').remove(old);
+  // The program's memory of what was posted (kinds, topics, openings): four months is plenty.
+  await service.from('social_history').delete().lt('at', new Date(Date.now() - 120 * 86_400_000).toISOString());
+  await service.from('social_replies').delete().lt('created_at', new Date(Date.now() - 30 * 86_400_000).toISOString());
 }
 
 export async function runSocial(service: Service, force = false): Promise<void> {
@@ -871,12 +925,20 @@ export async function runSocial(service: Service, force = false): Promise<void> 
     // Keep "connected" in the admin panel accurate.
     for (const p of platforms.keys()) await service.from('social_platforms').update({ connected: connected(p), last_check_at: new Date().toISOString() }).eq('platform', p);
 
+    // The content program first: it plans and writes its own posts, and tells us which networks it covers.
+    const covered = await runProgram(service, platforms, log, force);
+
     let q = service.from('social_campaigns').select('*').eq('enabled', true);
     if (!force) q = q.lte('next_at', new Date().toISOString());
     const { data: due } = await q;
     for (const c of (due ?? []) as Campaign[]) {
       const before = log.length;
-      await planCampaign(service, c, platforms, log);
+      // Every network of this campaign is planned by the program: note it on the campaign, keep the run log quiet.
+      if (c.platforms.length && c.platforms.every((p) => covered.has(p) && !(p === 'telegram' && c.telegram_chat))) {
+        await service.from('social_campaigns').update({ next_at: new Date(Date.now() + c.every_minutes * 60_000).toISOString(), last_result: 'Paused — the content program is running on these networks' }).eq('id', c.id);
+        continue;
+      }
+      await planCampaign(service, c, platforms, log, covered);
       await service
         .from('social_campaigns')
         .update({ next_at: new Date(Date.now() + c.every_minutes * 60_000).toISOString(), last_run_at: new Date().toISOString(), last_result: log.slice(before).join(' · ') || 'Nothing to post' })
