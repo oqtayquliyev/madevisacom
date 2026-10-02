@@ -63,7 +63,7 @@ const FOOTER_HREF: Record<string, string> = {
   destinations: '/destinations',
   network: '/network',
   'submit-job': '/submit-job',
-  'official-partners': '/official-partners',
+  'official-partners': '/official-sources',
 };
 
 const LEGAL = [

@@ -415,7 +415,7 @@ const IN_CLAUSE_CHUNK_SIZE = 50;
 
 async function runChunkedInClause(
   ids: string[],
-  runChunk: (chunk: string[]) => Promise<{ error: { message: string } | null }>
+  runChunk: (chunk: string[]) => PromiseLike<{ error: { message: string } | null }>
 ): Promise<{ ok: boolean; error?: string }> {
   for (let i = 0; i < ids.length; i += IN_CLAUSE_CHUNK_SIZE) {
     const chunk = ids.slice(i, i + IN_CLAUSE_CHUNK_SIZE);

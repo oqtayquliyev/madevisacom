@@ -97,5 +97,12 @@
     "api/facets.ts": {
       "maxDuration": 60
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/official-partners",
+      "destination": "/official-sources",
+      "permanent": true
+    }
+  ]
 }

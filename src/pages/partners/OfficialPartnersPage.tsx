@@ -16,7 +16,7 @@ export function OfficialPartnersPage({ go, onAuth }: OfficialPartnersPageProps) 
   useSeo({
     title: 'Official Government & Global Opportunity Institutions',
     description: 'Official immigration, investment, education, research and tourism institutions from around the world — public information sources, not partnerships.',
-    path: '/official-partners',
+    path: '/official-sources',
   });
   const [category, setCategory] = useState<PartnerCategory | 'All'>('All');
   const [search, setSearch] = useState('');
@@ -114,8 +114,6 @@ function FilterButton({ active, onClick, label }: { active: boolean; onClick: ()
 }
 
 function PartnerCard({ partner }: { partner: (typeof officialPartners)[number] }) {
-  const [logoFailed, setLogoFailed] = useState(false);
-
   return (
     <a
       href={partner.officialWebsite}
@@ -123,25 +121,18 @@ function PartnerCard({ partner }: { partner: (typeof officialPartners)[number] }
       rel="noopener noreferrer"
       className="group flex flex-col border border-ink-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg"
     >
+      {/* No institutional logos or crests: they need the owner's permission and
+          would suggest an endorsement. A neutral text mark instead. */}
       <div className="flex h-14 items-center">
-        {!logoFailed ? (
-          <img
-            src={partner.logoUrl}
-            alt={partner.name}
-            className="max-h-14 max-w-[70%] object-contain"
-            onError={() => setLogoFailed(true)}
-          />
-        ) : (
-          <span className="flex items-center gap-2 rounded-lg bg-ink-50 px-3 py-2 text-xs font-bold text-ink-500">
-            <Landmark className="h-4 w-4" />
-            {partner.name
-              .split(' ')
-              .filter((w) => w[0] === w[0]?.toUpperCase())
-              .slice(0, 3)
-              .map((w) => w[0])
-              .join('')}
-          </span>
-        )}
+        <span className="flex items-center gap-2 rounded-lg bg-ink-50 px-3 py-2 text-xs font-bold text-ink-500">
+          <Landmark className="h-4 w-4" />
+          {partner.name
+            .split(' ')
+            .filter((w) => w[0] === w[0]?.toUpperCase())
+            .slice(0, 3)
+            .map((w) => w[0])
+            .join('')}
+        </span>
       </div>
 
       <h3 className="mt-4 text-sm font-bold leading-snug text-ink-900">{partner.name}</h3>
