@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Play, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { VacancyImageGenerator } from '@/pages/admin/VacancyImageGenerator';
-import { FORMATS, PLATFORMS, PLATFORM_LABEL, card, input, isFormatOn, useNow, when, type Campaign, type NewsItem, type Platform, type PlatformRow, type Post, type ProgramRow } from './social/shared';
+import { FORMATS, PLATFORMS, PLATFORM_LABEL, QUEUE_STATUSES, card, input, isFormatOn, reelsAlive, useNow, when, type Campaign, type NewsItem, type Platform, type PlatformRow, type Post, type ProgramRow } from './social/shared';
 import { ProgramPanel } from './social/ProgramPanel';
 import { UpNext } from './social/UpNext';
 import { StrategyPanel } from './social/StrategyPanel';
@@ -24,7 +24,7 @@ import { PostCard } from './social/PostCard';
 //   Manual image    draw a vacancy image yourself.
 //
 // Tables: migrations 20261103090000_social_publishing.sql … and
-// 20261120090000_social_program.sql. Planned and published by the
+// 20261123090000_social_program.sql. Planned and published by the
 // auto-pipeline function (social.ts, program.ts).
 
 const SECRETS: Record<Platform, string> = {
@@ -56,7 +56,7 @@ export function SocialSection() {
       supabase.from('social_platforms').select('*'),
       supabase.from('social_campaigns').select('*').order('created_at'),
       // The queue (soonest first) and the history (newest first) are loaded separately, so a long plan never hides either.
-      supabase.from('social_posts').select('*').in('status', ['planned', 'awaiting_approval', 'approved', 'publishing', 'manual', 'failed']).order('scheduled_at').limit(300),
+      supabase.from('social_posts').select('*').in('status', QUEUE_STATUSES).order('scheduled_at').limit(300),
       supabase.from('social_posts').select('*').in('status', ['published', 'rejected', 'expired']).order('updated_at', { ascending: false }).limit(60),
       supabase.from('social_program').select('*').eq('id', true).maybeSingle(),
       supabase.from('social_news').select('id, status, expires_at').eq('status', 'ready'),
@@ -76,8 +76,8 @@ export function SocialSection() {
   useEffect(() => {
     void load();
   }, [load]);
-  // While something is being written or published, look again every 45 seconds.
-  const pending = posts.some((p) => p.status === 'publishing' || (p.status === 'planned' && (p.meta?.force || (p.write_at && Date.parse(p.write_at) < now))));
+  // While something is being written, rendered or published, look again every 45 seconds.
+  const pending = posts.some((p) => p.status === 'publishing' || p.status === 'rendering' || (p.status === 'planned' && (p.meta?.force || (p.write_at && Date.parse(p.write_at) < now))));
   useEffect(() => {
     if (!pending) return;
     const t = window.setInterval(() => void load(), 45_000);
@@ -85,7 +85,7 @@ export function SocialSection() {
   }, [pending, load]);
 
   const byCampaign = useMemo(() => new Map(campaigns.map((c) => [c.id, c])), [campaigns]);
-  const queue = posts.filter((p) => ['planned', 'awaiting_approval', 'approved', 'publishing', 'manual', 'failed'].includes(p.status));
+  const queue = posts.filter((p) => QUEUE_STATUSES.includes(p.status));
   const published = posts.filter((p) => ['published', 'rejected', 'expired'].includes(p.status));
 
   const runNow = async () => {
@@ -114,7 +114,7 @@ export function SocialSection() {
   const tabs: [Tab, string, number?][] = [
     ['next', 'Up next', queue.length],
     ['strategy', 'Strategy'],
-    ['ideas', 'Content ideas', program ? FORMATS.filter((f) => isFormatOn(f, { formats: program.formats ?? {} })).length : FORMATS.length],
+    ['ideas', 'Content ideas', program ? FORMATS.filter((f) => isFormatOn(f, { formats: program.formats ?? {}, reels: reelsAlive(program) })).length : FORMATS.length],
     ['news', 'News desk', newsReady],
     ['published', 'Published', published.filter((p) => p.status === 'published').length],
     ['campaigns', 'Campaigns', campaigns.filter((c) => c.enabled).length],
@@ -123,7 +123,7 @@ export function SocialSection() {
   ];
   const needsProgram = (
     <p className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
-      Run the migration <span className="font-mono text-[13px]">20261120090000_social_program.sql</span> in the Supabase SQL Editor, then deploy the function (<span className="font-mono text-[13px]">supabase functions deploy auto-pipeline --no-verify-jwt</span>) to turn on the content program. Campaigns keep working as before.
+      Run the migration <span className="font-mono text-[13px]">20261123090000_social_program.sql</span> in the Supabase SQL Editor, then deploy the function (<span className="font-mono text-[13px]">supabase functions deploy auto-pipeline --no-verify-jwt</span>) to turn on the content program. Campaigns keep working as before.
     </p>
   );
 

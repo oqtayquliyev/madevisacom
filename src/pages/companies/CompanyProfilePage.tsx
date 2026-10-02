@@ -31,7 +31,6 @@ import { fetchPublishedJobsByPublisher, sponsoredJobToBoardJob } from '@/lib/spo
 import { fetchPublishedProgramsByPublisher, type SponsoredProgram } from '@/lib/programs';
 import { jobPath } from '@/lib/jobUrl';
 import { formatRelativeTime } from '@/lib/dates';
-import { boardJobTime } from '@/lib/jobTime';
 import type { Job } from '@/data/jobs';
 import {
   RangeSwitch,
@@ -586,11 +585,7 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
                         {[j.city, j.country].filter(Boolean).join(', ') || 'Various locations'}
                       </span>
                       {j.remote && <span className="font-semibold text-emerald-700">Remote</span>}
-                      {(() => {
-                        // Company's own date ("3 days ago"), or "Added today" when its page shows none.
-                        const t = boardJobTime(j);
-                        return t ? <span>· {t.fromSource ? t.words : t.text}</span> : null;
-                      })()}
+                      {j.postedDate && <span>· {formatRelativeTime(j.postedDate, '')}</span>}
                     </p>
                     {j.salary && <p className="mt-2.5 text-[16px] font-bold text-ink-950">{j.salary}</p>}
                   </a>

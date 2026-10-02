@@ -46,6 +46,7 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
       { label: 'About', href: '/about' },
       { label: 'How it works', href: '/how-it-works' },
       { label: 'Post a job', view: 'submit-job' },
+      { label: 'Employer inbox', href: '/employers/inbox' },
       { label: 'Advertise', href: '/advertising-policy' },
       { label: 'Official institutions', view: 'official-partners' },
       { label: 'Contact', href: '/contact' },

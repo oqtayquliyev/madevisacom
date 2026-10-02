@@ -2,6 +2,7 @@
 //   → PNG for a social post that isn't a job list: country spotlights, visa
 //     routes, numbers, rankings, steps, myth/fact, news, calls to action.
 //   Templates: hero · stat · rank · card · steps · myth · text · versus · news · cta · grid
+//   Plus t=reel: transparent text layers for Reels (api/_reel.ts).
 //
 // Every text on the image is a URL parameter, so the admin panel can edit it
 // before the post goes out (see api/_post.ts for the list and the layout rules):
@@ -17,6 +18,7 @@ import { ImageResponse } from '@vercel/og';
 import { googleFont, logoDataUrl, textOf, type Font } from '../_og';
 import { restGet } from '../_supa';
 import { drawPost, parsePost, UUID, type Loader } from '../_post';
+import { drawReel, parseReel } from '../_reel';
 
 export const config = { runtime: 'edge' };
 
@@ -57,10 +59,28 @@ async function photoDataUrl(url: string): Promise<string | null> {
   }
 }
 
+/** t=reel → a text layer for a Reel (transparent PNG, 1080×1920). See api/_reel.ts. */
+async function reelLayer(url: URL, check: boolean): Promise<Response> {
+  const q = parseReel(url.searchParams);
+  if (!q) return check ? Response.json({ ok: false, issues: [{ level: 'error', message: 'Unknown reel layer' }] }, { headers: { 'Cache-Control': 'no-store' } }) : new Response('Unknown reel layer', { status: 400 });
+  const { tree, issues, width, height } = await drawReel(q, (ref) => logoDataUrl(ref));
+  if (check) return Response.json({ ok: !issues.some((i) => i.level === 'error'), width, height, issues }, { headers: { 'Cache-Control': 'no-store' } });
+  const glyphs = `${textOf(tree)} 0123456789→…·#%+`;
+  const fonts = (await Promise.all([googleFont('Inter', 400, glyphs), googleFont('Inter', 600, glyphs), googleFont('Inter', 700, glyphs), googleFont('Inter', 800, glyphs)])).filter((f): f is Font => f !== null);
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const png = await new ImageResponse(tree as any, { width, height, fonts }).arrayBuffer();
+    return new Response(png, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600, s-maxage=604800, immutable' } });
+  } catch (e) {
+    return new Response(`Render failed: ${e instanceof Error ? e.message : e}`, { status: 500, headers: { 'Cache-Control': 'no-store' } });
+  }
+}
+
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
-  const q = parsePost(url.searchParams);
   const check = url.searchParams.get('check') === '1';
+  if (url.searchParams.get('t') === 'reel') return reelLayer(url, check);
+  const q = parsePost(url.searchParams);
   if (!q) {
     if (check) return Response.json({ ok: false, issues: [{ level: 'error', message: 'Unknown template' }] }, { headers: { 'Cache-Control': 'no-store' } });
     return new Response('Unknown template', { status: 400 });

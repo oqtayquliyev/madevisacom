@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Eye, FileText, Loader2, Newspaper, Pencil, Plus, Save, Sparkles, Stamp, Trash2, X } from 'lucide-react';
 import { RichTextField } from '@/components/admin/RichTextField';
@@ -279,6 +280,19 @@ export function ArticlesSection() {
     void load();
   };
 
+  const monthlyNow = async () => {
+    setBusy('monthly');
+    setMsg(null);
+    const { error } = await supabase.rpc('monthly_report_run_now');
+    setBusy(null);
+    setMsg(
+      error
+        ? { ok: false, text: /monthly_report_run_now|schema cache/i.test(error.message) ? 'Run migration 20261120090000_monthly_visa_report.sql first.' : error.message }
+        : { ok: true, text: 'Writing last month’s Visa Hiring Report — it appears in the list in a minute (or the pipeline log says why it was skipped).' }
+    );
+    if (!error) window.setTimeout(() => void load(), 45_000);
+  };
+
   const reportsNow = async () => {
     setBusy('reports');
     setMsg(null);
@@ -328,6 +342,9 @@ export function ArticlesSection() {
           )}
           <button onClick={() => void reportsNow()} disabled={busy !== null} className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-800 hover:bg-ink-200 disabled:opacity-50">
             {busy === 'reports' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />} Write this week’s reports now
+          </button>
+          <button onClick={() => void monthlyNow()} disabled={busy !== null} className="ml-2 mt-3 inline-flex items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-800 hover:bg-ink-200 disabled:opacity-50" title="Runs automatically on the 1st of each month">
+            {busy === 'monthly' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />} Write last month’s Visa Hiring Report
           </button>
         </div>
 

@@ -25,6 +25,14 @@
 //   Instagram  IG_USER_ID + FB_PAGE_TOKEN         (IG professional account linked to the Page)
 //   LinkedIn   LINKEDIN_TOKEN, LINKEDIN_AUTHOR    (e.g. urn:li:organization:12345)
 //   TikTok     TIKTOK_TOKEN                       (Content Posting API, photo posts; madevisa.com verified)
+//
+// Reels (posts with a video_url — rendered by scripts/render-reels.mjs):
+//   Instagram  published as a Reel (same token)
+//   Facebook   published as a Reel on the Page, or as a video if Reels refuses
+//   Telegram   sent as a video
+//   TikTok     "post by hand" (TikTok only pulls video from a verified domain)
+//   GITHUB_DISPATCH_TOKEN + GITHUB_REPO ("owner/repo") — optional: starts the
+//   render workflow the moment a reel is written, instead of at the next hour.
 
 import { PNG } from 'npm:pngjs@7.0.0';
 import jpeg from 'npm:jpeg-js@0.4.4';
@@ -81,6 +89,9 @@ type Post = {
   /** 'program' for posts planned by the content program. */
   origin?: string | null;
   scheduled_at?: string;
+  /** A Reel: the rendered MP4 (images[0] is then its cover, a JPEG). */
+  video_url?: string | null;
+  meta?: { reel?: unknown; ig_container?: string | null; ig_waits?: number } | null;
 };
 
 export const DIMS = { portrait: [1080, 1350], square: [1080, 1080], story: [1080, 1920] } as const;
@@ -630,6 +641,127 @@ async function publishFacebook(post: Post): Promise<Result> {
   return { id: r.id, url: `https://www.facebook.com/${r.id}` };
 }
 
+// --- Reels ------------------------------------------------------------------------
+
+/** "Not yet": the network is still processing the video. The post stays approved and this isn't counted as a failed attempt. */
+class Pending extends Error {}
+
+/** Facebook: a Reel on the Page (start → hand over the file's URL → finish). If Reels refuses before anything is published, a normal video post. */
+async function publishFacebookVideo(post: Post): Promise<Result> {
+  const page = env('FB_PAGE_ID');
+  const token = env('FB_PAGE_TOKEN');
+  let videoId = '';
+  try {
+    const start = await graph(`${page}/video_reels`, { upload_phase: 'start' }, token);
+    videoId = String(start.video_id ?? '');
+    if (!videoId) throw new Error('Meta: no video id');
+    const up = await fetch(`https://rupload.facebook.com/video-upload/v21.0/${videoId}`, { method: 'POST', headers: { Authorization: `OAuth ${token}`, file_url: post.video_url! }, signal: AbortSignal.timeout(60_000) });
+    const ud = await up.json().catch(() => ({}));
+    if (!up.ok || ud.success === false) throw new Error(`Meta: ${ud.error?.message ?? ud.debug_info?.message ?? up.status}`);
+  } catch (e) {
+    // Nothing is live yet, so the fallback can't double-post.
+    const r = await graph(`${page}/videos`, { file_url: post.video_url!, description: post.caption }, token);
+    console.error('Facebook Reels refused, posted as a video instead:', e instanceof Error ? e.message : e);
+    return { id: r.id, url: `https://www.facebook.com/${page}/videos/${r.id}` };
+  }
+  await graph(`${page}/video_reels`, { upload_phase: 'finish', video_id: videoId, video_state: 'PUBLISHED', description: post.caption }, token);
+  return { id: videoId, url: `https://www.facebook.com/reel/${videoId}` };
+}
+
+/**
+ * Instagram: create the Reel container once (its id is kept on the post), wait
+ * for Instagram to process the video — across runs if it takes longer than
+ * this one — then publish it.
+ */
+async function publishInstagramReel(post: Post, service: Service): Promise<Result> {
+  const ig = env('IG_USER_ID') || (igDirect() ? 'me' : '');
+  const token = env('IG_ACCESS_TOKEN') || env('FB_PAGE_TOKEN');
+  const base = igBase();
+  const meta = post.meta ?? {};
+  let container = typeof meta.ig_container === 'string' ? meta.ig_container : '';
+  const waits = Number(meta.ig_waits ?? 0);
+  if (!container) {
+    const cover = post.images[0]?.url;
+    container = (await graph(`${ig}/media`, { media_type: 'REELS', video_url: post.video_url!, caption: post.caption, share_to_feed: 'true', ...(cover ? { cover_url: cover } : {}) }, token, base)).id;
+    await service.from('social_posts').update({ meta: { ...meta, ig_container: container, ig_waits: 0 } }).eq('id', post.id);
+  }
+  let state = '';
+  for (let i = 0; i < 12; i++) {
+    const res = await fetch(`${base}/${container}?fields=status_code,status&access_token=${token}`);
+    const d = await res.json().catch(() => ({}));
+    state = d.status_code ?? '';
+    if (state === 'FINISHED' || state === 'PUBLISHED') break;
+    if (state === 'ERROR' || state === 'EXPIRED' || d.error) {
+      // Start again with a new container on the next attempt.
+      await service.from('social_posts').update({ meta: { ...meta, ig_container: null, ig_waits: 0 } }).eq('id', post.id);
+      throw new Error(`Instagram could not process the video${d.status ? ` (${d.status})` : d.error?.message ? ` (${d.error.message})` : ''}`);
+    }
+    await new Promise((r) => setTimeout(r, 4000));
+  }
+  if (state !== 'FINISHED' && state !== 'PUBLISHED') {
+    if (waits >= 8) {
+      await service.from('social_posts').update({ meta: { ...meta, ig_container: null, ig_waits: 0 } }).eq('id', post.id);
+      throw new Error('Instagram has been processing this video for too long');
+    }
+    await service.from('social_posts').update({ meta: { ...meta, ig_container: container, ig_waits: waits + 1 } }).eq('id', post.id);
+    throw new Pending('Instagram is still processing the video — publishing on the next run');
+  }
+  const r = state === 'PUBLISHED' ? { id: container } : await graph(`${ig}/media_publish`, { creation_id: container }, token, base);
+  let url: string | undefined;
+  try {
+    const d = await (await fetch(`${base}/${r.id}?fields=permalink&access_token=${token}`)).json();
+    url = d.permalink || undefined;
+  } catch {
+    /* the link is a nicety */
+  }
+  return { id: r.id, url };
+}
+
+async function publishTelegramVideo(post: Post): Promise<Result> {
+  const chat = post.target || env('TELEGRAM_CHAT_ID');
+  if (!chat) throw new Error('No Telegram channel: set one on the campaign, or the TELEGRAM_CHAT_ID secret');
+  const r = await telegram('sendVideo', { chat_id: chat, video: post.video_url, caption: post.caption.slice(0, 1024), width: 1080, height: 1920, supports_streaming: true, ...(post.images[0] ? { thumbnail: post.images[0].url } : {}) });
+  const messageId = Number(r.message_id);
+  return { id: `${chat}:${messageId}`, url: chat.startsWith('@') ? `https://t.me/${chat.slice(1)}/${messageId}` : undefined };
+}
+
+/** Networks a Reel can be published to through the API. */
+const VIDEO_PUBLISHERS: Partial<Record<Platform, (p: Post, service: Service) => Promise<Result>>> = {
+  instagram: publishInstagramReel,
+  facebook: publishFacebookVideo,
+  telegram: publishTelegramVideo,
+};
+
+/**
+ * Reels waiting for their video: ask GitHub to run the renderer now (it also
+ * runs hourly on its own). Without GITHUB_DISPATCH_TOKEN this only notes that
+ * the posts were seen, so the 5-minute tick stays quiet.
+ */
+async function requestRender(service: Service, log: string[]) {
+  const { data: prog } = await service.from('social_program').select('reels_dispatch_at').eq('id', true).maybeSingle();
+  if (!prog) return; // the reels migration hasn't been run
+  const last = prog.reels_dispatch_at ? Date.parse(prog.reels_dispatch_at) : 0;
+  const { data: waiting } = await service.from('social_posts').select('id, updated_at').eq('status', 'rendering').order('updated_at', { ascending: false }).limit(1);
+  const newest = waiting?.[0]?.updated_at ? Date.parse(waiting[0].updated_at) : 0;
+  // Something new since the last request — or still waiting 20 minutes after it.
+  if (!newest || (newest <= last && Date.now() - last < 20 * 60_000)) return;
+  await service.from('social_program').update({ reels_dispatch_at: new Date().toISOString() }).eq('id', true);
+  const token = env('GITHUB_DISPATCH_TOKEN');
+  const repo = env('GITHUB_REPO');
+  if (!token || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'madevisa-pipeline', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_type: 'render-reels' }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) log.push(`Reels: GitHub didn’t accept the render request (${res.status}) — the hourly run will pick it up`);
+  } catch {
+    log.push('Reels: GitHub couldn’t be reached — the hourly run will pick it up');
+  }
+}
+
 async function waitReady(container: string, token: string) {
   for (let i = 0; i < 10; i++) {
     const res = await fetch(`${igBase()}/${container}?fields=status_code&access_token=${token}`);
@@ -826,8 +958,14 @@ async function publishDue(service: Service, platforms: Map<Platform, PlatformRow
   await service.from('social_posts').update({ status: 'expired', error: 'Missed its time — not sent late' }).eq('origin', 'program').in('status', ['approved', 'awaiting_approval']).lt('scheduled_at', stale);
   // "Post by hand" program posts nobody posted within a day and a half are dropped, so they don't pile up.
   await service.from('social_posts').update({ status: 'expired', error: 'Not posted by hand in time' }).eq('origin', 'program').eq('status', 'manual').lt('scheduled_at', new Date(Date.now() - 36 * 3_600_000).toISOString());
-  const { data } = await service.from('social_posts').select('id, platform, format, caption, headline, images, job_ids, attempts, validation, target, origin, scheduled_at').eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8);
-  for (const post of (data ?? []) as Post[]) {
+  // A reel whose video never arrived (the render workflow isn't running, or failed without saying so).
+  await service.from('social_posts').update({ status: 'expired', error: 'The video wasn’t rendered in time. Check Actions → Render reels on GitHub.' }).eq('status', 'rendering').lt('scheduled_at', new Date(Date.now() - 3 * 3_600_000).toISOString());
+  const COLS = 'id, platform, format, caption, headline, images, job_ids, attempts, validation, target, origin, scheduled_at';
+  const due = () => service.from('social_posts');
+  const first = await due().select(`${COLS}, video_url, meta`).eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8);
+  // Before the reels migration there is no video_url column: carry on with image posts.
+  const data = first.error ? (await due().select(COLS).eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8)).data : first.data;
+  for (const post of (data ?? []) as unknown as Post[]) {
     const pr = platforms.get(post.platform);
     if (!pr?.enabled) continue;
     // Never two posts on one network within its minimum gap.
@@ -843,16 +981,36 @@ async function publishDue(service: Service, platforms: Map<Platform, PlatformRow
       log.push(`${post.platform}: post expired (jobs closed)`);
       continue;
     }
-    // Images still render at the right size?
-    const checks = await Promise.all(post.images.map((im) => validateImage(im.url, im.width, im.height)));
-    if (!checks.every((c) => c.ok)) {
-      await service.from('social_posts').update({ status: 'failed', error: checks.flatMap((c) => c.issues).filter((m) => m.startsWith('ERROR')).join('; '), attempts: post.attempts + 1 }).eq('id', post.id);
+    const video = Boolean(post.video_url);
+    // A reel without its video (approved by hand before it was rendered) must not go out as bare text.
+    if (!video && (post.format === 'reel' || post.meta?.reel)) {
+      await service.from('social_posts').update({ status: 'failed', error: 'This reel has no video yet — use “Render again”' }).eq('id', post.id);
       continue;
+    }
+    if (video) {
+      // The file is still there?
+      const head = await fetch(post.video_url!, { method: 'HEAD', signal: AbortSignal.timeout(15_000) }).catch(() => null);
+      if (!head?.ok) {
+        await service.from('social_posts').update({ status: 'failed', error: `The video file is missing (${head?.status ?? 'no answer'}) — use “Render again”`, attempts: post.attempts + 1 }).eq('id', post.id);
+        continue;
+      }
+    } else {
+      // Images still render at the right size?
+      const checks = await Promise.all(post.images.map((im) => validateImage(im.url, im.width, im.height)));
+      if (!checks.every((c) => c.ok)) {
+        await service.from('social_posts').update({ status: 'failed', error: checks.flatMap((c) => c.issues).filter((m) => m.startsWith('ERROR')).join('; '), attempts: post.attempts + 1 }).eq('id', post.id);
+        continue;
+      }
     }
 
     if (!connected(post.platform)) {
-      await service.from('social_posts').update({ status: 'manual', error: `${post.platform} isn’t connected — download the images and copy the caption to post by hand` }).eq('id', post.id);
+      await service.from('social_posts').update({ status: 'manual', error: `${post.platform} isn’t connected — download the ${video ? 'video' : 'images'} and copy the caption to post by hand` }).eq('id', post.id);
       log.push(`${post.platform}: ready to post by hand`);
+      continue;
+    }
+    if (video && !VIDEO_PUBLISHERS[post.platform]) {
+      await service.from('social_posts').update({ status: 'manual', error: `Videos can’t be sent to ${post.platform} from here — download the video and copy the caption to post by hand` }).eq('id', post.id);
+      log.push(`${post.platform}: reel ready to post by hand`);
       continue;
     }
 
@@ -873,12 +1031,18 @@ async function publishDue(service: Service, platforms: Map<Platform, PlatformRow
       }
       // A retry (or a run that died mid-publish): did the earlier attempt actually go live?
       const existing = post.attempts > 0 ? await findExisting(post) : null;
-      const r = existing ?? (await PUBLISHERS[post.platform](post, service));
+      const r = existing ?? (await (video ? VIDEO_PUBLISHERS[post.platform]! : PUBLISHERS[post.platform])(post, service));
       if (existing) log.push(`${post.platform}: already live from an earlier attempt — not posting again`);
       await service.from('social_posts').update({ status: 'published', published_at: new Date().toISOString(), external_id: r.id, external_url: r.url ?? null, error: null }).eq('id', post.id);
       log.push(`${post.platform}: published`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Publishing failed';
+      if (e instanceof Pending) {
+        // Not a failure: same post, same attempt count, next run.
+        await service.from('social_posts').update({ status: 'approved', attempts: post.attempts, error: msg }).eq('id', post.id);
+        log.push(`${post.platform}: ${msg}`);
+        continue;
+      }
       // Retry up to 3 times (next runs), then give up.
       await service.from('social_posts').update({ status: post.attempts + 1 >= 3 ? 'failed' : 'approved', error: msg, scheduled_at: new Date(Date.now() + 15 * 60_000).toISOString() }).eq('id', post.id);
       log.push(`${post.platform}: ${msg}`);
@@ -927,6 +1091,7 @@ export async function runSocial(service: Service, force = false): Promise<void> 
 
     // The content program first: it plans and writes its own posts, and tells us which networks it covers.
     const covered = await runProgram(service, platforms, log, force);
+    await requestRender(service, log).catch(() => undefined);
 
     let q = service.from('social_campaigns').select('*').eq('enabled', true);
     if (!force) q = q.lte('next_at', new Date().toISOString());

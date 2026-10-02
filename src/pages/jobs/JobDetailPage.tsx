@@ -13,6 +13,7 @@ import { jobs as curatedJobs } from '@/data/jobs';
 import { HiringBriefCallout } from '@/components/briefs/HiringBriefCallout';
 import { ApplyNudge } from '@/components/briefs/ApplyNudge';
 import { SalaryCheck } from '@/components/jobs/SalaryCheck';
+import { AlertSignup } from '@/components/jobs/AlertSignup';
 import { UkSponsorPill } from '@/components/companies/SponsorProof';
 import { OfferButton } from '@/components/briefs/OfferButton';
 import { briefEligibility } from '@/lib/briefs';
@@ -563,6 +564,10 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               period={raw.salary_period}
               disclosed={raw.salary_status === 'disclosed'}
             />
+          )}
+
+          {raw && (raw.job_function || raw.country?.name) && (
+            <AlertSignup className="mt-4" keywords={raw.job_function ?? ''} country={raw.country?.name ?? null} onAuth={onAuth} />
           )}
 
           {cleaned?.html && <CollapsibleDescription html={cleaned.html} />}

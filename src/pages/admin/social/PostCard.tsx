@@ -1,7 +1,8 @@
 import { type ChangeEvent, useState } from 'react';
-import { AlertTriangle, CalendarClock, Check, CheckCircle2, ChevronDown, Copy, Download, ExternalLink, Loader2, MessageCircle, PencilLine, Play, RefreshCw, Save, Shuffle, X } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Check, CheckCircle2, ChevronDown, Clapperboard, Copy, Download, ExternalLink, Loader2, MessageCircle, PencilLine, Play, RefreshCw, Save, Shuffle, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { FORMATS, FORMAT_BY_KEY, PILLARS, PILLAR_ORDER, PillarTag, PlatformBadge, STATUS_LABEL, STATUS_STYLE, btn, btnPrimary, formatName, input, pillarOf, untilText, when, type Campaign, type Post } from './shared';
+import { ReelEditor, ReelPreview } from './ReelParts';
 
 // One post in the queue or the history: what goes out, where, when — and
 // everything that can still be changed before it does.
@@ -194,7 +195,7 @@ function ImageTextEditor({ post, onSave, busy }: { post: Post; onSave: (patch: P
 
 // ---------------------------------------------------------------------------
 
-export function PostCard({ post, campaign, now, onChange, defaultOpen = true, tz }: { post: Post; campaign?: Campaign; now: number; onChange: () => void; defaultOpen?: boolean; /** Time zone the times are shown in (the program's). */ tz?: string }) {
+export function PostCard({ post, campaign, now, onChange, defaultOpen = true, tz, rendererAlive = true }: { post: Post; campaign?: Campaign; now: number; onChange: () => void; defaultOpen?: boolean; /** Time zone the times are shown in (the program's). */ tz?: string; /** Is the reel renderer reporting in? */ rendererAlive?: boolean }) {
   const [caption, setCaption] = useState(post.caption);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -205,7 +206,10 @@ export function PostCard({ post, campaign, now, onChange, defaultOpen = true, tz
   const [open, setOpen] = useState(defaultOpen);
   const dirty = caption !== post.caption;
   const program = post.origin === 'program';
-  const waiting = ['awaiting_approval', 'approved', 'manual', 'failed'].includes(post.status);
+  const waiting = ['rendering', 'awaiting_approval', 'approved', 'manual', 'failed'].includes(post.status);
+  // A Reel: a video instead of images (it has a recipe; the MP4 arrives a few minutes after the post is written).
+  const isReel = Boolean(post.meta?.reel);
+  const noVideoYet = isReel && !post.video_url;
   const until = untilText(post.scheduled_at, now);
   const def = post.kind ? FORMAT_BY_KEY[post.kind] : undefined;
 
@@ -228,7 +232,25 @@ export function PostCard({ post, campaign, now, onChange, defaultOpen = true, tz
     onChange();
     window.setTimeout(onChange, 40_000);
   };
+  const renderAgain = async () => {
+    setBusy('render');
+    setErr(null);
+    const { data, error } = await supabase.rpc('social_reel_render', { p_id: post.id, p_reel: null });
+    setBusy(null);
+    if (error) return setErr(error.message);
+    if (typeof data === 'string' && data.startsWith('not changed')) return setErr('This reel can’t be rendered again (already published).');
+    onChange();
+  };
   const download = async () => {
+    if (post.video_url) {
+      const blob = await (await fetch(post.video_url)).blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `madevisa-${post.platform}-${post.id.slice(0, 6)}.mp4`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      return;
+    }
     for (const [i, im] of post.images.entries()) {
       const blob = await (await fetch(im.url)).blob();
       const a = document.createElement('a');
@@ -309,7 +331,8 @@ export function PostCard({ post, campaign, now, onChange, defaultOpen = true, tz
         {program ? <PillarTag pillar={pillarOf(post)} /> : null}
         <span className="text-ink-500">
           {program ? formatName(post) : `${campaign?.name ?? 'Campaign'} · ${formatName(post)}`}
-          {post.images.length > 1 ? ` · ${post.images.length} images` : ''} · {post.status === 'published' ? `published ${when(post.published_at)}` : new Date(post.scheduled_at).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: tz })}
+          {post.images.length > 1 ? ` · ${post.images.length} images` : ''}
+          {isReel && post.meta?.reel ? ` · ${Math.round(post.meta.reel.duration)} s video` : ''} · {post.status === 'published' ? `published ${when(post.published_at)}` : new Date(post.scheduled_at).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: tz })}
         </span>
         <span className="ml-auto flex items-center gap-3">
           {post.external_url && (
@@ -329,13 +352,19 @@ export function PostCard({ post, campaign, now, onChange, defaultOpen = true, tz
 
       {open && (
         <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,280px)_1fr]">
-          <div className={`grid content-start gap-2 ${post.images.length > 1 ? 'grid-cols-3 lg:grid-cols-2' : ''}`}>
-            {post.images.map((im, i) => (
-              <a key={im.url} href={im.url} target="_blank" rel="noreferrer" className={`block overflow-hidden rounded-lg border border-ink-200 bg-ink-50 ${post.images.length > 1 && i === 0 ? 'lg:col-span-2' : ''}`}>
-                <img src={im.url} alt={post.headline} loading="lazy" width={im.width} height={im.height} className="h-auto w-full" />
-              </a>
-            ))}
-          </div>
+          {isReel ? (
+            <div className="mx-auto w-full max-w-[280px]">
+              <ReelPreview post={post} rendererAlive={rendererAlive} />
+            </div>
+          ) : (
+            <div className={`grid content-start gap-2 ${post.images.length > 1 ? 'grid-cols-3 lg:grid-cols-2' : ''}`}>
+              {post.images.map((im, i) => (
+                <a key={im.url} href={im.url} target="_blank" rel="noreferrer" className={`block overflow-hidden rounded-lg border border-ink-200 bg-ink-50 ${post.images.length > 1 && i === 0 ? 'lg:col-span-2' : ''}`}>
+                  <img src={im.url} alt={post.headline} loading="lazy" width={im.width} height={im.height} className="h-auto w-full" />
+                </a>
+              ))}
+            </div>
+          )}
 
           <div className="min-w-0">
             {waiting ? (
@@ -373,7 +402,16 @@ export function PostCard({ post, campaign, now, onChange, defaultOpen = true, tz
                 ))}
               </ul>
             )}
-            {waiting && editTexts && <ImageTextEditor post={post} busy={busy !== null} onSave={(patch) => void update(patch, 'texts').then(() => setEditTexts(false))} />}
+            {waiting && editTexts && !isReel && <ImageTextEditor post={post} busy={busy !== null} onSave={(patch) => void update(patch, 'texts').then(() => setEditTexts(false))} />}
+            {waiting && editTexts && isReel && (
+              <ReelEditor
+                post={post}
+                onDone={() => {
+                  setEditTexts(false);
+                  onChange();
+                }}
+              />
+            )}
             {swapPicker}
             {move && (
               <div className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-ink-200 bg-ink-50/60 p-3">
@@ -401,7 +439,12 @@ export function PostCard({ post, campaign, now, onChange, defaultOpen = true, tz
                   <Save className="h-3.5 w-3.5" /> Save caption
                 </button>
               )}
-              {(post.status === 'awaiting_approval' || post.status === 'failed' || (post.status === 'manual' && post.platform === 'telegram')) && (
+              {noVideoYet && post.status === 'failed' && (
+                <button onClick={() => void renderAgain()} disabled={busy !== null} className={btnPrimary}>
+                  {busy === 'render' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clapperboard className="h-3.5 w-3.5" />} Render again
+                </button>
+              )}
+              {!noVideoYet && (post.status === 'awaiting_approval' || post.status === 'failed' || (post.status === 'manual' && post.platform === 'telegram')) && (
                 <button
                   // A program post keeps its planned time; a campaign post (or a retry) goes out on the next run.
                   onClick={() => void update({ status: 'approved', caption, error: null, ...(program && post.status === 'awaiting_approval' ? {} : { scheduled_at: new Date().toISOString() }), ...(post.platform === 'telegram' ? ({ attempts: 0 } as Partial<Post>) : {}) }, 'approve')}
@@ -411,7 +454,7 @@ export function PostCard({ post, campaign, now, onChange, defaultOpen = true, tz
                   {busy === 'approve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} {post.status === 'awaiting_approval' ? 'Approve' : 'Retry'}
                 </button>
               )}
-              {['awaiting_approval', 'approved', 'failed'].includes(post.status) && (
+              {!noVideoYet && ['awaiting_approval', 'approved', 'failed'].includes(post.status) && (
                 <button
                   onClick={async () => {
                     setBusy('now');
@@ -444,12 +487,17 @@ export function PostCard({ post, campaign, now, onChange, defaultOpen = true, tz
                   <CheckCircle2 className="h-3.5 w-3.5" /> Mark as posted
                 </button>
               )}
-              {waiting && post.images.some((im) => isJobImage(im.url) || isPostImage(im.url)) && (
+              {isReel && ['rendering', 'awaiting_approval', 'approved', 'failed'].includes(post.status) && (
+                <button onClick={() => setEditTexts((v) => !v)} className={btn}>
+                  <PencilLine className="h-3.5 w-3.5" /> {editTexts ? 'Close reel texts' : 'Edit reel texts'}
+                </button>
+              )}
+              {!isReel && waiting && post.images.some((im) => isJobImage(im.url) || isPostImage(im.url)) && (
                 <button onClick={() => setEditTexts((v) => !v)} className={btn}>
                   <PencilLine className="h-3.5 w-3.5" /> {editTexts ? 'Close image texts' : 'Edit image texts'}
                 </button>
               )}
-              {program && ['awaiting_approval', 'approved', 'failed'].includes(post.status) && (
+              {program && ['rendering', 'awaiting_approval', 'approved', 'failed'].includes(post.status) && (
                 <>
                   <button onClick={() => void rewrite()} disabled={busy !== null} className={btn} title="Same kind of post, a different topic and wording">
                     {busy === 'rewrite' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Write another
@@ -469,9 +517,11 @@ export function PostCard({ post, campaign, now, onChange, defaultOpen = true, tz
                   <X className="h-3.5 w-3.5" /> {program ? 'Skip' : 'Reject'}
                 </button>
               )}
-              <button onClick={() => void download()} className={btn}>
-                <Download className="h-3.5 w-3.5" /> Images
-              </button>
+              {!noVideoYet && (
+                <button onClick={() => void download()} className={btn}>
+                  <Download className="h-3.5 w-3.5" /> {isReel ? 'Video' : 'Images'}
+                </button>
+              )}
               <button
                 onClick={() => {
                   void navigator.clipboard.writeText(caption);

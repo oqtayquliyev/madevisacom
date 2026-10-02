@@ -5,6 +5,10 @@
 set -e
 cd "$(dirname "$0")"
 
+echo "0) Two migrations that were renumbered (same content, new names: 20261123… and 20261124…)"
+rm -f supabase/migrations/20261120090000_social_program.sql \
+      supabase/migrations/20261121090000_social_reels.sql
+
 echo "1) Source files nothing imports (dead code)"
 rm -f src/components/auth/AuthSidePanel.tsx \
       src/components/briefs/OfferCompaniesRow.tsx \
@@ -22,7 +26,8 @@ rm -f public/sitemap.xml
 echo "3) Leftovers from Bolt / setup notes that are done"
 rm -rf .bolt
 rm -f SEO-SETUP.md
-rm -rf public/government-logos          # duplicate of public/assets/government-logos
+rm -rf public/government-logos          # old duplicate folder
+rm -rf public/assets/government-logos   # unused: the institutions page no longer shows logos
 
 echo "4) macOS junk"
 find . -name .DS_Store -not -path "./node_modules/*" -delete

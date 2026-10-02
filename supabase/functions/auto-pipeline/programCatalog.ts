@@ -78,6 +78,8 @@ export type FormatDef = {
   days?: number[];
   /** Fresh formats are written about 2 hours before they go out (jobs must be new); the rest a day ahead. */
   fresh?: boolean;
+  /** A Reel: a short vertical video (text over city footage), rendered by scripts/render-reels.mjs. */
+  video?: boolean;
   /** Off until switched on in the admin panel. */
   off?: boolean;
   /** Something the admin should know before turning it on. */
@@ -375,6 +377,14 @@ export const FORMATS: FormatDef[] = [
     platforms: FEED, parts: ['evening', 'night'], weight: 1.5, cooldown: 168,
   },
   {
+    key: 'job_alert', pillar: 'community', name: 'Free job alert',
+    idea: 'The free job alert: new jobs for one country in your inbox once a day. One alert is free, one click to unsubscribe.',
+    example: 'New jobs in Germany, in your inbox. Once a day, free.',
+    source: 'Job alerts, and the busiest countries this week', link: '/jobs?country=…', visual: 'Call-to-action card',
+    platforms: FEED, parts: ['evening', 'lunch', 'morning'], weight: 1.2, cooldown: 120, off: true,
+    needs: 'Off until you switch it on: it promises an email, so first set up job-alert emails (Resend key, migration 20261122090000). On Resend’s free plan at most 90 alert emails go out a day.',
+  },
+  {
     key: 'invite', pillar: 'community', name: 'Invite a friend',
     idea: 'The invite link: you get 2 Visa Plan credits when someone you invited makes a first purchase.',
     example: 'Know someone job hunting abroad? Send them your link.',
@@ -387,6 +397,14 @@ export const FORMATS: FormatDef[] = [
     example: 'Hiring across borders? Be found by people who can move.',
     source: 'Recruiters directory', link: '/network', visual: 'Call-to-action card',
     platforms: PRO, parts: ['morning', 'lunch'], weight: 1, cooldown: 240, days: [1, 2, 3, 4],
+  },
+  {
+    key: 'employer_inbox', pillar: 'community', name: 'Employer inbox',
+    idea: 'For recruiters: sign in with a work email and see every Visa Plan candidates sent to your company. Free.',
+    example: 'Hiring internationally? Candidates may already have sent your company a Visa Plan.',
+    source: 'Employer inbox', link: '/employers/inbox', visual: 'Call-to-action card',
+    platforms: PRO, parts: ['morning', 'lunch'], weight: 1, cooldown: 240, days: [1, 2, 3, 4],
+    needs: 'Needs the employer inbox (migration 20261121090000_employer_inbox.sql).',
   },
   {
     key: 'employers', pillar: 'community', name: 'For employers',
@@ -420,6 +438,57 @@ export const FORMATS: FormatDef[] = [
   },
 ];
 
+// --- Reels --------------------------------------------------------------------
+// The same facts as the image posts, as a 12–16 second vertical video: city or
+// country footage, big text boxes that appear one by one, the link at the end.
+// Reels are what Instagram shows to people who don't follow the account yet.
+const REEL_ON: Platform[] = ['instagram', 'facebook', 'tiktok', 'telegram'];
+const REEL_NEEDS = 'Needs the reel renderer (the “Render reels” GitHub Action). Until it has run, reels stay off.';
+FORMATS.push(
+  {
+    key: 'reel_country', pillar: 'market', name: 'Reel: “X is hiring”', video: true,
+    idea: 'Footage of the country, then “Germany is hiring”, three numbers that appear one by one, and where to find the roles.',
+    example: 'Germany is hiring. 5,200 open roles right now.',
+    source: 'Live job-market numbers by country', link: '/destinations/<country>', visual: 'Reel, about 12 seconds',
+    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 40, needs: REEL_NEEDS,
+  },
+  {
+    key: 'reel_city', pillar: 'jobs', name: 'Reel: jobs in one city', video: true, fresh: true,
+    idea: 'Footage of a city, then three roles that opened there today, with the links in the caption.',
+    example: 'Berlin is hiring. 3 roles posted in the last 24 hours.',
+    source: 'Fresh jobs, grouped by city', link: '/jobs?country=…', visual: 'Reel, about 12 seconds',
+    platforms: REEL_ON, parts: ['morning', 'lunch', 'evening'], weight: 3, cooldown: 20, needs: REEL_NEEDS,
+  },
+  {
+    key: 'reel_route', pillar: 'visa', name: 'Reel: a visa route in 15 seconds', video: true,
+    idea: 'One visa route: its name over footage of the country, then what it asks for, line by line, and the official source.',
+    example: 'Opportunity Card, Germany. Move first, find the job after.',
+    source: 'Visa guides', link: '/destinations/<country>', visual: 'Reel, about 15 seconds',
+    platforms: REEL_ON, parts: ['evening', 'night', 'lunch'], weight: 3, cooldown: 40, needs: REEL_NEEDS,
+  },
+  {
+    key: 'reel_myth', pillar: 'visa', name: 'Reel: myth, then fact', video: true,
+    idea: 'A common belief on screen, then the fact that corrects it. Short, and made to be shared.',
+    example: 'Myth: you need a job offer before you can move.',
+    source: 'Visa guides', link: '/destinations', visual: 'Reel, about 14 seconds',
+    platforms: REEL_ON, parts: ['evening', 'night'], weight: 2, cooldown: 60, needs: REEL_NEEDS,
+  },
+  {
+    key: 'reel_plan', pillar: 'plan', name: 'Reel: you make the offer', video: true,
+    idea: 'The Visa Plan idea as a reel: the hook, the three steps, “your first one is free”.',
+    example: 'No visa line in the ad is not a no.',
+    source: 'Visa Plan', link: '/offers', visual: 'Reel, about 15 seconds',
+    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 2.5, cooldown: 60, needs: REEL_NEEDS,
+  },
+  {
+    key: 'reel_news', pillar: 'news', name: 'Reel: news', video: true,
+    idea: 'A News desk item as a reel: the headline over footage of the country, the key facts, the source.',
+    example: 'Portugal opens applications for its job-seeker visa.',
+    source: 'News desk (you add the item and the source)', link: 'The source or a MadeVisa page', visual: 'Reel, about 13 seconds',
+    platforms: REEL_ON, parts: ['morning', 'lunch', 'evening'], weight: 3, cooldown: 6, needs: REEL_NEEDS,
+  }
+);
+
 export const FORMAT_BY_KEY: Record<string, FormatDef> = Object.fromEntries(FORMATS.map((f) => [f.key, f]));
 
 /** Formats that pick live jobs (and so reserve them). */
@@ -440,11 +509,13 @@ export type ProgramSettings = {
   handles: Partial<Record<Platform, string>>;
   /** ISO codes to feature more often (empty = follow the data). */
   focus: string[];
+  /** The reel renderer has reported in lately — reel formats are only planned when it has. */
+  reels?: boolean;
 };
 
 export const DEFAULT_SETTINGS: ProgramSettings = { timezone: 'UTC', autopilot: true, per_day: {}, formats: {}, mix: {}, handles: {}, focus: [] };
 
-export const isFormatOn = (f: FormatDef, s: Pick<ProgramSettings, 'formats'>) => (f.key in (s.formats ?? {}) ? Boolean(s.formats[f.key]) : !f.off);
+export const isFormatOn = (f: FormatDef, s: Pick<ProgramSettings, 'formats' | 'reels'>) => (f.video && !s.reels ? false : f.key in (s.formats ?? {}) ? Boolean(s.formats[f.key]) : !f.off);
 export const perDayFor = (p: Platform, s: Pick<ProgramSettings, 'per_day'>, weekend: boolean) => {
   const base = Math.max(0, Math.min(RHYTHM[p].max, Math.round(Number(s.per_day?.[p] ?? RHYTHM[p].perDay))));
   if (!weekend) return base;
@@ -453,3 +524,43 @@ export const perDayFor = (p: Platform, s: Pick<ProgramSettings, 'per_day'>, week
 };
 export const mixFor = (s: Pick<ProgramSettings, 'mix'>): Record<Pillar, number> =>
   Object.fromEntries(PILLAR_ORDER.map((k) => [k, Math.max(0, Number(s.mix?.[k] ?? PILLARS[k].share))])) as Record<Pillar, number>;
+
+// --- Reels: from scenes to timed layers ---------------------------------------
+// A reel is a few screens ("scenes"). A scene with several steps reveals its
+// lines or rows one by one: each step is the same picture with one more part
+// visible. The renderer fades every layer in and lets the last step of a scene
+// fade out.
+export type ReelScene = { url: string; steps: number; step: number; hold: number };
+export type ReelLayer = { url: string; at: number; end: number; last: boolean };
+export type ReelRecipe = {
+  v: 1;
+  bg: { queries: string[]; cc: string | null; photo: string | null; credit: string | null; fallback: string; salt: number };
+  frame: string;
+  scenes: ReelScene[];
+  layers: ReelLayer[];
+  duration: number;
+  cover_at: number;
+  /** The status the post gets once rendered. */
+  after: 'approved' | 'awaiting_approval';
+};
+
+export function reelLayers(scenes: ReelScene[]): { layers: ReelLayer[]; duration: number; cover_at: number } {
+  const layers: ReelLayer[] = [];
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  let t = 0.25;
+  let coverAt = 2.4;
+  scenes.forEach((s, si) => {
+    const steps = Math.max(1, s.steps);
+    const end = t + (steps - 1) * s.step + s.hold;
+    for (let k = 1; k <= steps; k++) {
+      const at = t + (k - 1) * s.step;
+      const u = new URL(s.url);
+      if (steps > 1) u.searchParams.set('n', String(k));
+      layers.push({ url: u.toString(), at: r2(at), end: r2(k < steps ? at + s.step + 0.32 : end), last: k === steps });
+    }
+    // The cover is the opening screen with everything on it.
+    if (si === 0) coverAt = r2(t + (steps - 1) * s.step + Math.min(1, s.hold / 2));
+    t = end + 0.12;
+  });
+  return { layers, duration: r2(t + 0.3), cover_at: coverAt };
+}

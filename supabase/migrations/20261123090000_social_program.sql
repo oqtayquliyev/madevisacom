@@ -1,7 +1,11 @@
 /*
-# Social content program (Batch 6)
+# Social content program (Batch 10)
 
-Run AFTER 20261119090000_visa_plan_name.sql. Safe to run more than once.
+Run AFTER 20261122090000_free_job_alert_emails.sql (it only needs the social tables
+from 20261118090000_telegram_channels.sql, so the order among the 2026112x files
+does not matter to it). Safe to run more than once.
+This file was first handed out as 20261120090000_social_program.sql — same content;
+if you already ran it under that name, there is nothing to do.
 Paste the whole file into ONE query tab in the Supabase SQL Editor and run it.
 Then deploy:  supabase functions deploy auto-pipeline --no-verify-jwt
 

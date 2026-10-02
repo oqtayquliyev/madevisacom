@@ -4,7 +4,7 @@
 // panel always shows exactly what the server will do.
 
 import { useEffect, useState } from 'react';
-import { FORMAT_BY_KEY, PILLARS, type Pillar, type Platform } from '../../../../supabase/functions/auto-pipeline/programCatalog.ts';
+import { FORMAT_BY_KEY, PILLARS, type Pillar, type Platform, type ReelRecipe } from '../../../../supabase/functions/auto-pipeline/programCatalog.ts';
 
 export * from '../../../../supabase/functions/auto-pipeline/programCatalog.ts';
 export { addDays, atLocal, localTime, planRange, type Slot } from '../../../../supabase/functions/auto-pipeline/programSchedule.ts';
@@ -35,7 +35,7 @@ export type Campaign = {
   last_result: string | null;
 };
 
-export type PostStatus = 'planned' | 'awaiting_approval' | 'approved' | 'publishing' | 'published' | 'manual' | 'failed' | 'rejected' | 'expired';
+export type PostStatus = 'planned' | 'rendering' | 'awaiting_approval' | 'approved' | 'publishing' | 'published' | 'manual' | 'failed' | 'rejected' | 'expired';
 export type Post = {
   id: string;
   campaign_id: string | null;
@@ -52,14 +52,25 @@ export type Post = {
   external_url: string | null;
   error: string | null;
   created_at: string;
-  // Program posts (migration 20261120090000):
+  // Program posts (migration 20261123090000):
   origin?: 'campaign' | 'program';
   kind?: string | null;
   pillar?: Pillar | null;
   topic_key?: string | null;
   write_at?: string | null;
-  meta?: { part?: string; reply?: { keyword: string; text: string; url: string }; planned_kind?: string; force?: boolean } | null;
+  meta?: {
+    part?: string;
+    reply?: { keyword: string; text: string; url: string };
+    planned_kind?: string;
+    force?: boolean;
+    /** A Reel's recipe (migration 20261124090000), plus what the renderer used. */
+    reel?: ReelRecipe & { bg_used?: { source: 'pexels' | 'photo' | 'gradient'; credit?: string | null; page?: string; query?: string } | null; music?: string | null };
+  } | null;
+  /** A Reel: the rendered MP4 (images[0] is then its cover). */
+  video_url?: string | null;
 };
+/** Statuses shown in Up next. */
+export const QUEUE_STATUSES: PostStatus[] = ['planned', 'rendering', 'awaiting_approval', 'approved', 'publishing', 'manual', 'failed'];
 
 export type ProgramRow = {
   running: boolean;
@@ -77,7 +88,12 @@ export type ProgramRow = {
   last_result: string | null;
   replies_ok: boolean | null;
   replies_note: string | null;
+  /** When the reel renderer (GitHub Actions) last reported in, and what it did. */
+  reels_at?: string | null;
+  reels_note?: string | null;
 };
+/** The renderer runs at least hourly; quiet for 8 hours means reels are off (the server uses the same rule). */
+export const reelsAlive = (p: Pick<ProgramRow, 'reels_at'> | null | undefined): boolean => Boolean(p?.reels_at && Date.now() - Date.parse(p.reels_at) < 8 * 3_600_000);
 
 export type NewsItem = {
   id: string;
@@ -109,6 +125,7 @@ export const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(
 
 export const STATUS_STYLE: Record<PostStatus, string> = {
   planned: 'bg-ink-100 text-ink-700',
+  rendering: 'bg-sky-100 text-sky-800',
   awaiting_approval: 'bg-amber-100 text-amber-900',
   approved: 'bg-brand-100 text-brand-800',
   publishing: 'bg-brand-100 text-brand-800',
@@ -120,6 +137,7 @@ export const STATUS_STYLE: Record<PostStatus, string> = {
 };
 export const STATUS_LABEL: Record<PostStatus, string> = {
   planned: 'Planned',
+  rendering: 'Making the video…',
   awaiting_approval: 'Needs approval',
   approved: 'Ready',
   publishing: 'Publishing…',

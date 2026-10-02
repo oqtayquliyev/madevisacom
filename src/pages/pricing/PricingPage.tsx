@@ -35,7 +35,7 @@ export function PricingPage({ go, onAuth }: Props) {
 
   useSeo({
     title: 'Pricing — MadeVisa Pro for job seekers, sponsored jobs for employers',
-    description: 'Free job search with reply rates and visa routes on every job. Pro adds instant job alerts, full company response data and visa-sponsoring companies. Fair prices by country.',
+    description: 'Free job search with reply rates and visa routes on every job. Pro adds up to 10 instant job alerts, full company response data and visa-sponsoring companies. Fair prices by country.',
     path: '/pricing',
   });
 

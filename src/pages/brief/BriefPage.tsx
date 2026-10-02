@@ -1194,6 +1194,7 @@ function OwnerActions({ brief, onStatus }: { brief: PublicBrief; onStatus: (s: B
             ))}
           </select>
         </div>
+        <p className="mt-1.5 text-[11px] leading-4 text-ink-500">Once it’s marked Sent, {brief.company_name} can also see it in its free MadeVisa employer inbox.</p>
         <button
           onClick={async () => {
             if (!window.confirm('Withdraw this Visa Plan? The link will stop working. The credit isn’t returned.')) return;

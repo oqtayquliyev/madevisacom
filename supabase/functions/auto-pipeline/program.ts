@@ -18,6 +18,12 @@
 //  4. REPLY    — Instagram comments on "comment + to get the list" posts get
 //                the promised link (needs the comments permission on the token).
 //
+// REELS: six formats are short vertical videos. Their builders return the
+// screens instead of images; the slot is saved as "rendering" with a recipe in
+// meta.reel, scripts/render-reels.mjs (GitHub Actions) makes the MP4, and the
+// post then joins the queue like any other. Reel formats are only planned
+// while that renderer is reporting in (social_program.reels_at).
+//
 // Never-repeat rules live in three places: the schedule (no format twice in a
 // row / twice a day / inside its cooldown), the builders (no topic inside its
 // own rest period, and not on two networks the same day), and here (no
@@ -25,7 +31,7 @@
 
 // deno-lint-ignore-file no-explicit-any
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { DEFAULT_SETTINGS, FORMATS, FORMAT_BY_KEY, perDayFor, type Pillar, type Platform, type ProgramSettings } from './programCatalog.ts';
+import { DEFAULT_SETTINGS, FORMATS, FORMAT_BY_KEY, isFormatOn, perDayFor, reelLayers, type Pillar, type Platform, type ProgramSettings, type ReelRecipe } from './programCatalog.ts';
 import { hash, localTime, planRange, rankFormats, type Past } from './programSchedule.ts';
 import { BUILDERS, type ArticleRow, type CountryReport, type Ctx, type Data, type Draft, type Feedback, type Library, type NewsItem, type ProgramRow, type Snapshot } from './programFormats.ts';
 import { SITE, opening } from './programVoice.ts';
@@ -36,10 +42,18 @@ import { DIMS, connected, fingerprint, igBase, pickFreshJobs, validateImage, typ
 const HORIZON_DAYS = 3;
 const LEAD_FRESH_MIN = 120;
 const LEAD_EVERGREEN_MIN = 20 * 60;
+/** A reel with today's jobs: written 4 hours ahead, so there is time to render it. */
+const LEAD_FRESH_VIDEO_MIN = 240;
+/** The renderer runs at least hourly; silent for this long means it isn't set up (or is broken). */
+const RENDERER_ALIVE_HOURS = 8;
+const leadFor = (kind: string) => {
+  const f = FORMAT_BY_KEY[kind];
+  return f?.fresh ? (f.video ? LEAD_FRESH_VIDEO_MIN : LEAD_FRESH_MIN) : LEAD_EVERGREEN_MIN;
+};
 const MAX_WRITES_PER_RUN = 4;
 const HOT_HOURS = 20;
 
-type ProgramRowDb = { running: boolean; timezone: string | null; autopilot: boolean; per_day: any; formats: any; mix: any; handles: any; focus: string[] | null; lock_until: string | null; planned_at: string | null };
+type ProgramRowDb = { running: boolean; timezone: string | null; autopilot: boolean; per_day: any; formats: any; mix: any; handles: any; focus: string[] | null; lock_until: string | null; planned_at: string | null; reels_at?: string | null };
 type PostRow = { id: string; platform: Platform; status: string; kind: string | null; pillar: Pillar | null; topic_key: string | null; scheduled_at: string; meta: Record<string, any> | null; origin: string };
 type HistoryRow = { platform: Platform; kind: string; pillar: Pillar; topic: string | null; opening: string | null; at: string; post_id: string | null };
 
@@ -63,7 +77,20 @@ function settingsOf(row: ProgramRowDb): ProgramSettings {
     mix: row.mix ?? {},
     handles: row.handles ?? {},
     focus: row.focus ?? [],
+    reels: Boolean(row.reels_at && Date.now() - Date.parse(row.reels_at) < RENDERER_ALIVE_HOURS * 3_600_000),
   };
+}
+
+/** A reel text layer: the layout maths only (the renderer downloads the PNG itself). */
+async function checkLayer(url: string): Promise<{ ok: boolean; issues: string[] }> {
+  try {
+    const res = await fetch(`${url}&check=1`, { signal: AbortSignal.timeout(20_000) });
+    const r = res.ok ? await res.json() : null;
+    if (!r) return { ok: false, issues: [`ERROR: layout check failed (${res.status})`] };
+    return { ok: r.ok !== false, issues: ((r.issues ?? []) as { level: string; message: string }[]).map((i) => `${i.level === 'error' ? 'ERROR' : 'note'}: ${i.message}`) };
+  } catch (e) {
+    return { ok: false, issues: [`ERROR: ${e instanceof Error ? e.message : 'layout check failed'}`] };
+  }
 }
 
 // --- Data: each source is read once per run, on first use -----------------------
@@ -143,9 +170,10 @@ function dataFor(service: Service): Data {
 async function unavailable(data: Data): Promise<Set<string>> {
   const out = new Set<string>();
   const [snap, fb, lib, news, articles, programs] = await Promise.all([data.snapshot(), data.feedback(), data.library(), data.news(), data.articles(), data.programs()]);
-  if (!snap) for (const k of ['country_hiring', 'country_ranking', 'sponsor_ranking', 'top_companies', 'roles_in_demand', 'market_pulse', 'remote_share', 'milestone', 'jobs_country']) out.add(k);
+  if (!snap) for (const k of ['country_hiring', 'country_ranking', 'sponsor_ranking', 'top_companies', 'roles_in_demand', 'market_pulse', 'remote_share', 'milestone', 'jobs_country', 'reel_country', 'reel_city', 'job_alert']) out.add(k);
   else {
-    if (snap.by_country.filter((c) => c.jobs >= 40).length < 1) out.add('country_hiring');
+    if (snap.by_country.filter((c) => c.jobs >= 40).length < 1) for (const k of ['country_hiring', 'reel_country']) out.add(k);
+    if (snap.by_country.filter((c) => c.new_7d >= 15).length < 1) out.add('reel_city');
     if (snap.by_country.filter((c) => c.new_7d > 0).length < 4) out.add('country_ranking');
     if (snap.by_country.filter((c) => c.jobs >= 60 && c.visa > 0).length < 4) out.add('sponsor_ranking');
     if ((snap.top_companies_7d ?? []).filter((c) => c.new_7d > 0).length < 4) out.add('top_companies');
@@ -156,8 +184,8 @@ async function unavailable(data: Data): Promise<Set<string>> {
   }
   if (!fb || fb.total < 30) for (const k of ['feedback_stats', 'ghosting_stat']) out.add(k);
   if ((fb?.most_responsive ?? []).length < 3) out.add('responsive_companies');
-  if (!lib) for (const k of ['visa_route', 'visa_jobsearch', 'visa_nomad', 'visa_pr', 'visa_salary', 'visa_compare', 'visa_myth', 'visa_checklist', 'plan_employer', 'plan_costs', 'this_or_that']) out.add(k);
-  if (!news.length) out.add('news');
+  if (!lib) for (const k of ['visa_route', 'visa_jobsearch', 'visa_nomad', 'visa_pr', 'visa_salary', 'visa_compare', 'visa_myth', 'visa_checklist', 'plan_employer', 'plan_costs', 'this_or_that', 'reel_route', 'reel_myth']) out.add(k);
+  if (!news.length) for (const k of ['news', 'reel_news']) out.add(k);
   if (!articles.length) out.add('article');
   if (!programs.length) out.add('program');
   return out;
@@ -232,7 +260,7 @@ export async function runProgram(service: Service, platforms: Map<Platform, Plat
       let planned = 0;
       for (const s of slots) {
         const at = new Date(s.at).toISOString();
-        const lead = FORMAT_BY_KEY[s.kind]?.fresh ? LEAD_FRESH_MIN : LEAD_EVERGREEN_MIN;
+        const lead = leadFor(s.kind);
         const { data: ins, error: insErr } = await service
           .from('social_posts')
           .insert({ origin: 'program', platform: s.platform, status: 'planned', format: 'slot', kind: s.kind, pillar: s.pillar, headline: '', caption: '', images: [], image_key: `slot:${at}`, scheduled_at: at, write_at: new Date(s.at - lead * 60_000).toISOString(), meta: { part: s.part } })
@@ -317,16 +345,24 @@ async function writeSlot(
   // slot being written (at most one news post per network per day).
   const pendingNews = FORMAT_BY_KEY.news.platforms.includes(p) && !off.has('news') && (await data.news()).some((n) => !lastHere.has(`news:${n.id}`));
   const newsToday = history.some((h) => h.platform === p && h.kind === 'news' && localTime(Date.parse(h.at), tz).key === lt.key);
+  // The monthly Visa Hiring Report (monthly.ts) is the same kind of moment: once a month, every network
+  // that posts articles shares it — on different days, since a topic isn't used on two networks within 20 hours.
+  const pendingReport =
+    FORMAT_BY_KEY.article.platforms.includes(p) &&
+    !off.has('article') &&
+    isFormatOn(FORMAT_BY_KEY.article, settings) &&
+    (await data.articles()).some((a) => /^visa-hiring-report-/.test(a.slug) && !lastHere.has(`article:${a.id}`) && !hotSet.has(`article:${a.id}`));
+  const articleToday = history.some((h) => h.platform === p && h.kind === 'article' && localTime(Date.parse(h.at), tz).key === lt.key);
   // The slot's own format first; if it has nothing to say, the next best for this time.
   const tried = new Set<string>(off);
   // A slot someone asked for by name ("Try it", "Change") is written as that format or not at all.
   const exact = slot.meta?.force === true;
-  const order = exact ? [slot.kind!] : [...(pendingNews && !newsToday ? ['news'] : []), slot.kind!, ...rankFormats({ platform: p, at, part: (slot.meta?.part as any) ?? lt.part ?? 'morning', weekday: lt.weekday, dayKey: lt.key }, past.filter((x) => x.at !== at), settings, off, tz).map((f) => f.key)].filter((k, i, a) => k && a.indexOf(k) === i);
+  const order = exact ? [slot.kind!] : [...(pendingNews && !newsToday ? ['news'] : []), ...(pendingReport && !articleToday ? ['article'] : []), slot.kind!, ...rankFormats({ platform: p, at, part: (slot.meta?.part as any) ?? lt.part ?? 'morning', weekday: lt.weekday, dayKey: lt.key }, past.filter((x) => x.at !== at), settings, off, tz).map((f) => f.key)].filter((k, i, a) => k && a.indexOf(k) === i);
   const [w, h] = DIMS[pr.size];
   const jobCache = new Map<string, Promise<Job[]>>();
 
   for (const kind of order.slice(0, 6)) {
-    if (tried.has(kind) && kind !== slot.kind && kind !== 'news') continue;
+    if (tried.has(kind) && kind !== slot.kind && kind !== 'news' && kind !== 'article') continue;
     if (kind === 'news' && kind !== slot.kind && off.has('news')) continue;
     tried.add(kind);
     const build = BUILDERS[kind];
@@ -362,17 +398,40 @@ async function writeSlot(
       draft = null;
       console.error(`builder ${kind} failed`, e);
     }
-    if (!draft || !draft.caption.trim() || !draft.images.length) continue;
+    if (!draft || !draft.caption.trim() || (!draft.images.length && !draft.reel)) continue;
 
-    const images = draft.images.slice(0, 6).map((url) => ({ url, width: w, height: h }));
-    const checks = await Promise.all(images.map((im) => validateImage(im.url, w, h)));
-    const issues = checks.flatMap((x, i) => x.issues.map((m) => (images.length > 1 ? `Image ${i + 1}: ${m}` : m)));
-    if (!checks.every((x) => x.ok)) continue;
+    // A "Try it" post never goes out by itself.
+    const ready = settings.autopilot && !slot.meta?.test ? 'approved' : 'awaiting_approval';
+    let images: { url: string; width: number; height: number }[] = [];
+    let issues: string[] = [];
+    let reel: ReelRecipe | null = null;
+    if (draft.reel) {
+      // A reel: every screen is checked with all of its lines on (the fullest state).
+      const scenes = draft.reel.scenes;
+      const checks = await Promise.all(scenes.map((s) => checkLayer(s.url)));
+      issues = checks.flatMap((x, i) => x.issues.map((m) => `Screen ${i + 1}: ${m}`));
+      if (!checks.every((x) => x.ok)) continue;
+      const cc = draft.reel.bg.cc;
+      const photo = cc ? photos.get(cc.toUpperCase()) ?? null : null;
+      reel = {
+        v: 1,
+        bg: { queries: draft.reel.bg.queries.slice(0, 6), cc, photo: photo?.url ?? null, credit: photo?.credit ?? null, fallback: `${SITE}/api/og/post?t=reel&sc=bg${cc ? `&cc=${cc}` : ''}&v=1`, salt: 0 },
+        frame: `${SITE}/api/og/post?t=reel&sc=frame&v=1`,
+        scenes,
+        ...reelLayers(scenes),
+        after: ready,
+      };
+    } else {
+      images = draft.images.slice(0, 6).map((url) => ({ url, width: w, height: h }));
+      const checks = await Promise.all(images.map((im) => validateImage(im.url, w, h)));
+      issues = checks.flatMap((x, i) => x.issues.map((m) => (images.length > 1 ? `Image ${i + 1}: ${m}` : m)));
+      if (!checks.every((x) => x.ok)) continue;
+    }
 
     const topic = `${kind}:${draft.topic}`;
     const jobs = draft.jobs ?? [];
-    // A "Try it" post never goes out by itself.
-    const status = settings.autopilot && !slot.meta?.test ? 'approved' : 'awaiting_approval';
+    // A reel waits for its video first; the renderer then hands it on as `ready`.
+    const status = reel ? 'rendering' : ready;
     // Claim the slot (only if it is still "planned": two runs can't both write it).
     const { data: got, error: upErr } = await service
       .from('social_posts')
@@ -389,7 +448,8 @@ async function writeSlot(
         links: draft.links,
         topic_key: topic,
         validation: { ok: true, issues, checked_at: new Date().toISOString() },
-        meta: { ...(slot.meta ?? {}), ...(draft.meta ?? {}), force: undefined, want: undefined, written_at: new Date(now).toISOString(), planned_kind: slot.kind },
+        video_url: reel ? null : undefined,
+        meta: { ...(slot.meta ?? {}), ...(draft.meta ?? {}), ...(reel ? { reel } : { reel: undefined }), force: undefined, want: undefined, written_at: new Date(now).toISOString(), planned_kind: slot.kind },
         error: null,
       })
       .eq('id', slot.id)
@@ -409,7 +469,7 @@ async function writeSlot(
     await service.from('social_history').insert(row);
     history.unshift(row);
     if (draft.meta?.news_id) await service.from('social_news').update({ used_at: new Date().toISOString() }).eq('id', draft.meta.news_id).is('used_at', null);
-    return `${def.name}${kind !== slot.kind ? ` (instead of ${FORMAT_BY_KEY[slot.kind!]?.name ?? slot.kind})` : ''} written for ${new Date(at).toLocaleString('en-GB', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit' })}${status === 'approved' ? '' : ' — waiting for approval'}`;
+    return `${def.name}${kind !== slot.kind ? ` (instead of ${FORMAT_BY_KEY[slot.kind!]?.name ?? slot.kind})` : ''} written for ${new Date(at).toLocaleString('en-GB', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit' })}${reel ? ' — the video is being rendered' : ''}${ready === 'approved' ? '' : ' — waiting for approval'}`;
   }
 
   await service
@@ -448,8 +508,9 @@ async function replyToComments(service: Service, log: string[]) {
       const res = await fetch(`${igBase()}/${post.external_id}/comments?fields=id,text,username&limit=50&access_token=${token}`, { signal: AbortSignal.timeout(15_000) });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || d.error) throw new Error(d.error?.message ?? `HTTP ${res.status}`);
-      const keyword = String(post.meta.reply.keyword ?? '+');
-      const wanted = ((d.data ?? []) as { id: string; text?: string }[]).filter((c) => (c.text ?? '').includes(keyword));
+      // "+" or a word ("GERMANY") — in any case, with or without quotes around it.
+      const keyword = String(post.meta.reply.keyword ?? '+').toLowerCase();
+      const wanted = ((d.data ?? []) as { id: string; text?: string }[]).filter((c) => (c.text ?? '').toLowerCase().includes(keyword));
       if (!wanted.length) continue;
       const { data: done } = await service.from('social_replies').select('comment_id').in('comment_id', wanted.map((c) => c.id));
       const seen = new Set(((done ?? []) as { comment_id: string }[]).map((r) => r.comment_id));

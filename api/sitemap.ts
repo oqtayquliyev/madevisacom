@@ -73,6 +73,7 @@ export default async function handler(req: Request): Promise<Response> {
       ['/pricing', 'monthly', '0.5'],
       ['/submit-job', 'monthly', '0.4'],
       ['/official-sources', 'monthly', '0.3'],
+      ['/employers/inbox', 'monthly', '0.4'],
     ];
     return xml(urlset([...main.map(([p, c, pr]) => url(p, today, c, pr)), ...legalPageOrder.map((s) => url(`/${s}`, undefined, 'yearly', '0.2'))]), 86400);
   }

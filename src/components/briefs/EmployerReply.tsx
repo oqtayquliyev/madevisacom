@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { BadgeCheck, Check, Clock, Eye, Flag, MessageCircleQuestion, ShieldAlert, ThumbsUp } from 'lucide-react';
 import { LinkedInLogo } from '@/components/common/LinkedInLogo';
 import { solveProofOfWork, type PowSolution } from '@/lib/listingRequests';
+import { useAuth } from '@/lib/auth';
+import { nav } from '@/lib/pageLayout';
 import {
   fetchMyBriefReplies,
   REPLY_LABEL,
@@ -37,9 +39,11 @@ export function EmployerReply({
   onSavePdf: () => void;
 }) {
   const first = candidateName.split(/\s+/)[0];
+  const { session } = useAuth();
   const [kind, setKind] = useState<ReplyKind | null>(null);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  // A signed-in recruiter (e.g. from the employer inbox) gets their email filled in.
+  const [email, setEmail] = useState(session?.user?.email ?? '');
   const [message, setMessage] = useState('');
   const [website, setWebsite] = useState(''); // honeypot
   const [busy, setBusy] = useState(false);
@@ -85,6 +89,16 @@ export function EmployerReply({
         <p className="mt-1 text-[13px] leading-5 text-ink-600">
           {email ? `${first} can reach you at ${email}.` : `Add your email next time so ${first} can reply directly.`}
         </p>
+        <a
+          href="/employers/inbox"
+          onClick={(e) => {
+            e.preventDefault();
+            nav('/employers/inbox');
+          }}
+          className="mt-3 block text-center text-[12px] font-semibold text-[#1D4ED8] hover:underline"
+        >
+          Hiring here? See every Visa Plan sent to your company →
+        </a>
         {candidateLinkedin && (
           <a
             href={candidateLinkedin}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Loader2, Pause, Play, Rocket, ShieldCheck, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { DEFAULT_SETTINGS, FORMATS, FORMAT_BY_KEY, PILLARS, PILLAR_ORDER, PLATFORM_LABEL, PlatformBadge, RHYTHM, addDays, atLocal, btn, card, formatName, input, isFormatOn, localTime, mixFor, num, perDayFor, planRange, timeZones, untilText, when, type PlatformRow, type Post, type ProgramRow, type ProgramSettings } from './shared';
+import { DEFAULT_SETTINGS, FORMATS, FORMAT_BY_KEY, PILLARS, PILLAR_ORDER, PLATFORM_LABEL, PlatformBadge, RHYTHM, addDays, atLocal, btn, card, formatName, input, isFormatOn, localTime, mixFor, num, perDayFor, planRange, reelsAlive, timeZones, untilText, when, type PlatformRow, type Post, type ProgramRow, type ProgramSettings } from './shared';
 
 // The top of the Social media tab: the program's switch and its state.
 //  - Stopped: what the program does, a preview of the first week, and Start.
@@ -16,6 +16,8 @@ export const settingsOf = (p: ProgramRow | null): ProgramSettings => ({
   mix: p?.mix ?? {},
   handles: p?.handles ?? {},
   focus: p?.focus ?? [],
+  // Reels are planned only while the renderer is reporting in.
+  reels: reelsAlive(p),
 });
 
 /** A week planned in the browser with the server's own rules — what Start would produce. */

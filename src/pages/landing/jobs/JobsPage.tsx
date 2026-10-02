@@ -1,5 +1,5 @@
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
-import { boardJobDates, boardJobTime } from '@/lib/jobTime';
+import { AlertSignup } from '@/components/jobs/AlertSignup';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -72,10 +72,10 @@ const postedMs = (j: Job) => Date.parse(j.postedDate ?? j.sharedAt ?? '') || 0;
 const sharedMs = (j: Job) => Date.parse(j.sharedAt ?? j.postedDate ?? '') || 0;
 const DAY_MS = 86_400_000;
 
-/** Published on the company's own page today — worth applying early. A job the
- *  source shows no date for doesn't count just because it was synced today. */
+/** Posted in the last 24 hours — worth applying early. */
 function isEarlyApplicantJob(j: Job): boolean {
-  return !j.closed && Boolean(boardJobTime(j)?.postedToday);
+  const t = postedMs(j);
+  return !j.closed && t > 0 && Date.now() - t < DAY_MS;
 }
 
 /** Strictly newest first. Jobs posted at the very same moment (a bulk
@@ -169,8 +169,7 @@ function FilterSwitch({ on, onChange, icon: Icon, label }: { on: boolean; onChan
 }
 
 function DateTag({ job }: { job: Job }) {
-  const { source, synced } = boardJobDates(job);
-  return <JobAgeBadge source={source} synced={synced} />;
+  return <JobAgeBadge iso={job.postedDate} />;
 }
 
 function SourceLabel({ job }: { job: Job }) {
@@ -1036,7 +1035,8 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
           <div className="mt-6 border border-ink-200 bg-white px-6 py-16 text-center">
             <Search className="mx-auto h-8 w-8 text-ink-300" />
             <h3 className="mt-4 text-lg font-bold text-ink-900">No jobs found</h3>
-            <p className="mt-2 text-sm text-ink-500">Try changing your search or filters.</p>
+            <p className="mt-2 text-sm text-ink-500">Try changing your search or filters — or get the first match by email.</p>
+            <AlertSignup className="mx-auto mt-5 max-w-xl text-left" keywords={search || (category !== ALL_CATEGORIES && !category.startsWith('group:') ? category : '')} country={country} onAuth={(p) => (p === 'register' ? setAuthOpen(true) : onAuth?.(p))} />
             <button
               type="button"
               onClick={() => {
@@ -1087,6 +1087,8 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
               ))}
               {loadingMore && Array.from({ length: 2 }).map((_, i) => <JobCardSkeleton key={`more-${i}`} />)}
             </div>
+
+            <AlertSignup className="mt-6" keywords={search || (category !== ALL_CATEGORIES && !category.startsWith('group:') ? category : '')} country={country} onAuth={(p) => (p === 'register' ? setAuthOpen(true) : onAuth?.(p))} />
 
             {hasMore && (
               <div className="mt-7 flex justify-center">

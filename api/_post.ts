@@ -105,7 +105,7 @@ export function textWidth(text: string, size: number, weight: Weight, tracking =
   return ((w * size) / 1000) * 1.03 + tracking * text.length;
 }
 
-function breakLines(text: string, size: number, weight: Weight, maxW: number, tracking = 0): string[] {
+export function breakLines(text: string, size: number, weight: Weight, maxW: number, tracking = 0): string[] {
   const lines: string[] = [];
   for (const para of text.split('\n')) {
     let line = '';
@@ -149,7 +149,7 @@ export function fitText(text: string, sizes: number[], weight: Weight, maxW: num
 }
 
 /** One line, cut to a width. */
-function oneLine(text: string, size: number, weight: Weight, maxW: number): string {
+export function oneLine(text: string, size: number, weight: Weight, maxW: number): string {
   return fitText(text, [size], weight, maxW, 1).lines[0];
 }
 

@@ -15,6 +15,7 @@
 import {
   DAY_PARTS,
   FORMATS,
+  FORMAT_BY_KEY,
   PILLAR_ORDER,
   RHYTHM,
   isFormatOn,
@@ -208,13 +209,16 @@ export function rankFormats(slot: Pick, history: Past[], settings: ProgramSettin
 
   // The same kind of post on another network within a few hours looks like cross-posting: avoid it when there is a choice.
   const nearby = new Set(others.filter((o) => Math.abs(o.at - slot.at) < 4 * 3_600_000).map((o) => o.kind));
+  // Reels reach people who don't follow yet, so each network gets about one a day: when it has had none
+  // in the last 20 hours a reel goes first within its pillar; once it has, images go first again.
+  const videoLately = history.some((h) => Math.abs(slot.at - h.at) < 20 * 3_600_000 && FORMAT_BY_KEY[h.kind]?.video);
   const r = rng(`${slot.platform}|${slot.at}|format`);
   // Formats that haven't run for a while come first, so a pillar works through
   // all of its formats before one returns; weight only tilts the order.
   const score = (f: FormatDef) => {
     const t = lastOf.get(f.key);
     const rest = t === undefined ? 5 : Math.max(0.3, Math.min(4, (slot.at - t) / (72 * 3_600_000)));
-    return Math.pow(f.weight, 0.6) * (f.parts.includes(slot.part) ? 1.5 : 0.75) * rest * (0.8 + r() * 0.4) * (nearby.has(f.key) ? 0.15 : 1);
+    return Math.pow(f.weight, 0.6) * (f.parts.includes(slot.part) ? 1.5 : 0.75) * rest * (0.8 + r() * 0.4) * (nearby.has(f.key) ? 0.15 : 1) * (f.video ? (videoLately ? 0.2 : 6) : 1);
   };
   const scored = eligible.map((f) => ({ f, pillar: deficit(f.pillar), s: score(f) }));
   return scored.sort((a, b) => b.pillar - a.pillar || b.s - a.s).map((x) => x.f);

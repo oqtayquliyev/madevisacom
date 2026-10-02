@@ -12,7 +12,7 @@
 //  - No made-up testimonials, no made-up news: news posts exist only for
 //    items added in the News desk, with their source.
 
-import type { Platform, ProgramSettings } from './programCatalog.ts';
+import type { Platform, ProgramSettings, ReelScene } from './programCatalog.ts';
 import { hash } from './programSchedule.ts';
 import { SITE, The, adsSay, chance, clickable, closer, dayLabel, firstSentence, flag, go, host, list, lowerFirst, mark, monthLabel, nf, noDot, pick, plural, shortName, tags, the, write } from './programVoice.ts';
 // social.ts imports program.ts, which imports this file: a cycle, but these are only called at run time.
@@ -146,6 +146,8 @@ export type Draft = {
   links: { title: string; url: string; job_id?: string; company?: string }[];
   jobs?: Job[];
   meta?: Record<string, unknown>;
+  /** A Reel instead of images: what to look for as background, and the screens. */
+  reel?: { bg: { queries: string[]; cc: string | null }; scenes: ReelScene[] };
 };
 export type Builder = (c: Ctx) => Promise<Draft | null>;
 
@@ -1283,6 +1285,40 @@ const invite: Builder = async (c) => {
   return { topic: 'invite', headline: 'Invite a friend', format: 'image', images: [og(c, 'cta', { k: 'Invite', n: 'plus', h: 'Know someone job hunting abroad?', hl: 'job hunting abroad', s: 'Send them your invite link. You get 2 Visa Plan credits when they make a first purchase.', cta: 'Get your link', link: 'madevisa.com/profile' })], caption, links: [link(c, 'Profile', '/profile')] };
 };
 
+// The free job alert (src/components/jobs/AlertSignup.tsx): "Email me these jobs" on the
+// jobs list. One alert is free, sent once a day, one click to unsubscribe.
+const job_alert: Builder = async (c) => {
+  const snap = await c.data.snapshot();
+  const cands = focusFirst(c, (snap?.by_country ?? []).filter((x) => x.new_7d >= 20 && x.iso), (x) => x.iso).slice(0, 12);
+  const co = choose(c, 'job_alert', cands, (x) => x.iso, 24 * 30);
+  if (!co) return null;
+  const name = the(co.name);
+  const path = `/jobs?country=${encodeURIComponent(co.name)}`;
+  const chips = ['Once a day, only when there are new roles', 'One alert is free', 'Unsubscribe in one click'];
+  const caption = write(c.p, [
+    pick([`${flag(co.iso)} New jobs in ${name}, in your inbox. Once a day, free.`, `${flag(co.iso)} Stop checking job boards for ${name}. Let the new roles come to you.`, `${flag(co.iso)} ${nf(co.new_7d)} roles opened in ${name} this week. Get the next ones by email.`], c.w, 'hook'),
+    'Open the jobs list, pick the country (add a role if you like) and press “Email me these jobs”. That’s the whole set-up.',
+    chips.map((x) => `• ${x}`).join('\n'),
+    go(c.p, c.w, [`Set it up for ${name}:`, `Start with ${name}:`], path),
+    tags(c.p, [`${countryTag(co.name)}jobs`, 'jobalerts', 'workabroad', 'jobsabroad', 'jobsearch']),
+  ]);
+  return { topic: co.iso, headline: `Job alert: ${co.name}`, format: 'image', images: [og(c, 'cta', { k: 'Free job alert', n: 'plus', h: `New jobs in ${name}, in your inbox`, hl: 'in your inbox', s: 'Straight from company career pages.', rows: rows(chips.map((x) => [x])), cc: co.iso, cta: 'Email me these jobs', link: 'madevisa.com/jobs' })], caption, links: [link(c, `Jobs in ${co.name}`, path)] };
+};
+
+// The employer inbox (/employers/inbox): a recruiter signs in with a confirmed work email
+// and sees the Visa Plans candidates marked as sent to that company.
+const employer_inbox: Builder = async (c) => {
+  if (c.age('employer_inbox:inbox') < 24 * 14) return null;
+  const caption = write(c.p, [
+    pick(['Hiring internationally? Candidates may already have sent your company a Visa Plan.', 'Recruiters: there’s an inbox for the Visa Plans candidates send your company.'], c.w, 'hook'),
+    'A Visa Plan is a one-page document a candidate attaches to an application: the visa route for that country, what the employer has to do, and which costs the candidate will cover.',
+    'Sign in with your work email and you see every plan sent to your company, and can reply in one click. It’s free for employers. Personal email addresses don’t get access.',
+    go(c.p, c.w, ['Open your inbox:', 'See what was sent to your company:'], '/employers/inbox'),
+    tags(c.p, ['recruiting', 'hiring', 'talentacquisition', 'visasponsorship']),
+  ]);
+  return { topic: 'inbox', headline: 'Employer inbox', format: 'image', images: [og(c, 'cta', { k: 'For employers', n: 'plus', h: 'Visa Plans sent to your company, in one inbox', hl: 'in one inbox', s: 'Sign in with your work email at madevisa.com/employers/inbox. Free for employers.', cta: 'Open the inbox', link: 'madevisa.com', th: 'ink' })], caption, links: [link(c, 'Employer inbox', '/employers/inbox')] };
+};
+
 const recruiters: Builder = async (c) => {
   if (c.age('recruiters:list') < 24 * 14) return null;
   const n = await c.data.network();
@@ -1348,20 +1384,27 @@ const CATEGORY: Record<string, string> = { insights: 'Hiring report', visas: 'Vi
 
 const article: Builder = async (c) => {
   const items = await c.data.articles();
-  const a = choose(c, 'article', items, (x) => x.id, 24 * 365);
+  // The monthly Visa Hiring Report (monthly.ts) comes once a month: it goes first on a network that hasn't posted it.
+  const monthly = items.find((x) => /^visa-hiring-report-/.test(x.slug) && c.age(`article:${x.id}`) === Infinity && !c.hot(`article:${x.id}`));
+  const a = monthly ?? choose(c, 'article', items, (x) => x.id, 24 * 365);
   if (!a) return null;
   const path = `/blog/${a.slug}`;
-  const label = CATEGORY[a.category] ?? 'New on the blog';
+  const label = monthly ? 'Monthly report' : CATEGORY[a.category] ?? 'New on the blog';
   // Report titles carry the date range in brackets — fine in a caption, too long on an image.
   const short = a.title.replace(/\s*\([^)]*\)\s*$/, '');
   const photo = c.photo(a.country_code);
   const caption = write(c.p, [
-    pick([`New on the blog: ${short}.`, `${flag(a.country_code)} ${short}`.trim(), `We just published this: ${short}.`], c.w, 'hook'),
+    monthly ? pick([`This month’s report is out. ${short}.`, `${short}.`, `The numbers for last month are in. ${short}.`], c.w, 'hook') : pick([`New on the blog: ${short}.`, `${flag(a.country_code)} ${short}`.trim(), `We just published this: ${short}.`], c.w, 'hook'),
     a.excerpt,
     go(c.p, c.w, ['Read it:', 'The full article:', 'Read the whole thing:'], path),
     tags(c.p, [a.category === 'insights' ? 'hiringreport' : 'visaguide', 'workabroad', 'jobmarket', 'jobsabroad']),
   ]);
-  return { topic: a.id, headline: short, format: 'image', images: [og(c, 'hero', { k: label, h: short, s: firstSentence(a.excerpt), cc: a.country_code, img: photo?.url, cr: photo?.credit, cta: 'Read it', link: 'madevisa.com/blog' })], caption, links: [link(c, a.title, path)] };
+  // The monthly report's title carries its two headline numbers ("… — September 2026: 18,420 new jobs, 11% mention sponsorship"): show them big.
+  const m = monthly ? a.title.match(/^(.*?)\s*[—–-]\s*([A-Za-z]+ \d{4}):\s*([\d.,]+) new jobs, (\d+)% mention sponsorship/) : null;
+  const image = m
+    ? og(c, 'stat', { k: label, h: `${m[1]}, ${m[2]}`, n: m[3], u: 'new jobs went live on MadeVisa', s: `${m[4]}% of them mention visa sponsorship. The countries and companies behind the numbers are in the report.`, cta: 'Read the report', link: 'madevisa.com/blog' })
+    : og(c, 'hero', { k: label, h: short, s: firstSentence(a.excerpt), cc: a.country_code, img: photo?.url, cr: photo?.credit, cta: 'Read it', link: 'madevisa.com/blog' });
+  return { topic: a.id, headline: short, format: 'image', images: [image], caption, links: [link(c, a.title, path)] };
 };
 
 const program: Builder = async (c) => {
@@ -1385,12 +1428,294 @@ const program: Builder = async (c) => {
   return { topic: x.id, headline: x.title, format: 'image', images: [og(c, 'news', { k: open ? 'Applications open' : 'Program', h: x.title, cc: x.iso, img: photo?.url, cr: photo?.credit, rows: rows(facts.slice(0, 3).map((f) => [`${f[0]}: ${f[1]}`])), src: x.official_url ? `Source: ${host(x.official_url)}` : '', link: 'madevisa.com/programs' })], caption, links: [link(c, x.title, path)] };
 };
 
+
+// ---------------------------------------------------------------------------
+// Reels — the same facts as a short vertical video. A builder returns the
+// screens (text layers drawn by /api/og/post?t=reel) and what footage to look
+// for; program.ts times the layers and scripts/render-reels.mjs makes the MP4.
+// The hooks stay inside what the data shows: "is hiring" comes with the real
+// number of open roles — no "free", no "nobody is applying".
+// ---------------------------------------------------------------------------
+
+const REEL_V = '1';
+/** One screen of a reel. `steps` > 1 reveals its lines or rows one by one. */
+function scene(sc: 'hook' | 'list' | 'cta', q: Record<string, string | null | undefined | false>, o: { steps?: number; step?: number; hold?: number } = {}): ReelScene {
+  const sp = new URLSearchParams({ t: 'reel', sc });
+  for (const [k, v] of Object.entries(q)) if (v) sp.set(k, String(v));
+  sp.set('v', REEL_V);
+  return { url: `${SITE}/api/og/post?${sp.toString()}`, steps: o.steps ?? 1, step: o.step ?? 0.85, hold: o.hold ?? 2.4 };
+}
+const lines = (l: (string | null | false | undefined)[]) => l.filter(Boolean).map((x) => String(x).replace(/~/g, ' ')).join('~');
+/** Seconds a text needs on screen. */
+const readTime = (text: string, min = 2.4) => Math.max(min, Math.min(5.5, 1.1 + text.split(/\s+/).length * 0.34));
+/** A city people picture when they hear the country — what to search footage for. */
+const LANDMARK: Record<string, string> = { DE: 'Berlin', GB: 'London', NL: 'Amsterdam', US: 'New York', IE: 'Dublin', FR: 'Paris', ES: 'Madrid', PT: 'Lisbon', CA: 'Toronto', AE: 'Dubai', SE: 'Stockholm', AU: 'Sydney', AT: 'Vienna', BE: 'Brussels', DK: 'Copenhagen', FI: 'Helsinki', IT: 'Rome', JP: 'Tokyo', SG: 'Singapore', EE: 'Tallinn', CY: 'Limassol', PL: 'Warsaw', CH: 'Zurich', NO: 'Oslo', CZ: 'Prague', LU: 'Luxembourg' };
+const footage = (iso: string | null | undefined, country: string | null | undefined, city?: string | null) => ({ queries: [...new Set([city ? `${city} city` : null, iso && LANDMARK[iso.toUpperCase()] ? `${LANDMARK[iso.toUpperCase()]} city` : null, country ? `${country} city` : null, country, 'city skyline'].filter((x): x is string => Boolean(x)))], cc: iso ? iso.toUpperCase() : null });
+/** The address on the last screen: the page if it is short enough to read, else its section. */
+const pill = (path: string) => (bare(path).length <= 38 ? bare(path) : `madevisa.com/${path.split('?')[0].split('/')[1] ?? ''}`.replace(/\/$/, ''));
+/** The word people comment to get the link: "GERMANY", "UK". */
+const keyword = (country: string) => (country === 'United Kingdom' ? 'UK' : country === 'United States' ? 'USA' : country === 'United Arab Emirates' ? 'UAE' : country.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 14));
+/** Instagram only: the comment prompt on the last screen, and the reply the pipeline sends. */
+function commentPrompt(c: Ctx, word: string, path: string): { c: string; s: string; caption: string | null; meta: Record<string, unknown> } {
+  if (c.p !== 'instagram') return { c: '', s: '', caption: null, meta: {} };
+  const url = `${SITE}${path}${path.includes('?') ? '&' : '?'}s=ig`;
+  return { c: `Comment “${word}”`, s: 'We reply with the link. It’s in our bio too.', caption: `Comment “${word}” and we’ll reply with the link.`, meta: { reply: { keyword: word, text: `Here you go: ${url.replace('https://', '')} — it’s a live list, so check back.`, url } } };
+}
+
+const reel_country: Builder = async (c) => {
+  const snap = await c.data.snapshot();
+  const cands = focusFirst(c, (snap?.by_country ?? []).filter((x) => x.jobs >= 40 && x.iso), (x) => x.iso).slice(0, 15);
+  const co = choose(c, 'reel_country', cands, (x) => x.iso, 24 * 8);
+  if (!co) return null;
+  const [r, lib] = await Promise.all([c.data.report(co.iso), c.data.library()]);
+  const guide = lib?.countries.find((g) => g.code === co.iso) ?? null;
+  const live = r?.live_jobs || co.jobs;
+  const new7 = r?.new_7d ?? co.new_7d;
+  const companies = r?.companies ?? co.companies;
+  const visaPct = r ? Math.round(r.visa_share) : pct(co.visa, co.jobs);
+  const cities = (r?.cities ?? []).filter((x) => x.name && x.name !== 'Remote').slice(0, 3).map((x) => x.name);
+  const top = (r?.functions ?? [])[0];
+  const path = guide ? `/destinations/${guide.slug}` : `/jobs?country=${encodeURIComponent(co.name)}`;
+  const name = the(co.name);
+  const ask = commentPrompt(c, keyword(co.name), path);
+  const facts = [
+    [`${nf(new7)} new roles`, 'posted in the last 7 days'],
+    [`${nf(companies)} companies hiring`, cities.length ? cities.join(', ') : 'on their own career pages'],
+    visaPct >= 1 ? [`${visaPct}% of ads state visa sponsorship`, 'most ads don’t say either way'] : top ? [`Most wanted: ${top.name}`, `${nf(top.jobs)} open roles`] : null,
+  ].filter(Boolean) as string[][];
+  const caption = write(c.p, [
+    pick([`${flag(co.iso)} ${The(co.name)} is hiring: ${nf(live)} open roles right now.`, `${flag(co.iso)} ${nf(live)} open roles in ${name}, counted today.`, `${flag(co.iso)} Looking at ${name}? This is the job market this week.`], c.w, 'hook'),
+    [`${nf(new7)} new roles this week from ${nf(companies)} companies.`, visaPct >= 3 ? `${adsSay(visaPct)} visa sponsorship is available.` : null, cities.length >= 2 ? `Most roles: ${list(cities)}.` : null].filter(Boolean).join('\n'),
+    ask.caption,
+    go(c.p, c.w, guide ? [`The roles and every visa route for ${name}:`, `Jobs and visa routes for ${name}:`] : [`Every open role in ${name}:`], path),
+    tags(c.p, [`${countryTag(co.name)}jobs`, `workin${countryTag(co.name)}`, 'visasponsorship', 'workabroad', cities[0], 'jobsabroad', 'hiring']),
+  ]);
+  return {
+    topic: co.iso,
+    headline: `${The(co.name)} is hiring`,
+    format: 'reel',
+    images: [],
+    caption,
+    links: [link(c, `${co.name}: jobs and visa routes`, path)],
+    meta: ask.meta,
+    reel: {
+      bg: footage(co.iso, co.name, cities[0]),
+      scenes: [
+        scene('hook', { k: 'Hiring now', cc: co.iso, l: lines([The(co.name), '*is hiring']), s: `${nf(live)} open roles right now` }, { steps: 3, step: 0.8, hold: 2.1 }),
+        scene('list', { l: `This week in ${shortName(co.name)}`, rows: rows(facts) }, { steps: facts.length, step: 1.25, hold: 2.5 }),
+        scene('cta', { l: lines(['The roles and', '*every visa route']), link: pill(path), c: ask.c, s: ask.s }, { hold: 3.2 }),
+      ],
+    },
+  };
+};
+
+const reel_city: Builder = async (c) => {
+  const snap = await c.data.snapshot();
+  const cands = focusFirst(c, (snap?.by_country ?? []).filter((x) => x.new_7d >= 15 && x.iso), (x) => x.iso).slice(0, 10);
+  const tried = new Set<string>();
+  for (let i = 0; i < 4; i++) {
+    const co = choose(c, 'reel_city', cands.filter((x) => !tried.has(x.iso)), (x) => x.iso, 48);
+    if (!co) return null;
+    tried.add(co.iso);
+    const pool = await c.jobs({ kind: 'fresh', countries: [co.iso], want: 12, min: 3 });
+    // The city with the most fresh roles (three or more), one per company.
+    const byCity = new Map<string, Job[]>();
+    for (const j of pool) if (j.city) byCity.set(j.city, [...(byCity.get(j.city) ?? []), j]);
+    const best = [...byCity.entries()].filter(([, v]) => v.length >= 3).sort((a, b) => b[1].length - a[1].length)[0];
+    // Not a city this network showed in the last five days.
+    if (!best || c.hot(`reel_city:${co.iso}:${best[0]}`) || c.age(`reel_city:${co.iso}:${best[0]}`) < 24 * 5) continue;
+    const [city, all] = best;
+    const jobs = all.slice(0, 3);
+    const path = `/jobs?country=${encodeURIComponent(co.name)}`;
+    const word = city.normalize('NFKD').replace(/[^A-Za-z]/g, '').toUpperCase();
+    const ask = commentPrompt(c, word.length >= 3 && word.length <= 14 ? word : keyword(co.name), path);
+    const caption = write(c.p, [
+      pick([`${flag(co.iso)} ${city} is hiring. Three roles that opened in the last 24 hours:`, `${flag(co.iso)} New in ${city} today.`, `${flag(co.iso)} ${city}, today: three roles worth a look.`], c.w, 'hook'),
+      ...jobBlocks(c, jobs),
+      'Each link goes to the job page, and from there to the employer’s own careers site.',
+      ask.caption,
+      go(c.p, c.w, [`Every open role in ${shortName(co.name)}:`, `All roles in ${shortName(co.name)}, and the visa routes:`], path),
+      jobTags(c, jobs, [`${tagOf(city)}jobs`, `${countryTag(co.name)}jobs`]),
+    ]);
+    return {
+      topic: `${co.iso}:${city}`,
+      headline: `${city} is hiring`,
+      format: 'reel',
+      images: [],
+      caption,
+      links: jobs.map((j) => ({ job_id: j.id, title: cleanTitle(j.title), company: j.company, url: jobLink(j, c.p) })),
+      jobs,
+      meta: ask.meta,
+      reel: {
+        bg: footage(co.iso, co.name, city),
+        scenes: [
+          scene('hook', { k: 'New today', cc: co.iso, l: lines([city, '*is hiring']), s: 'New roles, posted in the last 24 hours' }, { steps: 3, step: 0.8, hold: 2.1 }),
+          scene('list', { l: 'Opened today', rows: rows(jobs.map((j) => [cleanTitle(j.title), [j.company, j.salary].filter(Boolean).join(' · ')])) }, { steps: jobs.length, step: 1.3, hold: 2.6 }),
+          scene('cta', { l: lines(['Apply on the', '*company’s own page']), link: 'madevisa.com/jobs', c: ask.c, s: ask.c ? ask.s : c.p === 'tiktok' ? 'All three are on madevisa.com/jobs. The link is in our bio.' : 'The three links are in the caption.' }, { hold: 3 }),
+        ],
+      },
+    };
+  }
+  return null;
+};
+const tagOf = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '');
+
+const reel_route: Builder = async (c) => {
+  const lib = await c.data.library();
+  if (!lib) return null;
+  const cands = focusFirst(c, allRoutes(lib, ['work', 'talent', 'job-search', 'remote']), (x) => x.g.code);
+  const mixed = [...cands].sort((a, b) => (hash(`${c.seed % 97}:r:${a.r.id}`) % 1000) - (hash(`${c.seed % 97}:r:${b.r.id}`) % 1000));
+  // Not the route the image format featured lately either.
+  const x = choose(c, 'reel_route', (c.settings.focus?.length ? cands : mixed).filter((y) => c.age(`visa_route:${y.r.id}`) >= 24 * 10), (y) => y.r.id, 24 * 45);
+  if (!x) return null;
+  const { g, r } = x;
+  const path = `/destinations/${g.slug}`;
+  const short = r.name.replace(/\s*\(.*?\)/, '');
+  const needs = r.requires.map((k) => REQ_SHORT[k]).filter(Boolean);
+  const facts = [[r.validity, 'how long it lasts'], needs.length ? [needs.slice(0, 3).join(' · '), 'what you need'] : null, r.fee ? [r.fee, 'visa fee'] : null, [r.leadsToPR ? 'Counts toward permanent residence' : 'Doesn’t count toward permanent residence', 'worth knowing if you plan to stay']].filter(Boolean).slice(0, 4) as string[][];
+  const summary = typo(firstSentence(r.summary));
+  const ask = commentPrompt(c, keyword(g.name), path);
+  const caption = write(c.p, [
+    pick([`${flag(g.code)} The ${short}, ${g.name}, in 15 seconds.`, `${flag(g.code)} Thinking about ${the(g.name)}? This is the ${short}.`, `${flag(g.code)} One visa route at a time: the ${short}.`], c.w, 'hook'),
+    typo(r.summary),
+    [`• Valid for: ${lowerFirst(r.validity)}`, r.fee ? `• Fee: ${r.fee}` : null, needs.length ? `• You need: ${list(r.requires.map((k) => REQ[k]).filter(Boolean))}` : null].filter(Boolean).join('\n'),
+    `Official source: ${host(r.url)} (checked ${monthLabel(g.reviewed)}). Rules change, so read the source before you apply.`,
+    ask.caption,
+    go(c.p, c.w, [`All routes for ${the(g.name)}, side by side:`, `Every route for ${the(g.name)}:`], path),
+    ask.caption ? null : closer(c.p, c.w, 'save', 0.6),
+    tags(c.p, [countryTag(g.name), short, `${countryTag(g.name)}visa`, 'workabroad', 'workvisa', 'movingabroad', `workin${countryTag(g.name)}`]),
+  ]);
+  return {
+    topic: r.id,
+    headline: `${short}, ${g.name}`,
+    meta: ask.meta,
+    format: 'reel',
+    images: [],
+    caption,
+    links: [link(c, `Visa routes: ${g.name}`, path), { title: 'Official source', url: r.url }],
+    reel: {
+      bg: footage(g.code, g.name),
+      scenes: [
+        scene('hook', { k: 'Visa route', cc: g.code, l: lines([short, `*${g.name}`]), s: summary.length <= 150 ? summary : '' }, { steps: 3, step: 0.8, hold: Math.min(4, readTime(summary, 2.2)) }),
+        scene('list', { l: 'What it asks for', rows: rows(facts) }, { steps: facts.length, step: 1.1, hold: 2.3 }),
+        scene('cta', { l: lines(['All routes for', `*${shortName(g.name).replace(/^the /, 'the ')}`]), link: pill(path), c: ask.c, s: `Official source: ${host(r.url)}` }, { hold: 3 }),
+      ],
+    },
+  };
+};
+
+const reel_myth: Builder = async (c) => {
+  const lib = await c.data.library();
+  if (!lib) return null;
+  const mixed = [...myths(lib)].sort((a, b) => (hash(`${c.seed % 89}:r:${a.key}`) % 1000) - (hash(`${c.seed % 89}:r:${b.key}`) % 1000));
+  const m = choose(c, 'reel_myth', mixed.filter((x) => x.fact.length <= 190 && c.age(`visa_myth:${x.key}`) >= 24 * 14), (x) => x.key, 24 * 60);
+  if (!m) return null;
+  const country = m.cc ? lib.countries.find((g) => g.code === m.cc)?.name ?? null : null;
+  const caption = write(c.p, [
+    pick([`“${noDot(m.myth)}.” Not true.`, `Myth: ${lowerFirst(m.myth)}`, `We hear this one a lot: “${noDot(m.myth)}.”`], c.w, 'hook'),
+    `What’s actually true:\n${m.fact}`,
+    m.src,
+    go(c.p, c.w, ['The full picture:', 'Read the details:'], m.path),
+    c.p !== 'telegram' ? 'What’s a visa “fact” you were told that turned out to be wrong?' : null,
+    tags(c.p, [...m.tags, 'workabroad', 'movingabroad', 'mythvsfact', 'visa']),
+  ]);
+  return {
+    topic: m.key,
+    headline: m.myth,
+    format: 'reel',
+    images: [],
+    caption,
+    links: [link(c, 'Read more', m.path)],
+    reel: {
+      bg: footage(m.cc, country),
+      scenes: [
+        scene('hook', { k: 'Myth', kc: 'red', l: `-${m.myth.replace(/~/g, ' ')}` }, { hold: readTime(m.myth, 2.8) }),
+        scene('hook', { k: 'Fact', kc: 'green', cc: m.cc, l: m.fact.replace(/~/g, ' ') }, { hold: readTime(m.fact, 3.4) }),
+        scene('cta', { l: lines(['The full', '*picture']), link: pill(m.path), s: m.src }, { hold: 3 }),
+      ],
+    },
+  };
+};
+
+const reel_plan: Builder = async (c) => {
+  const f = choose(c, 'reel_plan', FLIPS.map((x, i) => ({ ...x, i })).filter((x) => c.age(`plan_flip:${x.i}`) >= 24 * 5), (x) => String(x.i), 24 * 20);
+  if (!f) return null;
+  // The statement, one sentence per box; the last sentence in blue.
+  const parts = f.h.split(/(?<=[.?!”])\s+/).filter(Boolean);
+  const steps = [
+    ['Pick the job', 'Any role in a country with a checked work route'],
+    ['Choose who pays what', 'Your visa fee, flights, translations'],
+    ['Attach the one-page plan', 'The route, the employer’s steps, the costs'],
+  ];
+  const caption = write(c.p, [
+    pick(f.hooks, c.w, 'hook'),
+    'A Visa Plan is a one-page PDF you attach when you apply. It shows the visa route for that country, what the employer has to do, and which costs you’re willing to cover.',
+    steps.map((s, i) => `${i + 1}. ${s[0]}`).join('\n'),
+    'Salary is never part of it. Visa salary rules exist so nobody gets underpaid.',
+    go(c.p, c.w, ['Your first one is free:', 'Make your first Visa Plan free:'], '/offers'),
+    tags(c.p, ['visasponsorship', 'visaplan', 'workabroad', 'jobsearch', 'jobsabroad', 'movingabroad']),
+  ]);
+  return {
+    topic: String(f.i),
+    headline: f.h,
+    format: 'reel',
+    images: [],
+    caption,
+    links: [link(c, 'Visa Plan', '/offers')],
+    reel: {
+      bg: { queries: ['office city', 'city skyline', 'business district'], cc: null },
+      scenes: [
+        scene('hook', { k: 'Visa Plan', l: lines(parts.map((p, i) => (parts.length > 1 && i === parts.length - 1 ? `*${p}` : p))) }, { steps: parts.length, step: 1.1, hold: readTime(f.h, 2.6) }),
+        scene('list', { l: 'How it works', rows: rows(steps) }, { steps: 3, step: 1.3, hold: 2.6 }),
+        scene('cta', { l: lines(['Your first one', '*is free']), link: 'madevisa.com/offers' }, { hold: 3 }),
+      ],
+    },
+  };
+};
+
+const reel_news: Builder = async (c) => {
+  const items = await c.data.news();
+  const n = items.find((x) => x.id === c.want && c.age(`reel_news:${x.id}`) === Infinity) ?? items.find((x) => c.age(`reel_news:${x.id}`) === Infinity);
+  if (!n) return null;
+  const src = n.source_name || host(n.source_url);
+  const path = n.link_path && n.link_path.startsWith('/') ? n.link_path : null;
+  const lib = await c.data.library();
+  const country = n.country_code ? lib?.countries.find((g) => g.code === n.country_code!.toUpperCase())?.name ?? null : null;
+  const caption = write(c.p, [
+    `${flag(n.country_code)} ${n.headline}`.trim(),
+    n.summary,
+    n.points.length ? n.points.map((x) => `• ${x}`).join('\n') : null,
+    `Source: ${src}${clickable(c.p) ? ` ${n.source_url}` : ''}`,
+    path ? go(c.p, c.w, ['What it means, and the routes:', 'More on MadeVisa:'], path) : null,
+    tags(c.p, ['news', 'workabroad', 'visanews', 'movingabroad', 'immigration']),
+  ]);
+  const points = n.points.slice(0, 3);
+  return {
+    topic: n.id,
+    headline: n.headline,
+    format: 'reel',
+    images: [],
+    caption,
+    links: [{ title: `Source: ${src}`, url: n.source_url }, ...(path ? [link(c, 'On MadeVisa', path)] : [])],
+    meta: { news_id: n.id },
+    reel: {
+      bg: footage(n.country_code, country),
+      scenes: [
+        scene('hook', { k: n.kicker || 'News', kc: 'red', cc: n.country_code, l: n.headline.replace(/~/g, ' ') }, { hold: readTime(n.headline, 3) }),
+        ...(points.length ? [scene('list', { l: 'What we know', rows: rows(points.map((x) => [x])) }, { steps: points.length, step: 1.3, hold: 2.6 })] : n.summary ? [scene('hook', { l: `-${n.summary.replace(/~/g, ' ')}` }, { hold: readTime(n.summary, 3) })] : []),
+        scene('cta', { l: lines(['Read the', '*official source']), link: path ? pill(path) : 'madevisa.com', s: `Source: ${src}. The link is in the caption.` }, { hold: 3 }),
+      ],
+    },
+  };
+};
+
 export const BUILDERS: Record<string, Builder> = {
   jobs_fresh, jobs_country, jobs_visa, jobs_remote, jobs_student, jobs_uk_sponsors, jobs_salary, job_spotlight, jobs_plan,
   country_hiring, country_ranking, sponsor_ranking, top_companies, roles_in_demand, market_pulse, remote_share, milestone,
   visa_route, visa_jobsearch, visa_nomad, visa_pr, visa_salary, visa_compare, visa_myth, visa_checklist,
   plan_flip, plan_steps, plan_employer, plan_costs,
   feedback_stats, responsive_companies, ghosting_stat, principle,
-  follow_cta, comment_cta, this_or_that, question, tip, feedback_ask, invite, recruiters, employers,
+  follow_cta, comment_cta, this_or_that, question, tip, feedback_ask, invite, recruiters, employers, job_alert, employer_inbox,
   news, article, program,
+  reel_country, reel_city, reel_route, reel_myth, reel_plan, reel_news,
 };

@@ -24,7 +24,7 @@ export const PLAN_NAME: Record<PlanId, string> = {
 };
 
 export const PRO_FEATURES = [
-  { title: 'Instant job alerts', text: 'New roles matching your role and country, as soon as companies post them — be an early applicant.' },
+  { title: 'Up to 10 instant job alerts', text: 'Free accounts get one daily email alert. Pro adds up to 10 alerts, in your notifications within 30 minutes of a job going live — be an early applicant.' },
   { title: 'Full company response data', text: 'Exact reply rate, typical time to reply and hiring activity before you apply.' },
   { title: 'Companies that sponsor visas', text: 'Who is hiring with visa sponsorship in each country, updated live.' },
   { title: `${PRO_MONTHLY_DOCS} sponsorship documents a month`, text: 'A sign-ready Visa Plan for each job you apply to — about a fifth of the single-document price.' },

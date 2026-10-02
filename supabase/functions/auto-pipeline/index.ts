@@ -10,6 +10,7 @@
 //   { cron: "articles" }       → articles.ts: weekly hiring reports.   (Mondays)
 //   { cron: "social" }         → social.ts: plan, check and publish social posts. (every 10 min)
 //   { cron: "sponsors" }       → sponsors.ts: UK register of licensed sponsors.   (daily)
+//   { cron: "monthly" }        → monthly.ts: Visa Hiring Report for last month. (1st of month)
 // The header x-madevisa-cron must match app_secrets.cron_secret.
 // It answers at once (202) and keeps working in the background.
 //
@@ -24,6 +25,7 @@ import { runFinder } from './finder.ts';
 import { runArticles } from './articles.ts';
 import { runSocial } from './social.ts';
 import { runSponsors } from './sponsors.ts';
+import { runMonthly } from './monthly.ts';
 import { pipelineSecret } from './shared.ts';
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
@@ -44,6 +46,7 @@ Deno.serve(async (req) => {
   else if (body?.cron === 'articles') work = runArticles(service);
   else if (body?.cron === 'social') work = runSocial(service, body.force === true);
   else if (body?.cron === 'sponsors') work = runSponsors(service);
+  else if (body?.cron === 'monthly') work = runMonthly(service);
   else return reply({ ok: false, error: 'Unknown job.' }, 400);
 
   const safe = work.catch(async (e) => {

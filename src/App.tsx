@@ -7,6 +7,7 @@ import { LoginPage } from '@/pages/auth/LoginPage';
 import { AddNameStep, FinishAuth, goToNextAfterAuth, nameSkipped } from '@/components/auth/AfterSignIn';
 import { readAuthIntent } from '@/lib/authIntent';
 import { useReferralCapture } from '@/lib/referrals';
+import { useAlertWishAfterSignIn } from '@/lib/jobAlerts';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { LandingPage } from '@/pages/landing/LandingPage';
@@ -34,6 +35,8 @@ const ProgramDetailPage = lazyPage(() => import('@/pages/programs/ProgramDetailP
 const AdminPanelPage = lazyPage(() => import('@/pages/admin/AdminPanelPage').then((m) => ({ default: m.AdminPanelPage })));
 const AdminJobEditorPage = lazyPage(() => import('@/pages/admin/AdminJobEditorPage').then((m) => ({ default: m.AdminJobEditorPage })));
 const CompanyManagerPage = lazyPage(() => import('@/pages/company/CompanyManagerPage').then((m) => ({ default: m.CompanyManagerPage })));
+const UnsubscribePage = lazyPage(() => import('@/pages/alerts/UnsubscribePage').then((m) => ({ default: m.UnsubscribePage })));
+const EmployerInboxPage = lazyPage(() => import('@/pages/employers/EmployerInboxPage').then((m) => ({ default: m.EmployerInboxPage })));
 const OfficialPartnersPage = lazyPage(() => import('@/pages/partners/OfficialPartnersPage').then((m) => ({ default: m.OfficialPartnersPage })));
 const PublicProfilePage = lazyPage(() => import('@/pages/u/PublicProfilePage').then((m) => ({ default: m.PublicProfilePage })));
 const LegalPage = lazyPage(() => import('@/pages/legal/LegalPage').then((m) => ({ default: m.LegalPage })));
@@ -89,6 +92,7 @@ function viewForPath(pathname: string): View | null {
 export default function App() {
   const { session, profile, loading } = useAuth();
   useReferralCapture();
+  useAlertWishAfterSignIn();
 
   const [view, setView] = useState<View>(
     viewForPath(window.location.pathname) ?? 'home'
@@ -294,6 +298,14 @@ export default function App() {
   // access internally, same pattern as AdminPanelPage above.
   if (path.startsWith('/admin/jobs/')) {
     return <AdminJobEditorPage id={path.slice('/admin/jobs/'.length)} go={go} onAuth={goToAuth} />;
+  }
+
+  if (path === '/alerts/unsubscribe') {
+    return <UnsubscribePage />;
+  }
+
+  if (path === '/employers/inbox') {
+    return <EmployerInboxPage go={go} onAuth={goToAuth} />;
   }
 
   if (path === '/official-sources' || path === '/official-partners') {
