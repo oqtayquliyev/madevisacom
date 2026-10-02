@@ -7,6 +7,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { rememberAuthIntent } from '@/lib/authIntent';
+import { checkVisaSalary, formatMoney } from '@/data/visa/salaryThresholds';
 import { EmployerReply, OwnerReplies } from '@/components/briefs/EmployerReply';
 import { DragSlider } from '@/components/common/DragSlider';
 import { OfferInfo } from '@/components/briefs/OfferBits';
@@ -1328,7 +1329,7 @@ function OfferDocument({ doc, terms, guide, route, code, locked, approvedAt }: {
           }
         />
         <Party k="Sponsor licence" v={route.id === GENERIC_ROUTE_ID ? 'To be confirmed by the Employer' : employer.licenceNeeded ? 'Required' : 'Not required'} />
-        {terms.salary ? <Party k="Annual gross salary (as offered)" v={money(terms.salary, code)} sub="To be confirmed in the employment contract" /> : null}
+        {terms.salary ? <Party k="Annual gross salary (as offered)" v={money(terms.salary, code)} sub={<SalaryMeetsLine salary={terms.salary} code={code} />} /> : null}
       </dl>
 
       {/* The split, at a glance */}
@@ -1497,6 +1498,27 @@ const PAYER_TONE: Record<string, string> = {
   shared: 'bg-[#1D4ED8]/15 text-[#1D4ED8] print:bg-transparent print:p-0 print:text-ink-900',
   candidate: 'bg-ink-100 text-ink-800 print:bg-transparent print:p-0 print:text-ink-900',
 };
+
+/**
+ * Under the salary in the document: a sourced "meets the visa minimum" line,
+ * only when it clearly does. Anything less certain says nothing extra — the
+ * document is the candidate's pitch, and it must never overstate.
+ */
+function SalaryMeetsLine({ salary, code }: { salary: number; code: string }) {
+  const v = checkVisaSalary({ countryCode: code, min: salary, max: null, currency: currencyFor(code).code, period: 'year' });
+  if (v?.kind !== 'clears') return <>To be confirmed in the employment contract</>;
+  return (
+    <>
+      To be confirmed in the employment contract.{' '}
+      <span className="font-semibold text-emerald-700">
+        ✓ Meets the {v.t.route} minimum of {formatMoney(v.t.standard.annual, v.t.currency)}
+      </span>{' '}
+      <span className="text-[11px] text-ink-500">
+        ({v.t.source.label}, checked {new Date(v.t.checkedOn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })})
+      </span>
+    </>
+  );
+}
 
 function Party({ k, v, sub }: { k: string; v: ReactNode; sub?: ReactNode }) {
   return (

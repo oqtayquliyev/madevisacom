@@ -6,14 +6,15 @@ import { VacancyImageGenerator } from '@/pages/admin/VacancyImageGenerator';
 // Social publishing — tables from migration 20261103090000_social_publishing.sql,
 // planned and published by the auto-pipeline function (social.ts).
 
-type Platform = 'linkedin' | 'instagram' | 'facebook' | 'tiktok';
-const PLATFORMS: Platform[] = ['linkedin', 'instagram', 'facebook', 'tiktok'];
-const PLATFORM_LABEL: Record<Platform, string> = { linkedin: 'LinkedIn', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
+type Platform = 'linkedin' | 'instagram' | 'facebook' | 'tiktok' | 'telegram';
+const PLATFORMS: Platform[] = ['linkedin', 'instagram', 'facebook', 'tiktok', 'telegram'];
+const PLATFORM_LABEL: Record<Platform, string> = { linkedin: 'LinkedIn', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', telegram: 'Telegram' };
 const SECRETS: Record<Platform, string> = {
   facebook: 'FB_PAGE_ID and FB_PAGE_TOKEN (a Page access token with pages_manage_posts)',
   instagram: 'IG_USER_ID (Instagram professional account linked to your Facebook Page) and FB_PAGE_TOKEN with instagram_content_publish',
   linkedin: 'LINKEDIN_TOKEN (w_organization_social) and LINKEDIN_AUTHOR, e.g. urn:li:organization:12345',
   tiktok: 'TIKTOK_TOKEN (Content Posting API, video.publish scope); verify madevisa.com in the TikTok developer portal',
+  telegram: 'TELEGRAM_BOT_TOKEN (from @BotFather) and optionally TELEGRAM_CHAT_ID (default channel, e.g. @madevisa). Add the bot as an admin of every channel it posts to',
 };
 
 type PlatformRow = { platform: Platform; enabled: boolean; size: 'portrait' | 'square' | 'story'; min_gap_minutes: number; max_per_day: number; connected: boolean; last_check_at: string | null };
@@ -28,6 +29,7 @@ type Campaign = {
   min_jobs: number;
   categories: string[];
   countries: string[];
+  telegram_chat?: string | null;
   salary_only: boolean;
   require_approval: boolean;
   enabled: boolean;
@@ -277,13 +279,13 @@ function PostCard({ post, campaign, onChange }: { post: Post; campaign?: Campaig
                 <Save className="h-3.5 w-3.5" /> Save caption
               </button>
             )}
-            {(post.status === 'awaiting_approval' || post.status === 'failed') && (
+            {(post.status === 'awaiting_approval' || post.status === 'failed' || (post.status === 'manual' && post.platform === 'telegram')) && (
               <button
-                onClick={() => void update({ status: 'approved', caption, scheduled_at: new Date().toISOString(), error: null }, 'approve')}
+                onClick={() => void update({ status: 'approved', caption, scheduled_at: new Date().toISOString(), error: null, ...(post.platform === 'telegram' ? { attempts: 0 } : {}) }, 'approve')}
                 disabled={busy !== null}
                 className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
               >
-                {busy === 'approve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} {post.status === 'failed' ? 'Retry' : 'Approve'}
+                {busy === 'approve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} {post.status === 'awaiting_approval' ? 'Approve' : 'Retry'}
               </button>
             )}
             {['awaiting_approval', 'approved', 'failed'].includes(post.status) && (
@@ -293,7 +295,7 @@ function PostCard({ post, campaign, onChange }: { post: Post; campaign?: Campaig
                   setErr(null);
                   const { error } = await supabase
                     .from('social_posts')
-                    .update({ status: 'approved', caption, scheduled_at: new Date().toISOString(), error: null, validation: { ...(post.validation ?? {}), publish_now: true } })
+                    .update({ status: 'approved', caption, scheduled_at: new Date().toISOString(), error: null, validation: { ...(post.validation ?? {}), publish_now: true }, ...(post.platform === 'telegram' ? { attempts: 0 } : {}) })
                     .eq('id', post.id);
                   if (!error) await supabase.rpc('social_run_now');
                   setBusy(null);
@@ -374,6 +376,10 @@ function CampaignForm({ c, onDone }: { c: Partial<Campaign>; onDone: () => void 
       min_jobs: Math.min(v.min_jobs ?? 3, v.jobs_count ?? 5),
       categories: v.categories ?? [],
       countries: v.countries ?? [],
+      // "madevisa_de", "t.me/madevisa_de" or "@madevisa_de" → "@madevisa_de"; numeric ids (-100…) unchanged.
+      telegram_chat: v.platforms?.includes('telegram') && v.telegram_chat?.trim()
+        ? ((c) => (/^-100\d+$/.test(c) ? c : `@${c.replace(/^(https?:\/\/)?(t\.me\/)?@?/i, '')}`))(v.telegram_chat.trim())
+        : null,
       salary_only: v.salary_only ?? false,
       require_approval: v.require_approval ?? true,
       enabled: v.enabled ?? false,
@@ -441,6 +447,12 @@ function CampaignForm({ c, onDone }: { c: Partial<Campaign>; onDone: () => void 
           Countries (ISO codes, empty = all)
           <input className={`${input} mt-1`} value={(v.countries ?? []).join(', ')} onChange={(e) => set({ countries: e.target.value.toUpperCase().split(',').map((x) => x.trim()).filter(Boolean) })} placeholder="DE, NL, GB" />
         </label>
+        {v.platforms?.includes('telegram') && (
+          <label className="text-xs font-medium text-ink-700">
+            Telegram channel (empty = default)
+            <input className={`${input} mt-1`} value={v.telegram_chat ?? ''} onChange={(e) => set({ telegram_chat: e.target.value })} placeholder="@madevisa_germany" />
+          </label>
+        )}
       </div>
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm">
         {PLATFORMS.map((p) => (

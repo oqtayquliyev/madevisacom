@@ -25,12 +25,14 @@ import jpeg from 'npm:jpeg-js@0.4.4';
 import { Buffer } from 'node:buffer';
 import { SITE, type Service } from './shared.ts';
 
-type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok';
+type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'telegram';
 type PlatformRow = { platform: Platform; enabled: boolean; size: 'portrait' | 'square' | 'story'; min_gap_minutes: number; max_per_day: number };
 type Campaign = {
   id: string;
   name: string;
   kind: 'fresh' | 'student' | 'category' | 'company' | 'sponsor' | 'visa' | 'remote' | 'offer';
+  /** Telegram channel for this campaign ("@name" or -100… id); empty → TELEGRAM_CHAT_ID. */
+  telegram_chat?: string | null;
   platforms: Platform[];
   every_minutes: number;
   format: 'list' | 'carousel' | 'single' | 'company' | 'cards' | 'mix';
@@ -67,10 +69,12 @@ type Post = {
   job_ids: string[];
   attempts: number;
   validation?: { publish_now?: boolean } | null;
+  /** Telegram: the channel to post to. */
+  target?: string | null;
 };
 
 const DIMS = { portrait: [1080, 1350], square: [1080, 1080], story: [1080, 1920] } as const;
-const SHORT: Record<Platform, string> = { facebook: 'fb', instagram: 'ig', linkedin: 'li', tiktok: 'tt' };
+const SHORT: Record<Platform, string> = { facebook: 'fb', instagram: 'ig', linkedin: 'li', tiktok: 'tt', telegram: 'tg' };
 const IMAGE_VERSION = '3'; // bump when the image template changes, so new posts get fresh images
 
 // ---------------------------------------------------------------------------
@@ -262,7 +266,7 @@ const OFFER_TEASERS: string[] = [
 ];
 
 function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number, offerLed = false): string {
-  const clickable = p === 'linkedin' || p === 'facebook';
+  const clickable = p === 'linkedin' || p === 'facebook' || p === 'telegram';
   const blocks = jobs.map((j, i) => {
     const where = place(j);
     const mode = j.work_arrangement === 'hybrid' ? '🏠 Hybrid' : isRemote(j) && where !== 'Remote' ? '🌐 Remote' : null;
@@ -287,7 +291,7 @@ function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number, offerLe
     ? `🆓 Make your first sponsorship offer free on madevisa.com/offers — link in bio.`
     : `🆓 Make your first sponsorship offer free: ${offerUrl}`;
 
-  const limit = p === 'linkedin' ? 2900 : 2150;
+  const limit = p === 'linkedin' ? 2900 : p === 'telegram' ? 1000 : 2150;
   const hook = offerLed
     ? `🛂 ${pickBy(OFFER_HOOKS(jobs[0]?.company ?? 'this company'), seed)}`
     : `${pickBy(HOOK_EMOJI, seed)} ${hookFor(c, jobs, seed)}`;
@@ -520,6 +524,7 @@ async function planCampaign(service: Service, c: Campaign, platforms: Map<Platfo
         links: jobs.map((j) => ({ job_id: j.id, title: cleanTitle(j.title), company: j.company, url: jobLink(j, p) })),
         validation: { ok, issues, checked_at: new Date().toISOString() },
         scheduled_at: new Date().toISOString(),
+        target: p === 'telegram' ? c.telegram_chat || null : null,
       })
       .select('id')
       .single();
@@ -548,7 +553,8 @@ export const connected = (p: Platform): boolean =>
   p === 'facebook' ? Boolean(env('FB_PAGE_ID') && env('FB_PAGE_TOKEN'))
     : p === 'instagram' ? Boolean(igDirect() ? env('IG_ACCESS_TOKEN') : env('IG_USER_ID') && (env('IG_ACCESS_TOKEN') || env('FB_PAGE_TOKEN')))
       : p === 'linkedin' ? Boolean(env('LINKEDIN_TOKEN') && env('LINKEDIN_AUTHOR'))
-        : Boolean(env('TIKTOK_TOKEN'));
+        : p === 'telegram' ? Boolean(env('TELEGRAM_BOT_TOKEN'))
+          : Boolean(env('TIKTOK_TOKEN'));
 
 // Instagram works two ways:
 //  - through the Facebook Page: IG_USER_ID + FB_PAGE_TOKEN (graph.facebook.com)
@@ -726,12 +732,52 @@ async function findExisting(post: Post): Promise<Result | null> {
   return null;
 }
 
-const PUBLISHERS: Record<Platform, (p: Post, service: Service) => Promise<Result>> = { facebook: publishFacebook, instagram: publishInstagram, linkedin: publishLinkedIn, tiktok: publishTikTok };
+// --- Telegram ---------------------------------------------------------------
+// One bot (TELEGRAM_BOT_TOKEN), many channels: the post's target, or the
+// default TELEGRAM_CHAT_ID. The bot must be an admin of each channel.
+async function telegram(method: string, body: unknown): Promise<Record<string, unknown>> {
+  const res = await fetch(`https://api.telegram.org/bot${env('TELEGRAM_BOT_TOKEN')}/${method}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const d = (await res.json().catch(() => ({}))) as { ok?: boolean; result?: unknown; description?: string };
+  if (!d.ok) throw new Error(`Telegram: ${d.description ?? `HTTP ${res.status}`}`);
+  return d.result as Record<string, unknown>;
+}
+
+async function publishTelegram(post: Post): Promise<Result> {
+  const chat = post.target || env('TELEGRAM_CHAT_ID');
+  if (!chat) throw new Error('No Telegram channel: set one on the campaign, or the TELEGRAM_CHAT_ID secret');
+  const caption = post.caption.slice(0, 1024);
+  let messageId: number;
+  if (post.images.length <= 1) {
+    const r = post.images[0]
+      ? await telegram('sendPhoto', { chat_id: chat, photo: post.images[0].url, caption })
+      : await telegram('sendMessage', { chat_id: chat, text: caption });
+    messageId = Number(r.message_id);
+  } else {
+    // An album: up to 10 photos, the caption sits on the first one.
+    const media = post.images.slice(0, 10).map((im, i) => ({ type: 'photo', media: im.url, ...(i === 0 ? { caption } : {}) }));
+    const r = (await telegram('sendMediaGroup', { chat_id: chat, media })) as unknown as { message_id: number }[];
+    messageId = Number(r[0]?.message_id);
+  }
+  const url = chat.startsWith('@') ? `https://t.me/${chat.slice(1)}/${messageId}` : undefined;
+  return { id: `${chat}:${messageId}`, url };
+}
+
+const PUBLISHERS: Record<Platform, (p: Post, service: Service) => Promise<Result>> = {
+  facebook: publishFacebook,
+  instagram: publishInstagram,
+  linkedin: publishLinkedIn,
+  tiktok: publishTikTok,
+  telegram: publishTelegram,
+};
 
 async function publishDue(service: Service, platforms: Map<Platform, PlatformRow>, log: string[]) {
   // A run that stopped mid-publish: try again — the retry first checks whether it went live (findExisting).
   await service.from('social_posts').update({ status: 'approved' }).eq('status', 'publishing').lt('updated_at', new Date(Date.now() - 30 * 60_000).toISOString());
-  const { data } = await service.from('social_posts').select('id, platform, format, caption, headline, images, job_ids, attempts, validation').eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8);
+  const { data } = await service.from('social_posts').select('id, platform, format, caption, headline, images, job_ids, attempts, validation, target').eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8);
   for (const post of (data ?? []) as Post[]) {
     const pr = platforms.get(post.platform);
     if (!pr?.enabled) continue;
@@ -770,6 +816,12 @@ async function publishDue(service: Service, platforms: Map<Platform, PlatformRow
       .select('id');
     if (!claimed?.length) continue;
     try {
+      // Telegram can't be checked afterwards (bots can't read channel history),
+      // so a retry is handed to a person instead of risking a double post.
+      if (post.platform === 'telegram' && post.attempts > 0) {
+        await service.from('social_posts').update({ status: 'manual', error: 'An earlier Telegram attempt may have gone through — check the channel; publish again only if it isn’t there.' }).eq('id', post.id);
+        continue;
+      }
       // A retry (or a run that died mid-publish): did the earlier attempt actually go live?
       const existing = post.attempts > 0 ? await findExisting(post) : null;
       const r = existing ?? (await PUBLISHERS[post.platform](post, service));
