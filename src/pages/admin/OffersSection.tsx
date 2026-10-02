@@ -5,7 +5,7 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { BRIEF_STATUS_LABEL, briefPath, type BriefStatus } from '@/lib/briefs';
 import { splitWord } from '@/lib/sponsorOffer';
 
-// Admin → Offers: who made sponsor offers, who opened the builder and
+// Admin → Offers: who made Visa Plans, who opened the builder and
 // didn't finish, and totals. Data: admin_offer_activity() (migration 20261110090000).
 
 type Credits = { balance?: number; left: number; pro?: boolean; pro_left?: number };
@@ -78,7 +78,7 @@ export function OffersSection() {
   return (
     <div className="mt-6 space-y-5">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-        <Tile v={t.offers} k="Offers made" />
+        <Tile v={t.offers} k="Visa Plans made" />
         <Tile v={t.creators} k="People who made one" />
         <Tile v={t.offers_7d} k="Last 7 days" />
         <Tile v={t.builder_users} k="Opened the builder" />

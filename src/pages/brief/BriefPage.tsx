@@ -85,7 +85,7 @@ export function BriefPage(props: Props) {
 
 // ---------------------------------------------------------------------------
 // New offer: /brief/new?job=<id>
-// Custom offer (any company, no job on MadeVisa):
+// Custom Visa Plan (any company, no job on MadeVisa):
 //   /brief/new?custom=1&company=…&title=…&country=XX&city=…&pub=<publisher id>
 // ---------------------------------------------------------------------------
 
@@ -176,7 +176,7 @@ function NewOffer({ go, onAuth }: Props) {
   const [useRec, setUseRec] = useState(true);
   const { profile: visitor } = usePersonalization();
 
-  useSeo({ title: 'Prepare your sponsorship document', description: 'Create a sponsorship cost-sharing offer for an employer.', path: '/brief/new', noindex: true });
+  useSeo({ title: 'Prepare your sponsorship document', description: 'Create a Visa Plan (sponsorship & cost sharing) for an employer.', path: '/brief/new', noindex: true });
 
   useEffect(() => {
     let alive = true;
@@ -365,7 +365,7 @@ function NewOffer({ go, onAuth }: Props) {
           <EmployerControl value={ed.employer} onChange={(e) => patch({ employer: e })} />
           {custom && (
             <Panel>
-              <p className="text-[15px] font-bold text-ink-950">Custom offer</p>
+              <p className="text-[15px] font-bold text-ink-950">Custom Visa Plan</p>
               <p className="mt-0.5 text-[12px] leading-5 text-ink-500">For a company or role that isn’t on MadeVisa. Change the company name in Company above.</p>
               <label className="mt-2 block">
                 <span className="text-[13px] font-semibold text-ink-800">Role you’re applying for</span>
@@ -667,7 +667,7 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
 
   useSeo({
     title: brief ? `Sponsorship document — ${brief.candidate_name} for ${brief.job_title} at ${brief.company_name}` : 'Sponsorship document',
-    description: 'A sponsorship cost-sharing offer prepared by a candidate on MadeVisa.',
+    description: 'A Visa Plan (sponsorship & cost sharing) prepared by a candidate on MadeVisa.',
     path: `/brief/${shareId}`,
     noindex: true,
   });
@@ -881,7 +881,7 @@ function SplitControl({ split, terms, custom, onChange, onCommit, status }: { sp
         value={split}
         onChange={onChange}
         onCommit={onCommit}
-        label="Balance of the offer between you and the company"
+        label="Balance of the plan between you and the company"
         valueText={`${splitWord(split)}; you carry ${terms.candidateShare}% of shareable costs`}
         bubble={`${custom ? 'Custom' : splitWord(split)} · you ${terms.candidateShare}%`}
         left="Better for you"
@@ -1123,7 +1123,7 @@ function Stat({ k, v }: { k: string; v: string }) {
 function savePdf(doc: { candidate: string; company: string; shareId: string }) {
   void recordOfferPdf(doc.shareId);
   const before = document.title;
-  document.title = `Sponsor offer — ${doc.candidate} — ${doc.company}`;
+  document.title = `Visa Plan — ${doc.candidate} — ${doc.company}`;
   window.print();
   window.setTimeout(() => (document.title = before), 500);
 }
@@ -1184,7 +1184,7 @@ function OwnerActions({ brief, onStatus }: { brief: PublicBrief; onStatus: (s: B
               const res = await updateBriefStatus(brief.share_id, s);
               if (res.ok) onStatus(s);
             }}
-            aria-label="Offer status"
+            aria-label="Visa Plan status"
             className="rounded-md border border-ink-200 bg-white px-2 py-1 font-semibold text-ink-900"
           >
             {BRIEF_STATUS_CHOICES.map((s) => (
@@ -1196,13 +1196,13 @@ function OwnerActions({ brief, onStatus }: { brief: PublicBrief; onStatus: (s: B
         </div>
         <button
           onClick={async () => {
-            if (!window.confirm('Withdraw this offer? The link will stop working. The credit isn’t returned.')) return;
+            if (!window.confirm('Withdraw this Visa Plan? The link will stop working. The credit isn’t returned.')) return;
             const res = await withdrawBrief(brief.share_id);
             if (res.ok) nav('/profile');
           }}
           className="mt-3 text-[12px] font-semibold text-ink-400 hover:text-rose-600"
         >
-          Withdraw offer
+          Withdraw Visa Plan
         </button>
       </Panel>
     </>
@@ -1283,7 +1283,7 @@ function OfferDocument({ doc, terms, guide, route, code, locked, approvedAt }: {
       </header>
 
       <h1 className="mt-8 text-[30px] font-semibold leading-[1.15] tracking-tight text-ink-950 sm:text-[38px]" style={{ fontVariationSettings: '"opsz" 144' }}>
-        Sponsorship cost-sharing agreement
+        Visa Plan: sponsorship cost-sharing agreement
       </h1>
       <p className="mt-3 font-sans text-[15px] leading-7 text-ink-700">
         Between <strong className="text-ink-950">{doc.candidateName}</strong> (the Candidate) and <strong className="text-ink-950">{doc.companyName}</strong> (the Employer), for the
@@ -1346,7 +1346,7 @@ function OfferDocument({ doc, terms, guide, route, code, locked, approvedAt }: {
       </div>
 
       <Clause n={clause()} title="Purpose">
-        The Candidate proposes these terms so that the Employer can hire them for the position above through the {route.name} in {guide.name}. The offer covers who carries the cost and
+        The Candidate proposes these terms so that the Employer can hire them for the position above through the {route.name} in {guide.name}. This Visa Plan covers who carries the cost and
         effort of the visa process. It does not change pay or any other term of employment.
       </Clause>
 
@@ -1369,7 +1369,7 @@ function OfferDocument({ doc, terms, guide, route, code, locked, approvedAt }: {
       </Clause>
 
       <Clause n={clause()} title="Costs the Employer carries by law" locked={L}>
-        {employer.employerCosts ?? 'None beyond the Employer’s own administrative time.'} These costs are outside this offer and will not be recovered from the Candidate, whether through
+        {employer.employerCosts ?? 'None beyond the Employer’s own administrative time.'} These costs are outside this Visa Plan and will not be recovered from the Candidate, whether through
         salary deductions, repayment or otherwise.
       </Clause>
 
@@ -1439,7 +1439,7 @@ function OfferDocument({ doc, terms, guide, route, code, locked, approvedAt }: {
       </Clause>
 
       <Clause n={clause()} title="Pay and fair recruitment" locked={L}>
-        Pay and conditions are set by the Employer and must meet the {route.name} requirements and the law of {guide.name}. Nothing in this offer lowers them. No recruitment fee is
+        Pay and conditions are set by the Employer and must meet the {route.name} requirements and the law of {guide.name}. Nothing in this Visa Plan lowers them. No recruitment fee is
         charged to the Candidate, and the Candidate keeps their own identity and travel documents.
       </Clause>
 
@@ -1449,7 +1449,7 @@ function OfferDocument({ doc, terms, guide, route, code, locked, approvedAt }: {
         </Clause>
       )}
 
-      <Clause n={clause()} title="Status of this offer" locked={L}>
+      <Clause n={clause()} title="Status of this Visa Plan" locked={L}>
         This is a proposal, not a contract. It becomes binding only when both parties sign it, or when its terms are written into the employment contract. It is governed by the law of{' '}
         {guide.name} and is valid for {VALID_DAYS} days from issue. It was prepared with MadeVisa from official government sources and is not legal advice; check the details with the
         official source or a qualified immigration adviser before signing.

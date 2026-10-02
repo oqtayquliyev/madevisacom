@@ -67,10 +67,10 @@ export function PricingPage({ go, onAuth }: Props) {
       </section>
 
       <main className={`${WRAP} py-10 sm:py-14`}>
-        {/* Sponsor offers first: your last jobs → prepare the PDF, then buy more. */}
+        {/* Visa Plans first: your last jobs → prepare the PDF, then buy more. */}
         <section id="offers" className="mb-14 scroll-mt-24 space-y-5">
           <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold tracking-tight text-ink-950">Sponsor offers</h2>
+            <h2 className="text-2xl font-bold tracking-tight text-ink-950">Visa Plans</h2>
             <OfferInfo />
           </div>
           {profile && <OfferJobPicker limit={3} onAuth={onAuth} />}
@@ -230,8 +230,8 @@ export function PricingPage({ go, onAuth }: Props) {
           <div className="mt-5">
             <Faq
               items={[
-                { q: 'Is a sponsor offer legally binding?', a: 'Not on its own. It’s a proposal that becomes binding only when both you and the employer sign it, or when its terms go into your employment contract. It never covers costs the law puts on the employer, never touches salary, and isn’t legal advice.' },
-                { q: 'How do I attach a sponsor offer to my application?', a: 'Open the offer, press Save as PDF, and upload it as an extra document next to your CV. If the form has no upload field, paste the offer’s link into your cover letter or message.' },
+                { q: 'Is a Visa Plan legally binding?', a: 'Not on its own. It’s a proposal that becomes binding only when both you and the employer sign it, or when its terms go into your employment contract. It never covers costs the law puts on the employer, never touches salary, and isn’t legal advice.' },
+                { q: 'How do I attach a Visa Plan to my application?', a: 'Open the Visa Plan, press Save as PDF, and upload it as an extra document next to your CV. If the form has no upload field, paste the offer’s link into your cover letter or message.' },
                 { q: 'How much does a sponsorship document cost?', a: `One credit each. Your first document is free. Credits come in packs of 1, 5 or 15 — from ${prices.packs[0].price.label} for one, down to ${prices.packs[2].perDoc.label} each in the pack of 15 — and never expire. Pro includes ${PRO_MONTHLY_DOCS} a month. You review every document before a credit is used; once approved it’s final and can’t be edited.` },
                 { q: 'Can I get a refund?', a: 'Unused credits you bought can be refunded within 14 days of purchase. A prepared document is delivered instantly and is final, so its credit can’t be refunded — unless something went wrong on our side, such as a double charge or a document that didn’t generate. The free first document has no cash value. Pro can be cancelled any time and stops at the end of the period; see the Sponsorship Document Terms.' },
                 { q: 'How do I pay?', a: 'Choose a plan and send the short form. We email you a secure payment link within one working day, and your plan starts as soon as it’s paid. No card is needed to send the request.' },

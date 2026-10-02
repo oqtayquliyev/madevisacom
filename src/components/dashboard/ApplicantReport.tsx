@@ -143,7 +143,7 @@ export function ApplicantReport({
   const [confirmDelete, setConfirmDelete] = useState<ApplicationReport | null>(
     null,
   );
-  // Sponsor offers made for these jobs (job id → share id).
+  // Visa Plans made for these jobs (job id → share id).
   const [offers, setOffers] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     fetchMyBriefs().then((list) =>
@@ -807,7 +807,7 @@ function TrackCard({
           href={briefPath(offerShareId)}
           className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#2563EB] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-brand-700"
         >
-          <FileSignature className="h-3.5 w-3.5" /> Sponsor offer attached · open
+          <FileSignature className="h-3.5 w-3.5" /> Visa Plan attached · open
         </a>
       )}
 

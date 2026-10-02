@@ -6,7 +6,7 @@ import { briefPath, fetchMyBriefForJob, newOfferPath } from '@/lib/briefs';
 import { creditsBadge, useOfferCredits } from '@/lib/sponsorOffer';
 
 /**
- * "Sponsorship offer · 3 left" — next to Apply on every open job page.
+ * "Visa Plan · 3 left" — next to Apply on every open job page.
  * Opens the builder (with a covered country picked if the job's isn't),
  * or "Your document is ready" once made.
  */
@@ -45,7 +45,7 @@ export function OfferButton({ jobId, variant, country }: { jobId: string; varian
       ) : existing ? (
         'Your document is ready'
       ) : (
-        'Sponsorship offer'
+        'Visa Plan'
       )}
       {!existing && !out && (
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${hero ? 'bg-white text-brand-700' : 'bg-[#1D4ED8] text-white'}`}>{creditsBadge(credits)}</span>

@@ -6,7 +6,7 @@ import { fetchMyBriefForJob, newOfferPath } from '@/lib/briefs';
 import { useOfferCredits } from '@/lib/sponsorOffer';
 
 // ---------------------------------------------------------------------------
-// "Applying? Attach a sponsorship offer." — the right moment to explain it:
+// "Applying? Attach a Visa Plan." — the right moment to explain it:
 // the person just clicked Apply on a job that doesn't offer a visa.
 //
 // Never a nag:
@@ -88,7 +88,7 @@ export function ApplyNudge({ jobId, company, country, armed }: { jobId: string; 
   const href = `${newOfferPath(jobId)}${country ? `&country=${country}` : ''}`;
 
   return (
-    <div role="dialog" aria-label="Sponsorship offer" className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-md rounded-2xl bg-white p-4 shadow-soft-lg ring-1 ring-ink-200 sm:bottom-6">
+    <div role="dialog" aria-label="Visa Plan" className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-md rounded-2xl bg-white p-4 shadow-soft-lg ring-1 ring-ink-200 sm:bottom-6">
       <button onClick={() => close(false)} aria-label="Close" className="absolute right-3 top-3 rounded-full p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-700">
         <X className="h-4 w-4" />
       </button>

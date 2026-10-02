@@ -23,7 +23,7 @@ const CHIP: Record<string, string> = {
 /** Four steps in a row. `active` highlights one. */
 export function OfferSteps({ active, light = false }: { active?: number; light?: boolean }) {
   return (
-    <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-2" aria-label="How a sponsor offer works">
+    <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-2" aria-label="How a Visa Plan works">
       {STEPS.map(({ icon: Icon, label }, i) => (
         <li key={label} className="flex items-center gap-1.5">
           <span
@@ -54,9 +54,9 @@ export function OfferDemo({ job }: { job?: { title: string; company: string; cod
           <span className="text-[14px] font-extrabold tracking-tight">
             made<span className="text-[#1D4ED8]">visa</span>
           </span>
-          <span className="text-[11px] text-ink-500">Sponsor offer</span>
+          <span className="text-[11px] text-ink-500">Visa Plan</span>
         </div>
-        <p className="mt-4 text-[20px] font-semibold leading-tight tracking-tight">Sponsorship cost-sharing offer</p>
+        <p className="mt-4 text-[20px] font-semibold leading-tight tracking-tight">Visa Plan — sponsorship & cost sharing</p>
         {job && (
           <p className="mt-1 flex items-center gap-2 font-sans text-[13px] text-ink-600">
             {guide && <CircleFlag countryCode={job.code} size={16} />}
@@ -92,7 +92,7 @@ export function OfferDemo({ job }: { job?: { title: string; company: string; cod
         <DragSlider
           value={split}
           onChange={setSplit}
-          label="Try the offer slider"
+          label="Try the cost-sharing slider"
           valueText={splitWord(split)}
           bubble={`${splitWord(split)} · you ${t.candidateShare}%`}
           left="Better for you"

@@ -147,7 +147,7 @@ function headlineFor(c: Campaign, jobs: Job[], seed: number): string {
   if (c.kind === 'sponsor') return pickBy([`Already licensed to sponsor visas`, `${n} UK employers with a sponsor licence`, `Hiring — and licensed to sponsor`], seed);
   if (c.kind === 'visa') return pickBy([`${n} ${plural(n, 'role', 'roles')} offering visa sponsorship`, `Visa sponsorship: ${n} new ${plural(n, 'role', 'roles')}`, `Sponsorship mentioned in the ad`], seed);
   if (c.kind === 'remote') return pickBy([`${n} remote-friendly ${plural(n, 'role', 'roles')}`, `Work from anywhere: ${n} new ${plural(n, 'role', 'roles')}`, `Remote & hybrid, posted this week`], seed);
-  if (c.kind === 'offer') return pickBy([`No visa line in the ad?`, `Make them a sponsorship offer`, `They didn't say no to visas`], seed);
+  if (c.kind === 'offer') return pickBy([`No visa line in the ad?`, `Send them a Visa Plan`, `They didn't say no to visas`], seed);
   if (c.kind === 'student') return pickBy([`${n} student & internship ${plural(n, 'role', 'roles')}, fresh today`, `Students: ${n} new ${plural(n, 'role', 'roles')} to apply for`, `Internships and first jobs, posted today`], seed);
   if ((c.kind === 'category' || c.categories.length) && c.categories[0]) {
     const cat = c.categories[0].replace(/\b\w/g, (m) => m.toUpperCase());
@@ -245,23 +245,23 @@ const OFFER_HOOKS = (co: string): string[] => [
   `The ad for ${co} doesn't mention a visa. That's not a "no" — it's a question nobody asked yet.`,
   `Most companies never say no to sponsorship. They just never think about it. Here's how you make them.`,
   `Employers skip foreign candidates because they guess visas are slow and costly. Show them it isn't.`,
-  `Flip it: instead of waiting for a company to offer sponsorship, you offer them the plan.`,
+  `Flip it: instead of waiting for a company to offer sponsorship, you send them a Visa Plan.`,
   `"Do you sponsor visas?" gets ignored. A one-page plan with the route and the costs gets read.`,
   `You found the job at ${co}. Now remove the one reason they'd skip you.`,
 ];
 
 const OFFER_EXPLAINERS: string[] = [
   `📄 How it works: pick the job → choose which visa costs you'll share → attach a one-page PDF to your application. The employer sees the legal route, their 3–4 steps and the real cost.`,
-  `📄 A sponsorship offer is a one-page PDF you attach when you apply: the visa route for that country, what the employer has to do, and which costs you cover. Recruiters stop guessing.`,
-  `📄 Recruiters reject visa candidates when they can't see the cost or the steps. Your sponsorship offer answers both before they ask — on one page.`,
+  `📄 A Visa Plan is a one-page PDF you attach when you apply: the visa route for that country, what the employer has to do, and which costs you cover. Recruiters stop guessing.`,
+  `📄 Recruiters reject visa candidates when they can't see the cost or the steps. Your Visa Plan answers both before they ask — on one page.`,
   `📄 Think of it as a cover letter for the visa: the route, the timeline, who pays what. Built in 2 minutes from the job you already found.`,
 ];
 
 const OFFER_TEASERS: string[] = [
-  `💡 No visa line in the ad? Attach a sponsorship offer — your first one is free.`,
-  `💡 Tip: a one-page sponsorship offer answers "can we hire you?" before the recruiter asks.`,
-  `💡 Companies don't advertise sponsorship they've never tried. Your offer shows them how.`,
-  `💡 Make the visa easy to say yes to — build a free sponsorship offer on madevisa.com/offers`,
+  `💡 No visa line in the ad? Attach a Visa Plan — your first one is free.`,
+  `💡 Tip: a one-page Visa Plan answers "can we hire you?" before the recruiter asks.`,
+  `💡 Companies don't advertise sponsorship they've never tried. Your Visa Plan shows them how.`,
+  `💡 Make the visa easy to say yes to — build a free Visa Plan on madevisa.com/offers`,
   `💡 Applying from abroad? Send the plan, not just the CV.`,
 ];
 
@@ -288,8 +288,8 @@ function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number, offerLe
     tags.add('#workabroad');
   }
   const offerCta = p === 'instagram'
-    ? `🆓 Make your first sponsorship offer free on madevisa.com/offers — link in bio.`
-    : `🆓 Make your first sponsorship offer free: ${offerUrl}`;
+    ? `🆓 Make your first Visa Plan free on madevisa.com/offers — link in bio.`
+    : `🆓 Make your first Visa Plan free: ${offerUrl}`;
 
   const limit = p === 'linkedin' ? 2900 : p === 'telegram' ? 1000 : 2150;
   const hook = offerLed
@@ -393,7 +393,7 @@ async function recentFingerprints(service: Service, p: Platform): Promise<Set<st
   return new Set(((data ?? []) as { fingerprint: string }[]).map((r) => r.fingerprint));
 }
 
-/** Every third post on a network leads with the sponsorship offer instead of just listing jobs. */
+/** Every third post on a network leads with the Visa Plan instead of just listing jobs. */
 const OFFER_EVERY = 3;
 
 const MIX: Campaign['format'][] = ['cards', 'list', 'company'];

@@ -123,7 +123,7 @@ const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Inbox }[] = [
   { key: 'companies', label: 'Companies & access', icon: Building2 },
   { key: 'articles', label: 'Articles', icon: Newspaper },
   { key: 'plans', label: 'Plans', icon: CreditCard },
-  { key: 'offers', label: 'Offers', icon: FileSignature },
+  { key: 'offers', label: 'Visa Plans', icon: FileSignature },
   { key: 'images', label: 'Social media', icon: ImageIcon },
   { key: 'settings', label: 'Settings', icon: Settings },
 ];
@@ -2030,7 +2030,7 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
       {fields.includes('visaSponsorship') && (
         <label className="flex items-center gap-2 text-xs font-medium text-ink-700">
           <input type="checkbox" checked={visaSponsorship} onChange={(e) => setVisaSponsorship(e.target.checked)} />
-          Visa sponsorship offered
+          Visa Visa Planed
         </label>
       )}
 

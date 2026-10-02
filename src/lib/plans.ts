@@ -27,7 +27,7 @@ export const PRO_FEATURES = [
   { title: 'Instant job alerts', text: 'New roles matching your role and country, as soon as companies post them — be an early applicant.' },
   { title: 'Full company response data', text: 'Exact reply rate, typical time to reply and hiring activity before you apply.' },
   { title: 'Companies that sponsor visas', text: 'Who is hiring with visa sponsorship in each country, updated live.' },
-  { title: `${PRO_MONTHLY_DOCS} sponsorship documents a month`, text: 'A sign-ready offer for the jobs you apply to — about a fifth of the single-document price.' },
+  { title: `${PRO_MONTHLY_DOCS} sponsorship documents a month`, text: 'A sign-ready Visa Plan for each job you apply to — about a fifth of the single-document price.' },
   { title: 'First access to new Pro tools', text: 'Your own application stats and salary ranges are next — Pro members get them first.' },
 ];
 

@@ -35,8 +35,8 @@ export function OffersPage({ go, onAuth }: Props) {
   const prices = usePrices();
 
   useSeo({
-    title: 'Sponsorship offer for your job application — MadeVisa',
-    description: 'Job doesn’t mention a visa? Attach a one-page sponsorship offer: the visa route, the employer’s steps and who pays what. Your first one is free.',
+    title: 'Visa Plan for your job application — MadeVisa',
+    description: 'Job doesn’t mention a visa? Attach a one-page Visa Plan: the visa route, the employer’s steps and who pays what. Your first one is free.',
     path: '/offers',
   });
 
@@ -53,9 +53,9 @@ export function OffersPage({ go, onAuth }: Props) {
       <section className="bg-brand-700 text-white">
         <div className={`${WRAP} py-10 sm:py-14`}>
           <OfferFlags size={28} />
-          <h1 className="mt-5 max-w-3xl text-[32px] font-bold leading-[1.1] tracking-tight sm:text-[48px]">Job doesn’t mention a visa? Make them an offer.</h1>
+          <h1 className="mt-5 max-w-3xl text-[32px] font-bold leading-[1.1] tracking-tight sm:text-[48px]">Job doesn’t mention a visa? Send them a Visa Plan.</h1>
           <p className="mt-4 max-w-2xl text-[16px] leading-7 text-white/85 sm:text-[17px]">
-            Most employers skip sponsorship because they guess it’s slow, costly and risky. A one-page offer shows them the legal route, their few steps, and which costs
+            Most employers skip sponsorship because they guess it’s slow, costly and risky. A one-page Visa Plan shows them the legal route, their few steps, and which costs
             you’ll cover.
           </p>
           <OfferOddsStat light className="mt-6" />
@@ -67,7 +67,7 @@ export function OffersPage({ go, onAuth }: Props) {
               </a>
             ) : (
               <button onClick={() => onAuth?.('register')} className="rounded-full bg-white px-6 py-3.5 text-[15px] font-bold text-brand-700 shadow-sm hover:bg-brand-50">
-                Make my first offer — free
+                Make my first Visa Plan — free
               </button>
             )}
             <a href="#custom" onClick={jump('custom')} className="rounded-full px-5 py-3.5 text-[15px] font-bold text-white ring-1 ring-white/40 hover:bg-white/10">

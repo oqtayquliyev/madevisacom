@@ -276,7 +276,7 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
             <Section title="Eligibility & requirements">
               <label className="flex items-center gap-2 text-sm text-ink-700">
                 <input type="checkbox" checked={job.visa_sponsorship} onChange={(e) => set('visa_sponsorship', e.target.checked)} />
-                Visa sponsorship offered
+                Visa Visa Planed
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Experience level">

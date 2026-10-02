@@ -158,7 +158,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
               className={linkClass("offers" as View)}
             >
               <FileSignature className="h-4 w-4" />
-              Prepare Sponsorship
+              Visa Plan
               <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">{creditsBadge(credits)}</span>
             </a>
 

@@ -90,7 +90,7 @@ export function MyBriefsSection() {
           ) : list.length === 0 ? (
             <div className="mt-2 flex flex-col items-start gap-3 rounded-lg bg-[#1D4ED8]/5 p-4">
               <OfferFlags size={22} />
-              <p className="text-[14px] leading-6 text-ink-700">Open any job and press “Sponsorship offer”. Your first document is free.</p>
+              <p className="text-[14px] leading-6 text-ink-700">Open any job and press “Visa Plan”. Your first document is free.</p>
               <a href="/offers" onClick={(e) => (e.preventDefault(), nav('/offers'))} className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-[13px] font-bold text-white hover:bg-brand-800">
                 Pick a job
               </a>
@@ -258,7 +258,7 @@ export function PlanCard() {
       {isPro && sub?.current_period_end && <p className="text-[12px] text-ink-500">Until {new Date(sub.current_period_end).toLocaleDateString()}</p>}
       <div className="mt-3 border-t border-ink-100 pt-3">
         <div className="flex items-center gap-1">
-          <p className="text-[13px] font-semibold text-ink-800">Sponsor offers</p>
+          <p className="text-[13px] font-semibold text-ink-800">Visa Plans</p>
           <OfferInfo />
         </div>
         <div className="mt-1.5">{credits ? <CreditMeter credits={credits} /> : <span className="text-[13px] text-ink-400">…</span>}</div>

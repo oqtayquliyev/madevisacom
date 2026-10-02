@@ -68,7 +68,7 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
             <h2 id="custom-offer" className="flex items-center gap-2 text-[17px] font-bold text-ink-950">
-              <PenLine className="h-4 w-4 text-[#1D4ED8]" /> Custom sponsorship document
+              <PenLine className="h-4 w-4 text-[#1D4ED8]" /> Custom Visa Plan
             </h2>
             <p className="mt-0.5 text-[14px] text-ink-500">For a job you found elsewhere, or a company you want to approach first. Add the company yourself.</p>
           </div>
@@ -188,7 +188,7 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick
                 </span>
                 {!user ? (
                   <>
-                    <p className="text-[15px] font-bold text-ink-950">Sign up to make custom offers</p>
+                    <p className="text-[15px] font-bold text-ink-950">Sign up to make custom Visa Plans</p>
                     <p className="text-[13px] text-ink-500">Your first document is free.</p>
                     <button onClick={() => onAuth?.('register')} className="mt-1 rounded-lg bg-[#1D4ED8] px-4 py-2.5 text-[14px] font-bold text-white hover:bg-brand-800">
                       Create free account

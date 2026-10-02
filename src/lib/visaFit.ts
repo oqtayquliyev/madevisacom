@@ -92,7 +92,7 @@ export function visaFitFor(jobCountry: string | null | undefined, passport: stri
 /**
  * The visitor doesn't need a visa for this job: it's in the country they
  * live in or hold a passport of, or their passport lets them work there
- * freely (e.g. an EU passport for a job in Germany). Sponsorship offers
+ * freely (e.g. an EU passport for a job in Germany). Visa Plans
  * aren't shown on those jobs.
  */
 export function isLocalJobFor(jobCountry: string | null | undefined, visitor: { citizenship: string | null; currentLocation: string | null }): boolean {

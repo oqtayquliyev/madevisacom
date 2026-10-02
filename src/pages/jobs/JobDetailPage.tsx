@@ -28,7 +28,6 @@ import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { useSeo } from '@/lib/seo';
 import { purifyJobHtml, sanitizeJobHtml } from '@/lib/atsImport';
 import { formatRelativeTime } from '@/lib/dates';
-import { boardJobDates, jobTime } from '@/lib/jobTime';
 import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
 import { EMPTY_FACTS, fetchJobFacts, isCurrentFacts, type JobContact, type StoredJobFacts } from '@/lib/jobFactsClient';
 import { allCountries } from '@/data/allCountries';
@@ -208,12 +207,8 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // the source's own labeled fields are more accurate then.
   const rawCategory = isPlaceholder(job.category) || isCodeLike(job.category) ? detected.department : job.category;
   const category = isCodeLike(rawCategory) ? null : displayJobCategory({ title: job.title, category: rawCategory });
-  // The company's own date (stored, or printed in the ad) — never the sync time.
-  const dates = boardJobDates(job);
-  const sourceDate = pickPostedDate(dates.source, detected.postedAt);
-  const when = jobTime(sourceDate, dates.synced);
-  const postedDate = when?.iso ?? null;
-  const postedLabel = when?.words ?? '';
+  const postedDate = pickPostedDate(job.postedDate, detected.postedAt);
+  const postedLabel = postedDate ? formatRelativeTime(postedDate, '') : '';
   const sourcePlace = parseSourceLocation(detected.location);
   const cityOk = !isPlaceholder(job.city) && job.city !== 'Remote';
   const countryOk = !isPlaceholder(job.country);
@@ -251,10 +246,10 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const arrangement = job.workArrangement ?? detected.workArrangement ?? (job.remote ? 'remote' : null);
   const employmentType = isMeaningfulJobType(job.type) ? job.type : detected.employmentType;
   const visa = job.visaStatus ?? (job.visaSponsorship ? 'offered' : detected.visa);
-  // Sponsorship offer next to Apply, on every open job. Jobs outside the
+  // Visa Plan next to Apply, on every open job. Jobs outside the
   // covered countries start the builder with a country picker.
   const offerEl = raw ? briefEligibility({ countryCode: raw.country?.iso_code ?? (countryOk ? job.countryCode : null), visa: visa ?? null, closed: Boolean(job.closed), fallback: 'DE' }) : null;
-  // Already in your country (or free to work there): no visa, so no sponsorship offer.
+  // Already in your country (or free to work there): no visa, so no Visa Plan.
   // UK jobs: show the Home Office sponsor-licence badge when the company is on the register.
   const ukJob = (raw?.country?.iso_code ?? (countryOk ? job.countryCode : null)) === 'GB';
   const localJob = isLocalJobFor(raw?.country?.iso_code ?? (countryOk ? job.countryCode : null), visitor);
@@ -421,24 +416,18 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                   <CircleFlag countryCode={flagCode} label={placeLabel} size={16} />
                   {placeLabel}
                 </span>
-                {postedLabel && when && (
-                  <span className="flex items-center gap-1.5" title={when.fromSource ? undefined : `${job.company}'s page shows no posting date — this is when it was added to MadeVisa.`}>
+                {postedLabel && (
+                  <span className="flex items-center gap-1.5">
                     <Calendar className="h-4 w-4" />
-                    {when.fromSource ? (
+                    Posted {postedLabel}
+                    {isImported && (
                       <>
-                        Posted {postedLabel}
-                        {isImported && (
-                          <>
-                            {' '}on <strong className="font-bold text-white">{job.company}</strong>
-                          </>
-                        )}
+                        {' '}on <strong className="font-bold text-white">{job.company}</strong>
                       </>
-                    ) : (
-                      <>Added to MadeVisa {postedLabel}</>
                     )}
                   </span>
                 )}
-                {when?.postedToday && !job.closed && (
+                {postedDate && !job.closed && postedAgeDays >= 0 && postedAgeDays < 1 && (
                   <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-brand-700">
                     <Zap className="h-3 w-3 fill-current" />
                     Be an early applicant

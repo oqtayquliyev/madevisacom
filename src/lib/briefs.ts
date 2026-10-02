@@ -52,7 +52,7 @@ export type PublicBrief = {
   is_owner: boolean;
   status: BriefStatus | null;
   view_count: number | null;
-  /** Sponsor offer slider (migration 20261109090000). Older briefs have none. */
+  /** Visa Plan slider (migration 20261109090000). Older briefs have none. */
   split?: number | null;
   terms?: OfferTerms | null;
   terms_updated_at?: string | null;
@@ -87,7 +87,7 @@ export const customOfferPath = (o: { company: string; title?: string; country?: 
 export const briefUrl = (shareId: string) => `${window.location.origin}${briefPath(shareId)}`;
 
 /**
- * Can a sponsor offer be made for this job? When the job is open, its
+ * Can a Visa Plan be made for this job? When the job is open, its
  * country has checked employer data, and the listing doesn't say
  * sponsorship is "not offered" (we respect that). Jobs that already offer
  * sponsorship qualify too: the offer then speeds up and de-risks it.
@@ -220,10 +220,10 @@ export async function createBrief(input: CreateBriefInput): Promise<{ ok: true; 
     .select('share_id')
     .single();
   if (error && /split|terms|column|schema cache/i.test(error.message) && !MISSING_TABLE.test(error.message)) {
-    return { ok: false, error: 'Sponsor offers need a database update first (migration 20261109090000).' };
+    return { ok: false, error: 'Visa Plans need a database update first (migration 20261109090000).' };
   }
   if (error) {
-    if (error.code === '23505') return { ok: false, error: 'You already have a sponsor offer for this job.' };
+    if (error.code === '23505') return { ok: false, error: 'You already have a Visa Plan for this job.' };
     if (error.code === 'P0001') return { ok: false, error: error.message };
     if (MISSING_TABLE.test(error.message)) return { ok: false, error: 'Hiring briefs need a database update first (migration 20261018090000).' };
     return { ok: false, error: error.message };
@@ -391,7 +391,7 @@ export async function updateBriefTerms(shareId: string, terms: OfferTerms): Prom
     patch.publisher_id = terms.employer.publisherId ?? null;
   }
   const { error } = await supabase.from('hiring_briefs').update(patch).eq('share_id', shareId);
-  return error ? { ok: false, error: /column|schema cache/i.test(error.message) ? 'Run migration 20261109090000 to save offer terms.' : error.message } : { ok: true, terms };
+  return error ? { ok: false, error: /column|schema cache/i.test(error.message) ? 'Run migration 20261109090000 to save Visa Plan terms.' : error.message } : { ok: true, terms };
 }
 
 export async function withdrawBrief(shareId: string): Promise<{ ok: boolean; error?: string }> {
@@ -405,7 +405,7 @@ export function briefMessage(b: Pick<PublicBrief, 'job_title' | 'company_name' |
   const effort = found?.route.employer && !found.route.employer.licenceNeeded ? ' It doesn’t need a sponsor licence on your side.' : '';
   return [
     `Hi, I'm ${first} and I'm very interested in the ${b.job_title} role at ${b.company_name}.`,
-    `I've prepared a short sponsor offer on how hiring me would work${found ? ` in ${found.guide.name} through the ${found.route.name}` : ''}: the steps on your side and how I propose we share the visa costs.${effort}`,
+    `I've prepared a short Visa Plan on how hiring me would work${found ? ` in ${found.guide.name} through the ${found.route.name}` : ''}: the steps on your side and how I propose we share the visa costs.${effort}`,
     url,
     'Happy to answer any questions.',
   ].join('\n\n');

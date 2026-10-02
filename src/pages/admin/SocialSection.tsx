@@ -407,7 +407,7 @@ function CampaignForm({ c, onDone }: { c: Partial<Campaign>; onDone: () => void 
             <option value="sponsor">UK companies licensed to sponsor</option>
             <option value="visa">Ads that offer visa sponsorship</option>
             <option value="remote">Remote & hybrid</option>
-            <option value="offer">No visa line → pitch the sponsorship offer</option>
+            <option value="offer">No visa line → pitch the Visa Plan</option>
           </select>
         </label>
         <label className="text-xs font-medium text-ink-700">

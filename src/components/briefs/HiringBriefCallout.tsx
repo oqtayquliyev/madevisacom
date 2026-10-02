@@ -67,7 +67,7 @@ export function HiringBriefCallout(props: Props) {
             <OfferInfo light className="mt-1" />
           </div>
           <p className="mt-2 text-[15px] leading-6 text-white/85">
-            {existing ? 'Attach the PDF to your application.' : `Attach a sponsorship offer to your application. ${props.companyName} sees exactly how to hire you.`}
+            {existing ? 'Attach the PDF to your application.' : `Attach a Visa Plan to your application. ${props.companyName} sees exactly how to hire you.`}
           </p>
           <div className="mt-5">
             <OfferSteps light active={existing ? 3 : 0} />
@@ -93,7 +93,7 @@ export function HiringBriefCallout(props: Props) {
               </a>
             ) : (
               <a href={start} onClick={go(start)} className={primary}>
-                <FileSignature className="h-4 w-4" /> Prepare my offer PDF
+                <FileSignature className="h-4 w-4" /> Prepare my Visa Plan PDF
                 <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-bold text-white">{credits ? `1 credit · ${credits.left} left` : creditsBadge(null)}</span>
               </a>
             )}
@@ -108,7 +108,7 @@ export function HiringBriefCallout(props: Props) {
           <p className="border-b-2 border-ink-900 pb-1 text-[10px] font-extrabold">
             made<span className="text-[#1D4ED8]">visa</span>
           </p>
-          <p className="mt-2 font-serif text-[13px] font-semibold leading-tight">Sponsorship cost-sharing offer</p>
+          <p className="mt-2 font-serif text-[13px] font-semibold leading-tight">Visa Plan — sponsorship & cost sharing</p>
           <p className="mt-1 line-clamp-2 text-[10px] text-ink-500">
             {props.jobTitle} · {props.companyName}
           </p>
@@ -126,7 +126,7 @@ export function HiringBriefCallout(props: Props) {
       </div>
 
       {demo && (
-        <div role="dialog" aria-modal="true" aria-label="Offer demo" className="fixed inset-0 z-[60] grid place-items-center bg-ink-950/60 p-3" onClick={() => setDemo(false)}>
+        <div role="dialog" aria-modal="true" aria-label="Visa Plan demo" className="fixed inset-0 z-[60] grid place-items-center bg-ink-950/60 p-3" onClick={() => setDemo(false)}>
           <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-[#e9edf3] p-4 text-ink-900 sm:p-6" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between gap-3">
               <OfferSteps active={1} />
