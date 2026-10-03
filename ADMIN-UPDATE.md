@@ -21,11 +21,11 @@ Both can be run more than once. Until the second one is run, the Control room an
 
 **3. The pipeline.**
 
-- Add the secret `PEXELS_API_KEY` to the function (Supabase → Edge Functions → Secrets). A free key comes from pexels.com/api. It is the same key the reel renderer uses in GitHub Actions; if you never set that one, add it there too (repository → Settings → Secrets → Actions).
+- Add the secret `PIXABAY_API_KEY` to the function (Supabase → Edge Functions → Secrets). The key is free: log in at pixabay.com, open pixabay.com/api/docs, and your key is shown in the parameter table. (Pexels stopped giving out new keys; if you already have a `PEXELS_API_KEY`, that works too.)
 - `supabase functions deploy auto-pipeline --no-verify-jwt`
 - Pushing to GitHub (step 1) already updates the reel renderer (`scripts/render-reels.mjs`).
 
-Then: Admin → Social media → Photos & clips → **Fill from Pexels**. Each press fills about 20 countries; press again until the note says the library is full.
+Then: Admin → Social media → Photos & clips → **Fill the library**. Each press fills about 15 countries and takes up to two minutes; press again until the note says the library is full. Pixabay photos are copied into your own storage (`social-images/library/`, roughly 100 MB for the whole library), because Pixabay doesn't allow linking to its photos permanently.
 
 ---
 
@@ -68,7 +68,7 @@ To change the numbers: `cv_guest_daily_uploads()` and the `15` in `user_cvs_limi
 
 **Real photos instead of graphics only.** Strategy → *Photo first* (the default): each post opens with a real photograph — the country's streets, people at work — with the headline on it and the photographer's name; the card with the numbers follows as the second image. Reels play real clips from the library behind the text. *Graphic* brings back cards only.
 
-**Photos & clips (new sub-tab).** The library the photos come from: about 10 photos and 5 clips per country plus general ones (people at work, interviews, airports). “Fill from Pexels” fills it on the server; it tops itself up daily while the program runs. You can switch any item off, remove it, or add your own photo or clip by address. The old one-photo-per-country list still works as a fallback.
+**Photos & clips (new sub-tab).** The library the photos come from: about 10 photos and 5 clips per country plus general ones (people at work, interviews, airports). “Fill the library” fills it on the server from Pixabay; it tops itself up daily while the program runs. You can switch any item off, remove it, or add your own photo or clip by address. The old one-photo-per-country list still works as a fallback.
 
 **Signed by (optional).** Strategy → a first name of a real person on your team; captions then end “— Name, MadeVisa”.
 
@@ -86,7 +86,7 @@ What gives the same human feel honestly:
 
 Checked here: typecheck, lint and build; the pipeline's type check; all new post formats written with sample data; the 30-minute rule over a simulated week on five networks (closest two posts: exactly 30 minutes); the photo template drawn; every new admin screen in a browser with a simulated database; and both SQL files on a local PostgreSQL 16 with all 93 migrations run in order, then exercised as an admin, two users, a visitor and the pipeline (limits, admin-only access, start/stop, the 24-hour numbers, CV list and search).
 
-Not run against the live services: your real Supabase project; **Pexels itself** (the fill and what the photos look like — the container this was built in can't reach pexels.com, so look through the library after the first fill and switch off anything that doesn't fit); posting to the real networks; the reel renderer with library clips.
+Not run against the live services: your real Supabase project; **Pixabay itself** (the fill and what the photos look like — it was run against a simulated Pixabay only, so look through the library after the first fill and switch off anything that doesn't fit; Pixabay's largest free photo size is 1280 px, a little soft on a 1080-wide post); posting to the real networks; the reel renderer with library clips.
 
 ## Files changed in this round
 
@@ -108,7 +108,7 @@ supabase/migrations/20261127090000_control_room_cvs_media.sql     NEW
 ```
 src/pages/admin/SocialSection.tsx
 src/pages/admin/social/MediaLibrary.tsx           NEW
-src/pages/admin/social/ProgramPanel.tsx, StrategyPanel.tsx, shared.tsx
+src/pages/admin/social/ProgramPanel.tsx, StrategyPanel.tsx, ReelParts.tsx, shared.tsx
 api/_post.ts, api/og/post.ts                      photo image template
 scripts/render-reels.mjs                          reels use library clips first
 supabase/functions/auto-pipeline/media.ts         NEW

@@ -64,7 +64,7 @@ export type Post = {
     planned_kind?: string;
     force?: boolean;
     /** A Reel's recipe (migration 20261124090000), plus what the renderer used. */
-    reel?: ReelRecipe & { bg_used?: { source: 'pexels' | 'photo' | 'gradient'; credit?: string | null; page?: string; query?: string } | null; music?: string | null };
+    reel?: ReelRecipe & { bg_used?: { source: 'pexels' | 'library' | 'photo' | 'gradient'; credit?: string | null; page?: string; query?: string } | null; music?: string | null };
   } | null;
   /** A Reel: the rendered MP4 (images[0] is then its cover). */
   video_url?: string | null;
@@ -91,6 +91,16 @@ export type ProgramRow = {
   /** When the reel renderer (GitHub Actions) last reported in, and what it did. */
   reels_at?: string | null;
   reels_note?: string | null;
+  // Voice, look, spacing and the photo library (migration 20261127090000):
+  /** A real team member's name that signs the captions; null = no signature. */
+  host_name?: string | null;
+  /** 'photo' = a real photo opens each post; 'graphic' = designed cards only. */
+  look?: 'photo' | 'graphic' | null;
+  /** Minutes between any two posts, across all networks. */
+  gap_min?: number | null;
+  /** When the photo and clip library was last filled, and what happened. */
+  media_at?: string | null;
+  media_note?: string | null;
 };
 /** The renderer runs at least hourly; quiet for 8 hours means reels are off (the server uses the same rule). */
 export const reelsAlive = (p: Pick<ProgramRow, 'reels_at'> | null | undefined): boolean => Boolean(p?.reels_at && Date.now() - Date.parse(p.reels_at) < 8 * 3_600_000);

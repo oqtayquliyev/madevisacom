@@ -2,18 +2,25 @@
 //
 //   { cron: "media" }  → runMedia(): for each country MadeVisa posts about
 //   (and "ZZ" = any country: people at work, interviews, airports), look up
-//   portrait photos and clips on Pexels and save their addresses, the
-//   photographer's name and the page they came from in `social_media`
-//   (migration 20261127090000). Nothing is downloaded here: the image
-//   renderer and the reel renderer fetch a file when a post uses it.
+//   upright photos and clips on a free stock site and save them in
+//   `social_media` (migration 20261127090000) with the photographer's name
+//   and the page they came from.
+//
+//   Two sources, whichever key is set as a secret on this function:
+//     PIXABAY_API_KEY  Pixabay (pixabay.com/api/docs — the key is shown there
+//                      once you are logged in). Pixabay doesn't allow linking
+//                      to its photos permanently, so each photo is copied
+//                      into this project's storage (social-images/library/).
+//                      Clips may be linked directly.
+//     PEXELS_API_KEY   Pexels. Its addresses are permanent, nothing is copied.
+//   With both set, Pixabay is used (Pexels stopped giving out new keys in 2026).
 //
 //   loadMedia() gives the program a picker: the photo or clips for a
 //   country that were used least recently, so nothing comes straight back.
 //
-// Needs the secret PEXELS_API_KEY on this function (the same key the reel
-// renderer uses in GitHub Actions). Pexels photos and videos are free to
-// use; the people in them have not endorsed anything, so posts never present
-// a face as a named person or as someone telling their own story.
+// Stock photos are free to use; the people in them have not endorsed
+// anything, so posts never present a face as a named person or as someone
+// telling their own story.
 
 // deno-lint-ignore-file no-explicit-any
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -27,7 +34,7 @@ const PHOTOS_PER_COUNTRY = 10;
 const CLIPS_PER_COUNTRY = 5;
 const PHOTOS_ANY = 40;
 const CLIPS_ANY = 20;
-/** Pexels allows 200 requests an hour; one run stays far below that. */
+/** Searches per run. Pexels allows 200 an hour and Pixabay 100 a minute; one run stays far below both. */
 const MAX_REQUESTS = 70;
 
 const ANY_PHOTOS = ['young professional working on laptop', 'job interview', 'colleagues talking in office', 'woman working in cafe with laptop', 'man at office desk', 'traveler at airport with suitcase', 'person writing resume', 'team meeting diverse'];
@@ -102,6 +109,15 @@ const regionName = (() => {
 })();
 
 type Found = { kind: 'photo' | 'video'; url: string; thumb: string | null; credit: string | null; page: string | null; source_id: string; width: number | null; height: number | null; seconds: number | null };
+type Source = {
+  name: 'pexels' | 'pixabay';
+  /** True when files must be copied into our own storage before use. */
+  copy: boolean;
+  photos(query: string, want: number): Promise<Found[]>;
+  videos(query: string, want: number): Promise<Found[]>;
+};
+
+// --- Pexels -----------------------------------------------------------------
 
 /** A portrait crop big enough for a 1080-wide post. */
 function photoUrl(src: Record<string, string> | undefined): string | null {
@@ -110,31 +126,105 @@ function photoUrl(src: Record<string, string> | undefined): string | null {
   return portrait ?? src?.large2x ?? src?.large ?? null;
 }
 
-async function searchPhotos(key: string, query: string, want: number): Promise<Found[]> {
-  const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&orientation=portrait&per_page=${Math.min(30, want + 6)}`, { headers: { Authorization: key }, signal: AbortSignal.timeout(20_000) });
-  if (!res.ok) throw new Error(`Pexels answered ${res.status}`);
-  const photos = ((await res.json()).photos ?? []) as any[];
-  return photos
-    .map((p): Found | null => {
-      const url = photoUrl(p.src);
-      return url ? { kind: 'photo', url, thumb: p.src?.medium ?? p.src?.small ?? null, credit: p.photographer ? String(p.photographer).slice(0, 80) : null, page: p.url ?? null, source_id: String(p.id), width: p.width ?? null, height: p.height ?? null, seconds: null } : null;
-    })
-    .filter((x): x is Found => Boolean(x));
+const pexels = (key: string): Source => ({
+  name: 'pexels',
+  copy: false,
+  async photos(query, want) {
+    const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&orientation=portrait&per_page=${Math.min(30, want + 6)}`, { headers: { Authorization: key }, signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error(`Pexels answered ${res.status}`);
+    const photos = ((await res.json()).photos ?? []) as any[];
+    return photos
+      .map((p): Found | null => {
+        const url = photoUrl(p.src);
+        return url ? { kind: 'photo', url, thumb: p.src?.medium ?? p.src?.small ?? null, credit: p.photographer ? String(p.photographer).slice(0, 80) : null, page: p.url ?? null, source_id: String(p.id), width: p.width ?? null, height: p.height ?? null, seconds: null } : null;
+      })
+      .filter((x): x is Found => Boolean(x));
+  },
+  async videos(query, want) {
+    const res = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&orientation=portrait&per_page=${Math.min(30, want + 6)}`, { headers: { Authorization: key }, signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error(`Pexels answered ${res.status}`);
+    const videos = ((await res.json()).videos ?? []) as any[];
+    return videos
+      .filter((v) => v.duration >= 6 && v.duration <= 90)
+      .map((v): Found | null => {
+        // The smallest file that is still at least 1280 px tall (the same rule as the reel renderer).
+        const files = ((v.video_files ?? []) as any[]).filter((f) => f.file_type === 'video/mp4' && f.height >= f.width).sort((a, b) => a.height - b.height);
+        const file = files.find((f) => f.height >= 1280) ?? files[files.length - 1];
+        return file?.link ? { kind: 'video', url: file.link, thumb: v.image ?? null, credit: v.user?.name ? String(v.user.name).slice(0, 80) : null, page: v.url ?? null, source_id: String(v.id), width: file.width ?? null, height: file.height ?? null, seconds: Math.round(v.duration) } : null;
+      })
+      .filter((x): x is Found => Boolean(x));
+  },
+});
+
+// --- Pixabay ----------------------------------------------------------------
+// Docs: pixabay.com/api/docs. 100 requests a minute; photo addresses expire,
+// so photos are copied (see keep()); "show where the images are from" → the
+// credit reads "Name / Pixabay" and the admin library names the source.
+
+const MAX_CLIP_BYTES = 45_000_000;
+const pixabayCredit = (user: unknown) => `${String(user ?? '').slice(0, 60) || 'Pixabay'} / Pixabay`.replace(/^Pixabay \/ Pixabay$/, 'Pixabay');
+
+const pixabay = (key: string): Source => ({
+  name: 'pixabay',
+  copy: true,
+  async photos(query, want) {
+    const res = await fetch(`https://pixabay.com/api/?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query.slice(0, 100))}&image_type=photo&orientation=vertical&safesearch=true&min_height=1200&per_page=${Math.max(3, Math.min(40, want + 8))}`, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error(`Pixabay answered ${res.status}`);
+    const hits = ((await res.json()).hits ?? []) as any[];
+    return hits
+      .filter((h) => h.largeImageURL && /\.jpe?g(\?|$)/i.test(String(h.largeImageURL)))
+      .map((h): Found => ({ kind: 'photo', url: h.largeImageURL, thumb: null, credit: pixabayCredit(h.user), page: h.pageURL ?? null, source_id: String(h.id), width: h.imageWidth ?? null, height: h.imageHeight ?? null, seconds: null }));
+  },
+  async videos(query, want) {
+    const res = await fetch(`https://pixabay.com/api/videos/?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query.slice(0, 100))}&video_type=film&safesearch=true&per_page=${Math.max(3, Math.min(50, want * 4 + 8))}`, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error(`Pixabay answered ${res.status}`);
+    const hits = ((await res.json()).hits ?? []) as any[];
+    const found = hits
+      .filter((h) => h.duration >= 6 && h.duration <= 90 && h.videos)
+      .map((h): (Found & { upright: boolean }) | null => {
+        const files = (['tiny', 'small', 'medium', 'large'] as const).map((k) => h.videos[k]).filter((f: any) => f?.url && f.width && f.height && (!f.size || f.size <= MAX_CLIP_BYTES)) as any[];
+        if (!files.length) return null;
+        const upright = files[0].height > files[0].width;
+        // Upright: the smallest file at least 1280 px tall. Wide: at least 1080 px tall, because the reel keeps only the middle of it.
+        const need = upright ? 1280 : 1080;
+        const file = files.find((f) => f.height >= need) ?? (upright ? files[files.length - 1] : null);
+        if (!file) return null;
+        return { kind: 'video', url: file.url, thumb: file.thumbnail ?? h.videos.tiny?.thumbnail ?? null, credit: pixabayCredit(h.user), page: h.pageURL ?? null, source_id: String(h.id), width: file.width, height: file.height, seconds: Math.round(h.duration), upright };
+      })
+      .filter((x): x is Found & { upright: boolean } => Boolean(x));
+    // Pixabay can't be asked for upright clips only, so they are put first here.
+    return found.sort((a, b) => Number(b.upright) - Number(a.upright)).map(({ upright: _u, ...f }) => f);
+  },
+});
+
+/** Copy a picture into this project's storage (social-images/library/…) and return its public address. */
+async function keep(service: Service, from: string, path: string): Promise<string | null> {
+  try {
+    const res = await fetch(from, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) return null;
+    const type = (res.headers.get('content-type') ?? '').split(';')[0].trim();
+    if (!/^image\/jpe?g$/.test(type)) return null;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.length < 5_000 || bytes.length > 5_000_000) return null;
+    const { error } = await service.storage.from('social-images').upload(path, bytes, { contentType: 'image/jpeg', upsert: true, cacheControl: '31536000' });
+    if (error) return null;
+    return service.storage.from('social-images').getPublicUrl(path).data.publicUrl as string;
+  } catch {
+    return null;
+  }
 }
 
-async function searchVideos(key: string, query: string, want: number): Promise<Found[]> {
-  const res = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&orientation=portrait&per_page=${Math.min(30, want + 6)}`, { headers: { Authorization: key }, signal: AbortSignal.timeout(20_000) });
-  if (!res.ok) throw new Error(`Pexels answered ${res.status}`);
-  const videos = ((await res.json()).videos ?? []) as any[];
-  return videos
-    .filter((v) => v.duration >= 6 && v.duration <= 90)
-    .map((v): Found | null => {
-      // The smallest file that is still at least 1280 px tall (the same rule as the reel renderer).
-      const files = ((v.video_files ?? []) as any[]).filter((f) => f.file_type === 'video/mp4' && f.height >= f.width).sort((a, b) => a.height - b.height);
-      const file = files.find((f) => f.height >= 1280) ?? files[files.length - 1];
-      return file?.link ? { kind: 'video', url: file.link, thumb: v.image ?? null, credit: v.user?.name ? String(v.user.name).slice(0, 80) : null, page: v.url ?? null, source_id: String(v.id), width: file.width ?? null, height: file.height ?? null, seconds: Math.round(v.duration) } : null;
-    })
-    .filter((x): x is Found => Boolean(x));
+/** Make a found item usable for good: photos (and clip covers) from a "copy" source go into our storage. */
+async function settle(service: Service, source: Source, code: string, f: Found): Promise<Found | null> {
+  if (!source.copy) return f;
+  const base = `library/${code}/${source.name}-${f.source_id}`;
+  if (f.kind === 'photo') {
+    const url = await keep(service, f.url, `${base}.jpg`);
+    return url ? { ...f, url, thumb: url } : null;
+  }
+  // A clip may be linked directly; only its cover picture is copied (the clip still works without one).
+  const thumb = f.thumb ? await keep(service, f.thumb, `${base}-cover.jpg`) : null;
+  return { ...f, thumb };
 }
 
 /** What to search for, per country: people in its best-known city first, then the place itself. */
@@ -159,16 +249,24 @@ export async function runMedia(service: Service, force: boolean): Promise<string
     if (force || !ok) await service.rpc('pipeline_finished', { p_kind: 'media', p_ok: ok, p_summary: note, p_detail: null });
     return note;
   };
-  const key = Deno.env.get('PEXELS_API_KEY') ?? '';
-  if (!key) return finish(false, 'Photo and clip library: add the secret PEXELS_API_KEY to this function (Supabase → Edge Functions → Secrets). A free key comes from pexels.com/api.');
+  const pixabayKey = Deno.env.get('PIXABAY_API_KEY') ?? '';
+  const pexelsKey = Deno.env.get('PEXELS_API_KEY') ?? '';
+  const source = pixabayKey ? pixabay(pixabayKey) : pexelsKey ? pexels(pexelsKey) : null;
+  if (!source) return finish(false, 'Photo and clip library: add the secret PIXABAY_API_KEY to this function (Supabase → Edge Functions → Secrets). The key is free: log in at pixabay.com and open pixabay.com/api/docs — it is shown there.');
+  const started = Date.now();
+  /** Copying files takes time; stop early enough to finish inside one run. */
+  const outOfTime = () => Date.now() - started > 100_000;
 
-  const { data: existing, error } = await service.from('social_media').select('code, kind, source_id').limit(8000);
+  const { data: existing, error } = await service.from('social_media').select('code, kind, source, source_id, query, created_at').limit(8000);
   if (error) return finish(false, 'Photo and clip library: run the migration 20261127090000_control_room_cvs_media.sql first.');
   const have = new Map<string, number>();
   const seen = new Set<string>();
-  for (const r of (existing ?? []) as { code: string; kind: string; source_id: string | null }[]) {
+  // Searches already made in the last 24 hours aren't repeated (the sites ask for that).
+  const asked = new Set<string>();
+  for (const r of (existing ?? []) as { code: string; kind: string; source: string; source_id: string | null; query: string | null; created_at: string }[]) {
     have.set(`${r.code}:${r.kind}`, (have.get(`${r.code}:${r.kind}`) ?? 0) + 1);
-    if (r.source_id) seen.add(`${r.kind}:${r.source_id}`);
+    if (r.source_id) seen.add(`${r.source}:${r.kind}:${r.source_id}`);
+    if (r.query && Date.now() - Date.parse(r.created_at) < 24 * 3_600_000) asked.add(`${r.source}:${r.kind}:${r.query}`);
   }
 
   // Which countries: the ones jobs are collected from, the program's focus, and every country with a known city.
@@ -179,27 +277,40 @@ export async function runMedia(service: Service, force: boolean): Promise<string
   let photos = 0;
   let clips = 0;
   const touched = new Set<string>();
+  /** Country-and-kind pairs still below their target after this run. */
+  let short = 0;
   const problems: string[] = [];
   const budget = force ? MAX_REQUESTS : 24;
 
   for (const code of codes) {
-    if (requests >= budget) break;
+    if (requests >= budget || outOfTime()) break;
     const q = queriesFor(code);
     for (const kind of ['photo', 'video'] as const) {
       const target = code === ANY ? (kind === 'photo' ? PHOTOS_ANY : CLIPS_ANY) : kind === 'photo' ? PHOTOS_PER_COUNTRY : CLIPS_PER_COUNTRY;
       let missing = target - (have.get(`${code}:${kind}`) ?? 0);
-      for (const query of kind === 'photo' ? q.photos : q.videos) {
-        if (missing <= 0 || requests >= budget) break;
+      const queries = kind === 'photo' ? q.photos : q.videos;
+      // A share per search, so one search term doesn't fill the whole country with look-alikes.
+      const perQuery = Math.max(3, Math.ceil(target / queries.length) + 1);
+      for (const query of queries) {
+        if (missing <= 0 || requests >= budget || outOfTime()) break;
+        if (asked.has(`${source.name}:${kind}:${query}`)) continue;
+        asked.add(`${source.name}:${kind}:${query}`);
         requests++;
         try {
-          const found = (kind === 'photo' ? await searchPhotos(key, query, missing) : await searchVideos(key, query, missing)).filter((f) => !seen.has(`${f.kind}:${f.source_id}`)).slice(0, missing);
+          const hits = (kind === 'photo' ? await source.photos(query, missing) : await source.videos(query, missing)).filter((f) => !seen.has(`${source.name}:${f.kind}:${f.source_id}`)).slice(0, Math.min(missing, perQuery));
+          // Five at a time: photos from a "copy" source are fetched and stored here.
+          const found: Found[] = [];
+          for (let at = 0; at < hits.length && !outOfTime(); at += 5) {
+            const done = await Promise.all(hits.slice(at, at + 5).map((f) => settle(service, source, code, f)));
+            found.push(...done.filter((x): x is Found => Boolean(x)));
+          }
           if (!found.length) continue;
           const { error: insErr } = await service.from('social_media').upsert(
-            found.map((f) => ({ code, kind: f.kind, url: f.url, thumb: f.thumb, credit: f.credit, page: f.page, query, source: 'pexels', source_id: f.source_id, width: f.width, height: f.height, seconds: f.seconds })),
+            found.map((f) => ({ code, kind: f.kind, url: f.url, thumb: f.thumb, credit: f.credit, page: f.page, query, source: source.name, source_id: f.source_id, width: f.width, height: f.height, seconds: f.seconds })),
             { onConflict: 'source,kind,source_id', ignoreDuplicates: true }
           );
           if (insErr) throw new Error(insErr.message);
-          for (const f of found) seen.add(`${f.kind}:${f.source_id}`);
+          for (const f of found) seen.add(`${source.name}:${f.kind}:${f.source_id}`);
           missing -= found.length;
           if (kind === 'photo') photos += found.length;
           else clips += found.length;
@@ -207,16 +318,19 @@ export async function runMedia(service: Service, force: boolean): Promise<string
         } catch (e) {
           problems.push(e instanceof Error ? e.message : 'search failed');
           // A refused key or a rate limit won't get better on the next query.
-          if (/40[13]|429/.test(problems[problems.length - 1])) requests = budget;
+          if (/40[013]|429/.test(problems[problems.length - 1])) requests = budget;
         }
       }
+      if (missing > 0) short++;
     }
   }
 
   if (!photos && !clips) {
     if (problems.length) return finish(false, `Photo and clip library: nothing added — ${problems[0]}.`);
     await service.from('social_program').update({ media_at: new Date().toISOString() }).eq('id', true);
-    return force ? finish(true, 'Photo and clip library: already full for every country.') : null;
+    if (!force) return null;
+    return finish(true, short ? 'Photo and clip library: nothing new right now. The searches for the countries that are still short were already made today — the sites ask not to repeat a search within 24 hours. Press again tomorrow.' : 'Photo and clip library: already full for every country.');
   }
-  return finish(true, `Photo and clip library: added ${photos} ${photos === 1 ? 'photo' : 'photos'} and ${clips} ${clips === 1 ? 'clip' : 'clips'} for ${touched.size} ${touched.size === 1 ? 'country' : 'countries'}${requests >= budget ? ' — more next time' : ''}.`);
+  const more = requests >= budget || outOfTime() ? ' — press again for more' : short ? ' — some countries are still short; more can be found tomorrow' : '';
+  return finish(true, `Photo and clip library: added ${photos} ${photos === 1 ? 'photo' : 'photos'} and ${clips} ${clips === 1 ? 'clip' : 'clips'} for ${touched.size} ${touched.size === 1 ? 'country' : 'countries'}${more} (from ${source.name === 'pixabay' ? 'Pixabay' : 'Pexels'}).`);
 }

@@ -7,6 +7,7 @@ import { ProgramPanel } from './social/ProgramPanel';
 import { UpNext } from './social/UpNext';
 import { StrategyPanel } from './social/StrategyPanel';
 import { IdeasPanel } from './social/IdeasPanel';
+import { MediaLibrary } from './social/MediaLibrary';
 import { NewsDesk } from './social/NewsDesk';
 import { CampaignsPanel } from './social/CampaignsPanel';
 import { PostCard } from './social/PostCard';
@@ -17,6 +18,7 @@ import { PostCard } from './social/PostCard';
 //   Up next         everything about to go out, with the time left.
 //   Strategy        the mix of themes, posts a day, timing, the rules.
 //   Content ideas   every kind of post the program can make; try one.
+//   Photos & clips  real photos and videos per country, filled from Pixabay or Pexels.
 //   News desk       "X announced Y" — items you add, posted with their source.
 //   Published       what went out, and the run log.
 //   Campaigns       job feeds set up by hand (pause while the program runs).
@@ -24,7 +26,8 @@ import { PostCard } from './social/PostCard';
 //   Manual image    draw a vacancy image yourself.
 //
 // Tables: migrations 20261103090000_social_publishing.sql … and
-// 20261123090000_social_program.sql. Planned and published by the
+// 20261123090000_social_program.sql, 20261127090000_control_room_cvs_media.sql
+// (the look, the signature, the gap between networks, the photo library). Planned and published by the
 // auto-pipeline function (social.ts, program.ts).
 
 const SECRETS: Record<Platform, string> = {
@@ -35,7 +38,7 @@ const SECRETS: Record<Platform, string> = {
   telegram: 'TELEGRAM_BOT_TOKEN (from @BotFather) and TELEGRAM_CHAT_ID (your channel, e.g. @madevisacom). Add the bot as an admin of every channel it posts to',
 };
 
-type Tab = 'next' | 'strategy' | 'ideas' | 'news' | 'published' | 'campaigns' | 'platforms' | 'manual';
+type Tab = 'next' | 'strategy' | 'ideas' | 'media' | 'news' | 'published' | 'campaigns' | 'platforms' | 'manual';
 
 export function SocialSection() {
   const [tab, setTab] = useState<Tab>('next');
@@ -115,6 +118,7 @@ export function SocialSection() {
     ['next', 'Up next', queue.length],
     ['strategy', 'Strategy'],
     ['ideas', 'Content ideas', program ? FORMATS.filter((f) => isFormatOn(f, { formats: program.formats ?? {}, reels: reelsAlive(program) })).length : FORMATS.length],
+    ['media', 'Photos & clips'],
     ['news', 'News desk', newsReady],
     ['published', 'Published', published.filter((p) => p.status === 'published').length],
     ['campaigns', 'Campaigns', campaigns.filter((c) => c.enabled).length],
@@ -155,7 +159,7 @@ export function SocialSection() {
 
       {tab === 'next' && <UpNext posts={queue} campaigns={campaigns} program={program} now={now} onChange={() => void load()} />}
 
-      {tab === 'strategy' && (programMissing || !program || !platforms ? needsProgram : <StrategyPanel key={`${program.running}:${JSON.stringify(program.per_day)}:${JSON.stringify(program.mix)}`} program={program} platforms={platforms} onChange={() => void load()} />)}
+      {tab === 'strategy' && (programMissing || !program || !platforms ? needsProgram : <StrategyPanel key={`${program.running}:${JSON.stringify(program.per_day)}:${JSON.stringify(program.mix)}:${program.gap_min}:${program.look}:${program.host_name}`} program={program} platforms={platforms} onChange={() => void load()} />)}
 
       {tab === 'ideas' &&
         (programMissing || !program || !platforms ? (
@@ -171,6 +175,8 @@ export function SocialSection() {
             }}
           />
         ))}
+
+      {tab === 'media' && (programMissing || !program ? needsProgram : <MediaLibrary program={program} onChange={() => void load()} />)}
 
       {tab === 'news' && (programMissing || !program ? needsProgram : <NewsDesk program={program} posts={posts} onChange={() => void load()} />)}
 

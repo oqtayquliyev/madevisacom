@@ -62,6 +62,8 @@ export function ReelPreview({ post, rendererAlive }: { post: Post; rendererAlive
                 )}{' '}
                 on Pexels{reel.bg_used.query ? ` (“${reel.bg_used.query}”)` : ''}
               </>
+            ) : reel.bg_used?.source === 'library' ? (
+              `footage: ${reel.bg_used.credit ?? 'a clip'} (from Photos & clips)`
             ) : reel.bg_used?.source === 'photo' ? (
               `background: your country photo${reel.bg_used.credit ? ` (${reel.bg_used.credit})` : ''}`
             ) : (
