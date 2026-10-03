@@ -6,6 +6,11 @@
 //   • The full report (every part of the score, what to change, CV checks)
 //     is MadeVisa Pro.
 //
+// A score is remembered for 24 hours for the CV it was worked out with; after
+// that, or with a new CV, it is worked out again. Ads and CVs in another
+// language are compared in English when a translation is available
+// (src/lib/cv/translate.ts).
+//
 // The limit is kept on the server (cv_check(), migration 20261126090000).
 // Before that migration is run, the same rule is kept in this browser so
 // the feature still works.
@@ -15,11 +20,17 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { useMyPlan } from '@/lib/plans';
 import { FREE_DAILY_CHECKS } from '@/lib/pricing';
-import { parseJob, type JobInput } from '@/lib/cv/jobProfile';
+import { parseJob, type JobInput, type JobProfile } from '@/lib/cv/jobProfile';
 import { matchCv, type MatchResult } from '@/lib/cv/match';
 import { useCv, type StoredCv } from '@/lib/cv/store';
+import { cvInEnglish, isEnglish, jobsInEnglish, type EnglishCv } from '@/lib/cv/translate';
+import { stripHtml } from '@/lib/cv/text';
+import { topScore } from '@/lib/cv/topMatches';
 
-type Saved = { score: number; unlocked: boolean; day: string };
+type Saved = { score: number; unlocked: boolean; day: string; /** When the score was worked out (ms). */ at?: number };
+/** How long a score is kept before it is worked out again. */
+export const SCORE_TTL_MS = 24 * 60 * 60 * 1000;
+const fresh = (s: Saved | undefined | null): s is Saved => Boolean(s && Date.now() - (s.at ?? 0) < SCORE_TTL_MS);
 type Book = { cvAt: string; jobs: Record<string, Saved> };
 
 const KEY = 'mv:cvChecks';
@@ -107,7 +118,7 @@ async function recordCheck(jobKey: string, score: number, cv: StoredCv, userId: 
       quotaMemo = { userId, at: Date.now(), used: localUsedToday() + (unlocked && !before?.unlocked ? 1 : 0) };
     }
   }
-  book.jobs[jobKey] = { score, unlocked, day: unlocked && !before?.unlocked ? today() : before?.day ?? today() };
+  book.jobs[jobKey] = { score, unlocked, day: unlocked && !before?.unlocked ? today() : before?.day ?? today(), at: Date.now() };
   writeBook(book);
   pingQuota();
   return unlocked;
@@ -138,24 +149,61 @@ export function useJobMatch(jobKey: string | null, job: JobInput | null): JobMat
   const quota = useCheckQuota();
   const [checked, setChecked] = useState<Saved | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The ad and the CV as they are compared — in English when either was translated. */
+  const [prep, setPrep] = useState<{ for: string; job: JobProfile; me: EnglishCv } | null>(null);
+  const userId = user?.id ?? null;
+  const prepKey = cv && jobKey && job ? `${cv.at}:${jobKey}:${userId ?? ''}:${job.description.length}` : null;
 
-  // A result from an earlier visit with the same CV is shown straight away.
+  // A result from the last 24 hours with the same CV is shown straight away.
   useEffect(() => {
-    setChecked(cv && jobKey ? readBook(cv.at).jobs[jobKey] ?? null : null);
+    const saved = cv && jobKey ? readBook(cv.at).jobs[jobKey] : null;
+    if (fresh(saved)) return setChecked(saved);
+    // One of "the jobs you match most": its score is known already, so it is shown
+    // without a press. Missing skills still open the usual way (3 jobs a day, free).
+    const known = cv && jobKey ? topScore(cv, jobKey) : null;
+    setChecked(known != null ? { score: known, unlocked: false, day: today(), at: Date.now() } : null);
   }, [cv, jobKey]);
 
-  const jobProfile = useMemo(() => (job && job.description ? parseJob(job) : null), [job]);
-  const result = useMemo(() => (checked && cv && jobProfile ? matchCv(cv.profile, cv.text, jobProfile) : null), [checked, cv, jobProfile]);
+  // Both already in English: nothing to wait for.
+  const direct = useMemo(() => {
+    if (!cv || !job?.description || !prepKey) return null;
+    if (!isEnglish(cv.text) || !isEnglish(stripHtml(job.description))) return null;
+    return { for: prepKey, job: parseJob(job), me: { text: cv.text, profile: cv.profile, state: 'same' } as EnglishCv };
+  }, [cv, job, prepKey]);
+
+  const prepare = useCallback(async () => {
+    if (!cv || !job?.description || !jobKey || !prepKey) return null;
+    if (direct) return direct;
+    const [me, ads] = await Promise.all([cvInEnglish(cv, userId), jobsInEnglish([{ id: jobKey, title: job.title, description: job.description }])]);
+    const ad = ads.get(jobKey);
+    return { for: prepKey, job: parseJob(ad ? { ...job, title: ad.title, description: ad.description } : job), me };
+  }, [cv, job, jobKey, prepKey, direct, userId]);
+
+  // A saved result for an ad or CV in another language: fetch the translation it was scored with.
+  useEffect(() => {
+    if (!checked || direct || !prepKey || prep?.for === prepKey) return;
+    let alive = true;
+    void prepare().then((p) => alive && p && setPrep(p));
+    return () => {
+      alive = false;
+    };
+  }, [checked, direct, prepKey, prep, prepare]);
+
+  const ready = direct ?? (prep && prep.for === prepKey ? prep : null);
+  const result = useMemo(() => (checked && ready ? matchCv(ready.me.profile, ready.me.text, ready.job) : null), [checked, ready]);
 
   const check = useCallback(async () => {
-    if (!cv || !jobKey || !jobProfile || busy) return;
+    if (!cv || !jobKey || !job?.description || busy) return;
     setBusy(true);
-    const r = matchCv(cv.profile, cv.text, jobProfile);
+    const p = ready ?? (await prepare().catch(() => null));
+    if (!p) return setBusy(false);
+    const r = matchCv(p.me.profile, p.me.text, p.job);
     // Long enough to see that something was read; the maths itself is instant.
-    const [unlocked] = await Promise.all([recordCheck(jobKey, r.score, cv, user?.id ?? null), new Promise((res) => window.setTimeout(res, 900))]);
-    setChecked({ score: r.score, unlocked, day: today() });
+    const [unlocked] = await Promise.all([recordCheck(jobKey, r.score, cv, userId), new Promise((res) => window.setTimeout(res, 900))]);
+    setPrep(p);
+    setChecked({ score: r.score, unlocked, day: today(), at: Date.now() });
     setBusy(false);
-  }, [cv, jobKey, jobProfile, busy, user]);
+  }, [cv, jobKey, job, busy, ready, prepare, userId]);
 
   return {
     cv,
@@ -163,14 +211,15 @@ export function useJobMatch(jobKey: string | null, job: JobInput | null): JobMat
     result,
     unlocked: isPro || Boolean(checked?.unlocked && user),
     full: isPro,
-    busy,
+    busy: busy || Boolean(checked && !ready),
     quota,
     check,
   };
 }
 
-/** Score remembered for a job with the current CV (for lists), or null. */
+/** Score worked out for a job with the current CV in the last 24 hours (for lists), or null. */
 export function savedScore(cv: StoredCv | null, jobKey: string): number | null {
   if (!cv) return null;
-  return readBook(cv.at).jobs[jobKey]?.score ?? null;
+  const saved = readBook(cv.at).jobs[jobKey];
+  return fresh(saved) ? saved.score : null;
 }

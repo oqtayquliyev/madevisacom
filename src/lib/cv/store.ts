@@ -27,7 +27,7 @@ export type StoredCv = {
 };
 
 const KEY = 'mv:cv';
-const PROFILE_VERSION = 2;
+const PROFILE_VERSION = 3;
 
 /** `synced`: the account whose CV has been looked up (so "no CV" is a fact, not "not loaded yet"). */
 type State = { cv: StoredCv | null; loading: boolean; synced: string | null };

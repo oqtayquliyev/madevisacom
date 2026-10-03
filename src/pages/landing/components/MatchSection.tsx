@@ -21,7 +21,7 @@ export function MatchSection() {
             Next to Apply on every job: one press compares your CV with the ad — skills, role, years, languages, education — and shows what’s missing. From your CV and from your application.
           </p>
           <div className="mt-6 max-w-md">
-            <CvUpload />
+            <CvUpload onDone={() => nav('/cv-match')} />
             {cv && (
               <button onClick={() => nav('/jobs')} className="mt-3 inline-flex items-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-[15px] font-bold text-white hover:bg-brand-700">
                 Check a job <ArrowRight className="h-4 w-4" />

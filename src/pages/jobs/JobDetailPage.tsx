@@ -13,6 +13,7 @@ import { jobs as curatedJobs } from '@/data/jobs';
 import { MatchButton } from '@/components/cv/MatchButton';
 import { MatchPanel } from '@/components/cv/MatchPanel';
 import { ApplySheet } from '@/components/cv/ApplySheet';
+import { OtherMatchesPopup, RecommendedJobs } from '@/components/cv/TopMatches';
 import { useJobMatch } from '@/lib/cv/checks';
 import type { JobInput } from '@/lib/cv/jobProfile';
 import { SalaryCheck } from '@/components/jobs/SalaryCheck';
@@ -357,6 +358,8 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
       {matchKey && !closed && <ApplySheet jobKey={matchKey} company={job.company} match={match} doc={docFor} armed={applied} onAuth={onAuth} />}
+      {/* One of your best matches? A small card in the corner lists the others. Not while the apply sheet is up. */}
+      {matchKey && !applied && <OtherMatchesPopup currentId={matchKey} onAuth={onAuth} />}
 
       <section className={`${closed ? 'bg-ink-500' : 'bg-brand-700'} text-white transition-colors`}>
         <div className="mx-auto max-w-4xl px-5 pb-10 pt-6 sm:px-8 sm:pb-14 sm:pt-8">
@@ -607,6 +610,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
           )}
         </div>
 
+
+        {/* Other jobs this CV matches best (shows only once a CV is on file). */}
+        <RecommendedJobs currentId={matchKey} onAuth={onAuth} className="mt-6" />
 
         {raw?.publisher_id && (
           <JobInsights

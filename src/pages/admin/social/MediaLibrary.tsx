@@ -3,7 +3,7 @@ import { Eye, EyeOff, ExternalLink, ImageIcon, Loader2, Play, Plus, Sparkles, Tr
 import { supabase } from '@/lib/supabase';
 import { visaGuides } from '@/data/visa';
 import { CircleFlag } from '@/components/common/CircleFlag';
-import { btn, btnPrimary, card, input, inputAuto, when, type ProgramRow } from './shared';
+import { btnPrimary, card, input, inputAuto, when, type ProgramRow } from './shared';
 
 // Social media → Photos & clips.
 //

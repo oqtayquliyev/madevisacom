@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, FileText, Loader2, RefreshCw, Search, ShieldCheck, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, FileText, Languages, Loader2, RefreshCw, Search, ShieldCheck, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { EDU_NAME, type CvProfile } from '@/lib/cv/cvProfile';
 import { LEVEL_NAME } from '@/lib/cv/languages';
@@ -47,6 +47,84 @@ type Detail = {
   checks: { job_key: string; score: number; at: string; title: string | null; company: string | null }[];
 };
 type Limits = { guests_today: number; guests_blocked_today: number };
+/** translate_status(), migration 20261128090000. */
+type Translation = { enabled: boolean; monthly_chars: number | null; provider: 'google' | 'azure' | null; last_error: string | null; used: number; calls: number; jobs: number; cvs: number };
+const FREE_CHARS = { google: 480_000, azure: 1_900_000 } as const;
+
+/** Translation of ads and CVs in other languages: what it has used this month, the switch and the limit. */
+function TranslationCard() {
+  const [t, setT] = useState<Translation | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [cap, setCap] = useState('');
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.rpc('translate_status');
+    if (!error && data) setT(data as Translation);
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  if (!t) return null; // migration 20261128090000 not run yet
+  const limit = t.monthly_chars ?? (t.provider ? FREE_CHARS[t.provider] : FREE_CHARS.google);
+  const share = Math.min(100, Math.round((100 * t.used) / Math.max(1, limit)));
+  const configure = async (args: { p_enabled?: boolean; p_monthly_chars?: number; p_reset_cap?: boolean }) => {
+    setBusy(true);
+    const { data, error } = await supabase.rpc('translate_configure', args);
+    setBusy(false);
+    if (!error && data) setT(data as Translation);
+  };
+  return (
+    <section aria-label="Translation" className="rounded-xl border border-ink-200 bg-white p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="flex items-center gap-2 text-sm font-bold text-ink-950">
+          <Languages className="h-4 w-4 text-ink-400" /> Translation for matching
+        </p>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${!t.provider ? 'bg-amber-100 text-amber-900' : t.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-ink-100 text-ink-600'}`}>
+          {!t.provider ? 'Not used yet' : t.enabled ? `On · ${t.provider === 'google' ? 'Google' : 'Azure'}` : 'Off'}
+        </span>
+        <label className="ml-auto flex items-center gap-2 text-xs font-medium text-ink-700">
+          <input type="checkbox" checked={t.enabled} disabled={busy} onChange={(e) => void configure({ p_enabled: e.target.checked })} /> Translate
+        </label>
+      </div>
+      <p className="mt-1 text-xs leading-5 text-ink-600">
+        Job ads and CVs written in another language are translated into English once, then compared. {t.jobs.toLocaleString('en-US')} job {t.jobs === 1 ? 'ad' : 'ads'} and {t.cvs.toLocaleString('en-US')} {t.cvs === 1 ? 'CV' : 'CVs'} translated so far.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <div className="min-w-[200px] flex-1">
+          <div className="h-2 overflow-hidden rounded-full bg-ink-100">
+            <div className={`h-full rounded-full ${share >= 90 ? 'bg-amber-500' : 'bg-brand-600'}`} style={{ width: `${share}%` }} />
+          </div>
+          <p className="mt-1 text-[11px] tabular-nums text-ink-500">
+            {t.used.toLocaleString('en-US')} of {limit.toLocaleString('en-US')} characters this month{t.monthly_chars == null ? ' (the free allowance)' : ''}. When it is used up, nothing more is translated until next month.
+          </p>
+        </div>
+        <form
+          className="flex items-center gap-1.5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const n = Math.round(Number(cap.replace(/[^0-9]/g, '')));
+            if (n > 0) void configure({ p_monthly_chars: n }).then(() => setCap(''));
+          }}
+        >
+          <input value={cap} onChange={(e) => setCap(e.target.value)} inputMode="numeric" placeholder="New monthly limit" className="w-36 rounded-md border border-ink-200 px-2.5 py-1.5 text-xs" aria-label="Monthly character limit" />
+          <button disabled={busy || !cap} className="rounded-md border border-ink-200 px-2.5 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50">
+            Set
+          </button>
+          {t.monthly_chars != null && (
+            <button type="button" disabled={busy} onClick={() => void configure({ p_reset_cap: true })} className="rounded-md px-2 py-1.5 text-xs font-semibold text-brand-700 hover:underline">
+              Back to free allowance
+            </button>
+          )}
+        </form>
+      </div>
+      {!t.provider && (
+        <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+          Nothing has been translated yet. To switch it on, add <span className="font-mono">GOOGLE_TRANSLATE_API_KEY</span> (or <span className="font-mono">AZURE_TRANSLATOR_KEY</span> and <span className="font-mono">AZURE_TRANSLATOR_REGION</span>) as a secret and deploy the function: <span className="font-mono">supabase functions deploy translate --no-verify-jwt</span>. Until then ads and CVs are compared in their own language.
+        </p>
+      )}
+      {t.last_error && <p className="mt-2 rounded-md bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-800">Last problem: {t.last_error}</p>}
+    </section>
+  );
+}
 
 const PAGE = 25;
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
@@ -296,6 +374,7 @@ export function CvsSection() {
         </p>
       </div>
       {err && <p className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-800">{err}</p>}
+      <TranslationCard />
 
       {!rows ? (
         <p className="flex items-center gap-2 text-sm text-ink-500">

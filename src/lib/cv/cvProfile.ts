@@ -20,7 +20,7 @@ export type Seniority = 0 | 1 | 2 | 3 | 4 | 5;
 export type CvLanguage = { code: string; name: string; level: number | null };
 
 export type CvProfile = {
-  v: 2;
+  v: 3;
   words: number;
   /** Skill ids → times mentioned. */
   skills: Record<string, number>;
@@ -138,12 +138,33 @@ export function seniorityOf(title: string): Seniority | null {
 }
 
 /** Lines that read like a job title, most recent first (CVs list newest first). */
+// A line that says what someone DID is a duty, not a title — even when a PDF dropped
+// its bullet mark: "Mentored 4 engineers", "Built billing services in Java",
+// "Deployed with Docker on AWS". Titles that start with an -ed / -ing word are kept
+// when that word is a known one ("Registered Nurse", "Engineering Manager").
+const TITLE_ED = /^(?:certified|registered|licensed|chartered|qualified|accredited|embedded|advanced|applied|integrated|distributed|automated|skilled|specialized|specialised|experienced|associated|managed|united|limited)$/i;
+const DUTY_VERB =
+  /^(?:led|built|ran|wrote|cut|won|grew|drove|oversaw|taught|sold|made|set|kept|held|did|was|were|am|is|responsible|worked|work|works|manage|manages|develop|develops|design|designs|lead|leads|create|creates|build|builds|maintain|maintains|support|supports|provide|provides|ensure|ensures|collaborate|perform|performs|conduct|conducts|handle|handles|assist|assists|prepare|prepares|coordinate|coordinates|implement|implements|deliver|delivers|analyse|analyze|spearheaded|own|owns|helped|help)$/i;
+function isDuty(text: string): boolean {
+  const words = text.split(/\s+/);
+  const first = words[0]?.replace(/[^A-Za-z]/g, '') ?? '';
+  if (!first) return false;
+  if (DUTY_VERB.test(first)) return words.length > 1 && !/^(?:lead|work|support|design)$/i.test(first) ? true : words.length > 3;
+  if (/[a-z]{3,}ed$/i.test(first) && !TITLE_ED.test(first)) return true;
+  // "Mentored 4 engineers", "Cut costs by 18%": a count or a share is a result, not a role ("Engineer II" has no digit).
+  if (/\d/.test(text.replace(/\b(?:19|20)\d{2}\b/g, ''))) return true;
+  // "…with Docker", "…using SAP", "…across 3 teams": how the work was done.
+  if (words.length >= 4 && /\s(?:with|using|by|from|into|across|through|via)\s/i.test(text)) return true;
+  return false;
+}
+
 function findTitles(lines: { text: string; section: Section }[]): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   const consider = (raw: string) => {
     // A sentence is a duty, not a title.
     if (/[.!?]$/.test(raw) || raw.split(/\s+/).length > 14) return;
+    if (isDuty(raw)) return;
     // "Senior Data Analyst | Acme GmbH | 2019 – 2022" → the part that is the title.
     const parts = raw.split(/\s+[|•·@]\s+|\s+[-–—]\s+|\s+at\s+|,\s+|\t+|\s{3,}/i).map((p) => p.trim());
     for (const p of parts) {
@@ -235,7 +256,7 @@ export function parseCv(text: string): CvProfile {
   const seniority = (top != null ? Math.max(top, Math.min(byYears, 3)) : byYears) as Seniority;
 
   return {
-    v: 2,
+    v: 3,
     words,
     skills,
     titles,

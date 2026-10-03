@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { nav } from '@/lib/pageLayout';
 import { SOON_VIEWS } from '@/components/common/SoonChip';
 import { SponsoredAdsSection } from './SponsoredAdsSection';
 import { createPortal } from 'react-dom';
@@ -480,7 +481,7 @@ export function LandingHero(_props: LandingHeroProps) {
             </p>
 
             <div className="mt-5 max-w-md sm:mt-7">
-              <CvUpload tone="light" compact />
+              <CvUpload tone="light" compact onDone={() => nav('/cv-match')} />
               {hasCv && (
                 <a
                   href="/jobs"
@@ -495,7 +496,7 @@ export function LandingHero(_props: LandingHeroProps) {
                   <Search className="h-4 w-4" /> Open a job and check your match
                 </a>
               )}
-              {!hasCv && <p className="mt-2 text-[12px] text-white/65">Free. Only you can see your CV.</p>}
+              {!hasCv && <p className="mt-2 text-[12px] text-white/65">Free. Your CV is never sent to employers.</p>}
             </div>
 
           </div>

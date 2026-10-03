@@ -22,6 +22,7 @@ import {
 import type { View } from '@/types';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { CvPrompt } from '@/components/cv/CvPrompt';
+import { TopMatchesStrip } from '@/components/cv/TopMatches';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
@@ -971,6 +972,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
 
       <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8">
         <CvPrompt className="mb-6" />
+        <TopMatchesStrip className="mb-6" />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-ink-900">Jobs in demand</h2>
