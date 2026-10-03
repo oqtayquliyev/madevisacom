@@ -7,9 +7,9 @@
 //
 // The strategy in one paragraph: vacancies alone make a feed people mute.
 // So every network gets a mix of seven pillars — fresh jobs, market numbers,
-// visa knowledge, the Visa Plan (the candidate makes the sponsorship offer),
-// proof from real applicants, community posts and news — and never the same
-// kind of post twice in a row. Every post links back to the page on
+// visa knowledge, "your application" (how well a CV matches a job, what is
+// missing from it, and the sponsorship document), proof from real applicants,
+// community posts and news — and never the same kind of post twice in a row. Every post links back to the page on
 // madevisa.com that holds the full answer.
 
 export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'telegram';
@@ -19,10 +19,10 @@ export type Pillar = 'jobs' | 'market' | 'visa' | 'plan' | 'proof' | 'community'
 export type DayPart = 'early' | 'morning' | 'lunch' | 'afternoon' | 'evening' | 'night';
 
 export const PILLARS: Record<Pillar, { name: string; why: string; share: number; color: string }> = {
-  jobs: { name: 'Fresh jobs', why: 'The reason people follow: roles that opened today, straight from career pages.', share: 28, color: '#2563EB' },
+  jobs: { name: 'Fresh jobs', why: 'The reason people follow: roles that opened today, straight from career pages.', share: 26, color: '#2563EB' },
   market: { name: 'Who is hiring', why: 'Countries, companies and roles by the numbers — the posts people share.', share: 17, color: '#0891B2' },
   visa: { name: 'Visa know-how', why: 'Routes, salary rules and timelines with the official source — the posts people save.', share: 17, color: '#7C3AED' },
-  plan: { name: 'Visa Plan', why: 'What only MadeVisa has: you offer sponsorship terms to the company, not the other way round.', share: 14, color: '#DB2777' },
+  plan: { name: 'Your application', why: 'What MadeVisa does for the applicant: how well a CV matches the job, what is missing from it, and the sponsorship document that goes with it.', share: 16, color: '#DB2777' },
   proof: { name: 'Real outcomes', why: 'What actually happened to applicants: replies, silence, interviews. Builds trust.', share: 8, color: '#059669' },
   community: { name: 'Community', why: 'Questions, tips, follow and comment prompts. Grows the account and starts conversations.', share: 10, color: '#D97706' },
   news: { name: 'News', why: 'New programs, rule changes and new articles — timely posts with a source.', share: 6, color: '#DC2626' },
@@ -265,41 +265,76 @@ export const FORMATS: FormatDef[] = [
     platforms: FEED, parts: ['evening', 'night'], weight: 1, cooldown: 240,
   },
 
-  // --- Visa Plan ------------------------------------------------------------------
+  // --- Your application: CV match first, then the sponsorship document -----------
+  {
+    key: 'match_check', pillar: 'plan', name: 'How well does your CV match?',
+    idea: 'The new button next to Apply: one press compares your CV with the ad and gives a score. The score is free on every job.',
+    example: 'Before you apply: how well does your CV actually match this ad?',
+    source: 'CV match', link: '/cv-match', visual: 'Photo with one line, then a card',
+    platforms: FEED, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 40,
+  },
+  {
+    key: 'match_parts', pillar: 'plan', name: 'Where the score comes from',
+    idea: 'The six things the match looks at and what each is worth: skills 40, role 20, experience 15, wording 10, languages 8, education 7.',
+    example: 'What a recruiter’s search sees in your CV, in six parts.',
+    source: 'CV match — how the score works', link: '/cv-match', visual: 'Numbered steps (carousel)',
+    platforms: FEED, parts: ['evening', 'night', 'lunch'], weight: 2, cooldown: 120,
+  },
+  {
+    key: 'match_missing', pillar: 'plan', name: 'The skill your CV forgot',
+    idea: 'Why a skill you have but didn’t write down counts as missing — for the match score and for a recruiter’s search. Free accounts see their missing skills on 3 jobs a day.',
+    example: 'You know Excel. Your CV doesn’t say so. To a recruiter’s search, you don’t.',
+    source: 'CV match — missing skills', link: '/cv-match', visual: 'Big statement',
+    platforms: FEED, parts: ['morning', 'lunch', 'evening'], weight: 2.5, cooldown: 60,
+  },
+  {
+    key: 'cv_fix', pillar: 'plan', name: 'CV fix of the day',
+    idea: 'One concrete thing the CV check looks for — dates on every role, numbers, a skills section, the ad’s own words, a language level — and how to fix it. A different one each time.',
+    example: 'No dates on your roles? Nobody can count your experience.',
+    source: 'CV match — checks on the CV itself', link: '/cv-match', visual: 'Tip card',
+    platforms: FEED, parts: ['morning', 'evening', 'night'], weight: 2.5, cooldown: 30,
+  },
+  {
+    key: 'match_free', pillar: 'plan', name: 'What’s free, what’s Pro',
+    idea: 'Plainly: the score is free on every job; missing skills on 3 jobs a day with a free account; the full report and 50 sponsorship documents a month in Pro.',
+    example: 'What you get without paying, and what the plan adds.',
+    source: 'Pricing', link: '/pricing', visual: 'Fact card',
+    platforms: FEED, parts: ['lunch', 'evening'], weight: 1, cooldown: 240,
+  },
   {
     key: 'plan_flip', pillar: 'plan', name: 'You make the offer',
     idea: 'The core idea in one line: don’t wait for a company to offer sponsorship — hand them a plan that makes it easy to say yes.',
     example: 'Stop asking “do you sponsor visas?”. Send the plan instead.',
     source: 'Visa Plan', link: '/offers', visual: 'Big statement',
-    platforms: FEED, parts: ['lunch', 'evening', 'night'], weight: 2.5, cooldown: 48,
+    platforms: FEED, parts: ['lunch', 'evening', 'night'], weight: 1.5, cooldown: 72,
   },
   {
     key: 'plan_steps', pillar: 'plan', name: 'How a Visa Plan works',
-    idea: 'Three steps: pick the job, choose which costs you’ll share, attach the one-page plan to your application.',
+    idea: 'Three steps: check your match on the job, choose which costs you’ll share, attach the one-page plan to your application. Part of MadeVisa Pro.',
     example: 'A cover letter for the visa. Here’s how it works.',
     source: 'Visa Plan', link: '/offers', visual: 'Numbered steps (carousel)',
-    platforms: FEED, parts: ['evening', 'night', 'lunch'], weight: 2, cooldown: 96,
+    platforms: FEED, parts: ['evening', 'night', 'lunch'], weight: 1, cooldown: 168,
   },
   {
     key: 'plan_employer', pillar: 'plan', name: 'What the employer has to do',
     idea: 'For one country and route: the employer’s actual steps and effort. Most people — and most employers — think it is harder than it is.',
     example: 'What a German employer has to do to hire you: two steps.',
     source: 'Visa guides — the employer’s side of each route', link: '/offers', visual: 'Numbered steps',
-    platforms: FEED, parts: ['morning', 'lunch', 'evening'], weight: 2.5, cooldown: 60,
+    platforms: FEED, parts: ['morning', 'lunch', 'evening'], weight: 1.5, cooldown: 72,
   },
   {
     key: 'plan_costs', pillar: 'plan', name: 'Who pays what',
     idea: 'Which visa costs a candidate may offer to cover, and which the law puts on the employer.',
     example: 'Which visa costs can you offer to pay yourself?',
     source: 'Visa guides — costs per route', link: '/offers', visual: 'Fact card',
-    platforms: FEED, parts: ['lunch', 'evening'], weight: 1.5, cooldown: 120,
+    platforms: FEED, parts: ['lunch', 'evening'], weight: 1, cooldown: 168,
   },
   {
     key: 'jobs_plan', pillar: 'plan', name: 'No visa line in the ad',
-    idea: 'Real roles whose ad doesn’t mention visas, with the pitch: that’s a question nobody asked yet — attach a Visa Plan.',
+    idea: 'Real roles whose ad doesn’t mention visas: check your match first, then the sponsorship document is the missing piece of the application.',
     example: 'The ad doesn’t mention a visa. That isn’t a no.',
-    source: 'Fresh jobs with no visa statement', link: '/offers', visual: 'Company image',
-    platforms: FEED, parts: ['morning', 'lunch', 'evening'], weight: 2, cooldown: 30, fresh: true,
+    source: 'Fresh jobs with no visa statement', link: '/jobs', visual: 'Company image',
+    platforms: FEED, parts: ['morning', 'lunch', 'evening'], weight: 1.5, cooldown: 36, fresh: true,
   },
 
   // --- Real outcomes -----------------------------------------------------------------
@@ -478,7 +513,21 @@ FORMATS.push(
     idea: 'The Visa Plan idea as a reel: the hook, the three steps, “see how it works”.',
     example: 'No visa line in the ad is not a no.',
     source: 'Visa Plan', link: '/offers', visual: 'Reel, about 15 seconds',
-    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 2.5, cooldown: 60, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 1.5, cooldown: 96, needs: REEL_NEEDS,
+  },
+  {
+    key: 'reel_match', pillar: 'plan', name: 'Reel: check your match', video: true,
+    idea: 'Footage of people at work, then the question (“Does your CV match the job?”), the three things you get, and where to try it.',
+    example: 'Does your CV say what the ad asks for?',
+    source: 'CV match', link: '/cv-match', visual: 'Reel, about 14 seconds',
+    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 48, needs: REEL_NEEDS,
+  },
+  {
+    key: 'reel_cvfix', pillar: 'plan', name: 'Reel: one CV fix', video: true,
+    idea: 'One CV mistake and its fix in three screens, over footage of someone working on a laptop.',
+    example: 'Your CV has no numbers. Here’s the fix.',
+    source: 'CV match — checks on the CV itself', link: '/cv-match', visual: 'Reel, about 13 seconds',
+    platforms: REEL_ON, parts: ['morning', 'evening', 'night'], weight: 2.5, cooldown: 40, needs: REEL_NEEDS,
   },
   {
     key: 'reel_news', pillar: 'news', name: 'Reel: news', video: true,
@@ -511,7 +560,16 @@ export type ProgramSettings = {
   focus: string[];
   /** The reel renderer has reported in lately — reel formats are only planned when it has. */
   reels?: boolean;
+  /** Minutes two networks stay apart (default 30). */
+  gap?: number;
+  /** 'photo' = a real photo opens every post, the card follows; 'graphic' = cards only. */
+  look?: 'photo' | 'graphic';
+  /** A real person on the team whose name signs the captions ("— Leyla, MadeVisa"). Empty = no signature. */
+  host?: string;
 };
+
+/** Minutes between two networks' posts unless set otherwise. */
+export const DEFAULT_GAP = 30;
 
 export const DEFAULT_SETTINGS: ProgramSettings = { timezone: 'UTC', autopilot: true, per_day: {}, formats: {}, mix: {}, handles: {}, focus: [] };
 
@@ -534,7 +592,7 @@ export type ReelScene = { url: string; steps: number; step: number; hold: number
 export type ReelLayer = { url: string; at: number; end: number; last: boolean };
 export type ReelRecipe = {
   v: 1;
-  bg: { queries: string[]; cc: string | null; photo: string | null; credit: string | null; fallback: string; salt: number };
+  bg: { queries: string[]; cc: string | null; photo: string | null; credit: string | null; fallback: string; salt: number; /** Clips from the media library, tried before a live stock search. */ clips?: { id: number; url: string; credit: string | null }[] };
   frame: string;
   scenes: ReelScene[];
   layers: ReelLayer[];

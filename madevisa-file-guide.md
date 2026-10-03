@@ -77,6 +77,10 @@ structure and help Claude orient instantly regardless of which page you're editi
 
 **Admin panel** (`/admin`)
 `src/pages/admin/AdminPanelPage.tsx`
+`src/pages/admin/ControlRoom.tsx` — the first tab: the Start / Stop everything button and the last-24-hours numbers
+`src/pages/admin/CvsSection.tsx` — the CVs tab (list, search, open one, download)
+`src/pages/admin/SocialSection.tsx` + `src/pages/admin/social/` — social media: `StrategyPanel.tsx` (mix, look, signature, minutes between posts), `MediaLibrary.tsx` (photos and clips), `ProgramPanel.tsx` (its own Start / Stop)
+`supabase/migrations/20261127090000_control_room_cvs_media.sql` — everything those three need on the server
 `src/lib/admin.ts`
 
 ---

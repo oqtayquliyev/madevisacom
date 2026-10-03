@@ -51,7 +51,7 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
             <p className="mt-1.5 text-[14px] leading-6 text-ink-600">
               Upload your CV once. On every job you get a match score, the skills the ad asks for that your CV doesn’t show, and what to change before you apply.
             </p>
-            <p className="mt-2 text-[12px] text-ink-500">Free. Your CV is read on your device and only you can see it.</p>
+            <p className="mt-2 text-[12px] text-ink-500">Free. Your CV is read on your device and never sent to employers.</p>
           </div>
           <CvUpload />
         </div>

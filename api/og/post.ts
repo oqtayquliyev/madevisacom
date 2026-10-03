@@ -1,7 +1,8 @@
 // GET /api/og/post?t=<template>&size=portrait|square|story&…
 //   → PNG for a social post that isn't a job list: country spotlights, visa
 //     routes, numbers, rankings, steps, myth/fact, news, calls to action.
-//   Templates: hero · stat · rank · card · steps · myth · text · versus · news · cta · grid
+//   Templates: hero · stat · rank · card · steps · myth · text · versus · news · cta · grid · photo
+//   (photo = a real photograph with one line of text; needs img)
 //   Plus t=reel: transparent text layers for Reels (api/_reel.ts).
 //
 // Every text on the image is a URL parameter, so the admin panel can edit it

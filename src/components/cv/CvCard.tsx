@@ -19,7 +19,7 @@ export function CvCard() {
       <CvUpload compact allowRemove className="mt-2" />
       <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-4 text-ink-500">
         <ScanSearch className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        {cv ? 'Used for “Check your match” on every job. Only you can see it.' : 'Add it to see how well you match every job. Only you can see it.'}
+        {cv ? 'Used for “Check your match” on every job. Never sent to employers.' : 'Add it to see how well you match every job. It’s never sent to employers.'}
       </p>
     </div>
   );

@@ -6,14 +6,16 @@
 //  - Each network gets its own number of posts a day, placed in the times of
 //    day that suit it. Every day uses a different set of time windows than
 //    the day before and a different minute inside each window.
-//  - Two networks never post at the same moment (at least ~12 minutes apart),
-//    and avoid the same kind of post within a few hours of each other.
+//  - Two networks never post close together: at least 30 minutes apart (the
+//    gap is a setting), and they avoid the same kind of post within a few
+//    hours of each other.
 //  - The kind of post follows the pillar mix (programCatalog.ts): the pillar
 //    that is furthest behind its share goes next. Never the same format twice
 //    in a row, never twice on one day, and each format rests for its cooldown.
 
 import {
   DAY_PARTS,
+  DEFAULT_GAP,
   FORMATS,
   FORMAT_BY_KEY,
   PILLAR_ORDER,
@@ -110,7 +112,7 @@ export type DayTime = { part: DayPart; minutes: number };
  * `prev` = the windows used the day before (to pick a different set);
  * `taken` = minutes already used by other networks that day (to stay clear of them).
  */
-export function planDay(platform: Platform, key: string, count: number, prev: DayPart[] = [], taken: number[] = [], salt = ''): DayTime[] {
+export function planDay(platform: Platform, key: string, count: number, prev: DayPart[] = [], taken: number[] = [], salt = '', gap = DEFAULT_GAP): DayTime[] {
   if (count <= 0) return [];
   const r = rng(`${platform}|${key}|times|${salt}`);
   const prefs = RHYTHM[platform].parts;
@@ -139,16 +141,26 @@ export function planDay(platform: Platform, key: string, count: number, prev: Da
     .map((w) => ({ part: w.part, minutes: Math.round(w.from + r() * Math.max(1, w.to - w.from - 1)) }))
     .sort((a, b) => a.minutes - b.minutes);
   // Keep clear of the other networks, and of this network's own posts.
+  const own = Math.max(50, gap);
+  const free = (m: number, i: number) => !taken.some((t) => Math.abs(t - m) < gap) && !(i > 0 && m - out[i - 1].minutes < own);
+  const kept: DayTime[] = [];
   for (let i = 0; i < out.length; i++) {
-    for (let guard = 0; guard < 6; guard++) {
-      const clash = taken.some((t) => Math.abs(t - out[i].minutes) < 12);
-      const close = i > 0 && out[i].minutes - out[i - 1].minutes < 50;
-      if (!clash && !close) break;
-      out[i].minutes += close ? 50 - (out[i].minutes - out[i - 1].minutes) + Math.round(r() * 9) : 13 + Math.round(r() * 9);
+    // Move later until the slot is clear of every other network's post and of this network's previous one.
+    for (let guard = 0; guard < 40 && !free(out[i].minutes, i); guard++) {
+      const near = taken.filter((t) => Math.abs(t - out[i].minutes) < gap);
+      const until = near.length ? Math.max(...near) + gap : out[i].minutes;
+      const afterOwn = i > 0 ? out[i - 1].minutes + own : out[i].minutes;
+      out[i].minutes = Math.max(until, afterOwn, out[i].minutes + 1) + Math.round(r() * 6);
     }
-    out[i].minutes = Math.min(out[i].minutes, 23 * 60 + 20);
+    // No room left that day (a very full day): leave this post out rather than break the gap.
+    if (out[i].minutes > 23 * 60 + 20 || !free(out[i].minutes, i)) {
+      out.splice(i, 1);
+      i--;
+      continue;
+    }
+    kept.push(out[i]);
   }
-  return out;
+  return kept;
 }
 
 // --- Which kind of post ------------------------------------------------------------
@@ -264,7 +276,7 @@ export function planRange(o: {
       const have = mine.filter((h) => inDay(h.at));
       if (have.length >= want) continue;
       const prevParts = mine.filter((h) => localTime(h.at, tz).key === addDays(key, -1)).map((h) => localTime(h.at, tz).part).filter((x): x is DayPart => Boolean(x));
-      const times = planDay(p, key, want, prevParts, taken).filter((t) => {
+      const times = planDay(p, key, want, prevParts, taken, '', Math.max(10, Math.min(180, Math.round(Number(o.settings.gap ?? DEFAULT_GAP))))).filter((t) => {
         const at = dayStart + t.minutes * 60_000;
         return at >= notBefore && !have.some((h) => Math.abs(h.at - at) < 75 * 60_000);
       });

@@ -73,6 +73,8 @@ Admin → Plans shows the CV match numbers (CVs uploaded, people checking, who h
 
 ## Not tested against the live services
 
-Checked here: typecheck, lint, build, the scoring on sample CVs and ads, and every screen in a browser with the database simulated. Not run: the SQL file on your real database (it was only checked for syntax), real payments (still by request, as before), and CVs with unusual layouts (two columns, tables) — try a few of your own.
+Checked here: typecheck, lint, build, the scoring on sample CVs and ads, every screen in a browser with the database simulated, and the SQL file on a local PostgreSQL 16 with all 93 of your migrations run in order (Supabase’s own parts — sign-in, storage, timers — were stand-ins). Not run: the SQL file on your real Supabase project, real payments (still by request, as before), and CVs with unusual layouts (two columns, tables) — try a few of your own.
+
+**Changed since this was written** (see `ADMIN-UPDATE.md`): the site no longer says “only you can see your CV” — admins can now open CVs, and the wording and Privacy Policy say so.
 
 Legal text changed and should be read by you: Privacy Policy (a paragraph on CVs) and Sponsorship Document Terms (plan only, credits from before).

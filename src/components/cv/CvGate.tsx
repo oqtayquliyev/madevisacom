@@ -88,7 +88,7 @@ export function useCvRequirement(): CvRequirement {
   };
 }
 
-const POINTS = ['Your match score on every job, free', 'The skills each ad asks for that your CV doesn’t show', 'Only you can see it — it’s never sent to employers'];
+const POINTS = ['Your match score on every job, free', 'The skills each ad asks for that your CV doesn’t show', 'Never sent to employers — you apply with your own file'];
 
 function Body({ req, onDone }: { req: CvRequirement; onDone?: () => void }) {
   return (

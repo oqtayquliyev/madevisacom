@@ -31,10 +31,11 @@
 
 // deno-lint-ignore-file no-explicit-any
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { DEFAULT_SETTINGS, FORMATS, FORMAT_BY_KEY, isFormatOn, perDayFor, reelLayers, type Pillar, type Platform, type ProgramSettings, type ReelRecipe } from './programCatalog.ts';
+import { DEFAULT_GAP, DEFAULT_SETTINGS, FORMATS, FORMAT_BY_KEY, JOB_FORMATS, isFormatOn, perDayFor, reelLayers, type Pillar, type Platform, type ProgramSettings, type ReelRecipe } from './programCatalog.ts';
 import { hash, localTime, planRange, rankFormats, type Past } from './programSchedule.ts';
 import { BUILDERS, type ArticleRow, type CountryReport, type Ctx, type Data, type Draft, type Feedback, type Library, type NewsItem, type ProgramRow, type Snapshot } from './programFormats.ts';
-import { SITE, opening } from './programVoice.ts';
+import { SITE, opening, setHost } from './programVoice.ts';
+import { loadMedia, runMedia, type MediaLibrary } from './media.ts';
 import type { Service } from './shared.ts';
 // social.ts imports this file too (a cycle) — fine, these are only called at run time.
 import { DIMS, connected, fingerprint, igBase, pickFreshJobs, validateImage, type Job, type PlatformRow } from './social.ts';
@@ -53,7 +54,7 @@ const leadFor = (kind: string) => {
 const MAX_WRITES_PER_RUN = 4;
 const HOT_HOURS = 20;
 
-type ProgramRowDb = { running: boolean; timezone: string | null; autopilot: boolean; per_day: any; formats: any; mix: any; handles: any; focus: string[] | null; lock_until: string | null; planned_at: string | null; reels_at?: string | null };
+type ProgramRowDb = { running: boolean; timezone: string | null; autopilot: boolean; per_day: any; formats: any; mix: any; handles: any; focus: string[] | null; lock_until: string | null; planned_at: string | null; reels_at?: string | null; host_name?: string | null; look?: string | null; gap_min?: number | null; media_at?: string | null };
 type PostRow = { id: string; platform: Platform; status: string; kind: string | null; pillar: Pillar | null; topic_key: string | null; scheduled_at: string; meta: Record<string, any> | null; origin: string };
 type HistoryRow = { platform: Platform; kind: string; pillar: Pillar; topic: string | null; opening: string | null; at: string; post_id: string | null };
 
@@ -78,6 +79,10 @@ function settingsOf(row: ProgramRowDb): ProgramSettings {
     handles: row.handles ?? {},
     focus: row.focus ?? [],
     reels: Boolean(row.reels_at && Date.now() - Date.parse(row.reels_at) < RENDERER_ALIVE_HOURS * 3_600_000),
+    // Columns from migration 20261127090000; before it runs: 30 minutes, photo first, no signature.
+    gap: Number(row.gap_min) > 0 ? Number(row.gap_min) : DEFAULT_GAP,
+    look: row.look === 'graphic' ? 'graphic' : 'photo',
+    host: (row.host_name ?? '').trim(),
   };
 }
 
@@ -200,6 +205,8 @@ export async function runProgram(service: Service, platforms: Map<Platform, Plat
   const running = (row as ProgramRowDb).running;
   const settings = settingsOf(row as ProgramRowDb);
   const now = Date.now();
+  // Captions are signed with the host's name when one is set (programVoice.ts).
+  setHost(settings.host);
 
   // Stopped: nothing is planned and campaigns run as usual — but a "Try it" post
   // from the admin panel (a slot marked test) is still written, for approval.
@@ -246,7 +253,9 @@ export async function runProgram(service: Service, platforms: Map<Platform, Plat
     ]);
     const posts = (postRows ?? []) as PostRow[];
     const history = (histRows ?? []) as HistoryRow[];
-    const photos = new Map<string, { url: string; credit: string | null }>(((photoRows ?? []) as any[]).filter((r) => r.url).map((r) => [String(r.code).toUpperCase(), { url: r.url, credit: r.credit ?? null }]));
+    const single = new Map<string, { url: string; credit: string | null }>(((photoRows ?? []) as any[]).filter((r) => r.url).map((r) => [String(r.code).toUpperCase(), { url: r.url, credit: r.credit ?? null }]));
+    // The library of real photos and clips (media.ts); the one-photo-per-country table is the fallback.
+    const photos = await loadMedia(service, single);
 
     const inPosts = new Set(posts.map((p) => p.id));
     const existing: (Past & { platform: Platform })[] = [
@@ -302,6 +311,17 @@ export async function runProgram(service: Service, platforms: Map<Platform, Plat
     // 4. REPLY to "comment +" posts.
     await replyToComments(service, log);
 
+    // 5. Keep the photo and clip library topped up (once a day while the program runs).
+    const mediaAt = (row as ProgramRowDb).media_at;
+    if (running && (!mediaAt || now - Date.parse(mediaAt) > 24 * 3_600_000)) {
+      try {
+        const note = await runMedia(service, false);
+        if (note) log.push(`Program: ${note}`);
+      } catch (e) {
+        log.push(`Program: media library not updated (${e instanceof Error ? e.message : 'error'})`);
+      }
+    }
+
     await service.from('social_program').update({ last_run_at: new Date().toISOString(), last_result: log.filter((l) => l.startsWith('Program')).slice(-6).join(' · ') || 'Up to date', lock_until: null }).eq('id', true);
   } catch (e) {
     log.push(`Program failed: ${e instanceof Error ? e.message : 'unknown error'}`);
@@ -318,7 +338,7 @@ async function writeSlot(
   data: Data,
   off: Set<string>,
   history: HistoryRow[],
-  photos: Map<string, { url: string; credit: string | null }>,
+  photos: MediaLibrary,
   past: Past[]
 ): Promise<string> {
   const p = slot.platform;
@@ -380,7 +400,7 @@ async function writeSlot(
       age: (topic) => (lastHere.has(topic) ? (at - lastHere.get(topic)!) / 3_600_000 : Infinity),
       hot: (topic) => !topic.startsWith('news:') && hotSet.has(topic),
       handle: settings.handles?.[p] ? `@${String(settings.handles[p]).replace(/^@/, '')}` : '',
-      photo: (code) => (code ? photos.get(code.toUpperCase()) ?? null : null),
+      photo: (code) => photos.photo(code, seed),
       want: typeof slot.meta?.want === 'string' ? slot.meta.want : null,
       jobs: (o) => {
         const key = JSON.stringify(o);
@@ -405,6 +425,7 @@ async function writeSlot(
     let images: { url: string; width: number; height: number }[] = [];
     let issues: string[] = [];
     let reel: ReelRecipe | null = null;
+    const usedMedia: number[] = [];
     if (draft.reel) {
       // A reel: every screen is checked with all of its lines on (the fullest state).
       const scenes = draft.reel.scenes;
@@ -412,10 +433,10 @@ async function writeSlot(
       issues = checks.flatMap((x, i) => x.issues.map((m) => `Screen ${i + 1}: ${m}`));
       if (!checks.every((x) => x.ok)) continue;
       const cc = draft.reel.bg.cc;
-      const photo = cc ? photos.get(cc.toUpperCase()) ?? null : null;
+      const photo = photos.photo(cc, seed);
       reel = {
         v: 1,
-        bg: { queries: draft.reel.bg.queries.slice(0, 6), cc, photo: photo?.url ?? null, credit: photo?.credit ?? null, fallback: `${SITE}/api/og/post?t=reel&sc=bg${cc ? `&cc=${cc}` : ''}&v=1`, salt: 0 },
+        bg: { queries: draft.reel.bg.queries.slice(0, 6), cc, photo: photo?.url ?? null, credit: photo?.credit ?? null, fallback: `${SITE}/api/og/post?t=reel&sc=bg${cc ? `&cc=${cc}` : ''}&v=1`, salt: 0, clips: photos.clips(cc, seed) },
         frame: `${SITE}/api/og/post?t=reel&sc=frame&v=1`,
         scenes,
         ...reelLayers(scenes),
@@ -423,6 +444,22 @@ async function writeSlot(
       };
     } else {
       images = draft.images.slice(0, 6).map((url) => ({ url, width: w, height: h }));
+      // Photo first: a real photo with the post's one line opens it, the card follows. Posts that already
+      // carry a photo keep theirs; on Telegram (one image) a list of jobs stays a list of jobs.
+      if (settings.look !== 'graphic' && !images.some((im) => /[?&]img=/.test(im.url)) && !(p === 'telegram' && JOB_FORMATS.has(kind))) {
+        const cc = typeof draft.meta?.cc === 'string' ? draft.meta.cc : /^[A-Za-z]{2}$/.test(draft.topic) ? draft.topic : null;
+        const shot = photos.photo(cc, seed, true);
+        if (shot) {
+          const sp = new URLSearchParams({ t: 'photo', size: pr.size, h: draft.headline.slice(0, 200), img: shot.url, v: '1' });
+          if (shot.credit) sp.set('cr', shot.credit);
+          const cover = `${SITE}/api/og/post?${sp.toString()}`;
+          // Only if the photo really loads; otherwise the post goes out as it was.
+          if ((await validateImage(cover, w, h)).ok) {
+            images = p === 'telegram' ? [{ url: cover, width: w, height: h }] : [{ url: cover, width: w, height: h }, ...images].slice(0, 6);
+            if (shot.id) usedMedia.push(shot.id);
+          }
+        }
+      }
       const checks = await Promise.all(images.map((im) => validateImage(im.url, w, h)));
       issues = checks.flatMap((x, i) => x.issues.map((m) => (images.length > 1 ? `Image ${i + 1}: ${m}` : m)));
       if (!checks.every((x) => x.ok)) continue;
@@ -439,7 +476,7 @@ async function writeSlot(
         status,
         kind,
         pillar: def.pillar,
-        format: draft.format,
+        format: !reel && images.length > 1 && draft.format === 'image' ? 'carousel' : draft.format,
         headline: draft.headline.slice(0, 200),
         caption: draft.caption,
         images,
@@ -456,6 +493,7 @@ async function writeSlot(
       .eq('status', 'planned')
       .select('id');
     if (upErr || !got?.length) continue; // same topic already queued for this network today, or another run took the slot
+    if (usedMedia.length) await service.rpc('social_media_used', { p_ids: usedMedia });
 
     if (jobs.length) {
       const { error: claimErr } = await service.from('social_post_jobs').insert(jobs.map((j) => ({ platform: p, job_id: j.id, post_id: slot.id, fingerprint: fingerprint(j) })));

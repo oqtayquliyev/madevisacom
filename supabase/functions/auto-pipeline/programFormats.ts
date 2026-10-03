@@ -989,7 +989,7 @@ const plan_flip: Builder = async (c) => {
 const plan_steps: Builder = async (c) => {
   if (c.age('plan_steps:how') < 24 * 14) return null;
   const steps = [
-    ['Pick the job', 'Any role on MadeVisa in a country with a checked work route.'],
+    ['Check your match on the job', 'The plan is listed under “Your application” as the missing piece.'],
     ['Choose who pays what', 'Drag to decide which visa costs you’ll cover: your visa fee, flights, translations.'],
     ['Attach the one-page plan', 'A PDF next to your CV: the route, the employer’s steps and the costs.'],
   ];
@@ -1449,8 +1449,8 @@ const lines = (l: (string | null | false | undefined)[]) => l.filter(Boolean).ma
 /** Seconds a text needs on screen. */
 const readTime = (text: string, min = 2.4) => Math.max(min, Math.min(5.5, 1.1 + text.split(/\s+/).length * 0.34));
 /** A city people picture when they hear the country — what to search footage for. */
-const LANDMARK: Record<string, string> = { DE: 'Berlin', GB: 'London', NL: 'Amsterdam', US: 'New York', IE: 'Dublin', FR: 'Paris', ES: 'Madrid', PT: 'Lisbon', CA: 'Toronto', AE: 'Dubai', SE: 'Stockholm', AU: 'Sydney', AT: 'Vienna', BE: 'Brussels', DK: 'Copenhagen', FI: 'Helsinki', IT: 'Rome', JP: 'Tokyo', SG: 'Singapore', EE: 'Tallinn', CY: 'Limassol', PL: 'Warsaw', CH: 'Zurich', NO: 'Oslo', CZ: 'Prague', LU: 'Luxembourg' };
-const footage = (iso: string | null | undefined, country: string | null | undefined, city?: string | null) => ({ queries: [...new Set([city ? `${city} city` : null, iso && LANDMARK[iso.toUpperCase()] ? `${LANDMARK[iso.toUpperCase()]} city` : null, country ? `${country} city` : null, country, 'city skyline'].filter((x): x is string => Boolean(x)))], cc: iso ? iso.toUpperCase() : null });
+export const LANDMARK: Record<string, string> = { DE: 'Berlin', GB: 'London', NL: 'Amsterdam', US: 'New York', IE: 'Dublin', FR: 'Paris', ES: 'Madrid', PT: 'Lisbon', CA: 'Toronto', AE: 'Dubai', SE: 'Stockholm', AU: 'Sydney', AT: 'Vienna', BE: 'Brussels', DK: 'Copenhagen', FI: 'Helsinki', IT: 'Rome', JP: 'Tokyo', SG: 'Singapore', EE: 'Tallinn', CY: 'Limassol', PL: 'Warsaw', CH: 'Zurich', NO: 'Oslo', CZ: 'Prague', LU: 'Luxembourg' };
+const footage = (iso: string | null | undefined, country: string | null | undefined, city?: string | null) => ({ queries: [...new Set([city ? `${city} people street` : null, iso && LANDMARK[iso.toUpperCase()] ? `${LANDMARK[iso.toUpperCase()]} people walking` : null, city ? `${city} city` : null, iso && LANDMARK[iso.toUpperCase()] ? `${LANDMARK[iso.toUpperCase()]} city` : null, country ? `${country} city` : null, country, 'city skyline'].filter((x): x is string => Boolean(x)))], cc: iso ? iso.toUpperCase() : null });
 /** The address on the last screen: the page if it is short enough to read, else its section. */
 const pill = (path: string) => (bare(path).length <= 38 ? bare(path) : `madevisa.com/${path.split('?')[0].split('/')[1] ?? ''}`.replace(/\/$/, ''));
 /** The word people comment to get the link: "GERMANY", "UK". */
@@ -1663,7 +1663,7 @@ const reel_plan: Builder = async (c) => {
     caption,
     links: [link(c, 'Visa Plan', '/offers')],
     reel: {
-      bg: { queries: ['office city', 'city skyline', 'business district'], cc: null },
+      bg: { queries: ['job interview handshake', 'people working office', 'office city', 'business district'], cc: null },
       scenes: [
         scene('hook', { k: 'Visa Plan', l: lines(parts.map((p, i) => (parts.length > 1 && i === parts.length - 1 ? `*${p}` : p))) }, { steps: parts.length, step: 1.1, hold: readTime(f.h, 2.6) }),
         scene('list', { l: 'How it works', rows: rows(steps) }, { steps: 3, step: 1.3, hold: 2.6 }),
@@ -1709,13 +1709,208 @@ const reel_news: Builder = async (c) => {
   };
 };
 
+// ---------------------------------------------------------------------------
+// Your application: the CV match
+// ---------------------------------------------------------------------------
+// Everything said here is how the feature works — no made-up numbers, no
+// "users say". Free = the score; 3 jobs a day = missing skills; Pro = the rest.
+
+const MATCH_TAGS = ['cv', 'resume', 'cvtips', 'jobsearch', 'workabroad', 'jobsabroad', 'jobapplication'];
+/** Footage with people in it: someone working, an interview, a desk — never presented as a named person. */
+export const PEOPLE_FOOTAGE = ['woman working on laptop', 'job interview', 'young professional office', 'man typing laptop cafe', 'people working office'];
+
+const MATCHES: { h: string; hl: string; s: string; hooks: string[] }[] = [
+  { h: 'How well does your CV match the job?', hl: 'match the job', s: 'One press next to Apply. A score in a second, free on every job.', hooks: ['Before you apply: how well does your CV actually match this ad?', 'Most people apply and hope. There’s a quicker way to know where you stand.'] },
+  { h: 'Your CV gets read against the ad. Read it that way first.', hl: 'that way first', s: 'Skills, role, years, languages, education: compared in one press.', hooks: ['A recruiter reads your CV with the ad open next to it. You can do the same before you send it.', 'The ad is a checklist. Your CV is the answer sheet. Compare them first.'] },
+  { h: 'Apply to fewer jobs. Match them better.', hl: 'Match them better', s: 'See your score on each one, and what’s missing, before you spend an evening on it.', hooks: ['Sending the same CV to fifty ads feels productive. Matching five of them properly works better.', 'Fewer applications, each one checked against the ad.'] },
+  { h: 'A strong match and a weak one look the same from your side of the screen.', hl: 'look the same', s: 'Until you check. The button is next to Apply.', hooks: ['You can’t tell a 90% match from a 40% one by reading the ad once. Now you can check.', 'Which of the jobs you saved are you actually a match for?'] },
+];
+
+const match_check: Builder = async (c) => {
+  const f = choose(c, 'match_check', MATCHES.map((x, i) => ({ ...x, i })), (x) => String(x.i), 24 * 10);
+  if (!f) return null;
+  const caption = write(c.p, [
+    pick(f.hooks, c.w, 'hook'),
+    pick(
+      [
+        'On every job on MadeVisa there’s a button next to Apply: Check your match. It compares your CV with the ad — skills, role, years of experience, languages, education — and gives you a score.',
+        'Upload your CV once. Then, on any job, one press compares it with what the ad asks for and shows a score out of 100.',
+      ],
+      c.w,
+      'explain'
+    ),
+    'The score is free on every job. With a free account you also see which skills the ad asks for that your CV doesn’t show, on 3 jobs a day.',
+    go(c.p, c.w, ['Upload your CV and try it:', 'Try it on a job you like:', 'Check yours:'], '/cv-match'),
+    c.p !== 'telegram' && chance(0.45, c.w, 'ask') ? 'What’s the lowest match you’d still apply with?' : null,
+    tags(c.p, MATCH_TAGS),
+  ]);
+  return { topic: String(f.i), headline: f.h, format: 'image', images: [og(c, 'text', { k: 'CV match', h: f.h, hl: f.hl, s: f.s, cta: 'Check your match', link: 'madevisa.com/cv-match', th: f.i % 2 ? 'ink' : 'blue' })], caption, links: [link(c, 'CV match', '/cv-match')] };
+};
+
+const PARTS: [string, string, string][] = [
+  ['Skills', 'Every skill the ad names. Must-haves count in full, nice-to-haves for less.', '40 points'],
+  ['Role fit', 'Have you done this kind of job, or one in the same field?', '20 points'],
+  ['Experience', 'The years the ad asks for, against the dates on your CV.', '15 points'],
+  ['Wording', 'The words the ad repeats, and whether your CV uses them.', '10 points'],
+  ['Languages', 'What the ad requires, and the level.', '8 points'],
+  ['Education', 'The degree it asks for, if it asks.', '7 points'],
+];
+
+const match_parts: Builder = async (c) => {
+  if (c.age('match_parts:how') < 24 * 21) return null;
+  const total = slides(c, 2);
+  const h = 'Where your match score comes from';
+  const first = og(c, 'steps', { k: 'CV match', h, hl: 'match score', s: '100 points, six parts.', rows: rows(PARTS.slice(0, 3)), link: 'madevisa.com/cv-match', p: pos(1, total) });
+  const second = og(c, 'steps', { k: 'CV match', h: 'And the other 25 points', rows: rows(PARTS.slice(3)), cta: 'Check your match', link: 'madevisa.com/cv-match', p: pos(total, total) });
+  const caption = write(c.p, [
+    pick(['What does a match score actually measure? Six things.', 'Your CV against the ad, in six parts.', 'Where the points come from when you check your match.'], c.w, 'hook'),
+    PARTS.map((x) => `${x[0]} — ${x[2]}. ${x[1]}`).join('\n'),
+    'Anything the ad doesn’t ask for is left out, so an ad can’t lower your score with something it never mentioned. Same rules for every job.',
+    go(c.p, c.w, ['See your own score:', 'Check a job:'], '/cv-match'),
+    closer(c.p, c.w, 'save', 0.6),
+    tags(c.p, MATCH_TAGS),
+  ]);
+  return { topic: 'how', headline: h, format: total > 1 ? 'carousel' : 'image', images: total > 1 ? [first, second] : [first], caption, links: [link(c, 'CV match', '/cv-match')] };
+};
+
+const MISSING: { h: string; hl: string; s: string; hooks: string[] }[] = [
+  { h: 'You know Excel. Your CV doesn’t say so.', hl: 'doesn’t say so', s: 'To a recruiter’s search, a skill you didn’t write down is a skill you don’t have.', hooks: ['The most common thing missing from a CV isn’t experience. It’s a word.', 'You have the skill. The ad asks for it. Your CV never mentions it.'] },
+  { h: 'The ad says Kubernetes. Your CV says “container tools”.', hl: '“container tools”', s: 'Searches match words, not meanings. Use the ad’s own word where it’s true.', hooks: ['Recruiters search for the exact word in the ad. So does screening software.', 'Close isn’t found. The ad’s word is.'] },
+  { h: 'The skill is in the job title. It’s on your CV once, in 2019.', hl: 'once, in 2019', s: 'If the ad leads with it, your summary should too.', hooks: ['Where a skill sits on your CV matters almost as much as whether it’s there.', 'One mention in an old bullet point is easy to miss.'] },
+  { h: 'Missing from your CV isn’t missing from you.', hl: 'isn’t missing from you', s: 'But only the CV gets read. See what yours leaves out, job by job.', hooks: ['A low match usually means the CV left something out, not that you can’t do the job.', 'The CV is the only part of you the employer has seen.'] },
+];
+
+const match_missing: Builder = async (c) => {
+  const f = choose(c, 'match_missing', MISSING.map((x, i) => ({ ...x, i })), (x) => String(x.i), 24 * 12);
+  if (!f) return null;
+  const caption = write(c.p, [
+    pick(f.hooks, c.w, 'hook'),
+    'When you check your match on MadeVisa, it lists the skills the ad asks for that your CV doesn’t show — the required ones first, then the nice-to-haves.',
+    pick(['Add the ones you really have, in the ad’s own words. Leave out the ones you don’t: interviews check, and a visa application repeats what your CV says.', 'Then it’s simple: if you’ve used it, write it down, the way the ad spells it. If you haven’t, don’t.'], c.w, 'guard'),
+    'Missing skills are free on 3 jobs a day with a free account.',
+    go(c.p, c.w, ['See what yours is missing:', 'Check a job:'], '/cv-match'),
+    closer(c.p, c.w, 'share', 0.4),
+    tags(c.p, MATCH_TAGS),
+  ]);
+  return { topic: String(f.i), headline: f.h, format: 'image', images: [og(c, 'text', { k: 'CV match', h: f.h, hl: f.hl, s: f.s, cta: 'See what’s missing', link: 'madevisa.com/cv-match', th: f.i % 2 ? 'blue' : 'ink' })], caption, links: [link(c, 'CV match', '/cv-match')] };
+};
+
+const CV_FIXES: { id: string; h: string; hl: string; why: string; rows: [string, string][] }[] = [
+  { id: 'dates', h: 'No dates on your roles? Nobody can count your experience.', hl: 'count your experience', why: 'An ad that asks for “5+ years” is checked against your dates. No dates, no years.', rows: [['Month and year', '“Mar 2021 – Present”, on every role'], ['One format', 'Not “2021–now” here and “03/21” there'], ['Short roles too', 'Internships and freelance work add up']] },
+  { id: 'numbers', h: 'Duties say what you were given. Numbers say what you did.', hl: 'what you did', why: 'A line with a number in it is the one a reader remembers.', rows: [['How many', 'People, customers, stores, tickets'], ['How much', 'Budget, revenue, cost saved'], ['How fast', 'Time cut, deadlines met']] },
+  { id: 'skills', h: 'Put your skills where a search can find them.', hl: 'a search can find them', why: 'Recruiters search by skill name. A Skills section is where those names live.', rows: [['One Skills section', 'Tools and methods, by name'], ['The ad’s spelling', '“Power BI”, not “BI tools”'], ['Only what’s true', 'Interviews check it']] },
+  { id: 'words', h: 'Use the ad’s words. Where they’re true.', hl: 'Where they’re true', why: 'The words an ad repeats are the ones it will be searched and screened by.', rows: [['Read the requirements', 'Mark the words that come up twice'], ['Find them in your CV', 'Missing? Add them if you’ve done it'], ['The title too', 'A one-line headline under your name']] },
+  { id: 'language', h: '“English: good” tells an employer nothing.', hl: 'nothing', why: 'An ad that asks for C1 can only be matched by a CV that states a level.', rows: [['Name the level', 'B2, C1 or native'], ['Add the certificate', 'IELTS, Goethe, DELF, if you have one'], ['List every language', 'Also the ones this ad doesn’t ask for']] },
+  { id: 'length', h: 'Two pages. 400 to 800 words.', hl: '400 to 800 words', why: 'Short enough to read, long enough that each role says what you did.', rows: [['Too short', 'Under 250 words leaves no room for results'], ['Too long', 'Over 1,100 and the best lines get lost'], ['Newest first', 'Most detail on your last two roles']] },
+  { id: 'scan', h: 'A scanned CV is a picture. Nobody can search a picture.', hl: 'search a picture', why: 'If the text can’t be selected, software and searches see an empty page.', rows: [['Export, don’t scan', 'Save as PDF from Word or Google Docs'], ['Test it', 'Can you select and copy the text?'], ['Keep it simple', 'Plain headings: Experience, Education, Skills']] },
+];
+
+const cv_fix: Builder = async (c) => {
+  const f = choose(c, 'cv_fix', CV_FIXES, (x) => x.id, 24 * 18);
+  if (!f) return null;
+  const caption = write(c.p, [
+    f.h,
+    f.why,
+    f.rows.map((r, i) => `${i + 1}. ${r[0]}: ${lowerFirst(r[1])}.`).join('\n'),
+    pick(['MadeVisa checks this on your own CV when you check your match (the full report is part of Pro).', 'This is one of the checks MadeVisa runs on your CV. Your match score on each job is free.'], c.w, 'where'),
+    go(c.p, c.w, ['Check your CV against a job:', 'Try it:'], '/cv-match'),
+    closer(c.p, c.w, 'save', 0.6),
+    tags(c.p, MATCH_TAGS),
+  ]);
+  return { topic: f.id, headline: f.h, format: 'image', images: [og(c, 'steps', { k: 'CV fix', h: f.h, hl: f.hl, rows: rows(f.rows), cta: 'Check your CV', link: 'madevisa.com/cv-match' })], caption, links: [link(c, 'CV match', '/cv-match')] };
+};
+
+const match_free: Builder = async (c) => {
+  if (c.age('match_free:levels') < 24 * 30) return null;
+  const levels: [string, string][] = [
+    ['Match score', 'Free on every job. No account needed.'],
+    ['Skills your CV is missing', 'Free account: 3 jobs a day.'],
+    ['Full report + 50 sponsorship documents a month', 'MadeVisa Pro, priced for your country.'],
+  ];
+  const h = 'What’s free, and what the plan adds';
+  const caption = write(c.p, [
+    pick(['What you get on MadeVisa without paying, and what Pro adds.', 'Free, free with an account, and Pro. Here’s the split.'], c.w, 'hook'),
+    levels.map((l) => `${l[0]} — ${lowerFirst(l[1])}`).join('\n'),
+    'Pro is one plan, monthly or yearly. The price follows local incomes, so it’s lower where salaries are lower, and it’s shown in your currency.',
+    go(c.p, c.w, ['The price for your country:', 'See it here:'], '/pricing'),
+    tags(c.p, ['cv', 'jobsearch', 'workabroad', 'jobsabroad', 'visasponsorship']),
+  ]);
+  return { topic: 'levels', headline: h, format: 'image', images: [og(c, 'steps', { k: 'CV match', h, hl: 'free', rows: rows(levels), cta: 'See pricing', link: 'madevisa.com/pricing' })], caption, links: [link(c, 'Pricing', '/pricing')] };
+};
+
+const reel_match: Builder = async (c) => {
+  const f = choose(c, 'reel_match', MATCHES.map((x, i) => ({ ...x, i })).filter((x) => c.age(`match_check:${x.i}`) >= 24 * 4), (x) => String(x.i), 24 * 16);
+  if (!f) return null;
+  const parts = f.h.split(/(?<=[.?!”])\s+/).filter(Boolean);
+  const gets: [string, string][] = [
+    ['A score', 'Free on every job'],
+    ['What’s missing', 'Skills the ad asks for'],
+    ['What to change', 'Before you send it'],
+  ];
+  const caption = write(c.p, [
+    pick(f.hooks, c.w, 'hook'),
+    'Upload your CV once on MadeVisa. On any job, press Check your match next to Apply: your CV is compared with the ad and you get a score out of 100.',
+    gets.map((g, i) => `${i + 1}. ${g[0]}: ${lowerFirst(g[1])}`).join('\n'),
+    'The score is free. Missing skills are free on 3 jobs a day with an account.',
+    go(c.p, c.w, ['Try it:', 'Check yours:'], '/cv-match'),
+    tags(c.p, MATCH_TAGS),
+  ]);
+  return {
+    topic: String(f.i),
+    headline: f.h,
+    format: 'reel',
+    images: [],
+    caption,
+    links: [link(c, 'CV match', '/cv-match')],
+    reel: {
+      bg: { queries: PEOPLE_FOOTAGE, cc: null },
+      scenes: [
+        scene('hook', { k: 'CV match', l: lines(parts.map((p, i) => (parts.length > 1 && i === parts.length - 1 ? `*${p}` : p))) }, { steps: parts.length, step: 1.1, hold: readTime(f.h, 2.6) }),
+        scene('list', { l: 'One press next to Apply', rows: rows(gets) }, { steps: 3, step: 1.2, hold: 2.6 }),
+        scene('cta', { l: lines(['Check your', '*match']), link: 'madevisa.com/cv-match', s: 'Free on every job.' }, { hold: 3 }),
+      ],
+    },
+  };
+};
+
+const reel_cvfix: Builder = async (c) => {
+  const f = choose(c, 'reel_cvfix', CV_FIXES.filter((x) => c.age(`cv_fix:${x.id}`) >= 24 * 4), (x) => x.id, 24 * 20);
+  if (!f) return null;
+  const parts = f.h.split(/(?<=[.?!”])\s+/).filter(Boolean);
+  const caption = write(c.p, [
+    f.h,
+    f.why,
+    f.rows.map((r, i) => `${i + 1}. ${r[0]}: ${lowerFirst(r[1])}.`).join('\n'),
+    go(c.p, c.w, ['Check your CV against a job:', 'Try it on your own CV:'], '/cv-match'),
+    closer(c.p, c.w, 'save', 0.5),
+    tags(c.p, MATCH_TAGS),
+  ]);
+  return {
+    topic: f.id,
+    headline: f.h,
+    format: 'reel',
+    images: [],
+    caption,
+    links: [link(c, 'CV match', '/cv-match')],
+    reel: {
+      bg: { queries: ['writing resume laptop', ...PEOPLE_FOOTAGE], cc: null },
+      scenes: [
+        scene('hook', { k: 'CV fix', l: lines(parts.map((p, i) => (parts.length > 1 && i === parts.length - 1 ? `*${p}` : p))) }, { steps: parts.length, step: 1.1, hold: readTime(f.h, 2.6) }),
+        scene('list', { l: 'The fix', rows: rows(f.rows) }, { steps: f.rows.length, step: 1.3, hold: 2.6 }),
+        scene('cta', { l: lines(['Check your', '*CV']), link: 'madevisa.com/cv-match' }, { hold: 3 }),
+      ],
+    },
+  };
+};
+
 export const BUILDERS: Record<string, Builder> = {
   jobs_fresh, jobs_country, jobs_visa, jobs_remote, jobs_student, jobs_uk_sponsors, jobs_salary, job_spotlight, jobs_plan,
   country_hiring, country_ranking, sponsor_ranking, top_companies, roles_in_demand, market_pulse, remote_share, milestone,
   visa_route, visa_jobsearch, visa_nomad, visa_pr, visa_salary, visa_compare, visa_myth, visa_checklist,
+  match_check, match_parts, match_missing, cv_fix, match_free,
   plan_flip, plan_steps, plan_employer, plan_costs,
   feedback_stats, responsive_companies, ghosting_stat, principle,
   follow_cta, comment_cta, this_or_that, question, tip, feedback_ask, invite, recruiters, employers, job_alert, employer_inbox,
   news, article, program,
-  reel_country, reel_city, reel_route, reel_myth, reel_plan, reel_news,
+  reel_country, reel_city, reel_route, reel_myth, reel_plan, reel_news, reel_match, reel_cvfix,
 };

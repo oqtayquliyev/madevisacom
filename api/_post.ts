@@ -16,8 +16,8 @@
 import { h, icon, img, type El } from './_og';
 
 export type SizeKey = 'portrait' | 'square' | 'story';
-export type Template = 'hero' | 'stat' | 'rank' | 'card' | 'steps' | 'myth' | 'text' | 'versus' | 'news' | 'cta' | 'grid';
-export const TEMPLATES: Template[] = ['hero', 'stat', 'rank', 'card', 'steps', 'myth', 'text', 'versus', 'news', 'cta', 'grid'];
+export type Template = 'hero' | 'stat' | 'rank' | 'card' | 'steps' | 'myth' | 'text' | 'versus' | 'news' | 'cta' | 'grid' | 'photo';
+export const TEMPLATES: Template[] = ['hero', 'stat', 'rank', 'card', 'steps', 'myth', 'text', 'versus', 'news', 'cta', 'grid', 'photo'];
 
 export type PostParams = {
   t: Template;
@@ -317,11 +317,51 @@ export async function drawPost(q: PostParams, load: Loader): Promise<{ tree: El;
   const [flag1, flag2, photo, logos, flags] = await Promise.all([
     isCode(q.cc) ? load(FLAG_URL(q.cc), 'flag') : null,
     isCode(q.cc2) ? load(FLAG_URL(q.cc2), 'flag') : null,
-    q.img && /^https:\/\//.test(q.img) && (q.t === 'hero' || q.t === 'news' || q.t === 'stat' || q.t === 'cta') ? load(q.img, 'photo') : null,
+    q.img && /^https:\/\//.test(q.img) && (q.t === 'hero' || q.t === 'news' || q.t === 'stat' || q.t === 'cta' || q.t === 'photo') ? load(q.img, 'photo') : null,
     Promise.all(logoUrls.map((u) => (u ? load(u, 'logo') : null))),
     Promise.all(rowFlags.map((c) => (c ? load(FLAG_URL(c), 'flag') : null))),
   ]);
   if (q.img && !photo && (q.t === 'hero' || q.t === 'news')) issues.push({ level: 'warning', message: 'Photo couldn’t be loaded — drawn without it' });
+
+  // --- photo: a real photograph with one line of text ---------------------------
+  // The opening image of a "photo first" post: the picture fills the frame, the
+  // post's one line sits at the bottom over a soft shadow, with the small
+  // wordmark and the photographer's name. No card, no button, no blue. Without
+  // its photo there is nothing to show, so that is an error (the pipeline then
+  // posts the card on its own).
+  if (q.t === 'photo') {
+    if (!photo) issues.push({ level: 'error', message: 'The photo couldn’t be loaded' });
+    const head = fitText(q.h, [U(66), U(58), U(50), U(44), U(38)], 800, inner, 4, -1);
+    if (head.cut) issues.push({ level: 'warning', message: 'Headline shortened to fit' });
+    const sub = q.s ? fitText(q.s, [U(30), U(27)], 600, inner, 2) : null;
+    const small = U(20);
+    const tree = h(
+      'div',
+      { width: S.w, height: S.h, position: 'relative', backgroundColor: INK, fontFamily: SANS },
+      photo ? img(photo, { position: 'absolute', left: 0, top: 0, width: S.w, height: S.h, objectFit: 'cover' }) : null,
+      h('div', { position: 'absolute', left: 0, top: 0, width: S.w, height: S.h, backgroundImage: 'linear-gradient(180deg, rgba(2,6,23,0.12) 0%, rgba(2,6,23,0) 28%, rgba(2,6,23,0.28) 56%, rgba(2,6,23,0.88) 100%)' }),
+      h(
+        'div',
+        { position: 'absolute', left: 0, top: 0, width: S.w, height: S.h, flexDirection: 'column', justifyContent: 'flex-end', padding: `${S.top}px ${S.side}px ${S.bottom}px` },
+        textBox(head, { weight: 800, color: 'white', width: inner, lh: 1.12, tracking: -1 }).el,
+        sub ? h('div', { height: U(14), flexShrink: 0 }) : null,
+        sub ? textBox(sub, { weight: 600, color: 'rgba(255,255,255,0.9)', width: inner, lh: 1.3 }).el : null,
+        h('div', { height: U(28), flexShrink: 0 }),
+        h(
+          'div',
+          { width: inner, alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
+          brand('white', U(26)),
+          h(
+            'div',
+            { alignItems: 'center' },
+            q.cr ? h('div', { fontSize: small, fontWeight: 600, color: 'rgba(255,255,255,0.72)', fontFamily: SANS, whiteSpace: 'nowrap' }, oneLine(`Photo: ${q.cr}`, small, 600, inner * 0.5)) : null,
+            q.p ? h('div', { marginLeft: 14, fontSize: small, fontWeight: 700, color: 'rgba(255,255,255,0.85)', fontFamily: SANS, whiteSpace: 'nowrap' }, q.p) : null
+          )
+        )
+      )
+    );
+    return { tree, issues, width: S.w, height: S.h };
+  }
 
   const headerH = U(58);
   const footerH = U(92);

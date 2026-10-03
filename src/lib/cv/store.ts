@@ -64,22 +64,58 @@ type Row = { file_name: string | null; file_size: number | null; text: string; u
 /** Is the CV table there? (False until migration 20261126090000 is run.) */
 let remoteOk: boolean | null = null;
 
-async function pushRemote(cv: StoredCv, userId: string, file?: File): Promise<void> {
-  if (remoteOk === false) return;
-  let storage_path: string | null = null;
+/**
+ * Saves the CV to the account. Returns a message only when the server refused
+ * it (the daily limit). `fresh`: the person just gave us this CV, so the stored
+ * file is replaced as well; without it only the text is brought up to date.
+ */
+async function pushRemote(cv: StoredCv, userId: string, file?: File, fresh = false): Promise<string | null> {
+  if (remoteOk === false) return null;
   const kind = file ? cvExt(file.name) : null;
+  // The row first: it carries the daily limit, so a refused change uploads no file.
+  const { error } = await supabase
+    .from('user_cvs')
+    .upsert({ user_id: userId, file_name: cv.name.slice(0, 200), file_size: cv.size, text: cv.text.slice(0, CV_MAX_CHARS), profile: cv.profile, ...(fresh ? { storage_path: null } : {}) }, { onConflict: 'user_id' });
+  if (error) {
+    remoteOk = !/relation|schema cache|does not exist/i.test(error.message);
+    if (/times today/i.test(error.message)) return error.message;
+    if (remoteOk) console.error('CV save failed', error);
+    return null;
+  }
+  remoteOk = true;
+  if (!fresh) return null;
+  // One file per person. Earlier files of another type are removed, so the stored file never disagrees with the text.
+  const stale = Object.keys(CV_MIME).filter((k) => k !== kind).map((k) => `${userId}/cv.${k}`);
+  void supabase.storage.from('cvs').remove(stale);
   if (file && kind) {
-    // Fixed name per person: a new upload replaces the old file.
     const path = `${userId}/cv.${kind}`;
     const up = await supabase.storage.from('cvs').upload(path, file, { upsert: true, contentType: CV_MIME[kind], cacheControl: '0' });
-    if (!up.error) storage_path = path;
+    if (!up.error) await supabase.from('user_cvs').update({ storage_path: path }).eq('user_id', userId);
   }
-  const { error } = await supabase.from('user_cvs').upsert(
-    { user_id: userId, file_name: cv.name.slice(0, 200), file_size: cv.size, text: cv.text.slice(0, CV_MAX_CHARS), profile: cv.profile, ...(storage_path ? { storage_path } : {}) },
-    { onConflict: 'user_id' },
-  );
-  remoteOk = !error || !/relation|schema cache|does not exist/i.test(error.message);
-  if (error && remoteOk) console.error('CV save failed', error);
+  return null;
+}
+
+// --- Guests: a few CVs a day --------------------------------------------------
+// The server counts by a one-way code of the network address (cv_guest_upload,
+// migration 20261127090000). Until that migration is run, this browser counts.
+const GUEST_KEY = 'mv:cvGuest';
+const GUEST_DAILY = 3;
+async function guestMayUpload(): Promise<{ allowed: boolean; limit: number }> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase.rpc('cv_guest_upload');
+  if (!error && data && typeof (data as { allowed?: unknown }).allowed === 'boolean') {
+    const r = data as { allowed: boolean; limit?: number };
+    return { allowed: r.allowed, limit: r.limit ?? GUEST_DAILY };
+  }
+  try {
+    const v = JSON.parse(window.localStorage.getItem(GUEST_KEY) ?? 'null') as { day: string; n: number } | null;
+    const n = v?.day === today ? v.n : 0;
+    if (n >= GUEST_DAILY) return { allowed: false, limit: GUEST_DAILY };
+    window.localStorage.setItem(GUEST_KEY, JSON.stringify({ day: today, n: n + 1 }));
+  } catch {
+    /* no storage: let it through */
+  }
+  return { allowed: true, limit: GUEST_DAILY };
 }
 
 let syncedFor: string | null = null;
@@ -151,9 +187,16 @@ async function saveText(text: string, name: string, size: number, file?: File): 
   if (signals.filter(Boolean).length < 2) return { ok: false, error: 'This doesn’t look like a CV — we found no roles, dates, education or skills in it. Check you picked the right file.' };
   const userId = await currentUserId();
   const cv: StoredCv = { name, size, text: clean, profile, at: new Date().toISOString(), owner: userId };
+  if (userId) {
+    // Wait for the account's answer: the server allows 15 CV changes a day.
+    const refused = await pushRemote(cv, userId, file, true);
+    if (refused) return { ok: false, error: refused };
+  } else if (state.cv?.text !== clean) {
+    const quota = await guestMayUpload();
+    if (!quota.allowed) return { ok: false, error: `You’ve tried ${quota.limit} CVs today without an account. Create a free account to keep going — your CV is saved with it and works on every device.` };
+  }
   writeLocal(cv);
   set({ cv });
-  if (userId) void pushRemote(cv, userId, file);
   return { ok: true, cv };
 }
 

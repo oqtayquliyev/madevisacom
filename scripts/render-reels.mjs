@@ -173,7 +173,23 @@ async function main() {
       const salt = hash(`${post.id}:${reel.bg?.salt ?? 0}`);
       let bg = null;
       let bgUsed = null;
-      const stock = await pexels(reel.bg?.queries ?? [], salt, used);
+      // Clips from the media library first (Admin → Social media → Photos and clips): chosen per
+      // country when the post was written. Then a live stock search, as before.
+      for (const clip of (reel.bg?.clips ?? []).filter((c) => c?.url && !used.has(`lib:${c.id}`))) {
+        try {
+          const got = await download(clip.url, join(dir, 'bg.mp4'));
+          if (!got.type.includes('video') && !got.type.includes('octet-stream')) continue;
+          bg = { file: join(dir, 'bg.mp4'), kind: 'video' };
+          bgUsed = { source: 'library', id: `lib:${clip.id}`, credit: clip.credit ?? null };
+          used.add(`lib:${clip.id}`);
+          // So the same clip doesn't open the next reel too.
+          await rest('rpc/social_media_used', { method: 'POST', body: JSON.stringify({ p_ids: [clip.id] }) }).catch(() => {});
+          break;
+        } catch {
+          bg = null;
+        }
+      }
+      const stock = bg ? null : await pexels(reel.bg?.queries ?? [], salt, used);
       if (stock) {
         try {
           await download(stock.url, join(dir, 'bg.mp4'));

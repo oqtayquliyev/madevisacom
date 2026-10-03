@@ -97,10 +97,25 @@ export function tags(p: Platform, words: (string | null | undefined | false)[]):
   return out.join(' ');
 }
 
+// A real person on the team can sign the captions ("— Leyla, MadeVisa").
+// Set once per run from the program settings; empty = no signature. It is a
+// signature only: captions never tell a personal story in that person's name.
+let HOST = '';
+export function setHost(name: string | null | undefined): void {
+  HOST = (name ?? '').replace(/[\n\r#@]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+}
+export const hostName = () => HOST;
+
 const LIMIT: Record<Platform, number> = { linkedin: 2800, telegram: 980, instagram: 2100, facebook: 2100, tiktok: 2100 };
 /** Paragraphs → one caption, inside the network's limit (whole paragraphs are dropped from the middle, never cut mid-sentence). */
 export function write(p: Platform, parts: (string | null | undefined | false)[]): string {
   const paras = parts.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim());
+  // The signature goes after the text and before the hashtags.
+  if (HOST && paras.length) {
+    const sign = `— ${HOST}, MadeVisa`;
+    const tagsLast = paras[paras.length - 1].startsWith('#');
+    paras.splice(tagsLast ? paras.length - 1 : paras.length, 0, sign);
+  }
   let text = paras.join('\n\n');
   // Too long: drop paragraphs just before the last two (the link and the hashtags stay).
   while (text.length > LIMIT[p] && paras.length > 3) {
