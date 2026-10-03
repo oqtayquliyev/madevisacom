@@ -10,11 +10,13 @@
 // free, no server to keep.
 //
 // Background, first that works:
-//   1. Pexels stock video for the city / country (needs PEXELS_API_KEY — free
-//      at pexels.com/api; the Pexels licence allows this use)
-//   2. the country photo added in Admin → Social media → Content ideas
-//   3. MadeVisa's blue gradient with the flag
-// A photo or the gradient gets a slow zoom, so it still moves.
+//   1. what the recipe prefers — photos from the media library as a slideshow
+//      (3–5 photos, each with a slow zoom, cross-faded), or a clip from it
+//   2. the other of the two
+//   3. Pexels stock video for the city / country (only with PEXELS_API_KEY)
+//   4. one country photo
+//   5. MadeVisa's blue gradient with the flag
+// A single photo or the gradient gets a slow zoom, so it still moves.
 //
 // Sound: a track from the bucket folder social-videos/music/ (MP3 or M4A you
 // have the right to use — upload them in Admin → Social media → Content
@@ -46,7 +48,7 @@ function run(cmd, args) {
 }
 
 /**
- * bg:      { file, kind: 'video' | 'image' }
+ * bg:      { file, kind: 'video' | 'image' }  or  { files: [..], kind: 'slides' } (2–5 photos, cross-faded)
  * frame:   PNG path — the always-on layer (logo, fades)
  * layers:  [{ file, at, end, last }] — text layers; `last` = the final step of a scene (it fades out)
  * audio:   optional music file (looped, faded in and out); none → silence
@@ -54,8 +56,15 @@ function run(cmd, args) {
 export async function render({ bg, frame, layers, duration, out, audio = null }) {
   const D = Number(duration.toFixed(2));
   const args = ['-y', '-hide_banner', '-loglevel', 'error'];
+  // Slideshow timing: n photos share the reel; neighbours overlap by FADE seconds.
+  const slides = bg.kind === 'slides' ? bg.files.slice(0, 5) : [];
+  const FADE = 0.6;
+  const seg = slides.length ? Number(((D + (slides.length - 1) * FADE) / slides.length).toFixed(3)) : 0;
   if (bg.kind === 'video') args.push('-stream_loop', '-1', '-i', bg.file);
+  else if (slides.length) for (const file of slides) args.push('-loop', '1', '-framerate', String(FPS), '-t', String(seg + 0.2), '-i', file);
   else args.push('-loop', '1', '-framerate', String(FPS), '-t', String(D), '-i', bg.file);
+  // Inputs after the background: the frame, the text layers, the sound.
+  const nb = slides.length || 1;
   args.push('-loop', '1', '-framerate', String(FPS), '-t', String(D), '-i', frame);
   for (const l of layers) args.push('-loop', '1', '-framerate', String(FPS), '-t', (l.end - l.at).toFixed(2), '-i', l.file);
   if (audio) args.push('-stream_loop', '-1', '-i', audio);
@@ -64,16 +73,30 @@ export async function render({ bg, frame, layers, duration, out, audio = null })
   const f = [];
   // Background: fill the frame; a still gets a slow push-in (drawn at 2× so the zoom is smooth).
   if (bg.kind === 'video') f.push(`[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},setsar=1,trim=duration=${D},setpts=PTS-STARTPTS[bg]`);
-  else f.push(`[0:v]scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,crop=${W * 2}:${H * 2},zoompan=z='1+0.14*on/${Math.round(D * FPS)}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=1:s=${W}x${H}:fps=${FPS},setsar=1[bg]`);
-  f.push(`[1:v]format=rgba[fr]`, `[bg][fr]overlay=0:0:format=auto[v0]`);
+  else if (slides.length) {
+    // Each photo: fill the frame, push in slowly (odd ones pull out, so it doesn't feel mechanical), then cross-fade into the next.
+    const frames = Math.round(seg * FPS);
+    slides.forEach((_, i) => {
+      const z = i % 2 === 0 ? `1+0.10*on/${frames}` : `1.10-0.10*on/${frames}`;
+      f.push(`[${i}:v]scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,crop=${W * 2}:${H * 2},zoompan=z='${z}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=1:s=${W}x${H}:fps=${FPS},setsar=1,trim=duration=${seg},setpts=PTS-STARTPTS,format=yuv420p[s${i}]`);
+    });
+    let prev = 's0';
+    for (let i = 1; i < slides.length; i++) {
+      const out = i === slides.length - 1 ? 'bg' : `x${i}`;
+      f.push(`[${prev}][s${i}]xfade=transition=fade:duration=${FADE}:offset=${(i * (seg - FADE)).toFixed(3)}[${out}]`);
+      prev = out;
+    }
+    if (slides.length === 1) f.push(`[s0]null[bg]`);
+  } else f.push(`[0:v]scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,crop=${W * 2}:${H * 2},zoompan=z='1+0.14*on/${Math.round(D * FPS)}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=1:s=${W}x${H}:fps=${FPS},setsar=1[bg]`);
+  f.push(`[${nb}:v]format=rgba[fr]`, `[bg][fr]overlay=0:0:format=auto[v0]`);
   layers.forEach((l, i) => {
     const len = l.end - l.at;
     // Each layer fades in; only the last step of a scene fades out (earlier steps are covered by the next one).
     const fadeOut = l.last ? `,fade=t=out:st=${Math.max(0, len - 0.28).toFixed(2)}:d=0.28:alpha=1` : '';
-    f.push(`[${i + 2}:v]format=rgba,fade=t=in:st=0:d=0.32:alpha=1${fadeOut},setpts=PTS-STARTPTS+${l.at.toFixed(2)}/TB[l${i}]`);
+    f.push(`[${nb + 1 + i}:v]format=rgba,fade=t=in:st=0:d=0.32:alpha=1${fadeOut},setpts=PTS-STARTPTS+${l.at.toFixed(2)}/TB[l${i}]`);
     f.push(`[v${i}][l${i}]overlay=0:0:eof_action=pass:format=auto[v${i + 1}]`);
   });
-  const a = layers.length + 2;
+  const a = nb + 1 + layers.length;
   if (audio) f.push(`[${a}:a]atrim=duration=${D},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.5,afade=t=out:st=${Math.max(0, D - 1).toFixed(2)}:d=1,aresample=44100[au]`);
   args.push('-filter_complex', f.join(';'), '-map', `[v${layers.length}]`, '-map', audio ? '[au]' : `${a}:a`);
   // Capped bitrate: busy footage stays under ~9 MB (Telegram fetches videos up to 20 MB by link).
@@ -173,9 +196,33 @@ async function main() {
       const salt = hash(`${post.id}:${reel.bg?.salt ?? 0}`);
       let bg = null;
       let bgUsed = null;
-      // Clips from the media library first (Admin → Social media → Photos and clips): chosen per
-      // country when the post was written. Then a live stock search, as before.
-      for (const clip of (reel.bg?.clips ?? []).filter((c) => c?.url && !used.has(`lib:${c.id}`))) {
+      // A slideshow of photos from the media library (Admin → Social media → Photos and clips).
+      const trySlides = async () => {
+        const files = [];
+        const credits = [];
+        const ids = [];
+        for (const [i, shot] of (reel.bg?.photos ?? []).slice(0, 5).entries()) {
+          if (!shot?.url) continue;
+          try {
+            const file = join(dir, `slide${i}.jpg`);
+            const got = await download(shot.url, file, 12_000_000);
+            if (!/image\/(jpeg|png)/.test(got.type)) continue;
+            files.push(file);
+            if (shot.credit) credits.push(shot.credit);
+            if (shot.id) ids.push(shot.id);
+          } catch {
+            /* skip this photo */
+          }
+        }
+        if (files.length < 2) return false;
+        bg = { files, kind: 'slides' };
+        bgUsed = { source: 'slides', count: files.length, credit: [...new Set(credits)].slice(0, 5).join(', ') || null };
+        if (ids.length) await rest('rpc/social_media_used', { method: 'POST', body: JSON.stringify({ p_ids: ids }) }).catch(() => {});
+        return true;
+      };
+      if (reel.bg?.prefer === 'photos') await trySlides();
+      // Clips from the media library (chosen per country when the post was written). Then a live stock search, as before.
+      for (const clip of bg ? [] : (reel.bg?.clips ?? []).filter((c) => c?.url && !used.has(`lib:${c.id}`))) {
         try {
           const got = await download(clip.url, join(dir, 'bg.mp4'));
           if (!got.type.includes('video') && !got.type.includes('octet-stream')) continue;
@@ -200,6 +247,8 @@ async function main() {
           bg = null;
         }
       }
+      // No clip worked: photos still make a moving reel.
+      if (!bg && reel.bg?.prefer !== 'photos') await trySlides();
       if (!bg && reel.bg?.photo) {
         try {
           const got = await download(reel.bg.photo, join(dir, 'bg.jpg'), 12_000_000);
@@ -236,10 +285,14 @@ async function main() {
       try {
         await render({ bg, frame, layers, duration: reel.duration, out, audio });
       } catch (e) {
-        // A track ffmpeg can't read must not cost the reel.
-        if (!audio) throw e;
+        // A track ffmpeg can't read must not cost the reel — and neither must a slideshow it can't build.
+        if (!audio && bg.kind !== 'slides') throw e;
         audio = null;
         track = null;
+        if (bg.kind === 'slides') {
+          bg = { file: bg.files[0], kind: 'image' };
+          bgUsed = { source: 'photo', credit: bgUsed?.credit ?? null };
+        }
         await render({ bg, frame, layers, duration: reel.duration, out });
       }
       const jpg = join(dir, 'cover.jpg');

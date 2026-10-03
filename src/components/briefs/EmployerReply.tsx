@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BadgeCheck, Check, Clock, Eye, Flag, MessageCircleQuestion, ShieldAlert, ThumbsUp } from 'lucide-react';
+import { BadgeCheck, Check, Clock, Eye, Flag, MessageCircleQuestion, PenLine, ShieldAlert, ThumbsUp } from 'lucide-react';
 import { LinkedInLogo } from '@/components/common/LinkedInLogo';
 import { solveProofOfWork, type PowSolution } from '@/lib/listingRequests';
 import { useAuth } from '@/lib/auth';
@@ -15,6 +15,7 @@ import {
 } from '@/lib/briefs';
 
 const KINDS: { kind: ReplyKind; icon: typeof ThumbsUp; tone: string }[] = [
+  { kind: 'accepted', icon: PenLine, tone: 'bg-emerald-600 text-white hover:bg-emerald-700' },
   { kind: 'interested', icon: ThumbsUp, tone: 'bg-[#1D4ED8] text-white hover:bg-brand-800' },
   { kind: 'more_info', icon: MessageCircleQuestion, tone: 'border border-ink-200 bg-white text-ink-900 hover:border-[#1D4ED8]/40' },
   { kind: 'not_now', icon: Clock, tone: 'border border-ink-200 bg-white text-ink-600 hover:border-ink-300' },
@@ -32,11 +33,16 @@ export function EmployerReply({
   candidateName,
   candidateLinkedin,
   onSavePdf,
+  canAccept = false,
+  onAccepted,
 }: {
   shareId: string;
   candidateName: string;
   candidateLinkedin: string | null;
   onSavePdf: () => void;
+  /** Offer "We accept these terms" (off when it is already confirmed, or the server can't record it yet). */
+  canAccept?: boolean;
+  onAccepted?: () => void;
 }) {
   const first = candidateName.split(/\s+/)[0];
   const { session } = useAuth();
@@ -63,6 +69,7 @@ export function EmployerReply({
 
   const send = async () => {
     if (!kind) return;
+    if (kind === 'accepted' && (!name.trim() || !email.trim())) return setError('To accept the terms, add your name and your work email.');
     setBusy(true);
     setError(null);
     const solution = await pow.current;
@@ -78,6 +85,7 @@ export function EmployerReply({
       return setError(res.error ?? 'Couldn’t send. Please try again.');
     }
     setSent({ verified: Boolean(res.verified) });
+    if (kind === 'accepted') onAccepted?.();
   };
 
   if (sent) {
@@ -116,11 +124,11 @@ export function EmployerReply({
   return (
     <div className="rounded-xl bg-white p-4 ring-1 ring-ink-200">
       <p className="text-[15px] font-bold text-ink-950">Reply to {first}</p>
-      <p className="mt-0.5 text-[13px] text-ink-600">One click. Nothing is binding.</p>
+      <p className="mt-0.5 text-[13px] text-ink-600">{canAccept ? 'One click. Accepting confirms the terms; the other replies bind nothing.' : 'One click. Nothing is binding.'}</p>
 
       {!kind ? (
         <div className="mt-3 space-y-2">
-          {KINDS.map(({ kind: k, icon: Icon, tone }) => (
+          {KINDS.filter((x) => canAccept || x.kind !== 'accepted').map(({ kind: k, icon: Icon, tone }) => (
             <button key={k} onClick={() => setKind(k)} className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[14px] font-bold ${tone}`}>
               <Icon className="h-4 w-4" /> {REPLY_LABEL[k]}
             </button>
@@ -128,12 +136,17 @@ export function EmployerReply({
         </div>
       ) : (
         <div className="mt-3 space-y-2">
-          <p className="rounded-lg bg-[#1D4ED8]/[0.06] px-3 py-2 text-[13px] font-semibold text-[#1D4ED8]">{REPLY_LABEL[kind]}</p>
-          <input className={input} placeholder="Your name (optional)" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+          <p className={`rounded-lg px-3 py-2 text-[13px] font-semibold ${kind === 'accepted' ? 'bg-emerald-50 text-emerald-800' : 'bg-[#1D4ED8]/[0.06] text-[#1D4ED8]'}`}>{REPLY_LABEL[kind]}</p>
+          {kind === 'accepted' && (
+            <p className="text-[12px] leading-5 text-ink-600">
+              The document will show “Confirmed by the Employer” with your name and today’s date, and {first} can no longer change it. It becomes binding when both parties sign.
+            </p>
+          )}
+          <input className={input} placeholder={kind === 'accepted' ? 'Your name' : 'Your name (optional)'} value={name} maxLength={80} onChange={(e) => setName(e.target.value)} autoComplete="name" />
           <input
             className={input}
             type="email"
-            placeholder={`Work email — shared with ${first} (optional)`}
+            placeholder={kind === 'accepted' ? `Work email — shared with ${first}` : `Work email — shared with ${first} (optional)`}
             value={email}
             maxLength={120}
             onChange={(e) => setEmail(e.target.value)}
@@ -203,7 +216,7 @@ export function OwnerReplies({ shareId }: { shareId: string }) {
           {replies.map((r) => (
             <div key={r.id} className="rounded-xl bg-white p-4 ring-1 ring-ink-200">
               <div className="flex items-start justify-between gap-2">
-                <p className={`text-[14px] font-bold ${r.kind === 'interested' ? 'text-emerald-700' : r.kind === 'more_info' ? 'text-[#1D4ED8]' : 'text-ink-600'}`}>{REPLY_LABEL[r.kind]}</p>
+                <p className={`text-[14px] font-bold ${r.kind === 'interested' || r.kind === 'accepted' ? 'text-emerald-700' : r.kind === 'more_info' ? 'text-[#1D4ED8]' : 'text-ink-600'}`}>{REPLY_LABEL[r.kind] ?? r.kind}</p>
                 <span className="shrink-0 text-[11px] text-ink-400">{new Date(r.created_at).toLocaleDateString()}</span>
               </div>
               {(r.name || r.email) && (

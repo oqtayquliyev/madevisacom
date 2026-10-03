@@ -19,7 +19,10 @@ import {
   FORMATS,
   FORMAT_BY_KEY,
   PILLAR_ORDER,
+  REEL_ON,
   RHYTHM,
+  gapFloor,
+  videoShareFor,
   isFormatOn,
   mixFor,
   perDayFor,
@@ -140,15 +143,19 @@ export function planDay(platform: Platform, key: string, count: number, prev: Da
   const out: DayTime[] = chosen
     .map((w) => ({ part: w.part, minutes: Math.round(w.from + r() * Math.max(1, w.to - w.from - 1)) }))
     .sort((a, b) => a.minutes - b.minutes);
-  // Keep clear of the other networks, and of this network's own posts.
+  // Keep clear of the other networks, and of this network's own posts. Each post draws its own
+  // pause between half the setting and the setting (15–30 minutes by default), so the day
+  // never looks like a timetable.
+  const lo = gapFloor(gap);
   const own = Math.max(50, gap);
-  const free = (m: number, i: number) => !taken.some((t) => Math.abs(t - m) < gap) && !(i > 0 && m - out[i - 1].minutes < own);
   const kept: DayTime[] = [];
   for (let i = 0; i < out.length; i++) {
+    const g = lo + Math.round(r() * Math.max(0, gap - lo));
+    const free = (m: number, k: number) => !taken.some((t) => Math.abs(t - m) < g) && !(k > 0 && m - out[k - 1].minutes < own);
     // Move later until the slot is clear of every other network's post and of this network's previous one.
     for (let guard = 0; guard < 40 && !free(out[i].minutes, i); guard++) {
-      const near = taken.filter((t) => Math.abs(t - out[i].minutes) < gap);
-      const until = near.length ? Math.max(...near) + gap : out[i].minutes;
+      const near = taken.filter((t) => Math.abs(t - out[i].minutes) < g);
+      const until = near.length ? Math.max(...near) + g : out[i].minutes;
       const afterOwn = i > 0 ? out[i - 1].minutes + own : out[i].minutes;
       out[i].minutes = Math.max(until, afterOwn, out[i].minutes + 1) + Math.round(r() * 6);
     }
@@ -221,19 +228,23 @@ export function rankFormats(slot: Pick, history: Past[], settings: ProgramSettin
 
   // The same kind of post on another network within a few hours looks like cross-posting: avoid it when there is a choice.
   const nearby = new Set(others.filter((o) => Math.abs(o.at - slot.at) < 4 * 3_600_000).map((o) => o.kind));
-  // Reels reach people who don't follow yet, so each network gets about one a day: when it has had none
-  // in the last 20 hours a reel goes first within its pillar; once it has, images go first again.
-  const videoLately = history.some((h) => Math.abs(slot.at - h.at) < 20 * 3_600_000 && FORMAT_BY_KEY[h.kind]?.video);
+  // Reels first: on the networks that take them, a set share of posts are reels (six in ten by default).
+  // When this network is behind that share, a reel goes first whatever the pillar; when it is ahead, an image does.
+  const share = REEL_ON.includes(slot.platform) ? videoShareFor(settings) : 0;
+  const lately = [...history].sort((a, b) => Math.abs(a.at - slot.at) - Math.abs(b.at - slot.at)).slice(0, 9);
+  const videos = lately.filter((h) => FORMAT_BY_KEY[h.kind]?.video).length;
+  const wantVideo = share > 0 && videos < Math.round(share * (lately.length + 1));
   const r = rng(`${slot.platform}|${slot.at}|format`);
   // Formats that haven't run for a while come first, so a pillar works through
   // all of its formats before one returns; weight only tilts the order.
   const score = (f: FormatDef) => {
     const t = lastOf.get(f.key);
     const rest = t === undefined ? 5 : Math.max(0.3, Math.min(4, (slot.at - t) / (72 * 3_600_000)));
-    return Math.pow(f.weight, 0.6) * (f.parts.includes(slot.part) ? 1.5 : 0.75) * rest * (0.8 + r() * 0.4) * (nearby.has(f.key) ? 0.15 : 1) * (f.video ? (videoLately ? 0.2 : 6) : 1);
+    return Math.pow(f.weight, 0.6) * (f.parts.includes(slot.part) ? 1.5 : 0.75) * rest * (0.8 + r() * 0.4) * (nearby.has(f.key) ? 0.15 : 1);
   };
+  const turn = (f: FormatDef) => (Boolean(f.video) === wantVideo ? 1 : 0);
   const scored = eligible.map((f) => ({ f, pillar: deficit(f.pillar), s: score(f) }));
-  return scored.sort((a, b) => b.pillar - a.pillar || b.s - a.s).map((x) => x.f);
+  return scored.sort((a, b) => turn(b.f) - turn(a.f) || b.pillar - a.pillar || b.s - a.s).map((x) => x.f);
 }
 
 export type Slot = { platform: Platform; at: number; part: DayPart; kind: string; pillar: Pillar };

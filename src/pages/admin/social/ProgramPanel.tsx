@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Loader2, Pause, Play, Rocket, ShieldCheck, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { DEFAULT_SETTINGS, FORMATS, FORMAT_BY_KEY, PILLARS, PILLAR_ORDER, PLATFORM_LABEL, PlatformBadge, RHYTHM, addDays, atLocal, btn, card, formatName, input, isFormatOn, localTime, mixFor, num, perDayFor, planRange, reelsAlive, timeZones, untilText, when, type PlatformRow, type Post, type ProgramRow, type ProgramSettings } from './shared';
+import { DEFAULT_GAP, DEFAULT_SETTINGS, gapFloor, FORMATS, FORMAT_BY_KEY, PILLARS, PILLAR_ORDER, PLATFORM_LABEL, PlatformBadge, RHYTHM, addDays, atLocal, btn, card, formatName, input, isFormatOn, localTime, mixFor, num, perDayFor, planRange, reelsAlive, timeZones, untilText, when, type PlatformRow, type Post, type ProgramRow, type ProgramSettings } from './shared';
 
 // The top of the Social media tab: the program's switch and its state.
 //  - Stopped: what the program does, a preview of the first week, and Start.
@@ -18,6 +18,10 @@ export const settingsOf = (p: ProgramRow | null): ProgramSettings => ({
   focus: p?.focus ?? [],
   // Reels are planned only while the renderer is reporting in.
   reels: reelsAlive(p),
+  gap: p?.gap_min ?? DEFAULT_GAP,
+  videoShare: p?.video_share == null ? undefined : Number(p.video_share),
+  look: p?.look ?? 'photo',
+  host: p?.host_name ?? '',
 });
 
 /** A week planned in the browser with the server's own rules — what Start would produce. */
@@ -120,7 +124,7 @@ export function ProgramPanel({ program, platforms, posts, now, onChange, onOpenS
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">
-              The program is running · {perDay} posts a day on {active.length} {active.length === 1 ? 'network' : 'networks'} · {settings.autopilot ? 'autopilot' : 'you approve each post'}
+              The program is running · {perDay} posts a day on {active.length} {active.length === 1 ? 'network' : 'networks'}, {gapFloor(settings.gap ?? DEFAULT_GAP)}–{settings.gap ?? DEFAULT_GAP} min apart · {reelsAlive(program) ? 'reels first' : 'reels off'} · {settings.autopilot ? 'autopilot' : 'you approve each post'}
             </p>
             <p className="mt-0.5 text-xs text-brand-100">
               {next ? (
@@ -173,7 +177,7 @@ export function ProgramPanel({ program, platforms, posts, now, onChange, onOpenS
         </p>
         <h2 className="mt-3 text-2xl font-bold tracking-tight">One click. Every network. A different post every time.</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-brand-50">
-          Press Start and MadeVisa plans the next days on every network that is switched on: {formatsOn} kinds of post across seven themes, at different times each day, never the same kind twice in a row. Every post is written from live site data and links back to the page that has the full answer.
+          Press Start and MadeVisa plans the next days on every network that is switched on: {formatsOn} kinds of post across seven themes, at different times each day, never the same kind twice in a row, and any two posts {gapFloor(draft.gap ?? DEFAULT_GAP)}–{draft.gap ?? DEFAULT_GAP} minutes apart at the closest. Every post is written from live site data and links back to the page that has the full answer.
         </p>
         <div className="mt-5 flex max-w-3xl flex-wrap gap-1.5">
           {PILLAR_ORDER.map((k) => (
@@ -237,7 +241,7 @@ export function ProgramPanel({ program, platforms, posts, now, onChange, onOpenS
           <PillarLegend />
         </div>
         <WeekPreview settings={draft} platforms={platforms} />
-        <p className="mt-2 text-[11px] leading-4 text-ink-500">Hover a post to see what it is. News, blog and program posts are added when there is one to post. The mix, the formats and the @handles are under Strategy and Content ideas.</p>
+        <p className="mt-2 text-[11px] leading-4 text-ink-500">Hover a post to see what it is. News, blog and program posts are added when there is one to post. The mix, the gap between networks, the look and the @handles are under Strategy; the formats under Content ideas; the photos under Photos &amp; clips.</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 border-t border-ink-100 bg-ink-50/60 px-5 py-4">
@@ -252,7 +256,7 @@ export function ProgramPanel({ program, platforms, posts, now, onChange, onOpenS
           Adjust the strategy first
         </button>
         <span className="text-xs text-ink-500">
-          {active.length ? `${perDay} posts a day on ${active.map((p) => PLATFORM_LABEL[p.platform]).join(', ')}. While it runs, campaigns pause on these networks.` : 'Switch on a network under Platforms first.'}
+          {active.length ? `${perDay} posts a day on ${active.map((p) => PLATFORM_LABEL[p.platform]).join(', ')}, at least ${draft.gap ?? DEFAULT_GAP} minutes apart. While it runs, campaigns pause on these networks.` : 'Switch on a network under Platforms first.'}
         </span>
         {msg && <span className="w-full text-xs font-medium text-emerald-700">{msg}</span>}
       </div>

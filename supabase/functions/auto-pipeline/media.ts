@@ -53,6 +53,8 @@ export type MediaLibrary = {
   photo(code: string | null | undefined, seed: number): Shot | null;
   /** A wide photo (article covers), picked the same way. */
   wide(code: string | null | undefined, seed: number): Shot | null;
+  /** Photos for a slideshow reel: the country's own only (never another place's), or — with no country — one per country. */
+  photos(code: string | null | undefined, seed: number, n: number): { id: number; url: string; credit: string | null }[];
   /** Clips for a reel: the country's own, or — with no country — a mix from the whole library. */
   clips(code: string | null | undefined, seed: number): { id: number; url: string; credit: string | null }[];
   counts: { photos: number; wide: number; videos: number; countries: number };
@@ -97,6 +99,20 @@ export async function loadMedia(service: Service, single: Map<string, { url: str
     wide(code, seed) {
       const pick = pickFrom(wide, code, seed);
       return pick ? shot(pick) : null;
+    },
+    photos(code, seed, n) {
+      const cc = (code ?? '').toUpperCase();
+      const fresh = (list: Row[]) => list.filter((r) => !handed.has(r.id));
+      if (cc) return order(fresh(upright.filter((r) => r.code === cc)), seed).slice(0, n).map((r) => ({ id: r.id, url: r.url, credit: r.credit }));
+      const seen = new Set<string>();
+      const mix: Row[] = [];
+      for (const r of order(fresh(upright), seed)) {
+        if (seen.has(r.code)) continue;
+        seen.add(r.code);
+        mix.push(r);
+        if (mix.length >= n) break;
+      }
+      return mix.map((r) => ({ id: r.id, url: r.url, credit: r.credit }));
     },
     clips(code, seed) {
       const cc = (code ?? '').toUpperCase();

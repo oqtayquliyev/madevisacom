@@ -444,13 +444,13 @@ export const legalPages: Record<string, LegalPageContent> = {
   'sponsorship-document-terms': {
     slug: 'sponsorship-document-terms',
     title: 'Sponsorship Document Terms',
-    description: 'How sponsorship documents are included in MadeVisa Pro, finality and refunds.',
+    description: 'How sponsorship documents are included in MadeVisa Pro, changes, confirmation and refunds.',
     intro: `These terms apply when you prepare a sponsorship document (a sponsorship cost-sharing agreement) on ${ENTITY}. Last updated ${LEGAL_LAST_UPDATED}.`,
     summary: [
       'Sponsorship documents are part of MadeVisa Pro: 50 each calendar month.',
       'They are no longer sold one by one, and new accounts don’t get a free one.',
       'Credits you bought or earned before October 2026 are still yours and still work.',
-      'You review and approve the terms before a document is counted. After that it is final.',
+      'You review and approve the terms before a document is counted. You can correct it afterwards until the employer accepts it; then it is fixed.',
     ],
     sections: [
       {
@@ -476,9 +476,10 @@ export const legalPages: Record<string, LegalPageContent> = {
         ],
       },
       {
-        heading: 'Review, approval and finality',
+        heading: 'Review, changes and confirmation',
         paragraphs: [
-          'Before a document is counted, you see every term in a final review and confirm that it is correct. Once approved, the document is fixed: its terms, the parties and the role can’t be edited, and the employer sees exactly the approved version.',
+          'Before a document is counted, you see every term in a review and confirm that it is correct. After that you can still correct your name, your role line, your note and the terms. The link stays the same, nothing extra is counted, and the employer always sees the latest saved version. The job, the country and the visa route can’t be changed; for those, make a new document.',
+          'The employer can reply “We accept these terms” on the document, with a name and a work email. From that moment the document shows “Confirmed by the Employer” with that name and date, and it can no longer be changed. A confirmation is not a signature: the document becomes binding only when both parties sign it or put its terms into the employment contract.',
           'You can still mark its status (sent, replied, interview and so on) or withdraw it, which stops the link from working. Withdrawing does not return the document to your allowance.',
           'If something in an approved document is wrong because of a mistake on our side, email us and we will correct it or refund it.',
         ],
@@ -499,7 +500,7 @@ export const legalPages: Record<string, LegalPageContent> = {
       },
     ],
     faq: [
-      { q: 'Can I change a document after approving it?', a: 'No. You review every term before paying, and after approval the document is final so the employer can rely on it. If you need different terms for the same job, contact us.' },
+      { q: 'Can I change a document after approving it?', a: 'Yes, until the employer accepts it. Open the document and use “Edit your document”: your name, role line, note and the terms can be corrected, and the employer sees the latest version. Once the employer accepts, it shows “Confirmed” and is fixed.' },
       { q: 'Does the employer have to accept it?', a: 'No. It is a proposal. It becomes binding only if both sides sign it or put its terms into the employment contract.' },
     ],
     related: ['terms', 'privacy', 'disclaimer'],

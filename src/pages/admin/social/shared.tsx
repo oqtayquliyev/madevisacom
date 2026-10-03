@@ -64,7 +64,7 @@ export type Post = {
     planned_kind?: string;
     force?: boolean;
     /** A Reel's recipe (migration 20261124090000), plus what the renderer used. */
-    reel?: ReelRecipe & { bg_used?: { source: 'pexels' | 'library' | 'photo' | 'gradient'; credit?: string | null; page?: string; query?: string } | null; music?: string | null };
+    reel?: ReelRecipe & { bg_used?: { source: 'pexels' | 'library' | 'slides' | 'photo' | 'gradient'; credit?: string | null; page?: string; query?: string; count?: number } | null; music?: string | null };
   } | null;
   /** A Reel: the rendered MP4 (images[0] is then its cover). */
   video_url?: string | null;
@@ -96,8 +96,10 @@ export type ProgramRow = {
   host_name?: string | null;
   /** 'photo' = a real photo opens each post; 'graphic' = designed cards only. */
   look?: 'photo' | 'graphic' | null;
-  /** Minutes between any two posts, across all networks. */
+  /** The longest pause between any two posts, across all networks; the shortest is half of it (30 → 15–30 minutes). */
   gap_min?: number | null;
+  /** Share of posts that are reels where the network takes them (migration 20261201090000). */
+  video_share?: number | null;
   /** When the photo and clip library was last filled, and what happened. */
   media_at?: string | null;
   media_note?: string | null;

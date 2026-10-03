@@ -46,10 +46,10 @@ export const DAY_PART_ORDER: DayPart[] = ['early', 'morning', 'lunch', 'afternoo
  * different set than the day before, at a different minute.
  */
 export const RHYTHM: Record<Platform, { perDay: number; weekend: number; max: number; parts: DayPart[]; note: string }> = {
-  instagram: { perDay: 3, weekend: 2, max: 6, parts: ['lunch', 'evening', 'morning', 'night', 'afternoon', 'early'], note: 'Carousels and saves. Lunch and evenings do best.' },
-  facebook: { perDay: 2, weekend: 2, max: 6, parts: ['morning', 'afternoon', 'evening', 'lunch', 'night', 'early'], note: 'Links are clickable. Mornings and after work.' },
+  instagram: { perDay: 4, weekend: 3, max: 6, parts: ['lunch', 'evening', 'morning', 'night', 'afternoon', 'early'], note: 'Reels first, then carousels. Lunch and evenings do best.' },
+  facebook: { perDay: 4, weekend: 3, max: 6, parts: ['morning', 'afternoon', 'evening', 'lunch', 'night', 'early'], note: 'Reels and photo posts. Links are clickable. Mornings and after work.' },
   linkedin: { perDay: 2, weekend: 1, max: 4, parts: ['morning', 'lunch', 'afternoon', 'early', 'evening'], note: 'Working hours on weekdays, one post at weekends.' },
-  tiktok: { perDay: 2, weekend: 2, max: 4, parts: ['evening', 'night', 'lunch', 'afternoon', 'morning'], note: 'Photo posts. Evenings and late.' },
+  tiktok: { perDay: 3, weekend: 2, max: 4, parts: ['evening', 'night', 'lunch', 'afternoon', 'morning'], note: 'Photo posts. Evenings and late.' },
   telegram: { perDay: 5, weekend: 3, max: 12, parts: ['morning', 'lunch', 'afternoon', 'evening', 'early', 'night'], note: 'A channel feed: more posts, spread through the day.' },
 };
 
@@ -477,7 +477,7 @@ export const FORMATS: FormatDef[] = [
 // The same facts as the image posts, as a 12–16 second vertical video: city or
 // country footage, big text boxes that appear one by one, the link at the end.
 // Reels are what Instagram shows to people who don't follow the account yet.
-const REEL_ON: Platform[] = ['instagram', 'facebook', 'tiktok', 'telegram'];
+export const REEL_ON: Platform[] = ['instagram', 'facebook', 'tiktok', 'telegram'];
 const REEL_NEEDS = 'Needs the reel renderer (the “Render reels” GitHub Action). Until it has run, reels stay off.';
 FORMATS.push(
   {
@@ -485,7 +485,7 @@ FORMATS.push(
     idea: 'Footage of the country, then “Germany is hiring”, three numbers that appear one by one, and where to find the roles.',
     example: 'Germany is hiring. 5,200 open roles right now.',
     source: 'Live job-market numbers by country', link: '/destinations/<country>', visual: 'Reel, about 12 seconds',
-    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 40, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 22, needs: REEL_NEEDS,
   },
   {
     key: 'reel_city', pillar: 'jobs', name: 'Reel: jobs in one city', video: true, fresh: true,
@@ -499,35 +499,35 @@ FORMATS.push(
     idea: 'One visa route: its name over footage of the country, then what it asks for, line by line, and the official source.',
     example: 'Opportunity Card, Germany. Move first, find the job after.',
     source: 'Visa guides', link: '/destinations/<country>', visual: 'Reel, about 15 seconds',
-    platforms: REEL_ON, parts: ['evening', 'night', 'lunch'], weight: 3, cooldown: 40, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['evening', 'night', 'lunch'], weight: 3, cooldown: 22, needs: REEL_NEEDS,
   },
   {
     key: 'reel_myth', pillar: 'visa', name: 'Reel: myth, then fact', video: true,
     idea: 'A common belief on screen, then the fact that corrects it. Short, and made to be shared.',
     example: 'Myth: you need a job offer before you can move.',
     source: 'Visa guides', link: '/destinations', visual: 'Reel, about 14 seconds',
-    platforms: REEL_ON, parts: ['evening', 'night'], weight: 2, cooldown: 60, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['evening', 'night'], weight: 2, cooldown: 44, needs: REEL_NEEDS,
   },
   {
     key: 'reel_plan', pillar: 'plan', name: 'Reel: you make the offer', video: true,
     idea: 'The Visa Plan idea as a reel: the hook, the three steps, “see how it works”.',
     example: 'No visa line in the ad is not a no.',
     source: 'Visa Plan', link: '/offers', visual: 'Reel, about 15 seconds',
-    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 1.5, cooldown: 96, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 1.5, cooldown: 68, needs: REEL_NEEDS,
   },
   {
     key: 'reel_match', pillar: 'plan', name: 'Reel: check your match', video: true,
     idea: 'Footage of people at work, then the question (“Does your CV match the job?”), the three things you get, and where to try it.',
     example: 'Does your CV say what the ad asks for?',
     source: 'CV match', link: '/cv-match', visual: 'Reel, about 14 seconds',
-    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 48, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 30, needs: REEL_NEEDS,
   },
   {
     key: 'reel_cvfix', pillar: 'plan', name: 'Reel: one CV fix', video: true,
     idea: 'One CV mistake and its fix in three screens, over footage of someone working on a laptop.',
     example: 'Your CV has no numbers. Here’s the fix.',
     source: 'CV match — checks on the CV itself', link: '/cv-match', visual: 'Reel, about 13 seconds',
-    platforms: REEL_ON, parts: ['morning', 'evening', 'night'], weight: 2.5, cooldown: 40, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['morning', 'evening', 'night'], weight: 2.5, cooldown: 22, needs: REEL_NEEDS,
   },
   {
     key: 'reel_news', pillar: 'news', name: 'Reel: news', video: true,
@@ -560,16 +560,23 @@ export type ProgramSettings = {
   focus: string[];
   /** The reel renderer has reported in lately — reel formats are only planned when it has. */
   reels?: boolean;
-  /** Minutes two networks stay apart (default 30). */
+  /** The longest pause the planner aims for between any two posts; the shortest is half of it (default 30 → 15–30 minutes). */
   gap?: number;
+  /** Share of posts that are reels on the networks that take them (0–1; default 0.6). */
+  videoShare?: number;
   /** 'photo' = a real photo opens every post, the card follows; 'graphic' = cards only. */
   look?: 'photo' | 'graphic';
   /** A real person on the team whose name signs the captions ("— Leyla, MadeVisa"). Empty = no signature. */
   host?: string;
 };
 
-/** Minutes between two networks' posts unless set otherwise. */
+/** The pause between any two posts, on any network: the planner draws between half of this and this (15–30 minutes). */
 export const DEFAULT_GAP = 30;
+/** The shortest pause for a given setting: half of it, never under 10 minutes. */
+export const gapFloor = (gap: number) => Math.max(10, Math.round(gap / 2));
+/** Reels first: about six posts in ten are reels where the network takes them. */
+export const DEFAULT_VIDEO_SHARE = 0.6;
+export const videoShareFor = (s: Pick<ProgramSettings, 'videoShare' | 'reels'>) => (s.reels ? Math.max(0, Math.min(0.9, Number(s.videoShare ?? DEFAULT_VIDEO_SHARE))) : 0);
 
 export const DEFAULT_SETTINGS: ProgramSettings = { timezone: 'UTC', autopilot: true, per_day: {}, formats: {}, mix: {}, handles: {}, focus: [] };
 
@@ -592,7 +599,20 @@ export type ReelScene = { url: string; steps: number; step: number; hold: number
 export type ReelLayer = { url: string; at: number; end: number; last: boolean };
 export type ReelRecipe = {
   v: 1;
-  bg: { queries: string[]; cc: string | null; photo: string | null; credit: string | null; fallback: string; salt: number; /** Clips from the media library, tried before a live stock search. */ clips?: { id: number; url: string; credit: string | null }[] };
+  bg: {
+    queries: string[];
+    cc: string | null;
+    photo: string | null;
+    credit: string | null;
+    fallback: string;
+    salt: number;
+    /** Clips from the media library, tried before a live stock search. */
+    clips?: { id: number; url: string; credit: string | null }[];
+    /** Photos from the media library for a slideshow background (3–5, cross-faded, each with a slow zoom). */
+    photos?: { id: number; url: string; credit: string | null }[];
+    /** Which background to try first. */
+    prefer?: 'photos' | 'clips';
+  };
   frame: string;
   scenes: ReelScene[];
   layers: ReelLayer[];

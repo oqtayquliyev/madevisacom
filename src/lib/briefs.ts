@@ -310,9 +310,10 @@ export function recordBriefView(shareId: string): () => void {
 // Employer replies (migration 20261115090000)
 // ---------------------------------------------------------------------------
 
-export type ReplyKind = 'interested' | 'more_info' | 'not_now';
+export type ReplyKind = 'interested' | 'more_info' | 'not_now' | 'accepted';
 
 export const REPLY_LABEL: Record<ReplyKind, string> = {
+  accepted: 'We accept these terms',
   interested: 'Interested — let’s talk',
   more_info: 'Need more information',
   not_now: 'Not right now',
@@ -392,6 +393,39 @@ export async function updateBriefTerms(shareId: string, terms: OfferTerms): Prom
   }
   const { error } = await supabase.from('hiring_briefs').update(patch).eq('share_id', shareId);
   return error ? { ok: false, error: /column|schema cache/i.test(error.message) ? 'Run migration 20261109090000 to save Visa Plan terms.' : error.message } : { ok: true, terms };
+}
+
+/**
+ * Owner corrects their own details on a saved document (migration
+ * 20261130090000). The server refuses silently once the company has
+ * accepted, so the page checks `fetchBriefAcceptance` and reloads after saving.
+ */
+export async function updateBriefDetails(shareId: string, d: { name: string; headline: string; note: string }): Promise<{ ok: boolean; error?: string }> {
+  const name = d.name.trim().replace(/\s+/g, ' ');
+  if (!name) return { ok: false, error: 'Add the name the employer should see.' };
+  const { error } = await supabase
+    .from('hiring_briefs')
+    .update({ candidate_name: name.slice(0, 120), candidate_headline: d.headline.trim().slice(0, 140) || null, note: d.note.trim().slice(0, 600) || null })
+    .eq('share_id', shareId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export type BriefAcceptance = {
+  /** When the company accepted the terms; null while it hasn't. */
+  acceptedAt: string | null;
+  acceptedBy: string | null;
+  /** The acceptance came from an email on the company's own domain. */
+  verified: boolean;
+  /** Last time the owner changed the document after making it. */
+  editedAt: string | null;
+};
+
+/** Whether the company has confirmed this document. Null when the migration isn't there yet. */
+export async function fetchBriefAcceptance(shareId: string): Promise<BriefAcceptance | null> {
+  const { data, error } = await supabase.rpc('brief_acceptance', { p_share_id: shareId });
+  if (error || !data) return null;
+  const v = data as { accepted_at?: string | null; accepted_by?: string | null; verified?: boolean; edited_at?: string | null };
+  return { acceptedAt: v.accepted_at ?? null, acceptedBy: v.accepted_by ?? null, verified: Boolean(v.verified), editedAt: v.edited_at ?? null };
 }
 
 export async function withdrawBrief(shareId: string): Promise<{ ok: boolean; error?: string }> {

@@ -64,7 +64,7 @@ export function OfferInfo({ className = '', light = false }: { className?: strin
             <span className="flex gap-2"><Dot />Signature lines, so HR can file it with the contract</span>
           </span>
           <span className="mt-3 block border-t border-ink-100 pt-2 text-[12px] leading-5 text-ink-500">
-            Part of MadeVisa Pro: 50 documents a month. You review everything first; once approved, a document is final.
+            Part of MadeVisa Pro: 50 documents a month. You review everything first, and can correct it until the company accepts.
           </span>
         </span>
       )}

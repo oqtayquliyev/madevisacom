@@ -64,6 +64,8 @@ export function ReelPreview({ post, rendererAlive }: { post: Post; rendererAlive
               </>
             ) : reel.bg_used?.source === 'library' ? (
               `footage: ${reel.bg_used.credit ?? 'a clip'} (from Photos & clips)`
+            ) : reel.bg_used?.source === 'slides' ? (
+              `background: ${reel.bg_used.count ?? 'several'} photos from Photos & clips${reel.bg_used.credit ? ` (${reel.bg_used.credit})` : ''}`
             ) : reel.bg_used?.source === 'photo' ? (
               `background: your country photo${reel.bg_used.credit ? ` (${reel.bg_used.credit})` : ''}`
             ) : (
@@ -247,7 +249,7 @@ export function ReelsSetup({ program }: { program: ProgramRow }) {
         {program.reels_at && <span className="text-xs text-ink-500">last reported in {when(program.reels_at)}</span>}
       </div>
       <p className="mt-1 max-w-3xl text-xs leading-5 text-ink-600">
-        Six kinds of post are 12–16 second vertical videos: text boxes that appear one by one over footage of the city or country, with the links in the caption. While the renderer is running, each network gets about one reel a day in place of an image post. Instagram and Facebook publish them as Reels, Telegram as a video; for TikTok you download the video and post it by hand.
+        Eight kinds of post are 12–16 second vertical videos: text boxes that appear one by one over photos or clips of the place, with the links in the caption. While the renderer is running, about six posts in ten are reels (set under Strategy). Every other reel is built from the library’s photos, cross-faded; the rest use its clips. Instagram and Facebook publish them as Reels, Telegram as a video; for TikTok you download the video and post it by hand.
       </p>
       {program.reels_note && <p className="mt-2 rounded-md bg-ink-50 px-2.5 py-1.5 text-xs text-ink-700">Last run: {program.reels_note}</p>}
       {!alive && (

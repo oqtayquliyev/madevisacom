@@ -389,15 +389,18 @@ function Roadmap({ lead, place, doc, from, step, fresh }: { lead: TopMatch; plac
                 <span className="text-[15px] font-semibold text-ink-600">up to </span>
                 {reach}%
               </p>
-              <ul className="mt-2 flex flex-wrap gap-1.5">
+              <ul className="mt-2.5 list-disc space-y-1 pl-5 text-[14px] font-semibold leading-5 text-ink-900 marker:text-brand-500">
                 {missing.slice(0, 4).map((s) => (
-                  <li key={s} className="rounded-full bg-brand-50 px-2 py-0.5 text-[12px] font-semibold text-brand-800">
-                    {s}
-                  </li>
+                  <li key={s}>{s}</li>
                 ))}
-                {missing.length > 4 && <li className="px-1 py-0.5 text-[12px] text-ink-500">+{missing.length - 4}</li>}
               </ul>
-              <p className="mt-1.5 text-[11.5px] leading-4 text-ink-500">Only the ones you really have.</p>
+              {missing.length > 4 && <p className="mt-1 pl-5 text-[12.5px] text-ink-500">and {missing.length - 4} more</p>}
+              <p className="mt-2 text-[12px] leading-4 text-ink-500">Only the ones you really have.</p>
+              {!doc.pro && (
+                <a href="/pricing#pro" onClick={go('/pricing#pro')} className="mt-2.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-brand-700 hover:underline">
+                  Every requirement, line by line, with Pro <ArrowRight className="h-3.5 w-3.5" />
+                </a>
+              )}
             </>
           ) : (
             <p className="mt-2.5 flex items-start gap-1.5 text-[14px] leading-5 text-ink-700">
@@ -411,7 +414,7 @@ function Roadmap({ lead, place, doc, from, step, fresh }: { lead: TopMatch; plac
           <div className={shown(step >= 3)}>
           {place.doc ? (
             <>
-              <p className="flex items-center gap-2 text-[13px] font-bold text-ink-950">{n(3)} Send your document</p>
+              <p className="flex items-center gap-2 text-[13px] font-bold text-ink-950">{n(3)} Do you have a sponsorship document?</p>
               <p className="mt-2.5 flex items-center gap-2 text-[13px] font-semibold text-ink-800">
                 {from && from !== lead.cc && (
                   <>
@@ -422,15 +425,21 @@ function Roadmap({ lead, place, doc, from, step, fresh }: { lead: TopMatch; plac
                 {lead.cc && <CircleFlag countryCode={lead.cc} label={lead.country ?? undefined} size={24} />}
                 <span className="min-w-0 truncate">{lead.country}</span>
               </p>
-              <p className="mt-2 text-[13px] leading-5 text-ink-600">
-                Your sponsorship document for {lead.company} is {doc.made.has(lead.id) ? 'saved' : 'ready'}.
+              <p className="mt-2 text-[13px] leading-5 text-ink-700">
+                {doc.made.has(lead.id) ? (
+                  <>Yours for {lead.company} is saved.</>
+                ) : (
+                  <>
+                    If not, yours for <strong className="font-semibold text-ink-950">{lead.company}</strong> is ready to download.
+                  </>
+                )}
               </p>
               <button onClick={() => doc.go(lead)} className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-brand-600 px-4 py-2.5 text-[13.5px] font-bold text-white hover:bg-brand-700">
                 <Download className="h-4 w-4" /> {docLabel(lead, doc)}
               </button>
               {outcomes && (
-                <p className="mt-2 text-[11.5px] leading-4 text-ink-500">
-                  {Math.round((100 * outcomes.opened) / outcomes.made)}% of the {outcomes.made.toLocaleString('en')} documents made on MadeVisa were opened by the employer.
+                <p className="mt-2 text-[12px] leading-4 text-ink-600">
+                  <strong className="text-[15px] font-bold tabular-nums text-emerald-700">{Math.round((100 * outcomes.opened) / outcomes.made)}%</strong> of the {outcomes.made.toLocaleString('en')} documents made on MadeVisa were opened by the employer.
                 </p>
               )}
             </>
@@ -449,6 +458,39 @@ function Roadmap({ lead, place, doc, from, step, fresh }: { lead: TopMatch; plac
           </div>
         </li>
       </ol>
+    </div>
+  );
+}
+
+/** "Few numbers. Add results you can count (…)." → the tag "Few numbers", and the advice behind it. */
+function tagOf(tip: string): { tag: string; more: string } {
+  const cut = tip.search(/\.\s|\s—\s/);
+  const tag = (cut > 0 ? tip.slice(0, cut) : tip).replace(/\s+found.*$/i, '').replace(/\.$/, '').trim();
+  return { tag, more: tip };
+}
+
+/** Fixes to the CV itself, as tags: tap one to read what to do. */
+function CvFixes({ tips, className = '' }: { tips: string[]; className?: string }) {
+  const [open, setOpen] = useState<number | null>(null);
+  return (
+    <div className={`mt-3 rounded-2xl bg-white px-4 py-3.5 ring-1 ring-ink-200 sm:px-6 ${className}`}>
+      <p className="flex items-center gap-2 text-[14px] font-bold text-ink-950">
+        <PencilLine className="h-4 w-4 text-ink-500" /> {tips.length} {tips.length === 1 ? 'fix' : 'fixes'} to your CV
+      </p>
+      <ul className="mt-2.5 flex flex-wrap gap-1.5">
+        {tips.map((t, i) => (
+          <li key={t}>
+            <button
+              onClick={() => setOpen(open === i ? null : i)}
+              aria-expanded={open === i}
+              className={`rounded-full px-3 py-1 text-[12.5px] font-semibold ring-1 transition ${open === i ? 'bg-ink-950 text-white ring-ink-950' : 'bg-amber-50 text-amber-900 ring-amber-200 hover:ring-amber-400'}`}
+            >
+              {tagOf(t).tag}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {open != null && tips[open] && <p className="mt-2.5 text-[13px] leading-5 text-ink-700">{tagOf(tips[open]).more}</p>}
     </div>
   );
 }
@@ -572,23 +614,7 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
 
       <Roadmap lead={lead} place={leadPlace} doc={doc} from={visitor.currentLocation} step={step} fresh={fresh} />
 
-      {tips.length > 0 && (
-        <details className={`group mt-3 rounded-2xl bg-white ring-1 ring-ink-200 ${shown(step >= 4)}`}>
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[14px] font-bold text-ink-950 sm:px-6 [&::-webkit-details-marker]:hidden">
-            <span className="flex items-center gap-2">
-              <PencilLine className="h-4 w-4 text-ink-500" /> {tips.length} {tips.length === 1 ? 'fix' : 'fixes'} to your CV
-            </span>
-            <ChevronRight className="h-4 w-4 text-ink-400 transition group-open:rotate-90" />
-          </summary>
-          <ul className="space-y-1.5 border-t border-ink-100 px-4 py-3 sm:px-6">
-            {tips.map((x) => (
-              <li key={x} className="text-[13px] leading-5 text-ink-700">
-                {x}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
+      {tips.length > 0 && <CvFixes tips={tips} className={shown(step >= 4)} />}
 
       {items.length > 1 && (
         <>

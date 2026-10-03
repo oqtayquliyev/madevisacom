@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, Download, Link2, Loader2, Lock, Paperclip, Unlock, X } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Check, ChevronDown, Copy, Download, Link2, Loader2, Lock, Maximize2, Paperclip, Unlock, X } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { useAuth } from '@/lib/auth';
@@ -24,11 +24,15 @@ import {
   briefUrl,
   createBrief,
   fetchBrief,
+  fetchBriefAcceptance,
   fetchMyBriefForJob,
   findRoute,
   recordBriefView,
+  updateBriefDetails,
   updateBriefStatus,
+  updateBriefTerms,
   withdrawBrief,
+  type BriefAcceptance,
   type BriefStatus,
   type PublicBrief,
 } from '@/lib/briefs';
@@ -178,6 +182,9 @@ function NewOffer({ go, onAuth }: Props) {
   const [confirming, setConfirming] = useState(false);
   // The plan and its price are shown at the moment someone asks for the download.
   const [planOpen, setPlanOpen] = useState(false);
+  // The full name comes first: a document that says "Your name" is worth nothing.
+  const [nameOk, setNameOk] = useState(false);
+  const [fullOpen, setFullOpen] = useState(false);
   // Starts on the recommended, balanced terms until the candidate changes them.
   const [useRec, setUseRec] = useState(true);
   const { profile: visitor } = usePersonalization();
@@ -231,6 +238,7 @@ function NewOffer({ go, onAuth }: Props) {
     if (!d) return;
     setEd(d.ed);
     setName(d.name);
+    if (hasFullName(d.name)) setNameOk(true);
     setHeadline(d.headline);
     setNote(d.note);
     if (d.country) setCountry(d.country);
@@ -242,6 +250,7 @@ function NewOffer({ go, onAuth }: Props) {
   useEffect(() => {
     if (!profile) return;
     setName((n) => n || profile.full_name || '');
+    if (hasFullName(profile.full_name ?? '')) setNameOk(true);
     setHeadline((h) => h || profile.network_headline || headlineFromProfile(profile) || '');
   }, [profile]);
 
@@ -299,7 +308,37 @@ function NewOffer({ go, onAuth }: Props) {
     // The message sits by the button at the end of the side panel; bring it into view.
     window.requestAnimationFrame(() => document.getElementById('offer-pay')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
   };
+  // What must be right before anyone downloads, and what is worth a second look.
+  const cityShown = picked ? null : job.city;
+  const checks: Check_[] = [
+    hasFullName(name)
+      ? { level: 'ok', text: `Name: ${name.trim()}` }
+      : { level: 'stop', text: name.trim() ? 'Add your full name: first name and family name, as in your passport.' : 'Add your full name. The document says “Your name” until you do.', field: 'offer-name' },
+    ed.employer.name.trim() ? { level: 'ok', text: `Company: ${ed.employer.name.trim()}` } : { level: 'stop', text: 'Add the company this document is for.', field: 'offer-company' },
+    ...(job.title ? [] : [{ level: 'stop', text: 'Add the role you are applying for.', field: 'offer-role' } as Check_]),
+    picked
+      ? { level: 'look', text: `Country: ${guide.name}. The job ad is in ${countryNameOf(ready.job.ownCode) ?? 'another country'} — make sure ${guide.name} is where you will work.`, field: 'offer-country' }
+      : { level: 'look', text: `Country: ${guide.name}. Check that this is where you will work.`, field: 'offer-country' },
+    cityShown ? { level: 'look', text: `Place of work: ${cityShown}, ${guide.name}. Check it against the job ad.` } : { level: 'look', text: `Place of work: the document shows ${guide.name} only, no city.` },
+    ...(el.checked && route.id !== GENERIC_ROUTE_ID
+      ? [{ level: 'ok', text: `Visa route: ${route.name}` } as Check_]
+      : [{ level: 'look', text: `Visa route: we have no checked route for ${guide.name} yet. The document says “National work permit (to be confirmed)” and the company confirms the exact route.` } as Check_]),
+  ];
+  const stop = checks.find((c) => c.level === 'stop') ?? null;
+  const goTo = (field?: string) => {
+    const node = field ? document.getElementById(field) : null;
+    if (!node) return;
+    node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    (node as HTMLElement).focus?.({ preventScroll: true });
+  };
+
   const review = () => {
+    // A document with a gap in it is never offered for download.
+    if (stop) {
+      setFullOpen(false);
+      setError(stop.text);
+      return goTo(stop.field);
+    }
     // No plan yet (or no account): this is the moment to show the price and what it covers.
     if (!canPay && !credits?.pro) {
       if (!session) keepDraft();
@@ -307,10 +346,8 @@ function NewOffer({ go, onAuth }: Props) {
     }
     // Pro, all of this month's documents used.
     if (!canPay) return fail(`All ${PRO_MONTHLY_DOCS} documents for this month are used. They renew on the 1st.`);
-    if (!name.trim()) return fail('Add the name the employer should see.');
-    if (!job.title) return fail('Add the role you are applying for.');
-    if (!ed.employer.name.trim()) return fail('Add the company this document is for.');
     setError(null);
+    setFullOpen(false);
     setConfirming(true);
   };
 
@@ -357,151 +394,326 @@ function NewOffer({ go, onAuth }: Props) {
   };
   const from = (visitor.currentLocation ?? visitor.citizenship ?? '').toUpperCase() || null;
 
+  const flags = (
+    <span className="flex shrink-0 items-center gap-1.5">
+      {from && from !== el.code && (
+        <>
+          <CircleFlag countryCode={from} size={24} label={countryNameOf(from) ?? from} />
+          <ChevronRightIcon />
+        </>
+      )}
+      <CircleFlag countryCode={el.code} size={24} label={guide.name} />
+    </span>
+  );
+  const companyName = ed.employer.name || job.company;
+
+  // Step one, when we don't know the name yet: ask for it before showing anything else.
+  if (!nameOk) {
+    const good = hasFullName(name);
+    return (
+      <Builder go={go} onAuth={onAuth}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (good) setNameOk(true);
+          }}
+          className="mx-auto mt-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-soft ring-1 ring-ink-200 sm:mt-10 sm:p-8"
+        >
+          <p className="flex items-center gap-2 text-[13px] font-semibold text-ink-600">
+            {flags}
+            <span className="min-w-0 truncate">Sponsorship document{companyName ? ` for ${companyName}` : ''}</span>
+          </p>
+          <h1 className="mt-4 text-[24px] font-bold leading-tight tracking-tight text-ink-950">First, your full name</h1>
+          <label className="mt-4 block">
+            <span className="text-[13px] font-semibold text-ink-800">As in your passport</span>
+            <input id="offer-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoComplete="name" placeholder="e.g. Aysel Rashad qizi Mammadova" className={`${INPUT} py-3 text-[16px]`} />
+          </label>
+          <p className="mt-2 text-[12.5px] leading-5 text-ink-500">Include your father’s name if your passport shows it. The company sees exactly this name on the document.</p>
+          {name.trim() && !good && <p className="mt-2 text-[12.5px] font-semibold text-amber-700">Add your family name too.</p>}
+          <button type="submit" disabled={!good} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800 disabled:opacity-50">
+            Continue
+          </button>
+        </form>
+      </Builder>
+    );
+  }
+
+  const paper = <OfferDocument doc={doc} terms={terms} guide={guide} route={route} code={el.code} locked={!canPay} draft />;
+
   return (
-    <Desk
+    <Builder
       go={go}
       onAuth={onAuth}
-      panelFirstOnMobile
       banner={
-        <div className="border-b border-emerald-200 bg-emerald-50">
+        <div className={`border-b ${stop ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
           <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center gap-x-4 gap-y-2.5 px-3 py-3 sm:px-6">
-            <span className="flex shrink-0 items-center gap-1.5">
-              {from && from !== el.code && (
+            {flags}
+            <p className="min-w-0 flex-1 basis-56 text-[14px] leading-5 text-ink-800">
+              {stop ? (
                 <>
-                  <CircleFlag countryCode={from} size={24} label={from} />
-                  <ChevronRightIcon />
+                  <strong className="text-ink-950">One thing is missing.</strong> {stop.text}
+                </>
+              ) : (
+                <>
+                  <strong className="text-ink-950">Your sponsorship document{companyName ? ` for ${companyName}` : ''} is ready.</strong> Check your name, the country and the place of work, then download.
                 </>
               )}
-              <CircleFlag countryCode={el.code} size={24} label={guide.name} />
-            </span>
-            <p className="min-w-0 flex-1 basis-56 text-[14px] leading-5 text-ink-800">
-              <strong className="text-ink-950">Your sponsorship document{ed.employer.name ? ` for ${ed.employer.name}` : ''} is ready.</strong> Review it, then download the PDF.
             </p>
             <button onClick={review} disabled={busy} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-5 py-2.5 text-[14px] font-bold text-white hover:bg-brand-800 disabled:opacity-60">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Download PDF
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : stop ? null : <Download className="h-4 w-4" />} {stop ? 'Fix it' : 'Download PDF'}
             </button>
           </div>
         </div>
       }
-      paper={<OfferDocument doc={doc} terms={terms} guide={guide} route={route} code={el.code} locked />}
-      panel={
-        <>
-          <RecommendedPanel
-            company={ed.employer.name || job.company || 'this company'}
-            from={from}
-            to={el.code}
-            toName={guide.name}
-            terms={recTerms}
-            code={el.code}
-            active={isRecommended}
-            onApply={() => {
-              setUseRec(true);
-              setEd((d) => (d ? { ...d, overrides: {} } : d));
-            }}
-          />
-          <EmployerControl value={ed.employer} onChange={(e) => patch({ employer: e })} />
+      side={
+        <Panel>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[15px] font-bold text-ink-950">Your document</p>
+            <button onClick={() => setFullOpen(true)} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#1D4ED8] hover:underline">
+              <Maximize2 className="h-3.5 w-3.5" /> See full
+            </button>
+          </div>
+          <DocPreview onOpen={() => setFullOpen(true)}>{paper}</DocPreview>
+          <p className="mt-2 text-[12px] leading-5 text-ink-500">
+            It updates as you type.{canPay ? '' : ' The wording of each clause appears once you have the plan.'}
+          </p>
+        </Panel>
+      }
+    >
+      {/* 1. What must be right */}
+      <Panel>
+        <h1 className="text-[18px] font-bold leading-snug text-ink-950">Check your details</h1>
+        <p className="mt-0.5 text-[13px] leading-5 text-ink-600">The company reads this document as written. Look at each line once.</p>
+        <ul className="mt-3 space-y-1.5">
+          {checks.map((c) => (
+            <li key={c.text} className="flex items-start gap-2 text-[13.5px] leading-5">
+              {c.level === 'ok' ? (
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" strokeWidth={3} />
+              ) : (
+                <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${c.level === 'stop' ? 'text-rose-600' : 'text-amber-500'}`} />
+              )}
+              <span className={c.level === 'stop' ? 'font-semibold text-rose-700' : 'text-ink-800'}>
+                {c.text}{' '}
+                {c.field && c.level !== 'ok' && (
+                  <button onClick={() => goTo(c.field)} className="font-semibold text-[#1D4ED8] hover:underline">
+                    {c.level === 'stop' ? 'Fix' : 'Change'}
+                  </button>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-4 grid gap-3 border-t border-ink-100 pt-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-[13px] font-semibold text-ink-800">Full name, as in your passport</span>
+            <input id="offer-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoComplete="name" className={`${INPUT} ${hasFullName(name) ? '' : 'border-rose-300'}`} />
+            <span className="mt-1 block text-[12px] leading-4 text-ink-500">With your father’s name if your passport shows it.</span>
+          </label>
+          <label className="block">
+            <span className="text-[13px] font-semibold text-ink-800">Role and experience</span>
+            <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={140} placeholder="Backend engineer · 5–10 years" className={INPUT} />
+            <span className="mt-1 block text-[12px] leading-4 text-ink-500">One line under your name. Optional.</span>
+          </label>
           {custom && (
-            <Panel>
-              <p className="text-[15px] font-bold text-ink-950">Custom Visa Plan</p>
-              <p className="mt-0.5 text-[12px] leading-5 text-ink-500">For a company or role that isn’t on MadeVisa. Change the company name in Company above.</p>
-              <label className="mt-2 block">
-                <span className="text-[13px] font-semibold text-ink-800">Role you’re applying for</span>
-                <input value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} maxLength={300} placeholder="e.g. Data Engineer" className={INPUT} />
-              </label>
-            </Panel>
+            <label className="block sm:col-span-2">
+              <span className="text-[13px] font-semibold text-ink-800">Role you’re applying for</span>
+              <input id="offer-role" value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} maxLength={300} placeholder="e.g. Data Engineer" className={INPUT} />
+            </label>
           )}
-          <Panel>
-            <label className="block">
-              <span className="text-[13px] font-semibold text-ink-800">Where will you work?</span>
-              <CountrySelect
-                value={el.code}
-                jobCode={job.ownCode}
-                onChange={(c) => {
-                  setCountry(c);
-                  setRouteId('');
-                  patch({ offset: 0, salary: salaryFromJob(ready.raw, c), overrides: {} });
-                }}
-              />
-            </label>
-            {!el.checked && <p className="mt-2 text-[12px] leading-5 text-ink-500">General work-permit terms. The company confirms the exact route.</p>}
-            {routes.length > 1 && (
-              <label className="mt-3 block">
-                <span className="text-[13px] font-semibold text-ink-800">Visa route</span>
-                <select value={route.id} onChange={(e) => setRouteId(e.target.value)} className={INPUT}>
-                  {routes.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name} {r.employer?.licenceNeeded ? '· sponsor licence' : '· no licence'}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </Panel>
-
-          <EditorPanels ed={edNow} terms={terms} code={el.code} onChange={patch} hideEmployer />
-
-          <Panel>
-            <p className="text-[15px] font-bold text-ink-950">About you</p>
-            <label className="mt-2 block">
-              <span className="text-[13px] font-semibold text-ink-800">Full name</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} className={INPUT} />
-            </label>
-            <label className="mt-3 block">
-              <span className="text-[13px] font-semibold text-ink-800">Role and experience</span>
-              <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={140} placeholder="Backend engineer · 5–10 years" className={INPUT} />
-            </label>
-            <label className="mt-3 block">
-              <span className="text-[13px] font-semibold text-ink-800">Note to the hiring manager</span>
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={600} rows={2} placeholder="Optional" className={INPUT} />
-            </label>
-          </Panel>
-
-          <PayBox
-            credits={credits}
-            signedIn={Boolean(session)}
-            usesPro={usesPro}
-            canPay={canPay}
-            busy={busy}
-            error={error}
-            onGo={review}
-          />
-          {confirming && (
-            <ConfirmTerms
-              terms={terms}
-              code={el.code}
-              country={guide.name}
-              routeName={route.id === GENERIC_ROUTE_ID ? 'National work permit (to be confirmed)' : route.name}
-              candidate={name.trim()}
-              headline={headline.trim()}
-              company={ed.employer.name}
-              role={job.title}
-              price={usesPro ? 'Included in Pro' : '1 document from your balance'}
-              onBack={() => setConfirming(false)}
-              onConfirm={() => void generate()}
-            />
-          )}
-          {planOpen && (
-            <PlanSheet
-              company={ed.employer.name}
-              signedIn={Boolean(session)}
-              onClose={() => setPlanOpen(false)}
-              onAuth={(page) => {
-                keepDraft();
-                onAuth?.(page);
+          <label className="block">
+            <span className="text-[13px] font-semibold text-ink-800">Country where you will work</span>
+            <CountrySelect
+              id="offer-country"
+              value={el.code}
+              jobCode={job.ownCode}
+              onChange={(c) => {
+                setCountry(c);
+                setRouteId('');
+                patch({ offset: 0, salary: salaryFromJob(ready.raw, c), overrides: {} });
               }}
             />
+          </label>
+          {routes.length > 1 ? (
+            <label className="block">
+              <span className="text-[13px] font-semibold text-ink-800">Visa route</span>
+              <select value={route.id} onChange={(e) => setRouteId(e.target.value)} className={INPUT}>
+                {routes.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name} {r.employer?.licenceNeeded ? '· sponsor licence' : '· no licence'}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div>
+              <span className="text-[13px] font-semibold text-ink-800">Place of work on the document</span>
+              <p className="mt-1 rounded-lg bg-ink-50 px-3 py-2 text-[14px] text-ink-900">{[cityShown, guide.name].filter(Boolean).join(', ')}</p>
+            </div>
           )}
-        </>
-      }
-    />
+        </div>
+      </Panel>
+
+      {/* 2. Who it is for */}
+      <div id="offer-company" tabIndex={-1} className="outline-none">
+        <EmployerControl value={ed.employer} onChange={(e) => patch({ employer: e })} />
+      </div>
+
+      {/* 3. The terms: a sound default, changeable */}
+      <RecommendedPanel
+        company={companyName || 'this company'}
+        from={from}
+        to={el.code}
+        toName={guide.name}
+        terms={recTerms}
+        code={el.code}
+        active={isRecommended}
+        onApply={() => {
+          setUseRec(true);
+          setEd((d) => (d ? { ...d, overrides: {} } : d));
+        }}
+      />
+      <details className="group rounded-xl bg-white shadow-sm ring-1 ring-ink-200">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 text-[15px] font-bold text-ink-950 [&::-webkit-details-marker]:hidden">
+          Change the terms or add a note
+          <span className="flex items-center gap-2 text-[12px] font-semibold text-ink-500">
+            Optional <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
+          </span>
+        </summary>
+        <div className="space-y-4 border-t border-ink-100 p-4">
+          <EditorPanels ed={edNow} terms={terms} code={el.code} onChange={patch} hideEmployer />
+          <label className="block">
+            <span className="text-[13px] font-semibold text-ink-800">Note to the hiring manager</span>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={600} rows={2} placeholder="Optional" className={INPUT} />
+          </label>
+        </div>
+      </details>
+
+      <PayBox credits={credits} signedIn={Boolean(session)} usesPro={usesPro} canPay={canPay} busy={busy} error={error} onGo={review} />
+
+      {fullOpen && (
+        <FullDocument onClose={() => setFullOpen(false)} onDownload={review} canDownload={!stop}>
+          {paper}
+        </FullDocument>
+      )}
+      {confirming && (
+        <ConfirmTerms
+          terms={terms}
+          code={el.code}
+          country={guide.name}
+          city={cityShown}
+          routeName={route.id === GENERIC_ROUTE_ID ? 'National work permit (to be confirmed)' : route.name}
+          candidate={name.trim()}
+          headline={headline.trim()}
+          company={ed.employer.name}
+          role={job.title}
+          price={usesPro ? 'Included in Pro' : '1 document from your balance'}
+          onBack={() => setConfirming(false)}
+          onConfirm={() => void generate()}
+        />
+      )}
+      {planOpen && (
+        <PlanSheet
+          company={ed.employer.name}
+          signedIn={Boolean(session)}
+          onClose={() => setPlanOpen(false)}
+          onAuth={(page) => {
+            keepDraft();
+            onAuth?.(page);
+          }}
+        />
+      )}
+    </Builder>
   );
 }
 
-/** Last look before paying: the document can't be changed afterwards. */
+/** A full name has at least a first name and a family name. */
+const hasFullName = (v: string) => v.trim().split(/\s+/).filter((w) => w.length > 1).length >= 2;
+const countryNameOf = (code: string | null | undefined) => (code ? allCountries.find((c) => c.code === code.toUpperCase())?.name ?? null : null);
+/** A line of the check list: fine, worth a second look, or must be fixed before download. */
+type Check_ = { level: 'ok' | 'look' | 'stop'; text: string; field?: string };
+
+/** The builder's frame: what to fill in on the left, a small view of the document on the right. */
+function Builder({ go, onAuth, banner, side, children }: { go: Props['go']; onAuth: Props['onAuth']; banner?: ReactNode; side?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="min-h-screen bg-[#e9edf3] text-ink-900 print:hidden">
+      <LandingHeader go={go} onAuth={onAuth} />
+      {banner}
+      <div className={`mx-auto grid w-full max-w-[1200px] gap-6 px-3 py-6 sm:px-6 sm:py-8 ${side ? 'lg:grid-cols-[minmax(0,1fr)_380px]' : ''}`}>
+        <div className="min-w-0 space-y-4">{children}</div>
+        {side && <aside className="min-w-0 lg:sticky lg:top-[88px] lg:self-start">{side}</aside>}
+      </div>
+    </div>
+  );
+}
+
+/** The document at a glance: the real page, scaled down to fit, with a way to open it full size. */
+function DocPreview({ children, onOpen }: { children: ReactNode; onOpen: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.4);
+  useEffect(() => {
+    const node = box.current;
+    if (!node) return;
+    const fit = () => setScale(node.clientWidth / 820);
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={box} className="relative mt-3 h-[400px] overflow-hidden rounded-lg bg-white ring-1 ring-ink-200">
+      {/* Shown for looking at only: no focus, no clicks, not read out twice. */}
+      <div aria-hidden className="pointer-events-none origin-top-left select-none" style={{ width: 820, transform: `scale(${scale})` }} {...({ inert: '' } as object)}>
+        {children}
+      </div>
+      <div className="absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-white via-white/90 to-transparent pb-3 pt-14">
+        <button onClick={onOpen} className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-bold text-ink-900 shadow-soft ring-1 ring-ink-200 hover:ring-[#1D4ED8]/40">
+          <Maximize2 className="h-3.5 w-3.5" /> See full document
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The whole document, full size, over the page. */
+function FullDocument({ children, onClose, onDownload, canDownload }: { children: ReactNode; onClose: () => void; onDownload: () => void; canDownload: boolean }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    const was = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = was;
+    };
+  }, [onClose]);
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex flex-col bg-ink-950/60 print:hidden" role="dialog" aria-modal="true" aria-label="Your document" onClick={onClose}>
+      <div className="flex shrink-0 items-center justify-between gap-3 bg-white px-4 py-2.5 shadow-sm sm:px-6" onClick={(e) => e.stopPropagation()}>
+        <p className="text-[15px] font-bold text-ink-950">Your document</p>
+        <div className="flex items-center gap-2">
+          <button onClick={onDownload} className="inline-flex items-center gap-1.5 rounded-full bg-[#1D4ED8] px-4 py-2 text-[13px] font-bold text-white hover:bg-brand-800">
+            {canDownload ? <Download className="h-3.5 w-3.5" /> : null} {canDownload ? 'Download PDF' : 'Fix what’s missing'}
+          </button>
+          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full text-ink-600 hover:bg-ink-100">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto px-2 py-5 sm:px-6 sm:py-8">
+        <div onClick={(e) => e.stopPropagation()}>{children}</div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** Last look before the document is saved and counted. */
 function ConfirmTerms(props: {
   terms: OfferTerms;
   code: string;
   country: string;
+  city: string | null;
   routeName: string;
   candidate: string;
   headline: string;
@@ -523,7 +735,8 @@ function ConfirmTerms(props: {
     ['Candidate', [props.candidate, props.headline].filter(Boolean).join(' — ')],
     ['Employer', props.company],
     ['Role', props.role],
-    ['Place of work', `${props.country} · ${props.routeName}`],
+    ['Place of work', [props.city, props.country].filter(Boolean).join(', ')],
+    ['Visa route', props.routeName],
     ...t.items.map((i) => [OFFER_ITEM_LABEL[i.key], PAYER_LABEL[i.payer]] as [string, string]),
     ['Annual gross salary', t.salary ? money(t.salary, code) : 'Not stated'],
     ['Salary deduction', t.salaryOffset ? `Up to ${money(t.salaryOffset, code)} in year one` : 'None'],
@@ -537,7 +750,7 @@ function ConfirmTerms(props: {
           <h2 id="confirm-title" className="text-[18px] font-bold text-ink-950">
             Are these details correct?
           </h2>
-          <p className="mt-1 text-[13px] text-ink-600">Once you approve, the document is final. It can’t be edited later — the company will see exactly this.</p>
+          <p className="mt-1 text-[13px] text-ink-600">Check the name, the country and the place of work once more. You can still correct the document later, until the company accepts it.</p>
         </div>
         <dl className="flex-1 divide-y divide-ink-100 overflow-y-auto px-5 text-[14px]">
           {rows.map(([k, v]) => (
@@ -550,14 +763,14 @@ function ConfirmTerms(props: {
         <div className="space-y-3 border-t border-ink-100 bg-ink-50 px-5 py-4">
           <label className="flex cursor-pointer items-start gap-2.5 text-[13px] text-ink-800">
             <input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#1D4ED8]" />
-            I’ve checked these terms and understand they can’t be changed after I approve.
+            I’ve checked my name, the country, the place of work and these terms.
           </label>
           <div className="flex gap-2">
             <button onClick={props.onBack} className="flex-1 rounded-xl border border-ink-200 bg-white py-3 text-[14px] font-semibold text-ink-800 hover:bg-ink-50">
               Go back and edit
             </button>
             <button onClick={props.onConfirm} disabled={!ok} className="flex flex-[1.4] items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] py-3 text-[14px] font-bold text-white hover:bg-brand-800 disabled:opacity-50">
-              <Lock className="h-4 w-4" /> Approve & pay · {props.price}
+              <Download className="h-4 w-4" /> Save & download · {props.price}
             </button>
           </div>
         </div>
@@ -613,7 +826,7 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
         {canPay ? `Review & download${usesPro ? ' · Pro' : ''}` : credits?.pro ? `All ${PRO_MONTHLY_DOCS} used this month` : 'Download PDF'}
       </button>
       <div className="flex items-center justify-between text-[12px] text-ink-500">
-        <span>You review everything before it’s counted. After that it’s final.</span>
+        <span>You review everything before it’s counted, and can correct it until the company accepts.</span>
         <OfferInfo />
       </div>
     </div>
@@ -712,22 +925,38 @@ const INPUT = 'mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 t
 function SavedOffer({ shareId, go, onAuth }: Props) {
   const [brief, setBrief] = useState<PublicBrief | null | undefined>(undefined);
   const [ed, setEd] = useState<Editable | null>(null);
+  // null = the server can't say (migration 20261130090000 not run): documents are still final there, so no editing and no "Confirmed".
+  const [acc, setAcc] = useState<BriefAcceptance | null>(null);
+  const [form, setForm] = useState({ name: '', headline: '', note: '' });
+  const [dirty, setDirty] = useState(false);
+  const [termsDirty, setTermsDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const take = (b: PublicBrief) => {
+    setBrief(b);
+    setEd({
+      split: b.split ?? legacySplit(b),
+      offset: b.terms?.salaryOffset ?? 0,
+      salary: b.terms?.salary ?? 0,
+      overrides: b.terms?.overrides ?? {},
+      employer: b.terms?.employer ?? { name: b.company_name, publisherId: b.publisher_id },
+    });
+    setForm({ name: b.candidate_name, headline: b.candidate_headline ?? '', note: b.note ?? '' });
+    setDirty(false);
+    setTermsDirty(false);
+  };
 
   useEffect(() => {
     let alive = true;
     let stopView: (() => void) | null = null;
     setBrief(undefined);
+    setAcc(null);
+    void fetchBriefAcceptance(shareId).then((a) => alive && setAcc(a));
     fetchBrief(shareId).then((b) => {
       if (!alive) return;
-      setBrief(b);
-      if (!b) return;
-      setEd({
-        split: b.split ?? legacySplit(b),
-        offset: b.terms?.salaryOffset ?? 0,
-        salary: b.terms?.salary ?? 0,
-        overrides: b.terms?.overrides ?? {},
-        employer: b.terms?.employer ?? { name: b.company_name, publisherId: b.publisher_id },
-      });
+      if (!b) return setBrief(b);
+      take(b);
       // Everyone, owner included: the server counts only real visitors who aren't the owner.
       stopView = recordBriefView(shareId);
       // Just generated → open the PDF dialog once.
@@ -749,12 +978,12 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
   const found = brief ? findRoute(brief.country_code, brief.route_id) : null;
   const allowed: CandidateCover[] = found?.route.employer?.candidateMayCover ?? [];
   const code = brief?.country_code ?? 'DE';
-  // Saved documents are final: everyone sees exactly what was approved.
+  // What everyone sees is the saved version; the owner's unsaved changes stay in the side panel until saved.
   const terms: OfferTerms | null = useMemo(() => {
     if (!brief || !ed) return null;
     return brief.terms ?? termsFrom(ed, allowed, code);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brief, ed, allowed.join(), code]);
+  }, [brief, allowed.join(), code]);
 
   useSeo({
     title: brief ? `Sponsorship document — ${brief.candidate_name} for ${brief.job_title} at ${brief.company_name}` : 'Sponsorship document',
@@ -766,6 +995,7 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
   if (brief === undefined) return <Desk go={go} onAuth={onAuth} loading />;
   if (!brief || !terms || !ed) return <NotFoundPage go={go} onAuth={onAuth} />;
 
+  const confirmed = Boolean(acc?.acceptedAt);
   const doc: DocData = {
     ref: refFor(brief.share_id),
     issuedAt: brief.created_at,
@@ -780,14 +1010,39 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
   };
 
   const paper = found ? (
-    <OfferDocument doc={doc} terms={terms} guide={found.guide} route={found.route} code={brief.country_code} approvedAt={brief.created_at} />
+    <OfferDocument doc={doc} terms={terms} guide={found.guide} route={found.route} code={brief.country_code} approvedAt={acc?.editedAt ?? brief.terms_updated_at ?? brief.created_at} confirmed={acc} />
   ) : (
     <div className="rounded-sm bg-white p-10 text-[15px] text-ink-600 shadow-soft-lg">The visa details for this document are being updated.</div>
   );
 
   if (!brief.is_owner) {
-    return <Desk go={go} onAuth={onAuth} paper={paper} panel={<ReaderPanel brief={brief} />} />;
+    return (
+      <Desk
+        go={go}
+        onAuth={onAuth}
+        paper={paper}
+        panel={<ReaderPanel brief={brief} acc={acc} onAccepted={() => void fetchBriefAcceptance(shareId).then(setAcc)} />}
+      />
+    );
   }
+
+  const draftTerms = termsDirty ? termsFrom(ed, allowed, code) : terms;
+  const save = async () => {
+    setSaving(true);
+    setSaveMsg(null);
+    const a = dirty ? await updateBriefDetails(shareId, form) : { ok: true as const };
+    const t = a.ok && termsDirty ? await updateBriefTerms(shareId, draftTerms) : { ok: true as const };
+    const [fresh, state] = await Promise.all([fetchBrief(shareId), fetchBriefAcceptance(shareId)]);
+    setSaving(false);
+    setAcc(state);
+    if (!a.ok || !t.ok) return setSaveMsg({ ok: false, text: ('error' in a && a.error) || ('error' in t && t.error) || 'Couldn’t save. Try again.' });
+    const kept = Boolean(fresh) && (!dirty || fresh!.candidate_name === form.name.trim().replace(/\s+/g, ' '));
+    if (fresh) take(fresh);
+    // The company may have accepted while this page was open: then nothing was changed.
+    if (state?.acceptedAt) return setSaveMsg({ ok: false, text: 'The company has just accepted this document, so it can’t be changed any more.' });
+    if (!kept) return setSaveMsg({ ok: false, text: 'The change wasn’t saved. Reload the page and try again.' });
+    setSaveMsg({ ok: true, text: 'Saved. The company sees this version from now on.' });
+  };
 
   return (
     <Desk
@@ -796,17 +1051,92 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
       paper={paper}
       panel={
         <>
+          {confirmed && (
+            <div className="rounded-xl bg-emerald-600 px-4 py-3.5 text-white">
+              <p className="flex items-center gap-2 text-[15px] font-bold">
+                <BadgeCheck className="h-5 w-5" /> Confirmed by {brief.company_name}
+              </p>
+              <p className="mt-1 text-[13px] leading-5 text-white/90">
+                {acc?.acceptedBy ? `${acc.acceptedBy} accepted` : 'Accepted'} these terms on {fmtDate(acc!.acceptedAt!)}
+                {acc?.verified ? ', from a company email address.' : '. Their email isn’t on the company’s own domain — check who you are dealing with.'}
+              </p>
+            </div>
+          )}
           <OwnerActions brief={brief} onStatus={(status) => setBrief({ ...brief, status })} />
-          <div className="flex items-start gap-2 rounded-xl bg-ink-100 px-4 py-3 text-[13px] text-ink-700">
-            <Lock className="mt-0.5 h-4 w-4 shrink-0 text-ink-500" />
-            <span>
-              <strong className="text-ink-900">Terms are final.</strong> You approved them on {fmtDate(brief.created_at)}. They can’t be changed; the company sees exactly this version.
-            </span>
-          </div>
-          {/* Shown for reference, greyed out and not editable. */}
-          <fieldset disabled aria-label="Approved terms (read only)" className="pointer-events-none select-none space-y-4 opacity-55 grayscale">
-            <EditorPanels ed={ed} terms={terms} code={code} onChange={() => undefined} />
-          </fieldset>
+          {confirmed || acc === null ? (
+            <>
+              <div className="flex items-start gap-2 rounded-xl bg-ink-100 px-4 py-3 text-[13px] text-ink-700">
+                <Lock className="mt-0.5 h-4 w-4 shrink-0 text-ink-500" />
+                <span>
+                  <strong className="text-ink-900">This document is fixed.</strong> {confirmed ? 'The company accepted it, so it can’t be changed.' : `You approved it on ${fmtDate(brief.created_at)}; the company sees exactly this version.`}
+                </span>
+              </div>
+              <fieldset disabled aria-label="Confirmed terms (read only)" className="pointer-events-none select-none space-y-4 opacity-55 grayscale">
+                <EditorPanels ed={ed} terms={terms} code={code} onChange={() => undefined} />
+              </fieldset>
+            </>
+          ) : (
+            <>
+              <Panel>
+                <p className="text-[15px] font-bold text-ink-950">Edit your document</p>
+                <p className="mt-0.5 text-[12.5px] leading-5 text-ink-600">You can correct it until the company accepts it. The link stays the same and nothing extra is counted.</p>
+                <label className="mt-3 block">
+                  <span className="text-[13px] font-semibold text-ink-800">Full name, as in your passport</span>
+                  <input
+                    value={form.name}
+                    maxLength={120}
+                    onChange={(e) => {
+                      setForm({ ...form, name: e.target.value });
+                      setDirty(true);
+                    }}
+                    className={INPUT}
+                  />
+                </label>
+                <label className="mt-3 block">
+                  <span className="text-[13px] font-semibold text-ink-800">Role and experience</span>
+                  <input
+                    value={form.headline}
+                    maxLength={140}
+                    onChange={(e) => {
+                      setForm({ ...form, headline: e.target.value });
+                      setDirty(true);
+                    }}
+                    className={INPUT}
+                  />
+                </label>
+                <label className="mt-3 block">
+                  <span className="text-[13px] font-semibold text-ink-800">Note to the hiring manager</span>
+                  <textarea
+                    value={form.note}
+                    maxLength={600}
+                    rows={2}
+                    onChange={(e) => {
+                      setForm({ ...form, note: e.target.value });
+                      setDirty(true);
+                    }}
+                    className={INPUT}
+                  />
+                </label>
+              </Panel>
+              <EditorPanels
+                ed={ed}
+                terms={draftTerms}
+                code={code}
+                onChange={(p) => {
+                  setEd({ ...ed, ...p });
+                  setTermsDirty(true);
+                }}
+              />
+              <div className="sticky bottom-3 space-y-2">
+                {saveMsg && <p className={`rounded-lg px-3 py-2 text-[13px] ${saveMsg.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'}`}>{saveMsg.text}</p>}
+                {(dirty || termsDirty) && (
+                  <button onClick={() => void save()} disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink-950 px-4 py-3.5 text-[15px] font-bold text-white shadow-lg hover:bg-ink-800 disabled:opacity-60">
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save changes
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </>
       }
     />
@@ -992,14 +1322,14 @@ function SplitControl({ split, terms, custom, onChange, onCommit, status }: { sp
 }
 
 /** Checked countries first, then every other country ("Choose another country"). */
-function CountrySelect({ value, jobCode, onChange }: { value: string; jobCode?: string; onChange: (code: string) => void }) {
+function CountrySelect({ value, jobCode, onChange, id }: { value: string; jobCode?: string; onChange: (code: string) => void; id?: string }) {
   const checked = [...briefCountries].map((c) => ({ code: c, name: visaGuideByCode.get(c)?.name ?? c })).sort((a, b) => a.name.localeCompare(b.name));
   const others = allCountries.filter((c) => !briefCountries.has(c.code));
   const job = jobCode ? allCountries.find((c) => c.code === jobCode) : undefined;
   return (
     <div className="mt-1 flex items-center gap-2">
       <CircleFlag countryCode={value} size={22} />
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={`${INPUT} mt-0`}>
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className={`${INPUT} mt-0`}>
         {job && !briefCountries.has(job.code) && (
           <optgroup label="This job’s country">
             <option value={job.code}>{job.name}</option>
@@ -1305,14 +1635,26 @@ function OwnerActions({ brief, onStatus }: { brief: PublicBrief; onStatus: (s: B
   );
 }
 
-function ReaderPanel({ brief }: { brief: PublicBrief }) {
+function ReaderPanel({ brief, acc, onAccepted }: { brief: PublicBrief; acc: BriefAcceptance | null; onAccepted: () => void }) {
   return (
     <>
+      {acc?.acceptedAt && (
+        <div className="rounded-xl bg-emerald-600 px-4 py-3.5 text-white">
+          <p className="flex items-center gap-2 text-[15px] font-bold">
+            <BadgeCheck className="h-5 w-5" /> Confirmed
+          </p>
+          <p className="mt-1 text-[13px] leading-5 text-white/90">
+            {acc.acceptedBy ? `${acc.acceptedBy} accepted` : 'The Employer accepted'} these terms on {fmtDate(acc.acceptedAt)}. The document can no longer be changed.
+          </p>
+        </div>
+      )}
       <EmployerReply
         shareId={brief.share_id}
         candidateName={brief.candidate_name}
         candidateLinkedin={brief.candidate_linkedin}
         onSavePdf={() => savePdf({ candidate: brief.candidate_name, company: brief.company_name, shareId: brief.share_id })}
+        canAccept={acc !== null && !acc.acceptedAt}
+        onAccepted={onAccepted}
       />
       <p className="px-1 text-[12px] leading-5 text-ink-500">
         Need help with the paperwork? Find a verified immigration adviser in the{' '}
@@ -1329,7 +1671,30 @@ function ReaderPanel({ brief }: { brief: PublicBrief }) {
 // The document itself — what prints.
 // ---------------------------------------------------------------------------
 
-function OfferDocument({ doc, terms, guide, route, code, locked, approvedAt }: { doc: DocData; terms: OfferTerms; guide: VisaGuide; route: VisaRoute; code: string; locked?: boolean; approvedAt?: string | null }) {
+function OfferDocument({
+  doc,
+  terms,
+  guide,
+  route,
+  code,
+  locked,
+  draft,
+  approvedAt,
+  confirmed,
+}: {
+  doc: DocData;
+  terms: OfferTerms;
+  guide: VisaGuide;
+  route: VisaRoute;
+  code: string;
+  /** No plan yet: the clause wording is left out and the page can't be printed. */
+  locked?: boolean;
+  /** Not saved yet: readable in full (with the plan), but still not printable. */
+  draft?: boolean;
+  approvedAt?: string | null;
+  /** The company accepted the terms. */
+  confirmed?: BriefAcceptance | null;
+}) {
   const employer = route.employer!;
   const place = [doc.city, guide.name].filter(Boolean).join(', ');
   const validUntil = new Date(Date.parse(doc.issuedAt) + VALID_DAYS * 86_400_000).toISOString();
@@ -1338,17 +1703,18 @@ function OfferDocument({ doc, terms, guide, route, code, locked, approvedAt }: {
   const clause = () => ++n;
 
   const L = Boolean(locked);
+  const noPrint = L || Boolean(draft);
 
   return (
     <>
-    {L && (
+    {noPrint && (
       <div className="offer-paper hidden p-10 font-sans text-[14px] print:block">
         This is a preview. Prepare the document on madevisa.com to download the signed-ready PDF.
       </div>
     )}
     <article
       onContextMenu={L ? (e) => e.preventDefault() : undefined}
-      className={`${L ? 'select-none print:hidden' : 'offer-paper'} relative mx-auto max-w-[820px] overflow-hidden rounded-sm bg-white px-6 py-8 font-serif text-[15px] leading-[1.7] text-ink-900 shadow-soft-lg sm:px-14 sm:py-14 print:max-w-none print:rounded-none print:p-0 print:shadow-none`}
+      className={`${L ? 'select-none print:hidden' : noPrint ? 'print:hidden' : 'offer-paper'} relative mx-auto max-w-[820px] overflow-hidden rounded-sm bg-white px-6 py-8 font-serif text-[15px] leading-[1.7] text-ink-900 shadow-soft-lg sm:px-14 sm:py-14 print:max-w-none print:rounded-none print:p-0 print:shadow-none`}
     >
       {L && (
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-around overflow-hidden">
@@ -1392,6 +1758,12 @@ function OfferDocument({ doc, terms, guide, route, code, locked, approvedAt }: {
           </span>
         ) : (
           <span className="rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-800">Preview · not yet approved</span>
+        )}
+        {confirmed?.acceptedAt && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-2.5 py-1 font-bold text-white print:bg-transparent print:px-0 print:text-ink-950">
+            <BadgeCheck className="h-3.5 w-3.5" /> Confirmed by the Employer on {fmtDate(confirmed.acceptedAt)}
+            {confirmed.acceptedBy ? ` (${confirmed.acceptedBy})` : ''}
+          </span>
         )}
         <span className="text-ink-500">Binding once signed by both parties</span>
       </p>

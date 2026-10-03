@@ -950,6 +950,9 @@ const PUBLISHERS: Record<Platform, (p: Post, service: Service) => Promise<Result
   telegram: publishTelegram,
 };
 
+/** The shortest time between two program posts, whatever the network (the planner aims for 15–30 minutes). */
+const MIN_APART_MIN = 15;
+
 async function publishDue(service: Service, platforms: Map<Platform, PlatformRow>, log: string[]) {
   // A run that stopped mid-publish: try again — the retry first checks whether it went live (findExisting).
   await service.from('social_posts').update({ status: 'approved' }).eq('status', 'publishing').lt('updated_at', new Date(Date.now() - 30 * 60_000).toISOString());
@@ -965,9 +968,15 @@ async function publishDue(service: Service, platforms: Map<Platform, PlatformRow
   const first = await due().select(`${COLS}, video_url, meta`).eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8);
   // Before the reels migration there is no video_url column: carry on with image posts.
   const data = first.error ? (await due().select(COLS).eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8)).data : first.data;
+  // Program posts go out one at a time, at least 15 minutes apart across ALL networks — also when
+  // several became due together (a late reel, a retry, a slow Instagram upload).
+  const { data: lastRow } = await service.from('social_posts').select('published_at').eq('origin', 'program').eq('status', 'published').order('published_at', { ascending: false }).limit(1);
+  let lastProgram = lastRow?.[0]?.published_at ? Date.parse(lastRow[0].published_at as string) : 0;
   for (const post of (data ?? []) as unknown as Post[]) {
     const pr = platforms.get(post.platform);
     if (!pr?.enabled) continue;
+    // "Publish now" from the admin panel skips the waiting.
+    if (post.origin === 'program' && !post.validation?.publish_now && Date.now() - lastProgram < MIN_APART_MIN * 60_000) continue;
     // Never two posts on one network within its minimum gap.
     const { count } = await service.from('social_posts').select('id', { count: 'exact', head: true }).eq('platform', post.platform).eq('status', 'published').gte('published_at', new Date(Date.now() - pr.min_gap_minutes * 60_000).toISOString());
     // "Publish now" from the admin panel skips the minimum gap.
@@ -1034,6 +1043,7 @@ async function publishDue(service: Service, platforms: Map<Platform, PlatformRow
       const r = existing ?? (await (video ? VIDEO_PUBLISHERS[post.platform]! : PUBLISHERS[post.platform])(post, service));
       if (existing) log.push(`${post.platform}: already live from an earlier attempt — not posting again`);
       await service.from('social_posts').update({ status: 'published', published_at: new Date().toISOString(), external_id: r.id, external_url: r.url ?? null, error: null }).eq('id', post.id);
+      if (post.origin === 'program') lastProgram = Date.now();
       log.push(`${post.platform}: published`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Publishing failed';

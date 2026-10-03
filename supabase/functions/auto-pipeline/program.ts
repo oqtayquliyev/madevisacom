@@ -54,7 +54,7 @@ const leadFor = (kind: string) => {
 const MAX_WRITES_PER_RUN = 4;
 const HOT_HOURS = 20;
 
-type ProgramRowDb = { running: boolean; timezone: string | null; autopilot: boolean; per_day: any; formats: any; mix: any; handles: any; focus: string[] | null; lock_until: string | null; planned_at: string | null; reels_at?: string | null; host_name?: string | null; look?: string | null; gap_min?: number | null; media_at?: string | null };
+type ProgramRowDb = { running: boolean; timezone: string | null; autopilot: boolean; per_day: any; formats: any; mix: any; handles: any; focus: string[] | null; lock_until: string | null; planned_at: string | null; reels_at?: string | null; host_name?: string | null; look?: string | null; gap_min?: number | null; media_at?: string | null; video_share?: number | null };
 type PostRow = { id: string; platform: Platform; status: string; kind: string | null; pillar: Pillar | null; topic_key: string | null; scheduled_at: string; meta: Record<string, any> | null; origin: string };
 type HistoryRow = { platform: Platform; kind: string; pillar: Pillar; topic: string | null; opening: string | null; at: string; post_id: string | null };
 
@@ -81,6 +81,8 @@ function settingsOf(row: ProgramRowDb): ProgramSettings {
     reels: Boolean(row.reels_at && Date.now() - Date.parse(row.reels_at) < RENDERER_ALIVE_HOURS * 3_600_000),
     // Columns from migration 20261127090000; before it runs: 30 minutes, photo first, no signature.
     gap: Number(row.gap_min) > 0 ? Number(row.gap_min) : DEFAULT_GAP,
+    // Column from migration 20261201090000; before it runs the default share applies.
+    videoShare: row.video_share == null ? undefined : Number(row.video_share),
     look: row.look === 'graphic' ? 'graphic' : 'photo',
     host: (row.host_name ?? '').trim(),
   };
@@ -434,9 +436,26 @@ async function writeSlot(
       if (!checks.every((x) => x.ok)) continue;
       const cc = draft.reel.bg.cc;
       const photo = photos.photo(cc, seed);
+      const clips = photos.clips(cc, seed);
+      const slides = photos.photos(cc, seed, 5);
+      // Every other reel is built from photos (when the place has at least three), so the feed isn't the same
+      // few clips again and again — and a place with no clips still gets a moving reel instead of one still.
+      const prefer: 'photos' | 'clips' = slides.length >= 3 && (!clips.length || seed % 2 === 0) ? 'photos' : 'clips';
+      if (prefer === 'photos') usedMedia.push(...slides.map((x) => x.id));
+      else if (photo?.id) usedMedia.push(photo.id);
       reel = {
         v: 1,
-        bg: { queries: draft.reel.bg.queries.slice(0, 6), cc, photo: photo?.url ?? null, credit: photo?.credit ?? null, fallback: `${SITE}/api/og/post?t=reel&sc=bg${cc ? `&cc=${cc}` : ''}&v=1`, salt: 0, clips: photos.clips(cc, seed) },
+        bg: {
+          queries: draft.reel.bg.queries.slice(0, 6),
+          cc,
+          photo: photo?.url ?? null,
+          credit: photo?.credit ?? null,
+          fallback: `${SITE}/api/og/post?t=reel&sc=bg${cc ? `&cc=${cc}` : ''}&v=1`,
+          salt: 0,
+          clips,
+          photos: slides,
+          prefer,
+        },
         frame: `${SITE}/api/og/post?t=reel&sc=frame&v=1`,
         scenes,
         ...reelLayers(scenes),
