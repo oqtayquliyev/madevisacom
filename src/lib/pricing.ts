@@ -134,6 +134,15 @@ const USD_RATE: Record<string, number> = {
   MOP: 8.05, BND: 1.3, NAD: 18, TTD: 6.8, MUR: 46, DZD: 134, KHR: 4050, IQD: 1310,
 };
 
+/** An amount in another currency as US dollars, or null when the rate isn't known. */
+export function toUsd(amount: number, currency: string | null | undefined): number | null {
+  const cur = (currency ?? '').toUpperCase();
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  if (cur === 'USD') return amount;
+  const rate = USD_RATE[cur];
+  return rate ? amount / rate : null;
+}
+
 /** Country → currency (only where we show a local price). */
 const CURRENCY_OF: Record<string, string> = {
   // euro area

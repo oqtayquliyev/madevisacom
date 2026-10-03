@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, Briefcase, ChevronDown, FileSearch, GraduationCap, Languages, ListChecks, ScanSearch, Timer, Upload } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { useSiteStats } from '@/lib/siteStats';
 import { WRAP, nav } from '@/lib/pageLayout';
 import { FREE_DAILY_CHECKS } from '@/lib/pricing';
 import { useTopMatches } from '@/lib/cv/topMatches';
@@ -30,7 +31,7 @@ const PARTS: { name: string; points: number; text: string }[] = [
 const STEPS: { icon: typeof Upload; title: string; text: string }[] = [
   { icon: Upload, title: 'Upload your CV', text: 'PDF or Word. It is read on your device and never sent to employers.' },
   { icon: FileSearch, title: 'We compare it with live jobs', text: 'The ads closest to your experience are read and scored, one by one.' },
-  { icon: ListChecks, title: 'Open your best matches', text: 'Highest score first. Each job shows what your CV is missing for it.' },
+  { icon: ListChecks, title: 'Open your best matches', text: 'Highest score first: where each job is, what it pays if the ad says, whether you need a visa, and what your CV is missing for it.' },
 ];
 
 /** The search is quick; the waiting screen stays this long so it can be read. */
@@ -53,6 +54,7 @@ function More({ title, children, open = false }: { title: string; children: Reac
 export function CvMatchPage({ go, onAuth }: Props) {
   const top = useTopMatches({ auto: true });
   const { cv, cvReady, status, result } = top;
+  const site = useSiteStats();
   useSeo({
     title: 'CV match — upload your CV and see the jobs you match most',
     description: `Upload your CV and MadeVisa shows the live jobs it matches best, highest score first — and, on each job, the skills the ad asks for that your CV doesn’t show. The score is free; missing skills are free on ${FREE_DAILY_CHECKS} jobs a day.`,
@@ -86,7 +88,11 @@ export function CvMatchPage({ go, onAuth }: Props) {
             <ScanSearch className="h-4 w-4" /> CV match
           </p>
           <h1 className="mx-auto mt-3 max-w-3xl text-[30px] font-bold leading-[1.1] tracking-tight sm:text-[46px]">{cv ? 'The jobs you match most' : 'Upload your CV. See the jobs you match most.'}</h1>
-          {!cv && <p className="mx-auto mt-4 max-w-xl text-[16px] leading-7 text-white/85">We compare it with the live jobs on MadeVisa and put your best matches first. Free, and it takes a few seconds.</p>}
+          {!cv && (
+            <p className="mx-auto mt-4 max-w-xl text-[16px] leading-7 text-white/85">
+              We compare it with {site?.publishedJobs ? `${site.publishedJobs.toLocaleString('en-US')} live jobs` : 'the live jobs'} from company career pages and put your best matches first — with the visa step for each one abroad. Free, and it takes a few seconds.
+            </p>
+          )}
           <div className="mx-auto mt-6 max-w-xl text-left">
             <CvUpload tone="light" allowRemove />
           </div>

@@ -28,7 +28,8 @@ export function BillingToggle({ value, onChange, saving }: { value: Cycle; onCha
 export function ProPlanCard({ onAuth, billing: outer, compact = false }: { onAuth?: (p: 'login' | 'register') => void; billing?: Cycle; compact?: boolean }) {
   const prices = usePrices();
   const { isPro, sub } = useMyPlan();
-  const [inner, setInner] = useState<Cycle>('yearly');
+  // Monthly first: the smallest amount to pay today is the price people see.
+  const [inner, setInner] = useState<Cycle>('monthly');
   const [dialog, setDialog] = useState(false);
   const billing = outer ?? inner;
   const pro = prices.pro;

@@ -20,6 +20,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { classifyJob } from '@/lib/jobTaxonomy';
 import { fetchPublishedSponsoredJobs } from '@/lib/sponsoredJobs';
+import { formatSalary, type SalaryPeriod, type SalaryStatus } from '@/lib/listingCategories';
+import { toUsd } from '@/lib/pricing';
 import type { CvProfile } from '@/lib/cv/cvProfile';
 import { parseJob } from '@/lib/cv/jobProfile';
 import { labelFor, matchCv, type MatchResult } from '@/lib/cv/match';
@@ -42,8 +44,21 @@ export type TopMatch = {
   label: MatchResult['label'];
   /** The ad was compared in its English translation. */
   translated: boolean;
+  /** Pay as the ad shows it ("EUR 60,000–75,000/year"), or null. */
+  salary: string | null;
+  /** The lowest pay the ad shows, as US dollars a year (only for ads that give numbers). */
+  payUsdYear: number | null;
+  /** What the ad says about visa sponsorship. */
+  visa: 'offered' | 'not_offered' | null;
+  /** When the company posted it. */
+  postedAt: string | null;
+  /** Skills the ad names, and how many of them the CV shows. */
+  asked: number;
+  covered: number;
 };
 export type TopResult = {
+  /** Shape of the saved result; older ones are searched again. */
+  v: 2;
   cvAt: string;
   at: number;
   /** Ads read and scored. */
@@ -76,7 +91,7 @@ function readSaved(cv: StoredCv | null): TopResult | null {
   if (!cv) return null;
   try {
     const v = JSON.parse(window.localStorage.getItem(KEY) ?? 'null') as TopResult | null;
-    if (v && v.cvAt === cv.at && Date.now() - v.at < TOP_TTL_MS && Array.isArray(v.items)) return v;
+    if (v && v.v === 2 && v.cvAt === cv.at && Date.now() - v.at < TOP_TTL_MS && Array.isArray(v.items)) return v;
   } catch {
     /* ignore */
   }
@@ -135,6 +150,33 @@ async function localShortlist(words: { title: string[]; skill: string[] }, limit
   return out.sort((a, b) => b.hits - a.hits || b.created_at.localeCompare(a.created_at)).slice(0, limit);
 }
 
+type AdRow = {
+  id: string;
+  html: string | null;
+  exp: string | null;
+  salary_status?: SalaryStatus;
+  salary_min?: number | null;
+  salary_max?: number | null;
+  salary_currency?: string;
+  salary_period?: SalaryPeriod;
+  compensation_text?: string | null;
+  visa_sponsorship?: boolean | null;
+  visa_status?: 'offered' | 'not_offered' | null;
+  source_posted_at?: string | null;
+  created_at?: string | null;
+};
+
+const PER_YEAR: Record<SalaryPeriod, number> = { hour: 2000, day: 230, week: 48, month: 12, year: 1 };
+/** The lowest pay an ad states, as US dollars a year. Only for ads with real numbers. */
+function payUsdYear(x: AdRow): number | null {
+  if (x.salary_status !== 'disclosed') return null;
+  const low = x.salary_min || x.salary_max;
+  if (!low) return null;
+  const usd = toUsd(low * PER_YEAR[x.salary_period ?? 'year'], x.salary_currency ?? 'USD');
+  // Outside any plausible yearly pay: a typo or the wrong period in the ad — leave it out.
+  return usd && usd >= 3_000 && usd <= 1_500_000 ? Math.round(usd) : null;
+}
+
 /** Which of the shortlisted jobs to actually read: same role first, then same field, at most 3 per company. */
 function choose(rows: Light[], p: CvProfile, n: number): Light[] {
   const ranked = rows
@@ -184,7 +226,7 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
     const me: EnglishCv = await cvInEnglish(cv, userId);
     const words = shortlistWords(me.profile);
     if (!words.title.length && !words.skill.length) {
-      const empty: TopResult = { cvAt: cv.at, at: Date.now(), read: 0, pool: 0, items: [], cvForeign: me.state === 'foreign' };
+      const empty: TopResult = { v: 2, cvAt: cv.at, at: Date.now(), read: 0, pool: 0, items: [], cvForeign: me.state === 'foreign' };
       writeSaved(empty);
       return set({ status: 'done', stage: null, progress: 1, result: empty });
     }
@@ -206,14 +248,23 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
     // text saved by the job-facts detector), so the score here and there is the same.
     const texts = new Map<string, string>();
     const expHint = new Map<string, string>();
+    const extra = new Map<string, AdRow>();
+    const FULL = 'id, html:facts->>html, exp:facts->facts->>experience, salary_status, salary_min, salary_max, salary_currency, salary_period, compensation_text, visa_sponsorship, visa_status, source_posted_at, created_at';
+    let cols = FULL;
     for (let i = 0; i < chosen.length; i += 12) {
       const ids = chosen.slice(i, i + 12).map((r) => r.id);
-      const { data, error } = await supabase.from('sponsored_jobs').select('id, html:facts->>html, exp:facts->facts->>experience').in('id', ids);
-      if (error) throw new Error(error.message);
-      const rows = (data ?? []) as unknown as { id: string; html: string | null; exp: string | null }[];
+      let res = await supabase.from('sponsored_jobs').select(cols).in('id', ids);
+      // An older database without one of the extra columns: the ad text alone is enough.
+      if (res.error && cols === FULL && /column|schema cache/i.test(res.error.message)) {
+        cols = 'id, html:facts->>html, exp:facts->facts->>experience';
+        res = await supabase.from('sponsored_jobs').select(cols).in('id', ids);
+      }
+      if (res.error) throw new Error(res.error.message);
+      const rows = (res.data ?? []) as unknown as AdRow[];
       for (const row of rows) {
         if (row.html) texts.set(row.id, row.html);
         if (row.exp) expHint.set(row.id, row.exp);
+        extra.set(row.id, row);
       }
       // Not analysed yet (rare): the ad as it was imported.
       const bare = ids.filter((id) => !texts.has(id));
@@ -239,10 +290,19 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
       const ad = english.get(r.id)!;
       const job = parseJob({ title: ad.title, description: ad.description, department: r.job_function, experienceHint: r.experience_level || expHint.get(r.id) || null });
       const m = matchCv(me.profile, me.text, job);
-      items.push({ id: r.id, title: r.title, company: r.company ?? 'Company', logo: r.logo_url, country: r.country, cc: r.cc, city: r.city, remote: r.remote, score: m.score, label: labelFor(m.score), translated: ad.translated });
+      const x = extra.get(r.id);
+      items.push({
+        id: r.id, title: r.title, company: r.company ?? 'Company', logo: r.logo_url, country: r.country, cc: r.cc, city: r.city, remote: r.remote,
+        score: m.score, label: labelFor(m.score), translated: ad.translated,
+        salary: x ? formatSalary(x) : null,
+        payUsdYear: x ? payUsdYear(x) : null,
+        visa: x?.visa_status ?? (x?.visa_sponsorship ? 'offered' : null),
+        postedAt: x?.source_posted_at ?? x?.created_at ?? r.created_at ?? null,
+        asked: m.skills.asked, covered: m.skills.covered,
+      });
     }
     items.sort((a, b) => b.score - a.score);
-    const result: TopResult = { cvAt: cv.at, at: Date.now(), read: readable.length, pool: pool.length, items: items.filter((x) => x.score >= MIN_SCORE).slice(0, KEEP), cvForeign: me.state === 'foreign' };
+    const result: TopResult = { v: 2, cvAt: cv.at, at: Date.now(), read: readable.length, pool: pool.length, items: items.filter((x) => x.score >= MIN_SCORE).slice(0, KEEP), cvForeign: me.state === 'foreign' };
     writeSaved(result);
     set({ status: 'done', stage: null, progress: 1, result });
   } catch (e) {
