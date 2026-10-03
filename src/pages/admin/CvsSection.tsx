@@ -13,6 +13,12 @@ import { skillName } from '@/lib/cv/skills';
 // file. CVs of visitors without an account never leave their browser, so they
 // are counted (Control room) but can't be listed here.
 //
+// One CV per person: a new upload REPLACES the person's earlier CV. So the
+// number of people only goes up with someone's first CV; what moves with every
+// upload is "uploads today" and the row's date (it goes to the top, marked
+// "Replaced"). The list refreshes by itself every minute and when the admin
+// comes back to the tab.
+//
 // Server side: admin_cv_list / admin_cv_get and the admin read policies on
 // user_cvs and the private `cvs` bucket (migration 20261127090000).
 
@@ -46,7 +52,8 @@ type Detail = {
   updated_at: string;
   checks: { job_key: string; score: number; at: string; title: string | null; company: string | null }[];
 };
-type Limits = { guests_today: number; guests_blocked_today: number };
+/** admin_cv_limits(). The two upload counts come with migration 20261202090000. */
+type Limits = { guests_today: number; guests_blocked_today: number; uploads_today?: number; guest_uploads_today?: number };
 /** translate_status(), migration 20261128090000. */
 type Translation = { enabled: boolean; monthly_chars: number | null; provider: 'google' | 'azure' | null; last_error: string | null; used: number; calls: number; jobs: number; cvs: number };
 const FREE_CHARS = { google: 480_000, azure: 1_900_000 } as const;
@@ -129,6 +136,13 @@ function TranslationCard() {
 const PAGE = 25;
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
 const kb = (n: number | null) => (n == null ? '' : n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+/**
+ * Has this CV been replaced since it was first added? Saving a first CV writes
+ * the row twice within seconds (the text, then the file's path), so only a
+ * later change counts.
+ */
+const replaced = (created: string, updated: string) => Date.parse(updated) - Date.parse(created) > 2 * 60_000;
+const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 const scoreTone = (n: number) => (n >= 75 ? 'bg-emerald-100 text-emerald-800' : n >= 50 ? 'bg-amber-100 text-amber-900' : 'bg-ink-100 text-ink-700');
 
 function CvDetail({ row, onClose }: { row: Row; onClose: () => void }) {
@@ -224,7 +238,7 @@ function CvDetail({ row, onClose }: { row: Row; onClose: () => void }) {
                 </button>
                 <span className="text-xs text-ink-500">
                   Added {when(d.created_at)}
-                  {d.updated_at !== d.created_at ? ` · replaced ${when(d.updated_at)}` : ''}
+                  {replaced(d.created_at, d.updated_at) ? ` · replaced ${when(d.updated_at)}` : ''}
                 </span>
               </div>
 
@@ -329,8 +343,26 @@ export function CvsSection() {
     const lim = await supabase.rpc('admin_cv_limits');
     setLimits(lim.error ? null : (lim.data as Limits));
   }, [query, page]);
+  // Kept up to date without a click: every minute, and when the admin comes
+  // back to this tab (say, after uploading a CV in another one).
   useEffect(() => {
     void load();
+    let last = Date.now();
+    const refresh = (minGap: number) => {
+      if (document.visibilityState !== 'visible' || Date.now() - last < minGap) return;
+      last = Date.now();
+      void load();
+    };
+    const t = window.setInterval(() => refresh(0), 60_000);
+    // Coming back fires both events; one reload is enough.
+    const onBack = () => refresh(3_000);
+    document.addEventListener('visibilitychange', onBack);
+    window.addEventListener('focus', onBack);
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener('visibilitychange', onBack);
+      window.removeEventListener('focus', onBack);
+    };
   }, [load]);
   // Search as you type, after a short pause.
   useEffect(() => {
@@ -350,6 +382,7 @@ export function CvsSection() {
   }
 
   const pages = Math.max(1, Math.ceil(total / PAGE));
+  const uploadsToday = limits?.uploads_today;
   return (
     <div className="mt-6 space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -357,9 +390,14 @@ export function CvsSection() {
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search a name, an email, a file name or a word in the CV (e.g. “nurse”, “Python”)" className="w-full rounded-lg border border-ink-200 bg-white py-2.5 pl-9 pr-3 text-sm text-ink-950 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200" />
         </label>
-        <p className="text-sm text-ink-600">
-          <strong className="tabular-nums text-ink-950">{total.toLocaleString('en-US')}</strong> {total === 1 ? 'CV' : 'CVs'}
-          {query ? ' found' : ''}
+        <p className="text-sm text-ink-600" title="One CV per person: a new upload replaces the person’s earlier CV. This number goes up only when someone adds their first CV.">
+          <strong className="tabular-nums text-ink-950">{total.toLocaleString('en-US')}</strong> {query ? (total === 1 ? 'CV found' : 'CVs found') : total === 1 ? 'person with a CV' : 'people with a CV'}
+          {uploadsToday != null && !query && (
+            <span title="Every time an account saved a new or changed CV today (the day runs on UTC, like the daily limits).">
+              {' · '}
+              <strong className="tabular-nums text-ink-950">{uploadsToday.toLocaleString('en-US')}</strong> {uploadsToday === 1 ? 'upload' : 'uploads'} today
+            </span>
+          )}
         </p>
         <button onClick={() => void load()} className="rounded-md p-2 text-ink-500 hover:bg-ink-100" title="Refresh">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -369,8 +407,8 @@ export function CvsSection() {
       <div className="flex items-start gap-2 rounded-lg bg-ink-100 px-3 py-2 text-xs leading-5 text-ink-600">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-ink-500" />
         <p>
-          CVs are personal data: open one when there is a reason to (support, a problem with a match, checking how CVs are read). The Privacy Policy tells people that MadeVisa staff can, and that employers never see them. Limits: an account can change its CV 15 times a day; a visitor without an account can try 3 CVs a day
-          {limits ? ` — today ${limits.guests_today} ${limits.guests_today === 1 ? 'visitor has' : 'visitors have'} uploaded without an account, ${limits.guests_blocked_today} reached the limit.` : '.'} Visitors’ CVs stay in their browser, so only CVs with an account are listed.
+          CVs are personal data: open one when there is a reason to (support, a problem with a match, checking how CVs are read). The Privacy Policy tells people that MadeVisa staff can, and that employers never see them. Each person has one CV: a new upload replaces the earlier one, so the row moves to the top with a new date and the number of people stays the same. Limits: an account can change its CV 15 times a day; a visitor without an account can try 3 CVs a day
+          {limits ? ` — today ${limits.guests_today} ${limits.guests_today === 1 ? 'visitor has' : 'visitors have'} uploaded without an account${limits.guest_uploads_today != null ? ` (${limits.guest_uploads_today} ${limits.guest_uploads_today === 1 ? 'CV' : 'CVs'})` : ''}, ${limits.guests_blocked_today} reached the limit.` : '.'} Visitors’ CVs stay in their browser, so only CVs with an account are listed.
         </p>
       </div>
       {err && <p className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-800">{err}</p>}
@@ -419,7 +457,10 @@ export function CvsSection() {
                       <span className="block text-ink-900">{r.checks}</span>
                       {r.avg_score != null && <span className="block text-xs text-ink-500">avg {r.avg_score}%</span>}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right text-xs tabular-nums text-ink-500">{when(r.updated_at)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right text-xs tabular-nums text-ink-500">
+                      <span className="block">{when(r.updated_at)}</span>
+                      <span className="block text-ink-400">{replaced(r.created_at, r.updated_at) ? `Replaced · first added ${day(r.created_at)}` : 'First CV'}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
