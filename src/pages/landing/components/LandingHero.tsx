@@ -22,8 +22,8 @@ import { LocationMatchSection, fetchLandingItems, countNewWithin24h, type MatchI
 import { useSiteStats } from '@/lib/siteStats';
 import { allCountries, type CountryEntry } from '@/data/allCountries';
 import { CircleFlag } from '@/components/common/CircleFlag';
-import { OfferFlags } from '@/components/briefs/OfferBits';
-import { FileSignature } from 'lucide-react';
+import { CvUpload } from '@/components/cv/CvUpload';
+import { useCv } from '@/lib/cv/store';
 
 type LandingHeroProps = {
   go: (view: View) => void;
@@ -332,6 +332,7 @@ function JourneyCostEstimate({
 // go/onAuth stay in the props for callers; the hero itself links by URL now.
 export function LandingHero(_props: LandingHeroProps) {
   void _props;
+  const { hasCv } = useCv();
   const { countryCode: detectedCode, countryName: detectedName, setCountry } =
     useOriginCountry();
 
@@ -465,36 +466,36 @@ export function LandingHero(_props: LandingHeroProps) {
 
           <div className="hidden items-center gap-2 text-sm font-medium text-white/70 sm:flex">
             <Sparkles className="h-4 w-4" />
-            Jobs abroad · Visa Plans · Hiring insights
+            Jobs abroad · CV match · Hiring insights
           </div>
 
           <div className="max-w-4xl sm:mt-5">
 
             <h1 className="text-3xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
-              Find a job abroad. Get the visa sponsored.
+              Find a job abroad. See how well you match it.
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75 sm:mt-4 sm:text-lg sm:leading-7">
-              Apply to live jobs from company career pages, and attach a Visa Plan that shows the employer exactly how to hire you.
+              Upload your CV once. Every live job from company career pages shows your match score and what’s missing before you apply.
             </p>
 
-            <div className="mt-5 flex flex-wrap items-center gap-3 sm:mt-7">
-              <a
-                href="/offers"
-                onClick={(e) => {
-                  e.preventDefault();
-                  window.history.pushState({}, '', '/offers');
-                  window.dispatchEvent(new PopStateEvent('popstate'));
-                  window.scrollTo({ top: 0 });
-                }}
-                className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-[15px] font-bold text-brand-700 shadow-sm hover:bg-brand-50"
-              >
-                <FileSignature className="h-4 w-4" /> Make a Visa Plan
-                <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-bold text-white">First one free</span>
-              </a>
-              <span className="hidden sm:inline-flex">
-                <OfferFlags size={28} />
-              </span>
+            <div className="mt-5 max-w-md sm:mt-7">
+              <CvUpload tone="light" compact />
+              {hasCv && (
+                <a
+                  href="/jobs"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.history.pushState({}, '', '/jobs');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                    window.scrollTo({ top: 0 });
+                  }}
+                  className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-[15px] font-bold text-brand-700 shadow-sm hover:bg-brand-50"
+                >
+                  <Search className="h-4 w-4" /> Open a job and check your match
+                </a>
+              )}
+              {!hasCv && <p className="mt-2 text-[12px] text-white/65">Free. Only you can see your CV.</p>}
             </div>
 
           </div>

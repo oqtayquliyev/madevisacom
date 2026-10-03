@@ -2030,7 +2030,7 @@ function EditableJobRow({ j, onChange, selected, onToggleSelect }: { j: AdminSpo
       {fields.includes('visaSponsorship') && (
         <label className="flex items-center gap-2 text-xs font-medium text-ink-700">
           <input type="checkbox" checked={visaSponsorship} onChange={(e) => setVisaSponsorship(e.target.checked)} />
-          Visa Visa Planed
+          Visa sponsorship offered
         </label>
       )}
 

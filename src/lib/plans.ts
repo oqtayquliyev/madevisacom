@@ -1,34 +1,50 @@
-// Plans and prices (/pricing), plan requests, and "am I Pro?".
-// Until a payment provider is connected, choosing a plan sends a request
+// The plan (/pricing), plan requests, and "am I on the plan?".
+//
+// One plan for job seekers — MadeVisa Pro, monthly or yearly:
+//   • the full CV match report on every job (the score is free for everyone,
+//     and so are the missing skills on 3 jobs a day)
+//   • 50 sponsorship documents a month
+//   • instant job alerts, full company reply data, companies that sponsor
+// Until a payment provider is connected, choosing the plan sends a request
 // (plan_requests, migration 20261107090000): hello@madevisa.com gets an
 // email, admins get a notification, and an admin activates it after payment.
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
-import { PRO_MONTHLY_DOCS, type PriceTier } from '@/lib/pricing';
+import { FREE_DAILY_CHECKS, PRO_MONTHLY_DOCS } from '@/lib/pricing';
 
+/** 'relocation' and 'brief_credits' are no longer sold; kept so earlier requests still show in Admin. */
 export type PlanId = 'pro' | 'relocation' | 'sponsored_job' | 'featured_social' | 'employer' | 'hiring_brief' | 'brief_credits';
 export type Billing = 'monthly' | 'yearly' | 'one_time';
-/** Price tier (A / B / C) — see src/lib/pricing.ts. Kept under this name for plan requests. */
-export type PriceRegion = PriceTier;
+/** Where the price came from, for the request: country code, or A / B / C on older requests. */
+export type PriceRegion = string;
 
 export const PLAN_NAME: Record<PlanId, string> = {
   pro: 'MadeVisa Pro',
-  relocation: 'Pro Relocation',
+  relocation: 'Pro Relocation (retired)',
   sponsored_job: 'Sponsored job',
   featured_social: 'Featured in social posts',
   employer: 'Employer plan',
   hiring_brief: 'Hiring Brief',
-  brief_credits: 'Document credit',
+  brief_credits: 'Document credit (retired)',
 };
 
+export const FREE_FEATURES = [
+  'Every job, straight from company career pages',
+  'Your CV match score on every job',
+  `Missing skills on ${FREE_DAILY_CHECKS} jobs a day`,
+  'Reply-rate and hiring-activity line on every job',
+  'Your visa route for every job',
+  'Track your applications, with reminders',
+];
+
 export const PRO_FEATURES = [
-  { title: 'Up to 10 instant job alerts', text: 'Free accounts get one daily email alert. Pro adds up to 10 alerts, in your notifications within 30 minutes of a job going live — be an early applicant.' },
+  { title: 'Full CV match report on every job', text: 'Where each point of your score comes from — skills, role, experience, languages, education — and exactly what to change in your CV before you apply. No daily limit.' },
+  { title: `${PRO_MONTHLY_DOCS} sponsorship documents a month`, text: 'The one-page document that shows an employer how to sponsor you: the visa route, their steps and who pays what. One for each job you apply to.' },
+  { title: 'Up to 10 instant job alerts', text: 'Free accounts get one daily email alert. Pro adds up to 10, in your notifications within 30 minutes of a job going live.' },
   { title: 'Full company response data', text: 'Exact reply rate, typical time to reply and hiring activity before you apply.' },
   { title: 'Companies that sponsor visas', text: 'Who is hiring with visa sponsorship in each country, updated live.' },
-  { title: `${PRO_MONTHLY_DOCS} sponsorship documents a month`, text: 'A sign-ready Visa Plan for each job you apply to — about a fifth of the single-document price.' },
-  { title: 'First access to new Pro tools', text: 'Your own application stats and salary ranges are next — Pro members get them first.' },
 ];
 
 export type PlanRequest = {

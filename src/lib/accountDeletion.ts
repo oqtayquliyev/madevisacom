@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { removeCv } from '@/lib/cv/store';
 
 /**
  * Permanently deletes the signed-in user's account by calling the
@@ -7,6 +8,8 @@ import { supabase } from '@/lib/supabase';
  * service role key.
  */
 export async function deleteMyAccount(): Promise<{ ok: boolean; error?: string }> {
+  // The CV file is removed here too, so it goes even if the Edge Function hasn't been redeployed yet.
+  await removeCv().catch(() => undefined);
   const { data, error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
 
   if (error) {

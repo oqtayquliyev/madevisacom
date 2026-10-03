@@ -35,7 +35,9 @@ export function FinishAuth() {
  * First sign-in with an email code: we know the email but not the name.
  * One quick question — it's what appears on their profile. Can be skipped.
  */
-export function AddNameStep() {
+export function AddNameStep({ onDone }: { onDone?: () => void } = {}) {
+  // With `onDone`, the caller decides what follows (the CV step); otherwise go back to where they were.
+  const done = () => (onDone ? onDone() : goToNextAfterAuth());
   const { user, refreshProfile } = useAuth();
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
@@ -54,11 +56,11 @@ export function AddNameStep() {
       return setError(err.message);
     }
     await refreshProfile();
-    goToNextAfterAuth();
+    done();
   };
 
   return (
-    <AuthCard title="Welcome to MadeVisa 👋" subtitle="One last thing — what should we call you? It’s shown on your profile.">
+    <AuthCard title="Welcome to MadeVisa 👋" subtitle="What should we call you? It’s shown on your profile.">
       <ErrorBanner message={error} />
       <form
         onSubmit={(e) => {
@@ -83,7 +85,7 @@ export function AddNameStep() {
           } catch {
             /* ignore */
           }
-          goToNextAfterAuth();
+          done();
         }}
         className="mt-3 w-full text-center text-sm font-medium text-ink-500 hover:text-ink-800"
       >

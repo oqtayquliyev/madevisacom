@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Info } from 'lucide-react';
 import { visaGuideByCode } from '@/data/visa';
-import { briefCountries, PRO_MONTHLY_DOCS, type OfferCredits } from '@/lib/sponsorOffer';
+import { briefCountries } from '@/lib/sponsorOffer';
 
 /** (i) button: what a sponsorship document does. Opens above or below, always fully on screen. */
 export function OfferInfo({ className = '', light = false }: { className?: string; light?: boolean }) {
@@ -64,7 +64,7 @@ export function OfferInfo({ className = '', light = false }: { className?: strin
             <span className="flex gap-2"><Dot />Signature lines, so HR can file it with the contract</span>
           </span>
           <span className="mt-3 block border-t border-ink-100 pt-2 text-[12px] leading-5 text-ink-500">
-            Each document uses 1 credit. Your first one is free; more credits are priced for your country. You review everything first; once approved, a document is final.
+            Part of MadeVisa Pro: 50 documents a month. You review everything first; once approved, a document is final.
           </span>
         </span>
       )}
@@ -73,23 +73,6 @@ export function OfferInfo({ className = '', light = false }: { className?: strin
 }
 
 const Dot = () => <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#1D4ED8]" aria-hidden="true" />;
-
-/** "3 credits · 3 documents" — plus the Pro allowance for members. */
-export function CreditMeter({ credits, light = false }: { credits: OfferCredits; light?: boolean }) {
-  const strong = light ? 'text-white' : 'text-ink-950';
-  const soft = light ? 'text-white/75' : 'text-ink-500';
-  return (
-    <span className="inline-flex flex-wrap items-baseline gap-x-2 text-[13px]">
-      <span className={`text-[15px] font-bold tabular-nums ${strong}`}>{credits.docs}</span>
-      <span className={soft}>{credits.docs === 1 ? 'credit' : 'credits'}</span>
-      <span className={soft}>·</span>
-      <span className={`font-semibold tabular-nums ${strong}`}>
-        {credits.left} {credits.left === 1 ? 'document' : 'documents'} left
-      </span>
-      {credits.pro && <span className={soft}>(Pro: {credits.proLeft} of {PRO_MONTHLY_DOCS} this month)</span>}
-    </span>
-  );
-}
 
 /** Overlapping flags of the countries an offer can be made for. */
 export function OfferFlags({ size = 26, highlight }: { size?: number; highlight?: string | null }) {

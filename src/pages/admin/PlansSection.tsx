@@ -27,6 +27,8 @@ type Req = {
   created_at: string;
 };
 type Sub = { user_id: string; plan: string; status: string; current_period_end: string | null; note: string | null };
+/** CV match funnel (cv_admin_stats, migration 20261126090000). */
+type CvStats = { cvs: number; cvs_7d: number; checks: number; jobs_checked_7d: number; people_checking_7d: number; hit_limit_today: number; avg_score: number | null };
 
 const STATUS_STYLE: Record<Req['status'], string> = {
   new: 'bg-amber-100 text-amber-900',
@@ -42,6 +44,7 @@ export function PlansSection() {
   const [missing, setMissing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [cv, setCv] = useState<CvStats | null>(null);
 
   const load = useCallback(async () => {
     const [r, s] = await Promise.all([
@@ -51,6 +54,9 @@ export function PlansSection() {
     if (r.error) return setMissing(true);
     setReqs((r.data ?? []) as Req[]);
     setSubs((s.data ?? []) as Sub[]);
+    // Absent until the CV match migration is run — the section just doesn't show.
+    const stats = await supabase.rpc('cv_admin_stats');
+    setCv(stats.error ? null : (stats.data as CvStats));
   }, []);
   useEffect(() => {
     void load();
@@ -84,8 +90,31 @@ export function PlansSection() {
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
+      {cv && (
+        <section aria-label="CV match" className="rounded-xl border border-ink-200 bg-white p-4">
+          <p className="text-sm font-bold text-ink-950">CV match</p>
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-6">
+            {(
+              [
+                [cv.cvs, 'CVs uploaded'],
+                [cv.cvs_7d, 'new in 7 days'],
+                [cv.people_checking_7d, 'people checking, 7 days'],
+                [cv.jobs_checked_7d, 'jobs checked, 7 days'],
+                [cv.hit_limit_today, 'hit the free limit today'],
+                [cv.avg_score == null ? '—' : `${cv.avg_score}%`, 'average match'],
+              ] as [number | string, string][]
+            ).map(([v, k]) => (
+              <div key={k}>
+                <dd className="text-xl font-bold tabular-nums text-ink-950">{v}</dd>
+                <dt className="text-xs text-ink-500">{k}</dt>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-3 text-xs leading-5 text-ink-500">“Hit the free limit” = free accounts that used all 3 missing-skill checks today — the people most likely to want Pro.</p>
+        </section>
+      )}
       <p className="rounded-lg bg-ink-100 px-3 py-2 text-xs leading-5 text-ink-600">
-        Until payments are connected: reply to the request email (it goes to hello@madevisa.com) with a payment link, mark it <em>Contacted</em>, and once paid click <em>Activate</em>. The person gets a notification.
+        One plan now: MadeVisa Pro (full CV match reports + 50 sponsorship documents a month), monthly or yearly, priced per country — the request shows the price the person saw. Until payments are connected: reply to the request email (it goes to hello@madevisa.com) with a payment link, mark it <em>Contacted</em>, and once paid click <em>Activate</em>. The person gets a notification.
       </p>
       {msg && <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">{msg}</p>}
 

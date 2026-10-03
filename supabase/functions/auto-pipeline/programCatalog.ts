@@ -386,7 +386,7 @@ export const FORMATS: FormatDef[] = [
   },
   {
     key: 'invite', pillar: 'community', name: 'Invite a friend',
-    idea: 'The invite link: you get 2 Visa Plan credits when someone you invited makes a first purchase.',
+    idea: 'The invite link: you get 2 extra Visa Plans when someone you invited starts MadeVisa Pro.',
     example: 'Know someone job hunting abroad? Send them your link.',
     source: 'Invite rewards', link: '/profile', visual: 'Call-to-action card',
     platforms: FEED, parts: ['evening', 'night'], weight: 0.7, cooldown: 336,
@@ -475,7 +475,7 @@ FORMATS.push(
   },
   {
     key: 'reel_plan', pillar: 'plan', name: 'Reel: you make the offer', video: true,
-    idea: 'The Visa Plan idea as a reel: the hook, the three steps, “your first one is free”.',
+    idea: 'The Visa Plan idea as a reel: the hook, the three steps, “see how it works”.',
     example: 'No visa line in the ad is not a no.',
     source: 'Visa Plan', link: '/offers', visual: 'Reel, about 15 seconds',
     platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 2.5, cooldown: 60, needs: REEL_NEEDS,

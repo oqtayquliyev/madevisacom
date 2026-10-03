@@ -26,6 +26,18 @@ structure and help Claude orient instantly regardless of which page you're editi
 `src/data/sources/arbeitnow.ts`
 `src/lib/sponsoredJobs.ts`
 
+**CV match (the score next to Apply) and the CV itself**
+`src/lib/cv/` — the whole engine: `skills.ts` (skill dictionary — add a line to teach it a skill), `cvProfile.ts` (reads the CV), `jobProfile.ts` (reads the ad), `match.ts` (the score and the report), `extract.ts` (PDF/Word → text), `store.ts` (where the CV is kept), `checks.ts` (3 free a day)
+`src/components/cv/` — `MatchButton.tsx`, `MatchPanel.tsx`, `ApplySheet.tsx`, `CvUpload.tsx`, `CvGate.tsx` (CV required at sign-up), `CvPrompt.tsx`, `CvCard.tsx`
+`src/pages/cv/CvMatchPage.tsx` (`/cv-match`)
+`supabase/migrations/20261126090000_cv_match_one_plan.sql`
+
+**Pricing / the plan**
+`src/lib/pricing.ts` (price per country, currencies, what's in the plan)
+`src/lib/plans.ts`
+`src/pages/pricing/PricingPage.tsx`
+`src/components/pro/ProPlanCard.tsx`
+
 **Programs (marketing page + real sponsored board)**
 `src/pages/landing/programs/ProgramsPage.tsx`
 `src/pages/programs/SponsoredProgramsPage.tsx`

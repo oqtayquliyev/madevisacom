@@ -10,8 +10,8 @@ import { formatRelativeTime } from '@/lib/dates';
 import { nav } from '@/lib/pageLayout';
 import { useMyPlan } from '@/lib/plans';
 import { BRIEF_STATUS_LABEL, briefPath, fetchMyBriefs, type MyBrief } from '@/lib/briefs';
-import { fetchOfferCredits, PRO_MONTHLY_DOCS, useOfferCredits, type OfferCredits } from '@/lib/sponsorOffer';
-import { CreditMeter, OfferFlags, OfferInfo } from '@/components/briefs/OfferBits';
+import { allowanceLabel, fetchOfferCredits, PRO_MONTHLY_DOCS, useOfferCredits, type OfferCredits } from '@/lib/sponsorOffer';
+import { OfferFlags, OfferInfo } from '@/components/briefs/OfferBits';
 
 const STATUS_TONE: Record<string, string> = {
   created: 'bg-ink-100 text-ink-600',
@@ -24,7 +24,7 @@ const STATUS_TONE: Record<string, string> = {
 };
 
 /**
- * "Your sponsorship documents" — top of the dashboard. Credit, the details
+ * "Your sponsorship documents" — on the dashboard. What's left this month, the details
  * that go on every document (editable here), and the documents made.
  */
 export function MyBriefsSection() {
@@ -59,12 +59,14 @@ export function MyBriefsSection() {
           <div className="sm:text-right">
             <p className="text-[22px] font-bold leading-none tabular-nums">{credits ? credits.left : '…'}</p>
             <p className="mt-1 text-[12px] text-white/75">
-              {credits?.left === 1 ? 'document' : 'documents'} left · 1 credit each{credits?.pro ? ` · Pro ${credits.proLeft}/${PRO_MONTHLY_DOCS} this month` : ''}
+              {credits?.left === 1 ? 'document' : 'documents'} left{credits?.pro ? ` · ${PRO_MONTHLY_DOCS} a month in Pro` : ' · part of Pro'}
             </p>
           </div>
-          <a href="/offers#buy" onClick={(e) => (e.preventDefault(), nav('/offers#buy'))} className="shrink-0 rounded-lg bg-white px-3.5 py-2 text-[13px] font-bold text-brand-700 hover:bg-brand-50">
-            Add credit
-          </a>
+          {!credits?.pro && (
+            <a href="/pricing#pro" onClick={(e) => (e.preventDefault(), nav('/pricing#pro'))} className="shrink-0 rounded-lg bg-white px-3.5 py-2 text-[13px] font-bold text-brand-700 hover:bg-brand-50">
+              Get Pro
+            </a>
+          )}
         </div>
       </div>
 
@@ -90,7 +92,7 @@ export function MyBriefsSection() {
           ) : list.length === 0 ? (
             <div className="mt-2 flex flex-col items-start gap-3 rounded-lg bg-[#1D4ED8]/5 p-4">
               <OfferFlags size={22} />
-              <p className="text-[14px] leading-6 text-ink-700">Open any job and press “Visa Plan”. Your first document is free.</p>
+              <p className="text-[14px] leading-6 text-ink-700">Open a job and check your match. The document is listed under “Your application”.</p>
               <a href="/offers" onClick={(e) => (e.preventDefault(), nav('/offers'))} className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-[13px] font-bold text-white hover:bg-brand-800">
                 Pick a job
               </a>
@@ -238,7 +240,7 @@ function DocumentDetails({ profile, onSaved }: { profile: Profile; onSaved: () =
   );
 }
 
-/** Plan + offer credits, in the profile sidebar. */
+/** Plan + sponsorship documents left, in the profile sidebar. */
 export function PlanCard() {
   const { isPro, sub, loading } = useMyPlan();
   const [credits, setCredits] = useState<OfferCredits | null>(null);
@@ -258,13 +260,13 @@ export function PlanCard() {
       {isPro && sub?.current_period_end && <p className="text-[12px] text-ink-500">Until {new Date(sub.current_period_end).toLocaleDateString()}</p>}
       <div className="mt-3 border-t border-ink-100 pt-3">
         <div className="flex items-center gap-1">
-          <p className="text-[13px] font-semibold text-ink-800">Visa Plans</p>
+          <p className="text-[13px] font-semibold text-ink-800">Sponsorship documents</p>
           <OfferInfo />
         </div>
-        <div className="mt-1.5">{credits ? <CreditMeter credits={credits} /> : <span className="text-[13px] text-ink-400">…</span>}</div>
-        {credits && credits.left === 0 && (
-          <a href="/offers#buy" onClick={(e) => (e.preventDefault(), nav('/offers#buy'))} className="mt-2 inline-block text-[13px] font-semibold text-[#1D4ED8] hover:underline">
-            Top up credit
+        <p className="mt-1.5 text-[13px] text-ink-700">{credits ? (credits.left > 0 ? allowanceLabel(credits) : isPro ? 'All used this month — they renew on the 1st' : `${PRO_MONTHLY_DOCS} a month with Pro`) : '…'}</p>
+        {credits && credits.left === 0 && !isPro && (
+          <a href="/pricing#pro" onClick={(e) => (e.preventDefault(), nav('/pricing#pro'))} className="mt-2 inline-block text-[13px] font-semibold text-[#1D4ED8] hover:underline">
+            See the plan
           </a>
         )}
       </div>

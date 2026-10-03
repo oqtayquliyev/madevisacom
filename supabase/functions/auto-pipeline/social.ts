@@ -279,10 +279,10 @@ const OFFER_EXPLAINERS: string[] = [
 ];
 
 const OFFER_TEASERS: string[] = [
-  `💡 No visa line in the ad? Attach a Visa Plan — your first one is free.`,
+  `💡 No visa line in the ad? Attach a Visa Plan — one page that shows them how to sponsor you.`,
   `💡 Tip: a one-page Visa Plan answers "can we hire you?" before the recruiter asks.`,
   `💡 Companies don't advertise sponsorship they've never tried. Your Visa Plan shows them how.`,
-  `💡 Make the visa easy to say yes to — build a free Visa Plan on madevisa.com/offers`,
+  `💡 Make the visa easy to say yes to — build a Visa Plan on madevisa.com/offers`,
   `💡 Applying from abroad? Send the plan, not just the CV.`,
 ];
 
@@ -309,8 +309,8 @@ function captionFor(c: Campaign, jobs: Job[], p: Platform, seed: number, offerLe
     tags.add('#workabroad');
   }
   const offerCta = p === 'instagram'
-    ? `🆓 Make your first Visa Plan free on madevisa.com/offers — link in bio.`
-    : `🆓 Make your first Visa Plan free: ${offerUrl}`;
+    ? `📄 See how a Visa Plan works on madevisa.com/offers — link in bio.`
+    : `📄 See how a Visa Plan works: ${offerUrl}`;
 
   const limit = p === 'linkedin' ? 2900 : p === 'telegram' ? 1000 : 2150;
   const hook = offerLed

@@ -26,7 +26,7 @@ const CTA: Record<string, string> = {
   offer_ready: 'Open and save as PDF',
   offer_viewed: 'See your document',
   offer_reply: 'Read the reply',
-  credits_added: 'See your credits',
+  credits_added: 'See your documents',
 };
 
 export function NotificationBell() {
@@ -59,7 +59,7 @@ export function NotificationBell() {
         <div className="fixed inset-x-3 top-[4.75rem] z-50 max-h-[calc(100dvh-6rem)] overflow-hidden rounded-xl border border-ink-200 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-[22rem]">
           <p className="border-b border-ink-100 px-4 py-3 text-sm font-bold text-ink-950">Notifications</p>
           {!items.length ? (
-            <p className="px-4 py-8 text-center text-sm text-ink-500">Nothing yet. Jobs you apply to, your Visa Plans and job alerts appear here.</p>
+            <p className="px-4 py-8 text-center text-sm text-ink-500">Nothing yet. Jobs you apply to, your sponsorship documents and job alerts appear here.</p>
           ) : (
             <ul className="max-h-[calc(100dvh-10rem)] divide-y sm:max-h-96 divide-ink-100 overflow-y-auto">
               {items.map((n) => {

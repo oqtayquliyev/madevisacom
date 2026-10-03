@@ -107,7 +107,7 @@ export function buildMonthly(d: MonthlyData, prev: MonthlyData | null): { title:
   parts.push(
     `<h2>How we count</h2><p>“New jobs” are roles that went live on MadeVisa during ${month}, taken from company career pages. “Mentions sponsorship” means the ad itself says visa sponsorship is available. Reply rates only appear once they rest on at least 30 items, and companies are only ever listed for doing well. Figures are rounded.</p>`
   );
-  parts.push(`<p><a href="/offers">Make your first Visa Plan free</a> · <a href="/jobs">See today’s jobs</a></p>`);
+  parts.push(`<p><a href="/cv-match">Check how well your CV matches a job, free</a> · <a href="/jobs">See today’s jobs</a></p>`);
 
   return { title, excerpt, html: parts.join('\n') };
 }

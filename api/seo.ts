@@ -211,6 +211,7 @@ function render(tpl: string, p: Page): string {
 const footerLinks = () =>
   `<nav aria-label="MadeVisa"><h2>Explore MadeVisa</h2><ul class="links">${[
     ['/jobs', 'Live jobs from company career pages'],
+    ['/cv-match', 'CV match — how well your CV fits a job'],
     ['/companies', 'Company Scores — who replies to applicants'],
     ['/job-market', 'Job market insights, updated hourly'],
     ['/destinations', 'Visas by country'],
@@ -530,13 +531,29 @@ async function staticPage(slug: string): Promise<Page | null> {
 
   if (slug === 'pricing') {
     return {
-      title: 'Pricing — MadeVisa Pro for job seekers, sponsored jobs for employers',
-      description: 'Free job search with reply rates and visa routes on every job. Pro adds instant job alerts, full company response data and visa-sponsoring companies. Fair prices by country.',
+      title: 'Pricing — one plan: full CV match reports and sponsorship documents',
+      description: 'Checking how well your CV matches a job is free. MadeVisa Pro adds the full report on every job and 50 sponsorship documents a month — one plan, monthly or yearly, priced for your country in your currency.',
       path,
       jsonld: [crumbsLd([['MadeVisa', '/'], ['Pricing', path]])],
       body:
-        '<h1>Pricing</h1><p>Every job, reply rate and visa route on MadeVisa is free. MadeVisa Pro adds instant job alerts, full company response data and the companies that sponsor visas.</p>' +
+        '<h1>Pricing</h1><p>Every job, reply rate and visa route on MadeVisa is free, and so is the match score between your CV and any job. With a free account you also see the skills missing from your CV on 3 jobs a day.</p>' +
+        '<h2>MadeVisa Pro</h2><p>One plan, monthly or yearly, priced for your country in your currency: the full CV match report on every job, 50 sponsorship documents a month, instant job alerts, full company response data and the companies that sponsor visas.</p>' +
         '<h2>For employers</h2><p>Sponsored jobs ($149 for 30 days), featured placement in social posts, employer plans and Hiring Briefs.</p>' +
+        footerLinks(),
+      maxAge: 3600,
+    };
+  }
+
+  if (slug === 'cv-match') {
+    return {
+      title: 'CV match — see how well your CV fits a job before you apply',
+      description: 'Upload your CV once. On every job, MadeVisa shows a match score, the skills the ad asks for that your CV doesn’t show, and what to change. The score is free.',
+      path,
+      jsonld: [crumbsLd([['MadeVisa', '/'], ['CV match', path]])],
+      body:
+        '<h1>How well does your CV match the job?</h1><p>Upload your CV once. Then press “Check your match” next to Apply on any job: a score in a second, the skills you’re missing, and what to change before you send it.</p>' +
+        '<h2>Where the score comes from</h2><ul><li><strong>Skills (40 points).</strong> Every skill the ad names; must-haves count in full, nice-to-haves for less.</li><li><strong>Role fit (20).</strong> Whether the roles on your CV are the same kind of job.</li><li><strong>Experience (15).</strong> The years the ad asks for against the dates on your CV.</li><li><strong>Wording (10).</strong> The words the ad leans on, and whether your CV uses them.</li><li><strong>Languages (8).</strong> Languages the ad requires, and the level.</li><li><strong>Education (7).</strong> The degree the ad asks for.</li></ul>' +
+        '<h2>What is free</h2><p>The match score is free on every job. With a free account, the skills missing from your CV are shown on 3 jobs a day. The full report and 50 sponsorship documents a month are part of MadeVisa Pro.</p>' +
         footerLinks(),
       maxAge: 3600,
     };

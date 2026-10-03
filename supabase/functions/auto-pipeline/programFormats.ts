@@ -524,7 +524,7 @@ const jobs_plan: Builder = async (c) => {
       c.w,
       'explain'
     ),
-    go(c.p, c.w, ['Your first Visa Plan is free:', 'Make your first one free:', 'The first one costs nothing:'], '/offers'),
+    go(c.p, c.w, ['See how a Visa Plan works:', 'How it works:', 'It comes with MadeVisa Pro:'], '/offers'),
     jobTags(c, jobs, ['visasponsorship', 'visaplan']),
   ]);
   return {
@@ -979,11 +979,11 @@ const plan_flip: Builder = async (c) => {
       'explain'
     ),
     pick(['Salary is never part of it. Visa salary rules exist so nobody gets underpaid.', 'You never offer to take less pay. The plan only covers costs the law lets a candidate pay.'], c.w, 'guard'),
-    go(c.p, c.w, ['Your first one is free:', 'Make your first Visa Plan free:', 'Try it, the first is free:'], '/offers'),
+    go(c.p, c.w, ['See how it works:', 'How a Visa Plan works:', 'It comes with MadeVisa Pro:'], '/offers'),
     c.p !== 'telegram' && chance(0.5, c.w, 'ask') ? 'Have you ever asked an employer about sponsorship? What did they say?' : null,
     tags(c.p, ['visasponsorship', 'visaplan', 'workabroad', 'jobsearch', 'jobsabroad', 'movingabroad']),
   ]);
-  return { topic: String(f.i), headline: f.h, format: 'image', images: [og(c, 'text', { k: 'Visa Plan', h: f.h, hl: f.hl, s: f.s, cta: 'First one is free', link: 'madevisa.com/offers', th: f.i % 2 ? 'ink' : 'blue' })], caption, links: [link(c, 'Visa Plan', '/offers')] };
+  return { topic: String(f.i), headline: f.h, format: 'image', images: [og(c, 'text', { k: 'Visa Plan', h: f.h, hl: f.hl, s: f.s, cta: 'See how it works', link: 'madevisa.com/offers', th: f.i % 2 ? 'ink' : 'blue' })], caption, links: [link(c, 'Visa Plan', '/offers')] };
 };
 
 const plan_steps: Builder = async (c) => {
@@ -995,12 +995,12 @@ const plan_steps: Builder = async (c) => {
   ];
   const total = slides(c, 2);
   const cover = og(c, 'text', { k: 'Visa Plan', h: 'A cover letter for the visa.', hl: 'for the visa', s: 'Three steps, about two minutes. Swipe.', link: 'madevisa.com/offers', p: pos(1, total), th: 'ink' });
-  const how = og(c, 'steps', { k: 'Visa Plan', h: 'How a Visa Plan works', rows: rows(steps), cta: 'First one is free', link: 'madevisa.com/offers', p: pos(total, total) });
+  const how = og(c, 'steps', { k: 'Visa Plan', h: 'How a Visa Plan works', rows: rows(steps), cta: 'See how it works', link: 'madevisa.com/offers', p: pos(total, total) });
   const caption = write(c.p, [
     pick(['A cover letter for the visa. Here’s how it works.', 'How a Visa Plan works, in three steps.', 'You already found the job. This is the part most people skip.'], c.w, 'hook'),
     steps.map((s, i) => `${i + 1}. ${s[0]}. ${s[1]}`).join('\n'),
     'The employer gets one page that answers “can we hire this person?” before they have to look it up.',
-    go(c.p, c.w, ['Your first one is free:', 'Make one now, the first is free:'], '/offers'),
+    go(c.p, c.w, ['See how it works:', 'Make one for the job you want:'], '/offers'),
     closer(c.p, c.w, 'either', 0.6),
     tags(c.p, ['visaplan', 'visasponsorship', 'workabroad', 'jobapplication', 'jobsabroad']),
   ]);
@@ -1033,7 +1033,7 @@ const plan_employer: Builder = async (c) => {
     e.licenceNeeded ? typo(e.licenceNote ?? '') : 'No sponsor licence needed on this route.',
     typo(e.timeline),
     `A Visa Plan puts exactly this in front of the employer, on one page, with your application.`,
-    go(c.p, c.w, ['Build yours, the first is free:', 'Your first Visa Plan is free:'], '/offers'),
+    go(c.p, c.w, ['Build yours:', 'See how a Visa Plan works:'], '/offers'),
     closer(c.p, c.w, 'share', 0.5),
     tags(c.p, ['visasponsorship', 'visaplan', countryTag(g.name), `workin${countryTag(g.name)}`, 'hiring', 'workabroad']),
   ]);
@@ -1277,12 +1277,12 @@ const invite: Builder = async (c) => {
   if (c.age('invite:invite') < 24 * 20) return null;
   const caption = write(c.p, [
     pick(['Know someone job hunting abroad? Send them your link.', 'If MadeVisa helped you, there’s a simple way to pass it on.'], c.w, 'hook'),
-    'Every account has an invite link. When someone you invited makes their first purchase, you get 2 Visa Plan credits.',
+    'Every account has an invite link. When someone you invited starts MadeVisa Pro, you get 2 extra Visa Plans.',
     'Searching, tracking applications and the visa guides are free for them either way.',
     go(c.p, c.w, ['Your link is in your profile:', 'Find your invite link:'], '/profile'),
     tags(c.p, ['workabroad', 'jobsearch', 'jobsabroad']),
   ]);
-  return { topic: 'invite', headline: 'Invite a friend', format: 'image', images: [og(c, 'cta', { k: 'Invite', n: 'plus', h: 'Know someone job hunting abroad?', hl: 'job hunting abroad', s: 'Send them your invite link. You get 2 Visa Plan credits when they make a first purchase.', cta: 'Get your link', link: 'madevisa.com/profile' })], caption, links: [link(c, 'Profile', '/profile')] };
+  return { topic: 'invite', headline: 'Invite a friend', format: 'image', images: [og(c, 'cta', { k: 'Invite', n: 'plus', h: 'Know someone job hunting abroad?', hl: 'job hunting abroad', s: 'Send them your invite link. You get 2 extra Visa Plans when they start MadeVisa Pro.', cta: 'Get your link', link: 'madevisa.com/profile' })], caption, links: [link(c, 'Profile', '/profile')] };
 };
 
 // The free job alert (src/components/jobs/AlertSignup.tsx): "Email me these jobs" on the
@@ -1652,7 +1652,7 @@ const reel_plan: Builder = async (c) => {
     'A Visa Plan is a one-page PDF you attach when you apply. It shows the visa route for that country, what the employer has to do, and which costs you’re willing to cover.',
     steps.map((s, i) => `${i + 1}. ${s[0]}`).join('\n'),
     'Salary is never part of it. Visa salary rules exist so nobody gets underpaid.',
-    go(c.p, c.w, ['Your first one is free:', 'Make your first Visa Plan free:'], '/offers'),
+    go(c.p, c.w, ['See how it works:', 'How a Visa Plan works:'], '/offers'),
     tags(c.p, ['visasponsorship', 'visaplan', 'workabroad', 'jobsearch', 'jobsabroad', 'movingabroad']),
   ]);
   return {
@@ -1667,7 +1667,7 @@ const reel_plan: Builder = async (c) => {
       scenes: [
         scene('hook', { k: 'Visa Plan', l: lines(parts.map((p, i) => (parts.length > 1 && i === parts.length - 1 ? `*${p}` : p))) }, { steps: parts.length, step: 1.1, hold: readTime(f.h, 2.6) }),
         scene('list', { l: 'How it works', rows: rows(steps) }, { steps: 3, step: 1.3, hold: 2.6 }),
-        scene('cta', { l: lines(['Your first one', '*is free']), link: 'madevisa.com/offers' }, { hold: 3 }),
+        scene('cta', { l: lines(['See how', '*it works']), link: 'madevisa.com/offers' }, { hold: 3 }),
       ],
     },
   };

@@ -65,6 +65,16 @@ Deno.serve(async (req) => {
     // be used to delete a different account.
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    // The CV file lives in the private `cvs` bucket under the person's own
+    // folder; storage objects don't cascade with the account, so remove them
+    // first. (The `user_cvs` row itself cascades.)
+    try {
+      const { data: files } = await adminClient.storage.from('cvs').list(user.id);
+      if (files?.length) await adminClient.storage.from('cvs').remove(files.map((f) => `${user.id}/${f.name}`));
+    } catch (err) {
+      console.error('delete-account: CV cleanup failed', err);
+    }
+
     const { error: deleteError } = await adminClient.auth.admin.deleteUser(user.id);
 
     if (deleteError) {

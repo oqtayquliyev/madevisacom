@@ -41,7 +41,7 @@ export function SponsorAnswer({ publisherId, companyName }: { publisherId: strin
         {routes.length ? `, including: ${routes.join(', ')}` : ''}.
       </p>
       <p className="mt-2 text-[12px] text-ink-500">
-        A licence doesn’t mean every role is sponsored — check the job ad, or attach a Visa Plan when you apply.{' '}
+        A licence doesn’t mean every role is sponsored — check the job ad, or add a sponsorship document when you apply.{' '}
         <a href={UK_REGISTER_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-semibold text-emerald-700 hover:underline">
           Official register <ExternalLink className="h-3 w-3" />
         </a>

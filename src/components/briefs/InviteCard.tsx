@@ -3,8 +3,9 @@ import { Check, Gift, Link2 } from 'lucide-react';
 import { inviteUrl, useMyReferral } from '@/lib/referrals';
 
 /**
- * One line, one button. The reward is paid only when an invited friend
- * buys (see migration 20261116090000), so there's nothing to farm.
+ * One line, one button. The reward (2 documents, usable with or without Pro)
+ * is given only when an invited friend pays for Pro (see migration
+ * 20261116090000), so there's nothing to farm.
  */
 export function InviteCard() {
   const r = useMyReferral();
@@ -16,11 +17,11 @@ export function InviteCard() {
       <p className="flex min-w-0 items-start gap-2 text-[13.5px] leading-5 text-ink-700">
         <Gift className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
         <span>
-          <strong className="text-ink-950">Invite a friend who’s moving abroad.</strong> Their first document is free; you get <strong>2 credits</strong> when they buy a plan.
+          <strong className="text-ink-950">Invite a friend who’s moving abroad.</strong> You get <strong>2 extra sponsorship documents</strong> when they start Pro.
           {r.joined > 0 && (
             <span className="text-ink-500">
               {' '}
-              · {r.joined} joined{r.credits > 0 ? ` · ${r.credits} credits earned` : ''}
+              · {r.joined} joined{r.credits > 0 ? ` · ${r.credits} documents earned` : ''}
             </span>
           )}
         </span>

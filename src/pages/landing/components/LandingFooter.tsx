@@ -21,11 +21,13 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
     title: 'Explore',
     links: [
       { label: 'Jobs', view: 'jobs' },
+      { label: 'CV match', href: '/cv-match' },
       { label: 'Insights', view: 'companies' },
       { label: 'Hiring Feedback', view: 'feedback' },
       { label: 'Visas by Country', view: 'destinations' },
       { label: 'Recruiters', view: 'network' },
-      { label: 'Instant Jobs (Pro)', href: '/pricing' },
+      { label: 'Pricing', href: '/pricing' },
+      { label: 'Sponsorship document', href: '/offers' },
       { label: 'Programs (soon)', view: 'programs' },
       { label: 'Study (soon)', view: 'study' },
     ],
@@ -87,7 +89,7 @@ export function LandingFooter({ go }: LandingFooterProps) {
         <div className="grid gap-8 lg:grid-cols-[1.3fr_2.7fr]">
           <div>
             <BrandMark variant="footer" onClick={() => go('home')} />
-            <p className="mt-3 max-w-xs text-sm leading-6 text-ink-300">Live jobs from company career pages, and a sponsorship agreement you attach to your application to get the visa sponsored.</p>
+            <p className="mt-3 max-w-xs text-sm leading-6 text-ink-300">Live jobs from company career pages, a match score for your CV on every one, and the sponsorship document that helps an employer say yes to a visa.</p>
             <div className="mt-4 flex items-center gap-2.5">
               {SOCIAL.map(({ label, href, icon: Icon }) => (
                 <a

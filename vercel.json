@@ -45,7 +45,7 @@
       "destination": "/api/seo?r=article&s=:s"
     },
     {
-      "source": "/:s(about|how-it-works|pricing|job-market|contact|privacy|terms|cookies|disclaimer|advertising-policy|sponsored-listing-terms|sponsorship-document-terms|editorial-policy|corrections|verification-policy|companies|destinations|feedback|network|programs|study)",
+      "source": "/:s(about|how-it-works|pricing|cv-match|job-market|contact|privacy|terms|cookies|disclaimer|advertising-policy|sponsored-listing-terms|sponsorship-document-terms|editorial-policy|corrections|verification-policy|companies|destinations|feedback|network|programs|study)",
       "destination": "/api/seo?r=page&s=:s"
     },
     {

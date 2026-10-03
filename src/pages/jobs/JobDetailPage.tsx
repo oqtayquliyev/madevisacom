@@ -10,12 +10,14 @@ import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Chec
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
-import { HiringBriefCallout } from '@/components/briefs/HiringBriefCallout';
-import { ApplyNudge } from '@/components/briefs/ApplyNudge';
+import { MatchButton } from '@/components/cv/MatchButton';
+import { MatchPanel } from '@/components/cv/MatchPanel';
+import { ApplySheet } from '@/components/cv/ApplySheet';
+import { useJobMatch } from '@/lib/cv/checks';
+import type { JobInput } from '@/lib/cv/jobProfile';
 import { SalaryCheck } from '@/components/jobs/SalaryCheck';
 import { AlertSignup } from '@/components/jobs/AlertSignup';
 import { UkSponsorPill } from '@/components/companies/SponsorProof';
-import { OfferButton } from '@/components/briefs/OfferButton';
 import { briefEligibility } from '@/lib/briefs';
 import { fetchSponsoredJobById, fetchSponsoredJobByShortId, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { jobPath, parseJobPath } from '@/lib/jobUrl';
@@ -47,9 +49,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const [job, setJob] = useState<Job | null | undefined>(undefined);
   const [raw, setRaw] = useState<SponsoredJob | null>(null);
   const [copied, setCopied] = useState(false);
-  // Set when Apply is clicked on a job without sponsorship; reset for each job.
-  const [nudgeArmed, setNudgeArmed] = useState(false);
-  useEffect(() => setNudgeArmed(false), [id]);
+  // Set when Apply is clicked — arms the "Your application" sheet; reset for each job.
+  const [applied, setApplied] = useState(false);
+  useEffect(() => setApplied(false), [id]);
   const { session } = useAuth();
   const { profile: visitor } = usePersonalization();
   // Signed-out visitors: after 3 job views, invite them to create an account.
@@ -95,6 +97,15 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
     return { html: sanitizeJobHtml(job.description), contact: {} };
   }, [job, stored]);
   const detectedFacts = stored?.facts ?? null;
+
+  // CV match: the ad as the matcher reads it (title + the cleaned description).
+  const matchJob = useMemo<JobInput | null>(() => {
+    const description = cleaned?.html ?? '';
+    if (!job || !description) return null;
+    return { title: job.title, description, department: raw?.job_function ?? job.category ?? null, experienceHint: job.experienceLevel || detectedFacts?.experience || null };
+  }, [job, cleaned, raw, detectedFacts]);
+  const matchKey = raw?.id ?? job?.id ?? null;
+  const match = useJobMatch(matchKey, matchJob);
 
   useEffect(() => {
     let cancelled = false;
@@ -247,10 +258,11 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const arrangement = job.workArrangement ?? detected.workArrangement ?? (job.remote ? 'remote' : null);
   const employmentType = isMeaningfulJobType(job.type) ? job.type : detected.employmentType;
   const visa = job.visaStatus ?? (job.visaSponsorship ? 'offered' : detected.visa);
-  // Visa Plan next to Apply, on every open job. Jobs outside the
-  // covered countries start the builder with a country picker.
+  // Sponsorship document: offered inside "Your application" (the match
+  // panel and the sheet shown at Apply), no longer as its own button. Jobs
+  // outside the covered countries start the builder with a country picker.
   const offerEl = raw ? briefEligibility({ countryCode: raw.country?.iso_code ?? (countryOk ? job.countryCode : null), visa: visa ?? null, closed: Boolean(job.closed), fallback: 'DE' }) : null;
-  // Already in your country (or free to work there): no visa, so no Visa Plan.
+  // Already in your country (or free to work there): no visa, so no sponsorship document.
   // UK jobs: show the Home Office sponsor-licence badge when the company is on the register.
   const ukJob = (raw?.country?.iso_code ?? (countryOk ? job.countryCode : null)) === 'GB';
   const localJob = isLocalJobFor(raw?.country?.iso_code ?? (countryOk ? job.countryCode : null), visitor);
@@ -315,6 +327,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // Taken down from the company's careers page: shown greyed for 24 h, no applying.
   const closed = Boolean(job.closed);
   const closedAgo = job.closedAt ? formatRelativeTime(job.closedAt, '').toLowerCase() : null;
+  const docFor = offerOk && raw ? { jobId: raw.id, country: offerCountry, visaOffered: visa === 'offered' } : null;
 
   const applyButton = (extra = '') =>
     closed ? (
@@ -330,8 +343,8 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
         // Signed-in users: remember this application so they can report the
         // outcome later — that's what builds company response statistics.
         if (raw?.publisher_id) recordApplication({ publisherId: raw.publisher_id, kind: 'job', listingId: raw.id, title: job.title });
-        // No visa in the ad → offer the sponsorship document when they come back.
-        if (offerOk && raw && visa !== 'offered') setNudgeArmed(true);
+        // When they come back to this tab: what they sent, and what's missing from it.
+        setApplied(true);
       }}
       className={`inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${extra}`}
     >
@@ -343,7 +356,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
-      {offerOk && raw && <ApplyNudge jobId={raw.id} company={job.company} country={offerCountry} armed={nudgeArmed} />}
+      {matchKey && !closed && <ApplySheet jobKey={matchKey} company={job.company} match={match} doc={docFor} armed={applied} onAuth={onAuth} />}
 
       <section className={`${closed ? 'bg-ink-500' : 'bg-brand-700'} text-white transition-colors`}>
         <div className="mx-auto max-w-4xl px-5 pb-10 pt-6 sm:px-8 sm:pb-14 sm:pt-8">
@@ -454,7 +467,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {applyButton('flex-1 bg-white text-brand-700 shadow-sm hover:bg-brand-50 focus-visible:outline-white md:flex-none')}
-              {offerOk && raw && <OfferButton jobId={raw.id} variant="hero" country={offerCountry} onAuth={onAuth} />}
+              {matchJob && !closed && <MatchButton match={match} variant="hero" />}
               <span className="relative shrink-0">
                 <button
                   onClick={share}
@@ -495,33 +508,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       </section>
 
       <main className="mx-auto flex max-w-4xl flex-col px-5 py-8 sm:px-8 sm:py-10 md:block">
-        {raw && !localJob && !closed && (
-          // Mobile: the full section is long, so it sits at the end of the page and this link jumps there.
-          <a
-            href="#get-sponsored"
-            onClick={(e) => {
-              e.preventDefault();
-              document.getElementById('get-sponsored')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}
-            className="-mt-2 mb-4 inline-flex items-center gap-1.5 self-start text-[15px] font-bold text-brand-700 underline decoration-brand-300 decoration-2 underline-offset-4 md:hidden"
-          >
-            <Plane className="h-4 w-4" /> Get sponsored for this job
-          </a>
-        )}
-        {raw && !localJob && (
-          <div id="get-sponsored" className="order-last mt-6 scroll-mt-24 md:order-none md:-mt-4 md:mb-6">
-          <HiringBriefCallout
-            jobId={raw.id}
-            publisherId={raw.publisher_id ?? null}
-            jobTitle={job.title}
-            companyName={job.company}
-            jobFunction={raw.job_function ?? null}
-            jobCity={cityOk ? job.city : null}
-            countryCode={raw.country?.iso_code ?? (countryOk ? job.countryCode : null)}
-            visa={visa ?? null}
-            closed={closed}
-            onAuth={onAuth}
-          />
+        {matchJob && !closed && (
+          <div className="mb-5 md:-mt-4 md:mb-6">
+            <MatchPanel match={match} jobTitle={job.title} company={job.company} doc={docFor} onAuth={onAuth} />
           </div>
         )}
         {closed && (
@@ -593,7 +582,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {applyButton('flex-1 bg-brand-600 text-white shadow-soft-lg hover:bg-brand-700 focus-visible:outline-brand-600 md:flex-none')}
-              {offerOk && raw && <OfferButton jobId={raw.id} variant="body" country={offerCountry} onAuth={onAuth} />}
+              {matchJob && !closed && <MatchButton match={match} variant="body" />}
               <span className="relative shrink-0">
                 <button
                   onClick={share}

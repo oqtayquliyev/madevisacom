@@ -4,13 +4,13 @@ import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { useAuth } from '@/lib/auth';
 import { WRAP, nav } from '@/lib/pageLayout';
-import { docsLabel, useOfferCredits } from '@/lib/sponsorOffer';
+import { allowanceLabel, useOfferCredits } from '@/lib/sponsorOffer';
 import { usePrices } from '@/lib/pricing';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { OfferFlags } from '@/components/briefs/OfferBits';
 import { OfferJobPicker } from '@/components/briefs/OfferJobPicker';
-import { BuyOffers } from '@/components/briefs/BuyOffers';
+import { ProPlanCard } from '@/components/pro/ProPlanCard';
 import { CustomOfferCard } from '@/components/briefs/CustomOfferCard';
 import { OfferOddsStat } from '@/components/briefs/OfferOddsStat';
 import { OfferFlip } from '@/components/briefs/OfferFlip';
@@ -19,15 +19,17 @@ import { InviteCard } from '@/components/briefs/InviteCard';
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
 const WHY: { icon: typeof FileCheck2; title: string; text: string }[] = [
-  { icon: FileCheck2, title: 'Pick a job', text: 'Any job you opened on MadeVisa — or type any company yourself.' },
+  { icon: FileCheck2, title: 'Open a job and check your match', text: 'The document is listed under “Your application” as the missing piece. Or type any company yourself, below.' },
   { icon: SlidersHorizontal, title: 'Choose who pays what', text: 'Start from balanced, recommended terms. The route and the employer’s few steps are filled in for you.' },
   { icon: Paperclip, title: 'Attach the PDF when you apply', text: 'One page, ready to sign. The employer sees exactly how hiring you works — and that it’s cheaper than they think.' },
 ];
 
 /**
  * /offers — sponsorship documents in one straight page:
- *   hero (what it is, why it works, your credits) → how it works (3 steps)
- *   → your jobs → any other company → credits.
+ *   hero (what it is, why it works, what you have left) → how it works
+ *   (3 steps) → your jobs → any other company → the plan.
+ * No longer in the main menu: people reach the document from a job's
+ * "Your application" list, and land here from Pricing and their profile.
  */
 export function OffersPage({ go, onAuth }: Props) {
   const { user } = useAuth();
@@ -36,7 +38,7 @@ export function OffersPage({ go, onAuth }: Props) {
 
   useSeo({
     title: 'Visa Plan for your job application — MadeVisa',
-    description: 'Job doesn’t mention a visa? Attach a one-page Visa Plan: the visa route, the employer’s steps and who pays what. Your first one is free.',
+    description: 'Job doesn’t mention a visa? Attach a one-page Visa Plan: the visa route, the employer’s steps and who pays what. 50 a month are part of MadeVisa Pro.',
     path: '/offers',
   });
 
@@ -66,21 +68,21 @@ export function OffersPage({ go, onAuth }: Props) {
                 Prepare for a job <ArrowDown className="h-4 w-4" />
               </a>
             ) : (
-              <button onClick={() => onAuth?.('register')} className="rounded-full bg-white px-6 py-3.5 text-[15px] font-bold text-brand-700 shadow-sm hover:bg-brand-50">
-                Make my first Visa Plan — free
-              </button>
+              <a href="#buy" onClick={jump('buy')} className="rounded-full bg-white px-6 py-3.5 text-[15px] font-bold text-brand-700 shadow-sm hover:bg-brand-50">
+                See the plan
+              </a>
             )}
             <a href="#custom" onClick={jump('custom')} className="rounded-full px-5 py-3.5 text-[15px] font-bold text-white ring-1 ring-white/40 hover:bg-white/10">
               Any other company
             </a>
             <p className="text-[14px] text-white/80">
-              {credits ? (
+              {credits && credits.left > 0 ? (
                 <>
-                  You have <strong className="text-white">{docsLabel(credits.left)}</strong> left
+                  You have <strong className="text-white">{allowanceLabel(credits)}</strong>
                 </>
               ) : (
                 <>
-                  First one free · then from <strong className="text-white">{prices.packs[2].perDoc.label}</strong>
+                  Part of MadeVisa Pro · 50 a month · <strong className="text-white">{prices.pro.monthly.label}</strong> a month
                 </>
               )}
             </p>
@@ -131,14 +133,14 @@ export function OffersPage({ go, onAuth }: Props) {
           <CustomOfferCard onAuth={onAuth} />
         </div>
 
-        {/* 5. Credits */}
+        {/* 5. The plan */}
         <section id="buy" aria-labelledby="buy-title" className="scroll-mt-24">
           <h2 id="buy-title" className="text-[17px] font-bold text-ink-950">
-            Credits
+            Included in one plan
           </h2>
-          <p className="mt-0.5 text-[14px] text-ink-500">One credit prepares one document. Priced for your country.</p>
-          <div className="mt-3">
-            <BuyOffers onAuth={onAuth} onPro={() => nav('/pricing#pro')} />
+          <p className="mt-0.5 text-[14px] text-ink-500">Sponsorship documents come with the full CV match report. Priced for your country.</p>
+          <div className="mt-5 max-w-2xl">
+            <ProPlanCard onAuth={onAuth} compact />
           </div>
           {user && (
             <div className="mt-3">

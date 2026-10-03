@@ -36,6 +36,8 @@ import { VerifyEmailCard } from '@/components/common/VerifyEmailCard';
 import { TwoFactorSettings } from '@/components/auth/TwoFactorSettings';
 import { NetworkSettingsCard } from '@/components/network/NetworkSettingsCard';
 import { MyBriefsSection, PlanCard } from '@/components/briefs/MyBriefsSection';
+import { CvCard } from '@/components/cv/CvCard';
+import { CvPrompt } from '@/components/cv/CvPrompt';
 import { supabase } from '@/lib/supabase';
 import {
   createPublisherProfile,
@@ -399,6 +401,8 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
             </div>
           </div>
 
+          <CvCard />
+
           <PlanCard />
 
           {/* Section nav — vertical on desktop, scrolling chips on mobile */}
@@ -418,7 +422,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {/* DASHBOARD — applications at a glance + recently viewed */}
         {tab === 'dashboard' && (
           <div className="mt-5 space-y-8">
-            <MyBriefsSection />
+            <CvPrompt where="every job" />
             <ApplicantReport
               viewedCount={recentlyViewedJobs.length}
               hasPublicProfile={Boolean(profile.username)}
@@ -433,6 +437,8 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
               }}
             />
             <RecentlyViewedSection items={recentlyViewedJobs} onBrowse={() => go('jobs')} />
+            {/* Sponsorship documents: below the applications they belong to. */}
+            <MyBriefsSection />
           </div>
         )}
 

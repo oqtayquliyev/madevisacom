@@ -1,7 +1,7 @@
 // Why the visitor was sent to sign in, and where to go afterwards.
 // Kept in sessionStorage so it survives the Google redirect too.
 
-export type AuthIntent = { reason?: 'more-jobs' | 'save' | 'track' | 'share' | 'offer' | 'alert'; next?: string };
+export type AuthIntent = { reason?: 'more-jobs' | 'save' | 'track' | 'share' | 'offer' | 'alert' | 'match'; next?: string };
 
 const KEY = 'mv:authIntent';
 
@@ -42,6 +42,7 @@ export const AUTH_REASON_TEXT: Record<NonNullable<AuthIntent['reason']>, string>
   save: 'Sign in to save jobs.',
   track: 'Sign in to track your applications.',
   share: 'Sign in to share your experience.',
-  offer: 'Create a free account to get your document — your first one is free. Everything you chose is saved.',
+  offer: 'Create an account to keep what you chose. Sponsorship documents are part of MadeVisa Pro.',
+  match: 'Create a free account to see which skills your CV is missing — free on 3 jobs every day.',
   alert: 'Create a free account and we’ll email you new matching jobs once a day. Unsubscribe anytime.',
 };

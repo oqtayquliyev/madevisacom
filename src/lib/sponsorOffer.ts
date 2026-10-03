@@ -23,6 +23,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { visaGuideByCode, type CandidateCover } from '@/data/visa';
+import { PRO_MONTHLY_DOCS } from '@/lib/pricing';
 
 export type Payer = 'employer' | 'shared' | 'candidate';
 
@@ -138,20 +139,21 @@ export function splitWord(split: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Credits: 1 credit = 1 sponsorship document, everywhere. Every account has
-// 1 free document; Pro includes 10 a month. What credit costs to buy depends
-// on the country — see src/lib/pricing.ts.
+// Sponsorship documents are part of MadeVisa Pro: 50 a calendar month.
+// They are no longer sold one by one and new accounts get none for free.
+// Documents bought or earned before that change (`docs`) are kept and can
+// still be used — see migration 20261126090000 and src/lib/pricing.ts.
 // ---------------------------------------------------------------------------
 
 export { PRO_MONTHLY_DOCS, SIGNUP_DOCS } from '@/lib/pricing';
 
 export type OfferCredits = {
-  /** Document credits you own (free + bought − used). */
+  /** Documents kept from before the plan (bought, earned or the old free one) − used. */
   docs: number;
-  /** Documents you can make right now (Pro allowance + credits). */
+  /** Documents you can make right now (plan allowance this month + kept documents). */
   left: number;
   pro: boolean;
-  /** Pro documents left this calendar month. */
+  /** Plan documents left this calendar month. */
   proLeft: number;
   used: number;
 };
@@ -175,9 +177,7 @@ export async function fetchOfferCredits(): Promise<OfferCredits | null> {
     if (typeof d.balance === 'number') return { docs: Math.floor(Number(d.balance) / 15), left: d.left, pro, proLeft, used: d.used };
   }
   const { count } = await supabase.from('hiring_briefs').select('id', { count: 'exact', head: true }).eq('user_id', auth.user.id);
-  const used = count ?? 0;
-  const docs = Math.max(0, 1 - used);
-  return { docs, left: docs, pro: false, proLeft: 0, used };
+  return { docs: 0, left: 0, pro: false, proLeft: 0, used: count ?? 0 };
 }
 
 /** Can this person prepare a document right now? */
@@ -219,10 +219,10 @@ export function useOfferCredits(): OfferCredits | null {
   return credits;
 }
 
-/** Menu / button badge: "3 left", or "1 free" for guests. */
-export function creditsBadge(c: OfferCredits | null): string {
-  if (!c) return '1 free';
-  return `${c.left} left`;
+/** "47 of 50 left this month" / "2 documents left" — what a person can still make. */
+export function allowanceLabel(c: OfferCredits): string {
+  if (c.pro) return `${c.proLeft} of ${PRO_MONTHLY_DOCS} left this month${c.docs > 0 ? ` + ${c.docs} kept` : ''}`;
+  return `${docsLabel(c.docs)} left`;
 }
 
 /** Someone pressed "Save as PDF" on an offer (owner or company). For admin stats. */

@@ -22,7 +22,7 @@ const ENTITY = 'MadeVisa';
 const ADDRESS = 'Cherkassi Street, Sumgayit, Azerbaijan';
 const EMAIL = 'hello@madevisa.com';
 const JURISDICTION = 'the laws of the Republic of Azerbaijan';
-export const LEGAL_LAST_UPDATED = 'September 2026';
+export const LEGAL_LAST_UPDATED = 'October 2026';
 
 export const legalPages: Record<string, LegalPageContent> = {
   contact: {
@@ -48,7 +48,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         paragraphs: [
           'If your company already has a careers page, its jobs can appear on MadeVisa at no cost. To manage your company page, add your team or post a job directly, use Post a job or email us.',
           'For sponsored placements and Hiring Briefs (a plain-language summary of what hiring someone from abroad involves for your company), see the Sponsored Listing Terms.',
-          'For sponsorship documents job seekers prepare (price, credit, Pro, finality and refunds), see the Sponsorship Document Terms.',
+          'For sponsorship documents job seekers prepare (included in Pro, finality and refunds), see the Sponsorship Document Terms.',
         ],
       },
       {
@@ -86,6 +86,7 @@ export const legalPages: Record<string, LegalPageContent> = {
       'You can browse jobs, company pages and visa guides without an account.',
       'We never sell your data and never use it for third-party advertising.',
       'Your email, phone and nationality are never shown publicly — not on your profile, not in the Network.',
+      'Your CV is only ever visible to you. We don’t send it to employers or anyone else.',
       'Company Scores use combined, anonymous outcomes. Your name is never attached to a score.',
       'You can delete your account yourself, at any time, from your profile.',
     ],
@@ -101,6 +102,7 @@ export const legalPages: Record<string, LegalPageContent> = {
           'Account: your name, email address and a password (stored as a secure hash by our authentication provider), or the name, email and photo Google shares if you sign in with Google.',
           'Profile (optional): username, photo, headline, phone, country, nationality, languages, occupation, education, specialisation, experience and preferred destination.',
           'Network (optional, off by default): whether you appear in the MadeVisa Network, your role (for example job seeker or recruiter) and whether you are hiring or open to work.',
+          'Your CV: the file you upload (or the text you paste), the plain text read from it, and what we work out from that text — skills, job titles, years of experience, education and languages. It is used only to show you how well your CV matches a job and what to change. It is not shown on your profile, not shared with employers and not used to rank you for anyone else. We also keep which jobs you checked and the score, to apply the daily limit and show your results again.',
           'Application tracking: the jobs you apply to through MadeVisa, whether you confirmed applying, status updates (reply, interview, rejection, offer), your answers to short check-in questions and any reminders you set. You choose which applications, if any, appear on your public profile.',
           'Experience reports: when you report an application made elsewhere — company, role, date, channel and outcome. Reports are reviewed before they count.',
           'Reports and messages: when you report a job, contact us or send a correction.',
@@ -113,7 +115,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         paragraphs: [],
         bullets: [
           'Country: to show jobs and visa routes that fit you, we detect the country you browse from — from your browser’s location (only if you allow it; only the country code is kept, never coordinates) or, if you don’t, a rough estimate from your network address. It is saved in a cookie for 180 days and you can change it at any time.',
-          'On your device: to make pages load instantly we keep a copy of the job list, your recently viewed jobs and a few display preferences in your browser’s storage. This stays on your device.',
+          'On your device: to make pages load instantly we keep a copy of the job list, your recently viewed jobs, your CV’s text (so a match can be checked before you have an account) and a few display preferences in your browser’s storage. This stays on your device; signing out removes the copy of your CV.',
           'Usage and performance: Google Analytics and Vercel Analytics count page views, how people move through the site and how fast pages load. Advertising features are switched off, IP addresses are shortened, and in the EEA, UK and Switzerland Google Analytics runs without cookies.',
           'Security: a bot check on sign-up and sign-in, and standard server logs (such as network address, time and page requested) kept for a short period to protect the service.',
           'Email verification: when you confirm your email address and which address was confirmed.',
@@ -125,6 +127,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         bullets: [
           'To run your account and the features you use — saving jobs, tracking applications, reminders, your public profile and the Network.',
           'To show relevant jobs, countries and visa routes.',
+          'To compare your CV with a job ad when you ask for it. The comparison follows fixed rules that are the same for everyone; it is not an automated decision about you, and no employer sees it.',
           'To calculate Company Scores, reply rates and hiring statistics. These use combined outcomes from many applicants, weighted so that no single account can swing a result, and they never identify you.',
           'To review company registrations, listings and experience reports before they are published.',
           'To keep MadeVisa safe: preventing spam, fraud and abuse.',
@@ -440,13 +443,13 @@ export const legalPages: Record<string, LegalPageContent> = {
   'sponsorship-document-terms': {
     slug: 'sponsorship-document-terms',
     title: 'Sponsorship Document Terms',
-    description: 'Price, credit, Pro allowance, finality and refunds for MadeVisa sponsorship documents.',
+    description: 'How sponsorship documents are included in MadeVisa Pro, finality and refunds.',
     intro: `These terms apply when you prepare a sponsorship document (a sponsorship cost-sharing agreement) on ${ENTITY}. Last updated ${LEGAL_LAST_UPDATED}.`,
     summary: [
-      'Each document uses 1 credit. Your first document is free.',
-      'Credits come in packs of 1, 5 or 15, priced for your country and shown before you request them. They don’t expire.',
-      'Pro includes 10 documents a month.',
-      'You review and approve the terms before a credit is used. After that the document is final.',
+      'Sponsorship documents are part of MadeVisa Pro: 50 each calendar month.',
+      'They are no longer sold one by one, and new accounts don’t get a free one.',
+      'Credits you bought or earned before October 2026 are still yours and still work.',
+      'You review and approve the terms before a document is counted. After that it is final.',
     ],
     sections: [
       {
@@ -458,33 +461,32 @@ export const legalPages: Record<string, LegalPageContent> = {
         ],
       },
       {
-        heading: 'Price and credit',
+        heading: 'Pro',
         paragraphs: [
-          'Each document uses one document credit, taken when you approve it. Credits are sold in packs of 1, 5 or 15. The price depends on the country you are in, which we detect from your internet connection, and is shown in your local currency where possible (otherwise in US dollars). The price shown when you send your request is the price you pay. Bought credits don’t expire.',
-          'Every new account can prepare its first document free. The free document has no cash value and can’t be transferred.',
-          'Previewing, adjusting the terms and seeing the demo are free. A credit is used only when you approve a document.',
+          'MadeVisa Pro is one plan, billed monthly or yearly. Its price depends on the country you are in, which we detect from your internet connection, and is shown in your local currency where possible (otherwise in US dollars). The price shown when you send your request is the price you pay.',
+          'Pro includes 50 sponsorship documents each calendar month, the full CV match report on every job, instant job alerts and full company data. Unused documents don’t carry over to the next month. A fair-use limit of 30 documents in any 7 days applies.',
+          'Previewing, adjusting the terms and seeing the demo are free. A document is counted only when you approve it.',
         ],
       },
       {
-        heading: 'Pro',
+        heading: 'Credits from before October 2026',
         paragraphs: [
-          'MadeVisa Pro is billed monthly or yearly at the price shown for your country when you request it. It includes 10 sponsorship documents each calendar month.',
-          'Unused Pro documents don’t carry over to the next month. Once they’re used, further documents use your credits.',
+          'Until October 2026 documents were also sold as credits and every account had one free document. Credits you bought or earned through an invite are kept, don’t expire, and each still prepares one document. Accounts created before the change keep their free document if it hasn’t been used. When you are on Pro, the monthly allowance is used first.',
         ],
       },
       {
         heading: 'Review, approval and finality',
         paragraphs: [
-          'Before a credit is used, you see every term in a final review and confirm that it is correct. Once approved, the document is fixed: its terms, the parties and the role can’t be edited, and the employer sees exactly the approved version.',
-          'You can still mark its status (sent, replied, interview and so on) or withdraw it, which stops the link from working. Withdrawing does not return the credit.',
+          'Before a document is counted, you see every term in a final review and confirm that it is correct. Once approved, the document is fixed: its terms, the parties and the role can’t be edited, and the employer sees exactly the approved version.',
+          'You can still mark its status (sent, replied, interview and so on) or withdraw it, which stops the link from working. Withdrawing does not return the document to your allowance.',
           'If something in an approved document is wrong because of a mistake on our side, email us and we will correct it or refund it.',
         ],
       },
       {
         heading: 'Refunds',
-        paragraphs: ['A prepared document is delivered instantly, so its price is not refundable once approved, except in the cases below.'],
+        paragraphs: ['A prepared document is delivered instantly, so it can’t be returned once approved, except in the cases below.'],
         bullets: [
-          'Unused credit you bought: refundable within 14 days of purchase.',
+          'Unused credit bought before October 2026: refundable within 14 days of its purchase.',
           'Double charges, or a document that failed to generate: always refunded.',
           'A document made wrong by an error on our side: corrected or refunded.',
           'Pro: cancel any time; it stops at the end of the month or year. Within 14 days of first starting Pro, if you have not used any Pro documents, you get a full refund.',

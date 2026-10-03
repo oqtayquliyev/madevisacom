@@ -19,8 +19,8 @@ const PAGE = 5;
 
 /**
  * "Your last visited jobs": what each one needs — its PDF if you made one
- * ("1 credit used · See PDF"), nothing if it's in your country, else
- * "Prepare PDF · 1 credit" (or "Needs 1 credit" when you have none).
+ * ("See PDF"), nothing if it's in your country, else "Prepare PDF" — or
+ * "In Pro" when the person has no plan and no documents left.
  * 5 at a time with "Show more".
  */
 export function OfferJobPicker({ limit = PAGE, onAuth, title = 'Your last visited jobs' }: { limit?: number; onAuth?: (p: 'login' | 'register') => void; title?: string }) {
@@ -54,16 +54,16 @@ export function OfferJobPicker({ limit = PAGE, onAuth, title = 'Your last visite
     e.preventDefault();
     const el = document.getElementById('buy');
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    else nav('/offers#buy');
+    else nav('/pricing#pro');
   };
 
   if (!user) {
     return (
       <div className="flex flex-col items-start gap-3 rounded-xl bg-white p-5 ring-1 ring-ink-200 sm:flex-row sm:items-center">
         <OfferFlags size={26} />
-        <p className="min-w-0 flex-1 text-[15px] font-semibold text-ink-900">Sign up — your first sponsorship document is free.</p>
+        <p className="min-w-0 flex-1 text-[15px] font-semibold text-ink-900">Create an account to prepare a document for the jobs you open.</p>
         <button onClick={() => onAuth?.('register')} className="rounded-lg bg-[#1D4ED8] px-4 py-2.5 text-[14px] font-bold text-white hover:bg-brand-800">
-          Create free account
+          Create account
         </button>
       </div>
     );
@@ -108,7 +108,7 @@ export function OfferJobPicker({ limit = PAGE, onAuth, title = 'Your last visite
                   <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
                     {r.offer ? (
                       <>
-                        <span className="text-[12px] font-semibold text-emerald-700">{r.offer.paid === 'pro' ? 'Included in Pro' : r.offer.paid === 'credit' ? '1 credit used' : 'Prepared'}</span>
+                        <span className="text-[12px] font-semibold text-emerald-700">{r.offer.paid === 'pro' ? 'Included in Pro' : 'Prepared'}</span>
                         <a href={briefPath(r.offer.share)} onClick={go(briefPath(r.offer.share))} className="inline-flex items-center gap-1.5 rounded-lg border border-[#1D4ED8]/30 px-3 py-2 text-[13px] font-bold text-[#1D4ED8] hover:bg-[#1D4ED8]/5">
                           <FileDown className="h-4 w-4" /> See PDF
                         </a>
@@ -121,14 +121,16 @@ export function OfferJobPicker({ limit = PAGE, onAuth, title = 'Your last visite
                       <PickCountry uuid={r.uuid} />
                     ) : canMake || !credits ? (
                       <a href={newOfferPath(r.uuid)} onClick={go(newOfferPath(r.uuid))} className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D4ED8] px-3 py-2 text-[13px] font-bold text-white hover:bg-brand-800">
-                        <FileSignature className="h-4 w-4" /> Prepare PDF · 1 credit
+                        <FileSignature className="h-4 w-4" /> Prepare PDF
                       </a>
                     ) : (
                       <>
-                        <span className="text-[12px] font-semibold text-ink-500">Needs 1 credit</span>
-                        <a href="#buy" onClick={toBuy} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-2 text-[13px] font-bold text-ink-950 hover:bg-amber-300">
-                          <Lock className="h-4 w-4" /> Get credits
-                        </a>
+                        <span className="text-[12px] font-semibold text-ink-500">{credits?.pro ? 'All 50 used this month' : 'Part of Pro'}</span>
+                        {!credits?.pro && (
+                          <a href="#buy" onClick={toBuy} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-2 text-[13px] font-bold text-ink-950 hover:bg-amber-300">
+                            <Lock className="h-4 w-4" /> Get Pro
+                          </a>
+                        )}
                       </>
                     )}
                   </div>

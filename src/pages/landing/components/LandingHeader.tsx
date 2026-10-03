@@ -1,11 +1,11 @@
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useEffect, useState } from "react";
 import { SoonChip, SOON_VIEWS } from "@/components/common/SoonChip";
-import { ChevronDown, Building2, Briefcase, FileSignature, GraduationCap, LayoutDashboard, LogIn, LogOut, ShieldCheck, UserPlus, Users, X, BarChart3 } from "lucide-react";
+import { ChevronDown, Building2, Briefcase, GraduationCap, LayoutDashboard, LogIn, LogOut, ScanSearch, ShieldCheck, UserPlus, Users, X, BarChart3 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { creditsBadge, useOfferCredits } from "@/lib/sponsorOffer";
+import { useCv } from "@/lib/cv/store";
 import { CheckInReminder } from "@/components/jobs/CheckInReminder";
-import { OfferWelcome } from "@/components/briefs/OfferWelcome";
+import { CvRequiredDialog } from "@/components/cv/CvGate";
 import { fetchMyManagedPublishers } from "@/lib/companyManager";
 import { handleNavClick } from "@/lib/navLink";
 import type { View } from "@/types";
@@ -21,7 +21,7 @@ type LandingHeaderProps = {
   active?: View;
 };
 
-// Main menu: Jobs · Prepare Sponsorship (with credit) · Company Insights · Recruiters.
+// Main menu: Jobs · CV match · Company Insights · Recruiters.
 // Programs and Study are "soon" — they live in the footer until they launch.
 const primaryLinks: {
   view: View;
@@ -42,7 +42,7 @@ const menuIconClass =
 
 export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
   const { profile, signOut } = useAuth();
-  const credits = useOfferCredits();
+  const { hasCv } = useCv();
   const [openMenu, setOpenMenu] = useState(false);
   const [openProfile, setOpenProfile] = useState(false);
   // Show "Manage company" only to people who actually manage one (cached per user).
@@ -123,7 +123,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                 : "hidden"
             } gap-1 md:static md:z-auto md:flex md:flex-row md:items-center md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:[animation:none]`}
           >
-          {/* Jobs first, then the offer, then the rest. */}
+          {/* Jobs first, then CV match, then the rest. */}
             {primaryLinks.slice(0, 1).map((link) => {
               const Icon = link.icon;
               return (
@@ -146,20 +146,20 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             })}
 
             <a
-              href="/offers"
+              href="/cv-match"
               onClick={(event) =>
                 handleNavClick(event, () => {
-                  window.history.pushState({}, "", "/offers");
+                  window.history.pushState({}, "", "/cv-match");
                   window.dispatchEvent(new PopStateEvent("popstate"));
                   window.scrollTo({ top: 0 });
                   setOpenMenu(false);
                 })
               }
-              className={linkClass("offers" as View)}
+              className={linkClass("cv-match" as View)}
             >
-              <FileSignature className="h-4 w-4" />
-              Visa Plan
-              <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">{creditsBadge(credits)}</span>
+              <ScanSearch className="h-4 w-4" />
+              CV match
+              <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold text-white">{hasCv ? "On" : "Free"}</span>
             </a>
 
             {primaryLinks.slice(1).map((link) => {
@@ -425,7 +425,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
       </header>
       {/* Outside the header: its backdrop blur would trap a fixed-position child. */}
       <CheckInReminder />
-      <OfferWelcome />
+      <CvRequiredDialog />
     </>
   );
 }

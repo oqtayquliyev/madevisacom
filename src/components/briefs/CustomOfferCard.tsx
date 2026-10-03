@@ -17,7 +17,7 @@ const INPUT =
  * Custom sponsorship document: any company and role. Type a company — ones
  * already on MadeVisa are suggested — then the role and country. Opens the
  * offer builder (/brief/new?custom=1).
- * Without enough credit the form is shown blurred with a way to get it.
+ * Without Pro (or a document kept from before) the form is shown blurred with a way to get it.
  */
 export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick | null; onAuth?: (p: 'login' | 'register') => void; onClearPick?: () => void }>(
   function CustomOfferCard({ pick = null, onAuth, onClearPick }, ref) {
@@ -49,7 +49,7 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick
     }, [company, pub]);
 
     const canPay = canMakeDocument(credits);
-    // Signed out, or signed in without credit → blurred. (While credits load, don't flash the lock.)
+    // Signed out, or signed in with nothing to make one with → blurred. (While it loads, don't flash the lock.)
     const locked = !user || (credits !== null && !canPay);
     const pickedId = pub && pub.name === company ? pub.id : null;
 
@@ -74,7 +74,7 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick
           </div>
           {credits && !locked && (
             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
-              {credits.pro && credits.proLeft > 0 ? `Included in Pro · ${credits.proLeft} left this month` : `1 credit · ${docsLabel(credits.left)} left`}
+              {credits.pro && credits.proLeft > 0 ? `Included in Pro · ${credits.proLeft} left this month` : `${docsLabel(credits.left)} left`}
             </span>
           )}
         </div>
@@ -175,7 +175,7 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick
               <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-[#1D4ED8] px-5 py-3 text-[14px] font-bold text-white hover:bg-brand-800" tabIndex={locked ? -1 : 0}>
                 <FileSignature className="h-4 w-4" /> Prepare custom PDF
               </button>
-              <span className="text-[13px] text-ink-500">You’ll set the terms and see the document before a credit is used.</span>
+              <span className="text-[13px] text-ink-500">You’ll set the terms and see the document before it’s counted.</span>
               {error && <span className="text-[13px] font-semibold text-rose-600">{error}</span>}
             </div>
           </form>
@@ -189,27 +189,29 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick
                 {!user ? (
                   <>
                     <p className="text-[15px] font-bold text-ink-950">Sign up to make custom Visa Plans</p>
-                    <p className="text-[13px] text-ink-500">Your first document is free.</p>
+                    <p className="text-[13px] text-ink-500">Sponsorship documents are part of MadeVisa Pro — 50 a month.</p>
                     <button onClick={() => onAuth?.('register')} className="mt-1 rounded-lg bg-[#1D4ED8] px-4 py-2.5 text-[14px] font-bold text-white hover:bg-brand-800">
-                      Create free account
+                      Create account
                     </button>
                   </>
                 ) : (
                   <>
-                    <p className="text-[15px] font-bold text-ink-950">Get credits to continue</p>
+                    <p className="text-[15px] font-bold text-ink-950">{credits?.pro ? 'All 50 used this month' : 'Part of MadeVisa Pro'}</p>
                     <p className="text-[13px] text-ink-500">
-                      Each document uses 1 credit, and you have none left. Credits are priced for your country.
+                      {credits?.pro ? 'Your documents renew on the 1st.' : 'Pro includes 50 sponsorship documents a month and the full CV match report on every job.'}
                     </p>
-                    <a
-                      href="#buy"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        document.getElementById('buy')?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="mt-1 rounded-lg bg-[#1D4ED8] px-4 py-2.5 text-[14px] font-bold text-white hover:bg-brand-800"
-                    >
-                      Get credit
-                    </a>
+                    {!credits?.pro && (
+                      <a
+                        href="#buy"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          document.getElementById('buy')?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="mt-1 rounded-lg bg-[#1D4ED8] px-4 py-2.5 text-[14px] font-bold text-white hover:bg-brand-800"
+                      >
+                        See the plan
+                      </a>
+                    )}
                   </>
                 )}
               </div>

@@ -60,9 +60,10 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
       {
         kind: 'cards',
         heading: 'What MadeVisa does',
-        intro: 'Five things, in one place, so every application is a better-informed one.',
+        intro: 'Six things, in one place, so every application is a better-informed one.',
         items: [
-          { icon: 'send', title: 'Sponsorship agreements', text: 'Pick a job, drag to decide who pays each visa cost, review, and download a signed-ready agreement to attach when you apply. Your first one is free; more from a few dollars, priced for your country.' },
+          { icon: 'check', title: 'CV match on every job', text: 'Upload your CV once. Every job shows how well it fits — a score that is always free — plus the skills the ad asks for that your CV doesn’t show, and what to change before you apply.' },
+          { icon: 'send', title: 'Sponsorship agreements', text: 'When a job needs a visa, add a signed-ready agreement to your application: who pays each visa cost, the route and the employer’s few steps. 50 a month are part of MadeVisa Pro.' },
           { icon: 'source', title: 'Jobs from the source', text: 'Roles come from the employer’s own careers page — not reposts — so you see them early, with the real posting date. When a job closes there, it closes here.' },
           { icon: 'score', title: 'Company Scores', text: 'Reply rates, reply times and “was the job as described?” — built from outcomes applicants share, weighted so no single account can tilt a score.' },
           { icon: 'chart', title: 'Hiring insights', text: 'Who is hiring this week, where, for which roles, how much is remote and which companies offer visa sponsorship — updated through the day.' },
@@ -146,12 +147,13 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
     blocks: [
       {
         kind: 'steps',
-        heading: 'For job seekers, in seven steps',
+        heading: 'For job seekers, in eight steps',
         items: [
           { icon: 'source', title: 'We go to the source', text: 'MadeVisa follows the career pages of hundreds of employers — with more added every day — and brings new roles in as they appear, often before they reach the big job boards.' },
           { icon: 'check', title: 'Every listing is checked', text: 'Before a job appears we check that it is a real job ad and pull out the essentials: location, remote or on-site, salary, experience, visa sponsorship. What the ad doesn’t say shows as “not mentioned” — never guessed.' },
           { icon: 'search', title: 'Search by what matters to you', text: 'Filter by country, visa sponsorship, remote or hybrid, salary transparency, experience and category. Set your location once and the routes open to you are highlighted.' },
-          { icon: 'lock', title: 'Prepare your sponsorship agreement', text: 'On any job, drag to decide who pays each visa cost, set an optional salary deduction, pick the company from MadeVisa, then review and approve. One credit (the first is free); final once approved.' },
+          { icon: 'check', title: 'Check your match', text: 'Press “Check your match” next to Apply. Your CV is compared with the ad: skills, role, years, languages and education. The score is free; with a free account you also see the missing skills on 3 jobs a day.' },
+          { icon: 'lock', title: 'Add the sponsorship agreement', text: 'If the job needs a visa, the agreement is listed under “Your application” as the missing piece. Drag to decide who pays each visa cost, review and approve. Part of MadeVisa Pro; final once approved.' },
           { icon: 'send', title: 'Apply at the source — with the agreement attached', text: 'You apply on the employer’s own page and attach the PDF next to your CV, or paste its link in your cover letter. MadeVisa never stands between you and the employer, and never passes on your details.' },
           { icon: 'track', title: 'Track what happens', text: 'Mark when you applied and what happened next. Gentle check-ins ask at the right time. Your outcome, combined anonymously with others’, becomes the company’s reply rate.' },
           { icon: 'plane', title: 'Plan the move', text: 'For each country: the visa routes you may qualify for, fees, validity, years to permanent residence and citizenship — with the official source one click away.' },
@@ -182,9 +184,10 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
     faq: [
       { q: 'How often are jobs updated?', a: 'Continuously. New roles arrive throughout the day and closed roles are retired as they close on the employer’s page.' },
       { q: 'Why does a job show “Location on source”?', a: 'Some employers don’t state a clear location in the ad. Rather than guess, we point you to the original posting, where the employer gives the details.' },
-      { q: 'Do I need an account?', a: 'No — you can search and read everything without one. An account lets you save jobs, track applications and get check-in reminders.' },
+      { q: 'Do I need an account?', a: 'No — you can search and read everything without one, and even check your CV against a job. An account keeps your CV, shows the skills you’re missing, and lets you save jobs, track applications and get check-in reminders.' },
       { q: 'Can I trust a Company Score with only a few applicants?', a: 'Scores only appear once several people have shared an outcome, and while data is early they show as a range. The more people track, the sharper they get.' },
-      { q: 'How much does a sponsorship agreement cost?', a: 'One document credit, used when you approve it. The first document is free. Credit packs of 1, 5 or 15 are priced for your country, and Pro includes 10 a month. Unused bought credits are refundable within 14 days; see the Sponsorship Document Terms.' },
+      { q: 'How much does a sponsorship agreement cost?', a: 'It is part of MadeVisa Pro, which includes 50 a month along with the full CV match report on every job. Pro is one plan, monthly or yearly, priced for your country in your currency. Credits bought before October 2026 still work; see the Sponsorship Document Terms.' },
+      { q: 'Is checking my CV against a job free?', a: 'Yes. The match score is free on every job, without a limit. With a free account you also see which skills are missing on 3 jobs a day. The full report — where each point comes from and what to change — is part of Pro.' },
       { q: 'Is the visa information official?', a: 'Each guide summarises the official rules and links to the government source, with the month it was last checked. Always confirm with the official source before you apply.' },
     ],
     cta: {

@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { AddNameStep, FinishAuth, goToNextAfterAuth, nameSkipped } from '@/components/auth/AfterSignIn';
+import { AddCvStep, useCvRequirement } from '@/components/cv/CvGate';
 import { readAuthIntent } from '@/lib/authIntent';
 import { useReferralCapture } from '@/lib/referrals';
 import { useAlertWishAfterSignIn } from '@/lib/jobAlerts';
@@ -47,6 +48,7 @@ const ArticlePage = lazyPage(() => import('@/pages/blog/ArticlePage').then((m) =
 const SubmitJobPage = lazyPage(() => import('@/pages/submit/SubmitJobPage').then((m) => ({ default: m.SubmitJobPage })));
 const OffersPage = lazyPage(() => import('@/pages/offers/OffersPage').then((m) => ({ default: m.OffersPage })));
 const PricingPage = lazyPage(() => import('@/pages/pricing/PricingPage').then((m) => ({ default: m.PricingPage })));
+const CvMatchPage = lazyPage(() => import('@/pages/cv/CvMatchPage').then((m) => ({ default: m.CvMatchPage })));
 const ProfilePage = lazyPage(() => import('@/pages/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 
 type AuthPage = 'login' | 'register' | 'reset-password' | 'pending-confirmation';
@@ -93,6 +95,10 @@ export default function App() {
   const { session, profile, loading } = useAuth();
   useReferralCapture();
   useAlertWishAfterSignIn();
+  // Job seekers add a CV as the last step of signing up (see components/cv/CvGate).
+  const cvReq = useCvRequirement();
+  // Bumped when a sign-up step finishes without changing the profile ("Skip for now"), to move on.
+  const [, setAuthStep] = useState(0);
 
   const [view, setView] = useState<View>(
     viewForPath(window.location.pathname) ?? 'home'
@@ -328,6 +334,10 @@ export default function App() {
     return <PricingPage go={go} onAuth={goToAuth} />;
   }
 
+  if (path === '/cv-match' || path === '/cv') {
+    return <CvMatchPage go={go} onAuth={goToAuth} />;
+  }
+
   if (path === '/job-market') {
     return <JobMarketPage go={go} onAuth={goToAuth} />;
   }
@@ -360,10 +370,18 @@ export default function App() {
   }
 
   // Just signed in (email code or Google) on the sign-in page: ask for a
-  // name the first time, then go back to where they were.
+  // name the first time, then for a CV, then go back to where they were.
   if (session && (path === '/login' || path === '/register')) {
     if (!profile) return <ProfileMissingScreen />;
-    if (!profile.full_name?.trim() && !nameSkipped()) return <AddNameStep />;
+    if (!profile.full_name?.trim() && !nameSkipped()) return <AddNameStep onDone={() => setAuthStep((n) => n + 1)} />;
+    if (cvReq.loading) {
+      return (
+        <div className="grid min-h-screen place-items-center bg-[#f7f9fc]">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+        </div>
+      );
+    }
+    if (cvReq.needed) return <AddCvStep req={cvReq} />;
     return <FinishAuth />;
   }
 

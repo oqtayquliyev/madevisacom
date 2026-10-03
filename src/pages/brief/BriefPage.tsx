@@ -42,7 +42,9 @@ import {
   OFFER_ITEM_LABEL,
   PAYER_LABEL,
   canMakeDocument,
+  docsLabel,
   pingNotifications,
+  PRO_MONTHLY_DOCS,
   recommendedSplit,
   recordOfferDraft,
   recordOfferPdf,
@@ -290,7 +292,7 @@ function NewOffer({ go, onAuth }: Props) {
       rememberAuthIntent({ reason: 'offer', next: `${window.location.pathname}${window.location.search}` });
       return onAuth?.('register');
     }
-    if (!canPay) return nav('/offers#buy');
+    if (!canPay) return nav('/pricing#pro');
     if (!name.trim()) return setError('Add the name the employer should see.');
     if (!job.title) return setError('Add the role you are applying for.');
     if (!ed.employer.name.trim()) return setError('Add the company this document is for.');
@@ -438,7 +440,7 @@ function NewOffer({ go, onAuth }: Props) {
               headline={headline.trim()}
               company={ed.employer.name}
               role={job.title}
-              price={usesPro ? 'Included in Pro' : '1 credit'}
+              price={usesPro ? 'Included in Pro' : '1 document from your balance'}
               onBack={() => setConfirming(false)}
               onConfirm={() => void generate()}
             />
@@ -534,22 +536,27 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
         <dl className="space-y-1.5 text-[14px]">
           <div className="flex justify-between">
             <dt className="text-ink-600">This document</dt>
-            <dd className="font-semibold tabular-nums text-ink-950">{usesPro ? 'Included in Pro' : '1 credit'}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-ink-600">Your credits</dt>
-            <dd className="font-semibold tabular-nums text-ink-950">{signedIn ? (credits ? credits.docs : '…') : '1 free on sign-up'}</dd>
+            <dd className="font-semibold tabular-nums text-ink-950">{usesPro || !canPay ? 'Included in Pro' : '1 from your balance'}</dd>
           </div>
           {credits?.pro && (
             <div className="flex justify-between">
               <dt className="text-ink-600">Pro this month</dt>
-              <dd className="font-semibold tabular-nums text-ink-950">{credits.proLeft} left</dd>
+              <dd className="font-semibold tabular-nums text-ink-950">
+                {credits.proLeft} of {PRO_MONTHLY_DOCS} left
+              </dd>
+            </div>
+          )}
+          {/* Documents bought or earned before they became part of Pro. */}
+          {credits && credits.docs > 0 && (
+            <div className="flex justify-between">
+              <dt className="text-ink-600">Kept from before</dt>
+              <dd className="font-semibold tabular-nums text-ink-950">{docsLabel(credits.docs)}</dd>
             </div>
           )}
           {signedIn && credits && !canPay && (
             <div className="flex justify-between border-t border-ink-100 pt-1.5">
-              <dt className="font-semibold text-rose-700">Needed</dt>
-              <dd className="font-bold tabular-nums text-rose-700">1 credit</dd>
+              <dt className="font-semibold text-rose-700">{credits.pro ? 'Used up this month' : 'Needed'}</dt>
+              <dd className="font-bold tabular-nums text-rose-700">{credits.pro ? 'Renews on the 1st' : 'MadeVisa Pro'}</dd>
             </div>
           )}
         </dl>
@@ -557,14 +564,10 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
       {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{error}</p>}
       <button onClick={onGo} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800 disabled:opacity-60">
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : canPay ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-        {!signedIn
-          ? 'Sign up · your first document is free'
-          : canPay
-            ? `Prepare & download · ${usesPro ? 'Pro' : '1 credit'}`
-            : 'Get credits to unlock'}
+        {!signedIn ? 'Create an account to continue' : canPay ? `Prepare & download${usesPro ? ' · Pro' : ''}` : credits?.pro ? 'All 50 used this month' : `Get Pro · ${PRO_MONTHLY_DOCS} documents a month`}
       </button>
       <div className="flex items-center justify-between text-[12px] text-ink-500">
-        <span>You review everything before using a credit. After that it’s final.</span>
+        <span>You review everything before it’s counted. After that it’s final.</span>
         <OfferInfo />
       </div>
     </div>
@@ -1197,7 +1200,7 @@ function OwnerActions({ brief, onStatus }: { brief: PublicBrief; onStatus: (s: B
         <p className="mt-1.5 text-[11px] leading-4 text-ink-500">Once it’s marked Sent, {brief.company_name} can also see it in its free MadeVisa employer inbox.</p>
         <button
           onClick={async () => {
-            if (!window.confirm('Withdraw this Visa Plan? The link will stop working. The credit isn’t returned.')) return;
+            if (!window.confirm('Withdraw this Visa Plan? The link will stop working. It still counts towards your allowance.')) return;
             const res = await withdrawBrief(brief.share_id);
             if (res.ok) nav('/profile');
           }}
