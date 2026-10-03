@@ -34,7 +34,7 @@ export function OfferFlip({ light = false, className = '' }: { light?: boolean; 
           <User className="h-4 w-4" /> You bring the visa plan to them
         </p>
         <ul className="mt-2 space-y-1 text-[13.5px] text-ink-700">
-          {['Attach a one-page Visa Plan to your application', 'It shows the legal route, their steps and the real cost', 'You choose which costs you share — they just say yes'].map((t) => (
+          {['Attach a Visa Plan (your sponsorship proposal) to your application', 'It shows the route that may apply, their steps and each cost', 'You choose which costs you offer to share — they reply in one click'].map((t) => (
             <li key={t} className="flex items-start gap-1.5">
               <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> {t}
             </li>

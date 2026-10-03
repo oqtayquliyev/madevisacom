@@ -445,20 +445,24 @@ export const legalPages: Record<string, LegalPageContent> = {
     slug: 'sponsorship-document-terms',
     title: 'Sponsorship Document Terms',
     description: 'How sponsorship documents are included in MadeVisa Pro, changes, confirmation and refunds.',
-    intro: `These terms apply when you prepare a sponsorship document (a sponsorship cost-sharing agreement) on ${ENTITY}. Last updated ${LEGAL_LAST_UPDATED}.`,
+    intro: `These terms apply when you prepare a sponsorship document (a Visa Plan: your sponsorship proposal to an employer) on ${ENTITY}. Last updated ${LEGAL_LAST_UPDATED}.`,
     summary: [
       'Sponsorship documents are part of MadeVisa Pro: 50 each calendar month.',
       'They are no longer sold one by one, and new accounts don’t get a free one.',
       'Credits you bought or earned before October 2026 are still yours and still work.',
+      'It is a proposal for discussion, not a contract, a job offer or a visa guarantee.',
       'You review and approve the terms before a document is counted. You can correct it afterwards until the employer accepts it; then it is fixed.',
     ],
     sections: [
       {
         heading: 'What a sponsorship document is',
         paragraphs: [
-          'A one-page proposal from you to an employer: the visa route, the steps on the employer’s side, who pays each visa-related cost, and optional terms such as a repayment window or a salary deduction. It has signature lines for both parties.',
-          'It is a proposal, not a contract. It becomes binding only when both you and the employer sign it, or when its terms are written into your employment contract. It never covers costs the law puts on the employer, never lowers pay below the legal minimum or the visa salary requirement, and never charges you a recruitment fee.',
-          `The wording is prepared from official government sources, but it is not legal advice. Check the details with the official source or a qualified immigration adviser before signing. ${ENTITY} is not a party to the agreement.`,
+          'A proposal from you to an employer that opens the conversation about sponsorship: the immigration route that may apply, what that route usually asks of the employer, who you suggest pays each visa-related cost, and a target start. It has acknowledgement lines for both parties.',
+          'Every piece of information on it shows where it comes from and where it stands: supported by a source (the job ad, an official page), stated or proposed by you, or still needing confirmation by the employer, the authority or a professional. Nothing on it is estimated: a salary the job ad does not state is shown as “Not stated”, and a route we have not checked is shown as “To be confirmed”. We never show a chance of approval or of being hired, because nobody can know one.',
+          'Costs are listed one by one with the basis for each. Costs the law puts on the employer stay with the employer. For countries where we have not checked the rules, the document says so on every cost you offer to pay or share. A repayment term or a salary deduction is included only if you choose to propose one, and is then marked “Professional review recommended”, because whether it is allowed depends on the country and the route and we have not determined it.',
+          'It is a proposal, not a contract. It is not an employment offer, an immigration application or a decision on one, and it guarantees neither sponsorship nor a visa. Its terms take effect only if you and the employer write them into your employment contract or into a separate agreement you both sign. It never moves costs the law puts on the employer to you, and never lowers pay below the legal minimum or the salary the route requires.',
+          `Your ${ENTITY} plan pays for software you use to prepare documents. ${ENTITY} does not recruit for or represent employers, does not place candidates and is not a party to your proposal. Whether a service like this counts as a recruitment service under the law of a particular country is something we cannot determine for you; if that matters for your application, check with the authority or a qualified adviser.`,
+          'The route information is prepared from official government sources, with the date we last checked them printed on the document. It is not legal advice. Check anything marked as needing confirmation with the employer, the official source or a qualified immigration adviser before you agree to it.',
         ],
       },
       {
@@ -479,7 +483,9 @@ export const legalPages: Record<string, LegalPageContent> = {
         heading: 'Review, changes and confirmation',
         paragraphs: [
           'Before a document is counted, you see every term in a review and confirm that it is correct. After that you can still correct your name, your role line, your note and the terms. The link stays the same, nothing extra is counted, and the employer always sees the latest saved version. The job, the country and the visa route can’t be changed; for those, make a new document.',
-          'The employer can reply “We accept these terms” on the document, with a name and a work email. From that moment the document shows “Confirmed by the Employer” with that name and date, and it can no longer be changed. A confirmation is not a signature: the document becomes binding only when both parties sign it or put its terms into the employment contract.',
+          'Each saved change gets a new version number (1.0, 1.1 and so on), printed on the document with its reference, so both sides can tell which version they are looking at. If you change a detail that you had checked against the job ad, the document shows it as your own information from then on.',
+          'The employer can reply “We accept in principle” on the document, with a name and a work email. From that moment the document shows “Accepted in principle by the employer” with that name and date, and it can no longer be changed. This means the employer is willing to go ahead on that basis. It is not a signature and creates no employment: the terms count only once both parties put them into the employment contract or a signed agreement.',
+          'A document is valid for 30 days from the day it was made. After that it shows “Validity ended”; make a new one if the conversation is still open.',
           'You can still mark its status (sent, replied, interview and so on) or withdraw it, which stops the link from working. Withdrawing does not return the document to your allowance.',
           'If something in an approved document is wrong because of a mistake on our side, email us and we will correct it or refund it.',
         ],
@@ -500,8 +506,10 @@ export const legalPages: Record<string, LegalPageContent> = {
       },
     ],
     faq: [
-      { q: 'Can I change a document after approving it?', a: 'Yes, until the employer accepts it. Open the document and use “Edit your document”: your name, role line, note and the terms can be corrected, and the employer sees the latest version. Once the employer accepts, it shows “Confirmed” and is fixed.' },
-      { q: 'Does the employer have to accept it?', a: 'No. It is a proposal. It becomes binding only if both sides sign it or put its terms into the employment contract.' },
+      { q: 'Can I change a document after approving it?', a: 'Yes, until the employer accepts it. Open the document and use “Edit your document”: your name, role line, note and the terms can be corrected, and the employer sees the latest version. Once the employer accepts, it shows “Accepted in principle” and is fixed.' },
+      { q: 'Does the employer have to accept it?', a: 'No. It is a proposal, and the employer can answer each line differently. Its terms count only if both sides put them into the employment contract or a signed agreement.' },
+      { q: 'Does it say I will get the visa?', a: 'No. It names a route that may apply, with its official source and the date we last checked it, and says that the employer or a qualified adviser has to confirm it. It never states a chance of approval, of sponsorship or of being hired.' },
+      { q: 'What does “Checked by the candidate against the job ad” mean?', a: 'That you opened the original job ad and ticked that line as matching it. MadeVisa collects job ads automatically and does not verify the employer or the job independently, so the document says who did the checking.' },
     ],
     related: ['terms', 'privacy', 'disclaimer'],
   },

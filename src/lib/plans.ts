@@ -41,7 +41,7 @@ export const FREE_FEATURES = [
 
 export const PRO_FEATURES = [
   { title: 'Full CV match report on every job', text: 'Where each point of your score comes from — skills, role, experience, languages, education — and exactly what to change in your CV before you apply. No daily limit.' },
-  { title: `${PRO_MONTHLY_DOCS} sponsorship documents a month`, text: 'The one-page document that shows an employer how to sponsor you: the visa route, their steps and who pays what. One for each job you apply to.' },
+  { title: `${PRO_MONTHLY_DOCS} sponsorship documents a month`, text: 'Your sponsorship proposal to an employer: the visa route that may apply, what it asks of them and who you suggest pays what, with the source of every line. One for each job you apply to.' },
   { title: 'Up to 10 instant job alerts', text: 'Free accounts get one daily email alert. Pro adds up to 10, in your notifications within 30 minutes of a job going live.' },
   { title: 'Full company response data', text: 'Exact reply rate, typical time to reply and hiring activity before you apply.' },
   { title: 'Companies that sponsor visas', text: 'Who is hiring with visa sponsorship in each country, updated live.' },

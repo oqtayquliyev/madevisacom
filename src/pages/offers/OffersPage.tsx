@@ -20,8 +20,8 @@ type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') =
 
 const WHY: { icon: typeof FileCheck2; title: string; text: string }[] = [
   { icon: FileCheck2, title: 'Open a job and check your match', text: 'The document is listed under “Your application” as the missing piece. Or type any company yourself, below.' },
-  { icon: SlidersHorizontal, title: 'Choose who pays what', text: 'Start from balanced, recommended terms. The route and the employer’s few steps are filled in for you.' },
-  { icon: Paperclip, title: 'Attach the PDF when you apply', text: 'One page, ready to sign. The employer sees exactly how hiring you works — and that it’s cheaper than they think.' },
+  { icon: SlidersHorizontal, title: 'Choose who pays what', text: 'Start from a balanced suggestion and change any line. The route that may apply and what it asks of the employer are filled in for you.' },
+  { icon: Paperclip, title: 'Attach the PDF when you apply', text: 'A short proposal with the source of every line. The employer sees what sponsoring you would involve, what is confirmed and what is still open, and can reply in one click.' },
 ];
 
 /**
@@ -38,7 +38,7 @@ export function OffersPage({ go, onAuth }: Props) {
 
   useSeo({
     title: 'Visa Plan for your job application — MadeVisa',
-    description: 'Job doesn’t mention a visa? Attach a one-page Visa Plan: the visa route, the employer’s steps and who pays what. 50 a month are part of MadeVisa Pro.',
+    description: 'Job doesn’t mention a visa? Attach a Visa Plan, your sponsorship proposal: the visa route, the employer’s steps and who pays what. 50 a month are part of MadeVisa Pro.',
     path: '/offers',
   });
 
@@ -57,8 +57,8 @@ export function OffersPage({ go, onAuth }: Props) {
           <OfferFlags size={28} />
           <h1 className="mt-5 max-w-3xl text-[32px] font-bold leading-[1.1] tracking-tight sm:text-[48px]">Job doesn’t mention a visa? Send them a Visa Plan.</h1>
           <p className="mt-4 max-w-2xl text-[16px] leading-7 text-white/85 sm:text-[17px]">
-            Most employers skip sponsorship because they guess it’s slow, costly and risky. A one-page Visa Plan shows them the legal route, their few steps, and which costs
-            you’ll cover.
+            An employer who has never sponsored often doesn’t know what it involves. A Visa Plan is your proposal: the route that may apply, what it asks of them, and which costs
+            you offer to cover.
           </p>
           <OfferOddsStat light className="mt-6" />
           <OfferFlip light className="mt-6 max-w-4xl" />

@@ -8,14 +8,24 @@
 // Dragging moves costs one by one from employer → shared → candidate, in
 // order of size, so small moves change small things.
 //
+// The document these terms go into is a CANDIDATE PROPOSAL: it starts a
+// conversation about sponsorship. It is not an employment offer, a visa
+// application or a promise of either. Everything in it is one of:
+//   known     — taken from a source we can point to (the job ad, an official page)
+//   proposed  — a term the candidate suggests
+//   unknown   — needs the employer, the authority or a professional to confirm
+// `ProposalFacts` records which is which, with the source, when the document
+// is made. Nothing is inferred: a salary the ad doesn't state is "not stated".
+//
 // Legal guard-rails (applied whatever the slider says):
 // - Only costs the route allows a candidate to pay can move
 //   (VisaRoute.employer.candidateMayCover). Costs the law puts on the
 //   employer (e.g. UK Immigration Skills Charge) are listed as fixed.
 // - Salary is never part of the offer: visa salary thresholds exist to
 //   stop undercutting.
-// - A repayment clause only ever covers costs the employer actually paid,
-//   tapers monthly, and never takes pay below the legal minimum.
+// - Repayment is never added by itself. The candidate may propose it; the
+//   document then says that whether it is permitted depends on the country
+//   and route and has not been determined by MadeVisa.
 // - No recruitment fees are charged to the candidate (ILO C181 and the ILO
 //   General Principles for Fair Recruitment).
 
@@ -33,8 +43,12 @@ export type OfferTerms = {
   v: 1;
   split: number;
   items: OfferItem[];
-  /** Months after start during which employer-paid costs are repaid pro rata if the candidate resigns. 0 = none. */
-  repayMonths: 0 | 12 | 24;
+  /**
+   * Months after start during which the candidate proposes to repay employer-paid costs pro rata if they
+   * resign. 0 = no repayment term. Only ever set by the candidate's own choice; documents made before
+   * October 2026 had it set from the slider (12 or 24).
+   */
+  repayMonths: number;
   /** Candidate can start within this many weeks of the visa being granted. */
   startWeeks: number;
   /** Candidate offers to start remotely (contractor / Employer of Record) while the visa is processed. */
@@ -55,6 +69,78 @@ export type OfferTerms = {
   overrides?: Partial<Record<CandidateCover, Payer>>;
   /** Who the offer is addressed to, filled from MadeVisa where we can. */
   employer?: OfferEmployer;
+  /** What is known, proposed and unknown, with sources — captured when the document is made. */
+  facts?: ProposalFacts;
+  /** How many times the owner has saved changes since it was made (version 1.<rev>). */
+  rev?: number;
+};
+
+/**
+ * How far a piece of the proposal can be relied on. Plain words, no scores:
+ *   checked    the candidate compared it with the original job ad
+ *   source     taken from a source we can point to; nobody compared it by hand
+ *   candidate  the candidate's own information
+ *   proposed   a term the candidate suggests
+ *   confirm    needs the employer (or the authority) to confirm
+ *   missing    not stated anywhere we can point to
+ *   conflict   differs from what the job ad says
+ *   review     depends on law MadeVisa has not checked — professional review recommended
+ */
+export type FactStatus = 'checked' | 'source' | 'candidate' | 'proposed' | 'confirm' | 'missing' | 'conflict' | 'review';
+
+export const FACT_STATUS_LABEL: Record<FactStatus, string> = {
+  checked: 'Checked by the candidate against the job ad',
+  source: 'Source found',
+  candidate: 'Provided by the candidate',
+  proposed: 'Candidate proposal',
+  confirm: 'Needs employer confirmation',
+  missing: 'Not stated',
+  conflict: 'Differs from the job ad',
+  review: 'Professional review recommended',
+};
+
+/** Known (supported by a source), proposed (the candidate suggests it) or unknown (someone has to confirm it). */
+export type FactGroup = 'known' | 'proposed' | 'unknown';
+export const FACT_GROUP: Record<FactStatus, FactGroup> = {
+  checked: 'known',
+  source: 'known',
+  candidate: 'proposed',
+  proposed: 'proposed',
+  confirm: 'unknown',
+  missing: 'unknown',
+  conflict: 'unknown',
+  review: 'unknown',
+};
+
+export type WorkArrangement = 'onsite' | 'hybrid' | 'remote';
+export const ARRANGEMENT_LABEL: Record<WorkArrangement, string> = { onsite: 'On site', hybrid: 'Hybrid', remote: 'Remote' };
+
+/**
+ * A snapshot of what the document rests on, taken when it is made. Kept
+ * small: it lives inside `terms` (under 4 kB in the database).
+ */
+export type ProposalFacts = {
+  v: 1;
+  /** The original job ad, and when its details were captured for this document. */
+  sourceUrl: string | null;
+  capturedAt: string;
+  /** When the employer published the ad, if the ad says. */
+  postedAt: string | null;
+  /** The company and role were typed in by the candidate (no job ad on MadeVisa). */
+  custom: boolean;
+  /** Lines the candidate ticked after comparing them with the original ad. */
+  checked: string[];
+  /** As the ad states it; null = the ad doesn't say. */
+  arrangement: WorkArrangement | null;
+  employmentType: string | null;
+  /** Pay exactly as the ad shows it ("EUR 60,000–75,000/year"); null = the ad shows none. */
+  adPay: string | null;
+  /** Where the annual salary in the terms comes from. */
+  salarySource: 'job_ad' | 'candidate' | 'missing';
+  /** What the ad says about visa sponsorship. */
+  sponsorship: 'offered' | 'not_offered' | 'not_stated';
+  /** Kept only when the candidate chose the country themselves: the ad's own country (ISO code), or '-' when the ad names none. */
+  adCountry?: string;
 };
 
 export type OfferEmployer = {
@@ -104,7 +190,15 @@ export const OFFER_ITEM_LABEL: Record<CandidateCover, string> = {
 
 export const PAYER_LABEL: Record<Payer, string> = { employer: 'Employer', shared: 'Shared 50/50', candidate: 'Candidate' };
 
-export function buildTerms(split: number, allowed: CandidateCover[], overrides?: Partial<Record<CandidateCover, Payer>>): OfferTerms {
+/** The longest repayment window the builder lets a candidate propose. */
+export const MAX_REPAY_MONTHS = 36;
+
+/**
+ * `repay` is the candidate's own choice (0 = no repayment term). It is never
+ * derived from the slider: whether such a term is allowed depends on the
+ * country and the route.
+ */
+export function buildTerms(split: number, allowed: CandidateCover[], overrides?: Partial<Record<CandidateCover, Payer>>, repay = 0): OfferTerms {
   const s = Math.max(0, Math.min(100, Math.round(split)));
   const keys = ORDER.filter((k) => allowed.includes(k));
   const n = keys.length;
@@ -122,7 +216,7 @@ export function buildTerms(split: number, allowed: CandidateCover[], overrides?:
     v: 1,
     split: s,
     items,
-    repayMonths: !employerPaysSomething || s < 30 ? 0 : s < 65 ? 12 : 24,
+    repayMonths: employerPaysSomething ? Math.max(0, Math.min(MAX_REPAY_MONTHS, Math.round(repay) || 0)) : 0,
     startWeeks: Math.max(2, Math.round(8 - (s * 6) / 100)),
     remoteStart: s >= 55,
     candidateShare: total ? Math.round((100 * carried) / total) : 0,
@@ -251,11 +345,11 @@ export const cleanWebsite = (w?: string | null) => (w ? w.replace(/^https?:\/\//
 
 /**
  * Recommended starting point for every offer: balanced — the candidate
- * carries about 30% of the shareable costs (their own paperwork and
- * adviser, part of recognition), the employer keeps the visa fee and the
- * move. Most employers can say yes to it, and it stays within fair
- * recruitment rules. Worked out per visa route, since routes allow
- * different cost items.
+ * offers to carry the smaller costs (their own paperwork and adviser,
+ * part of recognition) and proposes that the employer keeps the visa fee
+ * and the move. It is a starting point for the conversation, not a rule:
+ * worked out per visa route from the costs that route lets a candidate
+ * pay, and never a statement about what the law requires.
  */
 export const RECOMMENDED_SHARE = 30;
 export function recommendedSplit(allowed: CandidateCover[]): number {

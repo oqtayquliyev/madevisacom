@@ -8,11 +8,10 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { rememberAuthIntent } from '@/lib/authIntent';
-import { checkVisaSalary, formatMoney } from '@/data/visa/salaryThresholds';
 import { EmployerReply, OwnerReplies } from '@/components/briefs/EmployerReply';
 import { DragSlider } from '@/components/common/DragSlider';
 import { OfferInfo } from '@/components/briefs/OfferBits';
-import { type CandidateCover, type VisaGuide, type VisaRoute } from '@/data/visa';
+import { type CandidateCover, type VisaRoute } from '@/data/visa';
 import { fetchSponsoredJobById, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import {
   BRIEF_STATUS_CHOICES,
@@ -56,8 +55,12 @@ import {
   splitWord,
   type OfferCredits,
   type OfferEmployer,
+  ARRANGEMENT_LABEL,
+  MAX_REPAY_MONTHS,
   type OfferTerms,
   type Payer,
+  type ProposalFacts,
+  type WorkArrangement,
 } from '@/lib/sponsorOffer';
 import { searchPublishers, type PublisherMatch } from '@/lib/companyExperiences';
 import { visaGuideByCode } from '@/data/visa';
@@ -67,25 +70,12 @@ import { jobPath } from '@/lib/jobUrl';
 import { EXPERIENCE_OPTIONS } from '@/lib/plans';
 import { usePersonalization } from '@/lib/personalization';
 import { ProPlanCard } from '@/components/pro/ProPlanCard';
+import { OfferDocument, type DocData } from '@/pages/brief/OfferDocument';
+import { captureFacts, fmtDate, GAP_GROUP_LABEL, hostOf, monthLabel, openQuestions, reviseFacts, verificationRows, withThe, type Gap } from '@/lib/proposal';
+import { formatSalary } from '@/lib/listingCategories';
 
 type Props = { shareId: string; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
-/** Everything the document prints, whether it's a draft or saved. */
-type DocData = {
-  ref: string;
-  issuedAt: string;
-  shareId: string | null;
-  jobTitle: string;
-  companyName: string;
-  city: string | null;
-  candidateName: string;
-  headline: string | null;
-  linkedin: string | null;
-  note: string | null;
-};
-
-const VALID_DAYS = 30;
-const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 const refFor = (id: string) => `MV-${id.slice(0, 4).toUpperCase()}-${id.slice(4, 8).toUpperCase()}`;
 
 export function BriefPage(props: Props) {
@@ -105,10 +95,12 @@ type Editable = {
   salary: number;
   overrides: Partial<Record<CandidateCover, Payer>>;
   employer: OfferEmployer;
+  /** Months of the repayment term the candidate chooses to propose. 0 = none (the default). */
+  repay: number;
 };
 
 const termsFrom = (e: Editable, allowed: CandidateCover[], code: string): OfferTerms => ({
-  ...buildTerms(e.split, allowed, e.overrides),
+  ...buildTerms(e.split, allowed, e.overrides, e.repay),
   salaryOffset: e.offset,
   salary: e.salary || undefined,
   currency: currencyFor(code).code,
@@ -125,6 +117,9 @@ function salaryFromJob(raw: { salary_min: number | null; salary_max: number | nu
   if (p.startsWith('month')) return Math.round(base * 12);
   return 0;
 }
+
+/** What the job ad itself says, kept with the document as its evidence. Nothing here is worked out or guessed. */
+type AdFacts = { arrangement?: WorkArrangement | null; employmentType?: string | null; adPay?: string | null; postedAt?: string | null; sponsorship?: ProposalFacts['sponsorship'] };
 
 const PRINT_ON_OPEN = 'madevisa:printOffer';
 
@@ -167,7 +162,7 @@ function NewOffer({ go, onAuth }: Props) {
     | { k: 'missing' }
     | {
         k: 'ready';
-        job: { id: string; publisherId: string | null; title: string; company: string; fn: string | null; city: string | null; ownCode: string; contact: string | null; closed: boolean; source?: string | null; logo?: string | null; path?: string | null };
+        job: { id: string; publisherId: string | null; title: string; company: string; fn: string | null; city: string | null; ownCode: string; contact: string | null; closed: boolean; source?: string | null; logo?: string | null; path?: string | null } & AdFacts;
         raw: { salary_min: number | null; salary_max: number | null; salary_currency: string | null; salary_period: string | null };
       }
   >({ k: 'loading' });
@@ -194,7 +189,7 @@ function NewOffer({ go, onAuth }: Props) {
   const [useRec, setUseRec] = useState(true);
   const { profile: visitor } = usePersonalization();
 
-  useSeo({ title: 'Prepare your sponsorship document', description: 'Create a Visa Plan (sponsorship & cost sharing) for an employer.', path: '/brief/new', noindex: true });
+  useSeo({ title: 'Prepare your sponsorship document', description: 'Create a Visa Plan: a sponsorship proposal for an employer.', path: '/brief/new', noindex: true });
 
   useEffect(() => {
     let alive = true;
@@ -205,7 +200,7 @@ function NewOffer({ go, onAuth }: Props) {
       const code = (params.get('country') ?? '').toUpperCase();
       const job = { id: '', publisherId: pub, title: roleTitle, company, fn: null, city: (params.get('city') ?? '').trim() || null, ownCode: code, contact: null, closed: false };
       setState({ k: 'ready', job, raw: { salary_min: null, salary_max: null, salary_currency: null, salary_period: null } });
-      setEd({ split: 50, offset: 0, salary: 0, overrides: {}, employer: { name: company, publisherId: pub, contact: null, logo: null } });
+      setEd({ split: 50, offset: 0, salary: 0, overrides: {}, repay: 0, employer: { name: company, publisherId: pub, contact: null, logo: null } });
       if (pub) employerFromPublisher(pub, company).then((e) => alive && setEd((d) => (d ? { ...d, employer: e } : d)));
       return () => {
         alive = false;
@@ -222,10 +217,17 @@ function NewOffer({ go, onAuth }: Props) {
       const city = raw.city && !/^(all|any|various|remote)$/i.test(raw.city.trim()) ? raw.city : null;
       const contact = raw.contact_email && !/madevisa/i.test(raw.contact_email) ? raw.contact_email : null;
       const source = [raw.official_url, raw.application_url].find((u) => typeof u === 'string' && /^https?:\/\//i.test(u)) ?? null;
-      const job = { id: raw.id, publisherId: raw.publisher_id ?? null, title: board.title, company: board.company, fn: raw.job_function ?? null, city, ownCode: (raw.country?.iso_code ?? '').toUpperCase(), contact, closed: Boolean(board.closed), source, logo: raw.publisher?.logo_url ?? null, path: jobPath({ id: board.id, title: board.title, company: board.company }) };
+      const ad: AdFacts = {
+        arrangement: raw.work_arrangement ?? (raw.remote ? 'remote' : null),
+        employmentType: raw.employment_type?.trim() || null,
+        adPay: formatSalary(raw),
+        postedAt: raw.source_posted_at ?? null,
+        sponsorship: raw.visa_status === 'not_offered' ? 'not_offered' : raw.visa_status === 'offered' || raw.visa_sponsorship ? 'offered' : 'not_stated',
+      };
+      const job = { id: raw.id, publisherId: raw.publisher_id ?? null, title: board.title, company: board.company, fn: raw.job_function ?? null, city, ownCode: (raw.country?.iso_code ?? '').toUpperCase(), contact, closed: Boolean(board.closed), source, logo: raw.publisher?.logo_url ?? null, path: jobPath({ id: board.id, title: board.title, company: board.company }), ...ad };
       const salaryRaw = { salary_min: raw.salary_min, salary_max: raw.salary_max, salary_currency: raw.salary_currency, salary_period: raw.salary_period as string | null };
       setState({ k: 'ready', job, raw: salaryRaw });
-      setEd({ split: 50, offset: 0, salary: 0, overrides: {}, employer: { name: board.company, publisherId: job.publisherId, contact, logo: raw.publisher?.logo_url ?? null } });
+      setEd({ split: 50, offset: 0, salary: 0, overrides: {}, repay: 0, employer: { name: board.company, publisherId: job.publisherId, contact, logo: raw.publisher?.logo_url ?? null } });
       if (job.publisherId) employerFromPublisher(job.publisherId, board.company).then((e) => alive && setEd((d) => (d ? { ...d, employer: { ...e, contact } } : d)));
     });
     return () => {
@@ -242,7 +244,7 @@ function NewOffer({ go, onAuth }: Props) {
     restored.current = true;
     const d = takeOfferDraft();
     if (!d) return;
-    setEd(d.ed);
+    setEd({ ...d.ed, repay: d.ed.repay ?? 0 });
     setName(d.name);
     if (hasFullName(d.name)) setNameOk(true);
     setHeadline(d.headline);
@@ -285,11 +287,14 @@ function NewOffer({ go, onAuth }: Props) {
   const allowed = route.employer!.candidateMayCover;
   const recSplit = recommendedSplit(allowed);
   const edNow: Editable = useRec ? { ...ed, split: recSplit, overrides: {} } : ed;
-  const terms = termsFrom(edNow, allowed, el.code);
+  const baseTerms = termsFrom(edNow, allowed, el.code);
   const recTerms = termsFrom({ ...ed, split: recSplit, overrides: {} }, allowed, el.code);
   const isRecommended = edNow.split === recSplit && Object.keys(edNow.overrides).length === 0;
   const usesPro = Boolean(credits?.pro && credits.proLeft > 0);
   const canPay = canMakeDocument(credits);
+  const generic = !el.checked || route.id === GENERIC_ROUTE_ID;
+  const adHost = hostOf(job.source);
+  const adSalary = custom ? 0 : salaryFromJob(ready.raw, el.code);
 
   const doc: DocData = {
     ref: 'MV-PREVIEW',
@@ -317,16 +322,20 @@ function NewOffer({ go, onAuth }: Props) {
   // What must be right before anyone downloads, and what is worth a second look.
   const cityShown = picked ? null : job.city;
   const placeText = [cityShown, guide.name].filter(Boolean).join(', ');
-  const routeText = el.checked && route.id !== GENERIC_ROUTE_ID ? route.name : 'National work permit (to be confirmed)';
+  const routeText = generic ? 'To be confirmed' : route.name;
+  const adSrc = custom ? 'You' : adHost ? `Job ad (${adHost})` : 'Job ad as listed on MadeVisa';
+  const routeSrc = generic ? 'Not checked by MadeVisa' : [hostOf(route.url) ? `Official source (${hostOf(route.url)})` : 'Official source', monthLabel(guide.reviewed) ? `checked ${monthLabel(guide.reviewed)}` : null].filter(Boolean).join(' · ');
+  const salaryIsAds = !custom && adSalary > 0 && edNow.salary === adSalary;
+  const workText = [job.employmentType, job.arrangement ? ARRANGEMENT_LABEL[job.arrangement] : null].filter(Boolean).join(' · ');
   const checks: Check_[] = [
     hasFullName(name)
-      ? { id: 'name', level: 'look', value: name.trim(), text: `Name: ${name.trim()}`, hint: 'Exactly as in your passport?', field: 'offer-name' }
+      ? { id: 'name', level: 'look', value: name.trim(), text: `Name: ${name.trim()}`, hint: 'Exactly as in your passport?', source: 'You', field: 'offer-name' }
       : { id: 'name', level: 'stop', value: '', text: name.trim() ? 'Add your full name: first name and family name, as in your passport.' : 'Add your full name. The document says “Your name” until you do.', field: 'offer-name' },
     ed.employer.name.trim()
-      ? { id: 'company', level: 'look', fromAd: true, value: ed.employer.name.trim(), text: `Company: ${ed.employer.name.trim()}`, hint: 'The same company as in the ad?', field: 'offer-company' }
+      ? { id: 'company', level: 'look', fromAd: true, value: ed.employer.name.trim(), text: `Company: ${ed.employer.name.trim()}`, hint: 'The same company as in the ad?', source: adSrc, field: 'offer-company' }
       : { id: 'company', level: 'stop', value: '', text: 'Add the company this document is for.', field: 'offer-company' },
     job.title
-      ? { id: 'role', level: 'look', fromAd: true, value: job.title, text: `Role: ${job.title}`, hint: 'The same job title as in the ad?', field: custom ? 'offer-role' : undefined }
+      ? { id: 'role', level: 'look', fromAd: true, value: job.title, text: `Role: ${job.title}`, hint: 'The same job title as in the ad?', source: adSrc, field: custom ? 'offer-role' : undefined }
       : { id: 'role', level: 'stop', value: '', text: 'Add the role you are applying for.', field: 'offer-role' },
     {
       id: 'country',
@@ -334,16 +343,69 @@ function NewOffer({ go, onAuth }: Props) {
       fromAd: true,
       value: el.code,
       text: `Country: ${guide.name}`,
-      hint: picked ? `The job ad is in ${countryNameOf(ready.job.ownCode) ?? 'another country'}. Make sure ${guide.name} is where you will work.` : 'Is this the country in the ad, and where you will work?',
+      hint: picked ? `The job ad is in ${countryNameOf(ready.job.ownCode) ?? 'another country'}. Make sure ${guide.name} is where you will work. The document says it differs from the ad.` : 'Is this the country in the ad, and where you will work?',
+      source: picked ? 'You' : adSrc,
       field: 'offer-country',
     },
-    { id: 'place', level: 'look', fromAd: true, value: placeText, text: `Place of work: ${placeText}`, hint: cityShown ? 'The same city as in the ad?' : 'No city: the document shows the country only.' },
+    {
+      id: 'place',
+      level: 'look',
+      fromAd: true,
+      value: placeText,
+      text: `Place of work: ${placeText}`,
+      hint: cityShown ? 'The city where you would work (not the company’s headquarters): the same as in the ad?' : 'No city: the document shows the country only and marks the city as needing confirmation.',
+      source: cityShown ? adSrc : 'Not stated',
+    },
+    ...(custom
+      ? []
+      : ([
+          {
+            id: 'work',
+            level: 'look',
+            fromAd: true,
+            value: workText,
+            text: `Employment: ${workText || 'type and on-site or remote not stated'}`,
+            hint: workText ? 'Full-time or part-time, on site or remote: the same as in the ad?' : 'Our copy of the ad doesn’t say. The document marks it “Not stated”.',
+            source: workText ? adSrc : 'Not stated',
+          },
+          {
+            id: 'salary',
+            level: 'look',
+            fromAd: true,
+            value: `${edNow.salary}|${job.adPay ?? ''}`,
+            text: edNow.salary ? `Salary: ${money(edNow.salary, el.code)} a year` : job.adPay ? `Pay in the ad: ${job.adPay}` : 'Salary: not stated',
+            hint: salaryIsAds
+              ? `From the ad${job.adPay ? ` (“${job.adPay}”)` : ''}. The same figure as in the original?`
+              : edNow.salary
+                ? `Your own figure: the ad shows ${job.adPay ? `“${job.adPay}”` : 'no pay'}. The document says the salary was entered by you.`
+                : job.adPay
+                  ? 'The ad gives no yearly amount we can use. Add the annual salary if you know it; we never work one out for you.'
+                  : 'The ad shows no pay. Add it if you know it; otherwise the document says “Not stated”.',
+            source: salaryIsAds ? adSrc : edNow.salary ? 'You' : job.adPay ? adSrc : 'Not stated',
+            field: 'offer-salary',
+          },
+          {
+            id: 'sponsor',
+            level: 'look',
+            fromAd: true,
+            value: job.sponsorship ?? 'not_stated',
+            text: `Sponsorship in the ad: ${job.sponsorship === 'offered' ? 'offered' : job.sponsorship === 'not_offered' ? 'not offered' : 'not mentioned'}`,
+            hint:
+              job.sponsorship === 'offered'
+                ? 'Does the original ad say the company sponsors visas?'
+                : job.sponsorship === 'not_offered'
+                  ? 'The ad says the company does not sponsor. The document says so, and asks them to reconsider.'
+                  : 'The document says sponsorship needs the employer’s confirmation. It never claims the company sponsors.',
+            source: job.sponsorship === 'not_stated' || !job.sponsorship ? 'Not stated' : adSrc,
+          },
+        ] satisfies Check_[])),
     {
       id: 'route',
       level: 'look',
       value: routeText,
-      text: `Visa route: ${routeText}`,
-      hint: el.checked && route.id !== GENERIC_ROUTE_ID ? 'The route this document is written for.' : `We have no checked route for ${guide.name} yet; the company confirms the exact one.`,
+      text: `Potential visa route: ${routeText}`,
+      hint: generic ? `We have no checked route for ${guide.name} yet; the document says the route has to be confirmed.` : 'A route that may apply. The document says the company or an adviser has to confirm it.',
+      source: routeSrc,
     },
   ];
   // Lines that come from the job ad can only be ticked after the original ad was opened.
@@ -351,6 +413,31 @@ function NewOffer({ go, onAuth }: Props) {
   const ticked = (c: Check_) => c.level !== 'stop' && ticks[c.id] === c.value;
   const left = checks.filter((c) => !ticked(c)).length;
   const stop = checks.find((c) => c.level === 'stop') ?? null;
+  // The evidence kept with the document: what came from the ad, what the person compared, what they entered.
+  const terms: OfferTerms = {
+    ...baseTerms,
+    rev: 0,
+    facts: captureFacts({
+      custom,
+      sourceUrl: job.source,
+      postedAt: job.postedAt,
+      checked: checks.filter((c) => c.fromAd && ticked(c)).map((c) => c.id),
+      arrangement: job.arrangement,
+      employmentType: job.employmentType,
+      adPay: job.adPay,
+      salary: edNow.salary,
+      adSalary,
+      sponsorship: job.sponsorship ?? 'not_stated',
+      adCountry: picked && !custom ? ready.job.ownCode : null,
+    }),
+  };
+  const adCountryName = picked && !custom ? countryNameOf(ready.job.ownCode) : null;
+  const gaps = openQuestions({
+    rows: verificationRows({ facts: terms.facts, company: ed.employer.name, website: cleanWebsite(ed.employer.website), role: job.title, code: el.code, countryName: guide.name, adCountryName, city: cityShown, salary: edNow.salary, route, generic, reviewed: generic ? null : guide.reviewed ?? null }),
+    terms,
+    generic,
+    countryName: guide.name,
+  });
   const goTo = (field?: string) => {
     const node = field ? document.getElementById(field) : null;
     if (!node) return;
@@ -470,7 +557,7 @@ function NewOffer({ go, onAuth }: Props) {
     );
   }
 
-  const paper = <OfferDocument doc={doc} terms={terms} guide={guide} route={route} code={el.code} locked={!canPay} draft />;
+  const paper = <OfferDocument doc={doc} terms={terms} guide={guide} route={route} code={el.code} locked={!canPay} draft adCountryName={adCountryName} />;
 
   return (
     <Builder
@@ -602,6 +689,7 @@ function NewOffer({ go, onAuth }: Props) {
                   <label htmlFor={`tick-${c.id}`} className={`min-w-0 flex-1 text-[14px] leading-5 ${blocked ? '' : 'cursor-pointer'}`}>
                     <span className={`block break-words font-semibold ${c.level === 'stop' ? 'text-rose-700' : 'text-ink-950'}`}>{c.text}</span>
                     {c.level !== 'stop' && <span className="block text-[12.5px] text-ink-500">{c.fromAd && needsSource ? 'Open the original job ad first, then tick this.' : c.hint}</span>}
+                    {c.level !== 'stop' && c.source && <span className="mt-0.5 block text-[11.5px] font-medium text-ink-400">Source: {c.source}</span>}
                   </label>
                   {c.field && (
                     <button onClick={() => goTo(c.field)} className="shrink-0 text-[13px] font-semibold text-[#1D4ED8] hover:underline">
@@ -612,6 +700,7 @@ function NewOffer({ go, onAuth }: Props) {
               );
             })}
           </ul>
+          <OpenQuestions gaps={gaps} />
         </div>
 
         <div className="mt-4 grid gap-3 border-t border-ink-100 pt-4 sm:grid-cols-2">
@@ -674,7 +763,7 @@ function NewOffer({ go, onAuth }: Props) {
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 text-[15px] font-bold text-ink-950 [&::-webkit-details-marker]:hidden">
           <span className="min-w-0">
             The terms{companyName ? ` for ${companyName}` : ''} in {guide.name}
-            <span className="block text-[12.5px] font-normal text-ink-500">Recommended ones are filled in. Change them or add a note if you like.</span>
+            <span className="block text-[12.5px] font-normal text-ink-500">What you propose. A suggested starting point is filled in; change anything.</span>
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 text-ink-500 transition group-open:rotate-180" />
         </summary>
@@ -692,7 +781,7 @@ function NewOffer({ go, onAuth }: Props) {
               setEd((d) => (d ? { ...d, overrides: {} } : d));
             }}
           />
-          <EditorPanels ed={edNow} terms={terms} code={el.code} onChange={patch} hideEmployer />
+          <EditorPanels ed={edNow} terms={terms} code={el.code} route={route} onChange={patch} hideEmployer />
           <label className="block">
             <span className="text-[13px] font-semibold text-ink-800">Note to the hiring manager</span>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={600} rows={2} placeholder="Optional" className={INPUT} />
@@ -713,7 +802,7 @@ function NewOffer({ go, onAuth }: Props) {
           code={el.code}
           country={guide.name}
           city={cityShown}
-          routeName={route.id === GENERIC_ROUTE_ID ? 'National work permit (to be confirmed)' : route.name}
+          routeName={generic ? 'To be confirmed' : `${route.name} (potential)`}
           candidate={name.trim()}
           headline={headline.trim()}
           company={ed.employer.name}
@@ -742,7 +831,39 @@ function NewOffer({ go, onAuth }: Props) {
 const hasFullName = (v: string) => v.trim().split(/\s+/).filter((w) => w.length > 1).length >= 2;
 const countryNameOf = (code: string | null | undefined) => (code ? allCountries.find((c) => c.code === code.toUpperCase())?.name ?? null : null);
 /** A line of the check list: to be ticked by the person, or to be fixed first. */
-type Check_ = { id: string; level: 'look' | 'stop'; /** What the tick stands for: a changed value needs a new tick. */ value: string; text: string; hint?: string; field?: string; /** Comes from the job ad. */ fromAd?: boolean };
+type Check_ = { id: string; level: 'look' | 'stop'; /** What the tick stands for: a changed value needs a new tick. */ value: string; text: string; hint?: string; /** Where the value comes from, shown under the line. */ source?: string; field?: string; /** Comes from the job ad. */ fromAd?: boolean };
+
+/**
+ * What the document cannot state as known. It never blocks the download:
+ * each one is printed on the document as needing confirmation, so the
+ * company sees what is still open instead of a guess.
+ */
+function OpenQuestions({ gaps }: { gaps: Gap[] }) {
+  if (!gaps.length) return null;
+  const groups = (['recommended', 'employer', 'review'] as Gap['group'][]).map((g) => ({ g, items: gaps.filter((x) => x.group === g) })).filter((x) => x.items.length);
+  return (
+    <div id="offer-open" className="mt-3 rounded-lg bg-amber-50/70 px-3 py-2.5 ring-1 ring-amber-200">
+      <p className="text-[13.5px] font-bold text-ink-950">
+        {gaps.length} {gaps.length === 1 ? 'thing is' : 'things are'} still unknown
+      </p>
+      <p className="text-[12.5px] leading-5 text-ink-600">You can send the document anyway. Each one is marked “needs confirmation” on it, so the company sees exactly what is still open.</p>
+      <dl className="mt-2 space-y-1.5">
+        {groups.map(({ g, items }) => (
+          <div key={g} className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <dt className="text-[12px] font-semibold text-ink-700">{GAP_GROUP_LABEL[g]}:</dt>
+            <dd className="flex flex-wrap gap-1.5">
+              {items.map((x) => (
+                <span key={x.id} className="rounded-full bg-white px-2 py-0.5 text-[12px] font-medium text-ink-800 ring-1 ring-amber-200">
+                  {x.text}
+                </span>
+              ))}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
 
 /** The builder's frame: what to fill in on the left, a small view of the document on the right. */
 function Builder({ go, onAuth, banner, side, children }: { go: Props['go']; onAuth: Props['onAuth']; banner?: ReactNode; side?: ReactNode; children: ReactNode }) {
@@ -847,12 +968,12 @@ function ConfirmTerms(props: {
     ['Employer', props.company],
     ['Role', props.role],
     ['Place of work', [props.city, props.country].filter(Boolean).join(', ')],
-    ['Visa route', props.routeName],
+    ['Potential visa route', props.routeName],
     ...t.items.map((i) => [OFFER_ITEM_LABEL[i.key], PAYER_LABEL[i.payer]] as [string, string]),
     ['Annual gross salary', t.salary ? money(t.salary, code) : 'Not stated'],
     ['Salary deduction', t.salaryOffset ? `Up to ${money(t.salaryOffset, code)} in year one` : 'None'],
-    ['Repayment window', t.repayMonths ? `${t.repayMonths} months, reducing monthly` : 'None'],
-    ['Start after visa', `Within ${t.startWeeks} weeks${t.remoteStart ? ' · remote start offered' : ''}`],
+    ['Repayment if you resign', t.repayMonths ? `Proposed: ${t.repayMonths} months, reducing monthly` : 'Not included'],
+    ['Target start', `About ${t.startWeeks} weeks after the visa${t.remoteStart ? ' · open to a remote start' : ''}`],
   ];
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="confirm-title" className="fixed inset-0 z-[80] grid place-items-center bg-ink-950/60 p-3" onClick={props.onBack}>
@@ -861,7 +982,9 @@ function ConfirmTerms(props: {
           <h2 id="confirm-title" className="text-[18px] font-bold text-ink-950">
             Are these details correct?
           </h2>
-          <p className="mt-1 text-[13px] text-ink-600">Check the name, the country and the place of work once more. You can still correct the document later, until the company accepts it.</p>
+          <p className="mt-1 text-[13px] text-ink-600">
+            Check the name, the country and the place of work once more. This is your proposal to the company, not a contract; you can still correct it later, until the company accepts it.
+          </p>
         </div>
         <dl className="flex-1 divide-y divide-ink-100 overflow-y-auto px-5 text-[14px]">
           {rows.map(([k, v]) => (
@@ -994,11 +1117,14 @@ function EditorPanels({
   onChange,
   onCommit,
   status,
+  route,
   hideEmployer = false,
 }: {
   ed: Editable;
   terms: OfferTerms;
   code: string;
+  /** The route the document is written for: decides what can be said about each cost. */
+  route?: VisaRoute;
   onChange: (p: Partial<Editable>) => void;
   onCommit?: (p: Partial<Editable>) => void;
   status?: string;
@@ -1019,8 +1145,9 @@ function EditorPanels({
         onCommit={onCommit ? (v) => onCommit({ split: v, overrides: {} }) : undefined}
         status={status}
       />
-      <CostRows terms={terms} salary={ed.salary} code={code} onPick={(key, payer) => both({ overrides: { ...ed.overrides, [key]: payer } })} />
+      <CostRows terms={terms} code={code} route={route} onPick={(key, payer) => both({ overrides: { ...ed.overrides, [key]: payer } })} />
       <SalaryControl code={code} salary={ed.salary} offset={ed.offset} onChange={onChange} onCommit={onCommit} />
+      <RepayControl code={code} repay={ed.repay} canApply={terms.items.some((i) => i.payer !== 'candidate')} onChange={(repay) => both({ repay })} />
       {!hideEmployer && <EmployerControl value={ed.employer} onChange={(e) => both({ employer: e })} />}
     </>
   );
@@ -1048,6 +1175,8 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
     setBrief(b);
     setEd({
       split: b.split ?? legacySplit(b),
+      // Only documents made before the terms were stored get the old slider-based window, so what was sent doesn't change.
+      repay: b.terms ? b.terms.repayMonths ?? 0 : legacyRepay(b.split ?? legacySplit(b)),
       offset: b.terms?.salaryOffset ?? 0,
       salary: b.terms?.salary ?? 0,
       overrides: b.terms?.overrides ?? {},
@@ -1098,7 +1227,7 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
 
   useSeo({
     title: brief ? `Sponsorship document — ${brief.candidate_name} for ${brief.job_title} at ${brief.company_name}` : 'Sponsorship document',
-    description: 'A Visa Plan (sponsorship & cost sharing) prepared by a candidate on MadeVisa.',
+    description: 'A Visa Plan: a candidate’s sponsorship proposal, prepared on MadeVisa.',
     path: `/brief/${shareId}`,
     noindex: true,
   });
@@ -1121,7 +1250,16 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
   };
 
   const paper = found ? (
-    <OfferDocument doc={doc} terms={terms} guide={found.guide} route={found.route} code={brief.country_code} approvedAt={acc?.editedAt ?? brief.terms_updated_at ?? brief.created_at} confirmed={acc} />
+    <OfferDocument
+      doc={doc}
+      terms={terms}
+      guide={found.guide}
+      route={found.route}
+      code={brief.country_code}
+      approvedAt={acc?.editedAt ?? brief.terms_updated_at ?? brief.created_at}
+      confirmed={acc}
+      adCountryName={countryNameOf(terms.facts?.adCountry)}
+    />
   ) : (
     <div className="rounded-sm bg-white p-10 text-[15px] text-ink-600 shadow-soft-lg">The visa details for this document are being updated.</div>
   );
@@ -1137,12 +1275,16 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
     );
   }
 
-  const draftTerms = termsDirty ? termsFrom(ed, allowed, code) : terms;
+  // A saved change is a new version: the evidence stays with it, minus the ticks for anything that was changed.
+  const edited = termsFrom(ed, allowed, code);
+  const draftTerms: OfferTerms = termsDirty ? { ...edited, facts: reviseFacts(terms.facts, terms, edited), rev: (terms.rev ?? 0) + 1 } : terms;
   const save = async () => {
     setSaving(true);
     setSaveMsg(null);
     const a = dirty ? await updateBriefDetails(shareId, form) : { ok: true as const };
-    const t = a.ok && termsDirty ? await updateBriefTerms(shareId, draftTerms) : { ok: true as const };
+    // Changing only the name or the note is a new version too.
+    const next: OfferTerms | null = termsDirty ? draftTerms : dirty && brief.terms ? { ...brief.terms, rev: (brief.terms.rev ?? 0) + 1 } : null;
+    const t = a.ok && next ? await updateBriefTerms(shareId, next) : { ok: true as const };
     const [fresh, state] = await Promise.all([fetchBrief(shareId), fetchBriefAcceptance(shareId)]);
     setSaving(false);
     setAcc(state);
@@ -1165,11 +1307,12 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
           {confirmed && (
             <div className="rounded-xl bg-emerald-600 px-4 py-3.5 text-white">
               <p className="flex items-center gap-2 text-[15px] font-bold">
-                <BadgeCheck className="h-5 w-5" /> Confirmed by {brief.company_name}
+                <BadgeCheck className="h-5 w-5" /> Accepted in principle by {brief.company_name}
               </p>
               <p className="mt-1 text-[13px] leading-5 text-white/90">
-                {acc?.acceptedBy ? `${acc.acceptedBy} accepted` : 'Accepted'} these terms on {fmtDate(acc!.acceptedAt!)}
-                {acc?.verified ? ', from a company email address.' : '. Their email isn’t on the company’s own domain — check who you are dealing with.'}
+                {acc?.acceptedBy ? `${acc.acceptedBy} accepted` : 'Accepted'} your proposal on {fmtDate(acc!.acceptedAt!)}
+                {acc?.verified ? ', from a company email address.' : '. Their email isn’t on the company’s own domain — check who you are dealing with.'} This is not a job offer or a
+                contract yet: the terms count once they are in your employment contract or a signed agreement.
               </p>
             </div>
           )}
@@ -1179,18 +1322,20 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
               <div className="flex items-start gap-2 rounded-xl bg-ink-100 px-4 py-3 text-[13px] text-ink-700">
                 <Lock className="mt-0.5 h-4 w-4 shrink-0 text-ink-500" />
                 <span>
-                  <strong className="text-ink-900">This document is fixed.</strong> {confirmed ? 'The company accepted it, so it can’t be changed.' : `You approved it on ${fmtDate(brief.created_at)}; the company sees exactly this version.`}
+                  <strong className="text-ink-900">This proposal is fixed.</strong> {confirmed ? 'The company accepted it in principle, so it can’t be changed.' : `You approved it on ${fmtDate(brief.created_at)}; the company sees exactly this version.`}
                 </span>
               </div>
               <fieldset disabled aria-label="Confirmed terms (read only)" className="pointer-events-none select-none space-y-4 opacity-55 grayscale">
-                <EditorPanels ed={ed} terms={terms} code={code} onChange={() => undefined} />
+                <EditorPanels ed={ed} terms={terms} code={code} route={found?.route} onChange={() => undefined} />
               </fieldset>
             </>
           ) : (
             <>
               <Panel>
                 <p className="text-[15px] font-bold text-ink-950">Edit your document</p>
-                <p className="mt-0.5 text-[12.5px] leading-5 text-ink-600">You can correct it until the company accepts it. The link stays the same and nothing extra is counted.</p>
+                <p className="mt-0.5 text-[12.5px] leading-5 text-ink-600">
+                  You can correct it until the company accepts it. The link stays the same, nothing extra is counted, and each saved change gets a new version number (now v1.{terms.rev ?? 0}).
+                </p>
                 <label className="mt-3 block">
                   <span className="text-[13px] font-semibold text-ink-800">Full name, as in your passport</span>
                   <input
@@ -1233,6 +1378,7 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
                 ed={ed}
                 terms={draftTerms}
                 code={code}
+                route={found?.route}
                 onChange={(p) => {
                   setEd({ ...ed, ...p });
                   setTermsDirty(true);
@@ -1253,6 +1399,9 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
     />
   );
 }
+
+/** Documents made before October 2026 took the repayment window from the slider. Kept only so those read as they were sent. */
+const legacyRepay = (split: number) => (split < 30 ? 0 : split < 65 ? 12 : 24);
 
 /** Briefs made before the slider: place them from what the candidate covered. */
 function legacySplit(b: PublicBrief): number {
@@ -1340,7 +1489,7 @@ function RecommendedPanel({
 }) {
   const fromName = from ? allCountries.find((c) => c.code === from)?.name ?? from : null;
   const groups: { payer: Payer; label: string; tone: string }[] = [
-    { payer: 'employer', label: 'Employer pays', tone: 'bg-[#1D4ED8] text-white' },
+    { payer: 'employer', label: 'Proposed for the employer', tone: 'bg-[#1D4ED8] text-white' },
     { payer: 'shared', label: 'Shared 50/50', tone: 'bg-[#1D4ED8]/10 text-[#1D4ED8]' },
     { payer: 'candidate', label: 'You cover', tone: 'bg-ink-100 text-ink-700' },
   ];
@@ -1357,10 +1506,10 @@ function RecommendedPanel({
         <CircleFlag countryCode={to} size={22} label={toName} />
         <span className="truncate">{toName}</span>
       </div>
-      <p className="mt-3 text-[16px] font-bold leading-snug text-ink-950">Recommended conditions for {company}</p>
+      <p className="mt-3 text-[16px] font-bold leading-snug text-ink-950">Suggested starting point for {company}</p>
       <p className="mt-1 text-[12.5px] leading-5 text-ink-600">
-        A balanced start most employers can say yes to: you carry about {terms.candidateShare}% of the shareable costs, {company} keeps what the law expects of an
-        employer. Adjust anything below.
+        A balanced proposal: you offer to take the smaller costs, and propose that {company} takes the larger ones. Costs the law puts on the employer always stay with the employer.
+        It is a suggestion from MadeVisa, not a rule. Change anything below.
       </p>
       <ul className="mt-3 space-y-2">
         {groups.map((g) => {
@@ -1375,22 +1524,28 @@ function RecommendedPanel({
         })}
       </ul>
       <p className="mt-2 text-[12px] text-ink-500">
-        Start within {terms.startWeeks} weeks of the visa{terms.repayMonths ? ` · repay window ${terms.repayMonths} months` : ''}
-        {terms.remoteStart ? ' · remote start offered' : ''} · pay in {currencyFor(code).code}
+        Target start about {terms.startWeeks} weeks after the visa{terms.repayMonths ? ` · repayment proposed over ${terms.repayMonths} months` : ' · no repayment term'}
+        {terms.remoteStart ? ' · open to a remote start' : ''} · pay in {currencyFor(code).code}
       </p>
       <div className="mt-3">
         {active ? (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[12px] font-bold text-emerald-700">
-            <Check className="h-3.5 w-3.5" strokeWidth={3} /> Using the recommended terms
+            <Check className="h-3.5 w-3.5" strokeWidth={3} /> Using the suggested terms
           </span>
         ) : (
           <button onClick={onApply} className="rounded-lg bg-emerald-600 px-3.5 py-2 text-[13px] font-bold text-white hover:bg-emerald-700">
-            Use recommended terms
+            Use the suggested terms
           </button>
         )}
       </div>
     </Panel>
   );
+}
+
+/** "2 for the employer · 1 shared · 2 for you": counts of cost lines, not a share of money. */
+function payCount(terms: OfferTerms): string {
+  const n = (p: Payer) => terms.items.filter((i) => i.payer === p).length;
+  return [n('employer') ? `${n('employer')} for the employer` : null, n('shared') ? `${n('shared')} shared` : null, n('candidate') ? `${n('candidate')} for you` : null].filter(Boolean).join(' · ') || 'No shareable costs on this route';
 }
 
 function ChevronRightIcon() {
@@ -1418,16 +1573,17 @@ function SplitControl({ split, terms, custom, onChange, onCommit, status }: { sp
         onChange={onChange}
         onCommit={onCommit}
         label="Balance of the plan between you and the company"
-        valueText={`${splitWord(split)}; you carry ${terms.candidateShare}% of shareable costs`}
-        bubble={`${custom ? 'Custom' : splitWord(split)} · you ${terms.candidateShare}%`}
+        valueText={`${splitWord(split)}; ${payCount(terms)}`}
+        bubble={custom ? 'Custom' : splitWord(split)}
         left="Better for you"
         right="Better for the company"
       />
-      <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
-        <Stat k="Repay window" v={terms.repayMonths ? `${terms.repayMonths} mo` : 'None'} />
-        <Stat k="Start after visa" v={`${terms.startWeeks} wks`} />
-        <Stat k="Remote start" v={terms.remoteStart ? 'Yes' : 'No'} />
+      <p className="mt-3 text-center text-[12.5px] font-semibold text-ink-700">{payCount(terms)}</p>
+      <dl className="mt-2 grid grid-cols-2 gap-2 text-center">
+        <Stat k="Target start after visa" v={`about ${terms.startWeeks} wks`} />
+        <Stat k="Open to a remote start" v={terms.remoteStart ? 'Yes' : 'No'} />
       </dl>
+      <p className="mt-2 text-[12px] leading-5 text-ink-500">The slider moves costs one at a time between the company and you. The document lists each cost on its own line, with the basis for it.</p>
     </Panel>
   );
 }
@@ -1467,17 +1623,33 @@ function CountrySelect({ value, jobCode, onChange, id }: { value: string; jobCod
   );
 }
 
-/** Each cost row, set by hand (overrides the slider until it's dragged again). */
-function CostRows({ terms, salary, code, onPick }: { terms: OfferTerms; salary: number; code: string; onPick: (key: CandidateCover, payer: Payer) => void }) {
+/** Each cost row, set by hand (overrides the slider until it's dragged again), with the basis for it. */
+function CostRows({ terms, code, route, onPick }: { terms: OfferTerms; code: string; route?: VisaRoute; onPick: (key: CandidateCover, payer: Payer) => void }) {
   const opts: { v: Payer; l: string }[] = [
     { v: 'employer', l: 'Employer' },
     { v: 'shared', l: '50/50' },
     { v: 'candidate', l: 'Me' },
   ];
+  const generic = !route || route.id === GENERIC_ROUTE_ID;
+  const country = withThe(countryNameOf(code) ?? 'this country');
+  const byLaw = generic ? null : route.employer?.employerCosts ?? null;
   return (
     <Panel>
-      <p className="text-[15px] font-bold text-ink-950">Each cost</p>
-      <ul className="mt-2 space-y-2.5">
+      <p className="text-[15px] font-bold text-ink-950">Cost responsibility</p>
+      <p className="mt-0.5 text-[12px] leading-5 text-ink-500">
+        {generic
+          ? `We have not checked which costs a candidate may pay in ${country}. The document says so on every cost you offer to pay or share.`
+          : 'Our check of this route lists these as costs a candidate may pay or share. Each one is your proposal; the company can answer differently.'}
+      </p>
+      <ul className="mt-3 space-y-2.5">
+        <li className="rounded-lg bg-ink-50 px-3 py-2">
+          <p className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900">
+            <Lock className="h-3.5 w-3.5 shrink-0 text-ink-500" /> Employer only
+          </p>
+          <p className="mt-0.5 text-[12px] leading-5 text-ink-600">
+            {byLaw ?? `Any fee or charge the law of ${country} puts on the employer.`} Anything the law puts on the employer can’t be moved to you, and the document never asks you to repay it.
+          </p>
+        </li>
         {terms.items.map((it) => (
           <li key={it.key}>
             <p className="text-[13px] font-medium text-ink-800">{OFFER_ITEM_LABEL[it.key]}</p>
@@ -1494,13 +1666,50 @@ function CostRows({ terms, salary, code, onPick }: { terms: OfferTerms; salary: 
                 </button>
               ))}
             </div>
+            {generic && it.payer !== 'employer' && (
+              <p className="mt-1 flex items-start gap-1.5 text-[12px] leading-4 text-amber-800">
+                <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" /> Not checked for {country}: this may not be allowed there. Confirm before you agree to it.
+              </p>
+            )}
           </li>
         ))}
-        <li className="flex items-center justify-between gap-2 border-t border-ink-100 pt-2.5 text-[13px]">
-          <span className="font-medium text-ink-800">Salary and employment conditions</span>
-          <span className="shrink-0 text-ink-500">{salary ? `${money(salary, code)} / yr` : 'Set by employer'}</span>
-        </li>
       </ul>
+    </Panel>
+  );
+}
+
+/**
+ * Repayment if the candidate resigns. Never added by itself: whether such a
+ * term is allowed depends on the country, the route and the cost, and we
+ * have not checked that anywhere. The candidate may still propose one.
+ */
+function RepayControl({ code, repay, canApply, onChange }: { code: string; repay: number; canApply: boolean; onChange: (months: number) => void }) {
+  const country = withThe(countryNameOf(code) ?? 'this country');
+  const choices = [0, 6, 12, 18, 24, 36].filter((m) => m <= MAX_REPAY_MONTHS);
+  const options = choices.includes(repay) ? choices : [...choices, repay].sort((a, b) => a - b);
+  return (
+    <Panel>
+      <label className="block">
+        <span className="text-[15px] font-bold text-ink-950">Repayment if you resign (optional)</span>
+        <span className="block text-[12px] leading-5 text-ink-500">Some candidates offer to repay part of what the company paid if they leave early. Leave it out unless you want to offer it.</span>
+        <select id="offer-repay" value={canApply ? repay : 0} disabled={!canApply} onChange={(e) => onChange(Number(e.target.value))} className={INPUT}>
+          {options.map((m) => (
+            <option key={m} value={m}>
+              {m === 0 ? 'Not included' : `I offer to repay, reducing each month, if I resign within ${m} months`}
+            </option>
+          ))}
+        </select>
+      </label>
+      {!canApply ? (
+        <p className="mt-2 text-[12px] leading-5 text-ink-500">You offer to pay every shareable cost yourself, so there is nothing to repay.</p>
+      ) : repay ? (
+        <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-5 text-amber-800">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            MadeVisa can’t tell whether a repayment term is allowed in {country}. The document prints it as your proposal and marks it “Professional review recommended”.
+          </span>
+        </p>
+      ) : null}
     </Panel>
   );
 }
@@ -1516,10 +1725,11 @@ function SalaryControl({ code, salary, offset, onChange, onCommit }: { code: str
     <Panel>
       <label className="block">
         <span className="text-[15px] font-bold text-ink-950">Annual gross salary</span>
-        <span className="block text-[12px] text-ink-500">As offered or advertised. Correct it if the job ad is wrong.</span>
+        <span className="block text-[12px] leading-5 text-ink-500">As offered or advertised. Leave it empty if you don’t know it: the document then says “Not stated”. We never work a salary out for you.</span>
         <div className="mt-1 flex items-center rounded-lg border border-ink-200 bg-white focus-within:border-[#1D4ED8]">
           <span className="pl-3 text-[14px] text-ink-500">{cur.symbol.trim()}</span>
           <input
+            id="offer-salary"
             inputMode="numeric"
             value={salary ? salary.toLocaleString('en-GB') : ''}
             placeholder="Not stated"
@@ -1532,7 +1742,10 @@ function SalaryControl({ code, salary, offset, onChange, onCommit }: { code: str
 
       <div className="mt-4 border-t border-ink-100 pt-3">
         <p className="text-[15px] font-bold text-ink-950">Salary deduction (optional)</p>
-        <p className="text-[12px] leading-5 text-ink-500">The most you agree the employer may deduct from your gross pay in the first 12 months, only to recover visa costs it paid.</p>
+        <p className="text-[12px] leading-5 text-ink-500">
+          The most you would agree the employer may deduct from your gross pay in the first 12 months, only to recover visa costs it paid. Whether pay deductions are allowed depends on the
+          country; the document marks this “Professional review recommended”.
+        </p>
         <DragSlider
           size="sm"
           tone={offset ? 'green' : 'grey'}
@@ -1733,13 +1946,13 @@ function OwnerActions({ brief, onStatus }: { brief: PublicBrief; onStatus: (s: B
         <p className="mt-1.5 text-[11px] leading-4 text-ink-500">Once it’s marked Sent, {brief.company_name} can also see it in its free MadeVisa employer inbox.</p>
         <button
           onClick={async () => {
-            if (!window.confirm('Withdraw this Visa Plan? The link will stop working. It still counts towards your allowance.')) return;
+            if (!window.confirm('Withdraw this proposal? The link will stop working. It still counts towards your allowance.')) return;
             const res = await withdrawBrief(brief.share_id);
             if (res.ok) nav('/profile');
           }}
           className="mt-3 text-[12px] font-semibold text-ink-400 hover:text-rose-600"
         >
-          Withdraw Visa Plan
+          Withdraw proposal
         </button>
       </Panel>
     </>
@@ -1752,10 +1965,10 @@ function ReaderPanel({ brief, acc, onAccepted }: { brief: PublicBrief; acc: Brie
       {acc?.acceptedAt && (
         <div className="rounded-xl bg-emerald-600 px-4 py-3.5 text-white">
           <p className="flex items-center gap-2 text-[15px] font-bold">
-            <BadgeCheck className="h-5 w-5" /> Confirmed
+            <BadgeCheck className="h-5 w-5" /> Accepted in principle
           </p>
           <p className="mt-1 text-[13px] leading-5 text-white/90">
-            {acc.acceptedBy ? `${acc.acceptedBy} accepted` : 'The Employer accepted'} these terms on {fmtDate(acc.acceptedAt)}. The document can no longer be changed.
+            {acc.acceptedBy ? `${acc.acceptedBy} accepted` : 'The Employer accepted'} this proposal on {fmtDate(acc.acceptedAt)}. It can no longer be changed. It is not an employment contract.
           </p>
         </div>
       )}
@@ -1775,377 +1988,5 @@ function ReaderPanel({ brief, acc, onAccepted }: { brief: PublicBrief; acc: Brie
         .
       </p>
     </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// The document itself — what prints.
-// ---------------------------------------------------------------------------
-
-function OfferDocument({
-  doc,
-  terms,
-  guide,
-  route,
-  code,
-  locked,
-  draft,
-  approvedAt,
-  confirmed,
-}: {
-  doc: DocData;
-  terms: OfferTerms;
-  guide: VisaGuide;
-  route: VisaRoute;
-  code: string;
-  /** No plan yet: the clause wording is left out and the page can't be printed. */
-  locked?: boolean;
-  /** Not saved yet: readable in full (with the plan), but still not printable. */
-  draft?: boolean;
-  approvedAt?: string | null;
-  /** The company accepted the terms. */
-  confirmed?: BriefAcceptance | null;
-}) {
-  const employer = route.employer!;
-  const place = [doc.city, guide.name].filter(Boolean).join(', ');
-  const validUntil = new Date(Date.parse(doc.issuedAt) + VALID_DAYS * 86_400_000).toISOString();
-  const employerPays = terms.items.filter((i) => i.payer !== 'candidate');
-  let n = 0;
-  const clause = () => ++n;
-
-  const L = Boolean(locked);
-  const noPrint = L || Boolean(draft);
-
-  return (
-    <>
-    {noPrint && (
-      <div className="offer-paper hidden p-10 font-sans text-[14px] print:block">
-        This is a preview. Prepare the document on madevisa.com to download the signed-ready PDF.
-      </div>
-    )}
-    <article
-      onContextMenu={L ? (e) => e.preventDefault() : undefined}
-      className={`${L ? 'select-none print:hidden' : noPrint ? 'print:hidden' : 'offer-paper'} relative mx-auto max-w-[820px] overflow-hidden rounded-sm bg-white px-6 py-8 font-serif text-[15px] leading-[1.7] text-ink-900 shadow-soft-lg sm:px-14 sm:py-14 print:max-w-none print:rounded-none print:p-0 print:shadow-none`}
-    >
-      {L && (
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-around overflow-hidden">
-          {[0, 1, 2, 3].map((i) => (
-            <span key={i} className="-rotate-12 whitespace-nowrap font-sans text-[56px] font-black tracking-widest text-[#1D4ED8]/[0.06] sm:text-[88px]">
-              PREVIEW · PREVIEW
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Letterhead */}
-      <header className="flex flex-wrap items-end justify-between gap-3 border-b-2 border-ink-900 pb-4 font-sans">
-        <div>
-          <p className="text-[18px] font-extrabold tracking-tight text-ink-950">
-            made<span className="text-[#1D4ED8]">visa</span>
-          </p>
-          <p className="text-[12px] text-ink-500">Sponsorship agreement</p>
-        </div>
-        <dl className="grid grid-cols-[auto_auto] gap-x-3 text-[12px] leading-5 text-ink-600">
-          <dt>Reference</dt>
-          <dd className="font-semibold tabular-nums text-ink-900">{doc.ref}</dd>
-          <dt>Issued</dt>
-          <dd className="text-ink-900">{fmtDate(doc.issuedAt)}</dd>
-          <dt>Valid until</dt>
-          <dd className="text-ink-900">{fmtDate(validUntil)}</dd>
-        </dl>
-      </header>
-
-      <h1 className="mt-8 text-[30px] font-semibold leading-[1.15] tracking-tight text-ink-950 sm:text-[38px]" style={{ fontVariationSettings: '"opsz" 144' }}>
-        Visa Plan: sponsorship cost-sharing agreement
-      </h1>
-      <p className="mt-3 font-sans text-[15px] leading-7 text-ink-700">
-        Between <strong className="text-ink-950">{doc.candidateName}</strong> (the Candidate) and <strong className="text-ink-950">{doc.companyName}</strong> (the Employer), for the
-        role of <strong className="text-ink-950">{doc.jobTitle}</strong> in {guide.name}.
-      </p>
-      <p className="mt-2 inline-flex flex-wrap items-center gap-2 font-sans text-[13px]">
-        {approvedAt ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-800 print:bg-transparent print:px-0">
-            <Check className="h-3.5 w-3.5" /> Approved by the Candidate on {fmtDate(approvedAt)}
-          </span>
-        ) : (
-          <span className="rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-800">Preview · not yet approved</span>
-        )}
-        {confirmed?.acceptedAt && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-2.5 py-1 font-bold text-white print:bg-transparent print:px-0 print:text-ink-950">
-            <BadgeCheck className="h-3.5 w-3.5" /> Confirmed by the Employer on {fmtDate(confirmed.acceptedAt)}
-            {confirmed.acceptedBy ? ` (${confirmed.acceptedBy})` : ''}
-          </span>
-        )}
-        <span className="text-ink-500">Binding once signed by both parties</span>
-      </p>
-
-      {/* Parties */}
-      <dl className="mt-8 grid gap-x-8 gap-y-4 border-y border-ink-200 py-5 font-sans text-[14px] sm:grid-cols-2">
-        <Party k="Candidate" v={doc.candidateName} sub={doc.headline} />
-        <Party
-          k="Employer"
-          v={doc.companyName}
-          sub={[cleanWebsite(terms.employer?.website), terms.employer?.hq ? `HQ ${terms.employer.hq}` : null, terms.employer?.contact].filter(Boolean).join(' · ') || null}
-        />
-        <Party k="Position" v={doc.jobTitle} />
-        <Party
-          k="Place of work"
-          v={
-            <span className="inline-flex items-center gap-2">
-              <CircleFlag countryCode={code} label={guide.name} size={18} /> {place}
-            </span>
-          }
-        />
-        <Party
-          k="Visa route"
-          v={route.id === GENERIC_ROUTE_ID ? 'National work permit (to be confirmed)' : route.name}
-          sub={
-            route.url ? (
-              <a href={route.url} target="_blank" rel="noopener noreferrer" className="break-all text-[12px] text-[#1D4ED8] print:text-ink-700">
-                {route.url}
-              </a>
-            ) : null
-          }
-        />
-        <Party k="Sponsor licence" v={route.id === GENERIC_ROUTE_ID ? 'To be confirmed by the Employer' : employer.licenceNeeded ? 'Required' : 'Not required'} />
-        {terms.salary ? <Party k="Annual gross salary (as offered)" v={money(terms.salary, code)} sub={<SalaryMeetsLine salary={terms.salary} code={code} />} /> : null}
-      </dl>
-
-      {/* The split, at a glance */}
-      <div className="mt-6 font-sans">
-        <div className="flex justify-between text-[12px] font-semibold text-ink-600">
-          <span>Employer {100 - terms.candidateShare}%</span>
-          <span>Candidate {terms.candidateShare}%</span>
-        </div>
-        <div className="mt-1.5 flex h-2.5 overflow-hidden rounded-full bg-ink-100 print:border print:border-ink-300">
-          <span className="bg-[#1D4ED8] transition-[width] duration-300" style={{ width: `${100 - terms.candidateShare}%` }} />
-          <span className="bg-[#1D4ED8]/25 transition-[width] duration-300" style={{ width: `${terms.candidateShare}%` }} />
-        </div>
-        <p className="mt-1.5 text-[12px] text-ink-500">Share of the costs in clause 4, weighted by their usual size.</p>
-      </div>
-
-      <Clause n={clause()} title="Purpose">
-        The Candidate proposes these terms so that the Employer can hire them for the position above through the {route.name} in {guide.name}. This Visa Plan covers who carries the cost and
-        effort of the visa process. It does not change pay or any other term of employment.
-      </Clause>
-
-      <Clause n={clause()} title="What the Employer does" locked={L}>
-        <ol className="mt-1 space-y-1.5">
-          {employer.steps.map((s, i) => (
-            <li key={i} className="flex gap-3">
-              <span className="w-8 shrink-0 font-sans text-[13px] font-semibold tabular-nums text-ink-500">
-                {n}.{i + 1}
-              </span>
-              <span>
-                {s.text}
-                {s.optional && <span className="font-sans text-[12px] text-ink-500"> (if needed)</span>}
-              </span>
-            </li>
-          ))}
-        </ol>
-        {employer.licenceNote && <p className="mt-2">{employer.licenceNote}</p>}
-        <p className="mt-2">Expected timeline: {employer.timeline}</p>
-      </Clause>
-
-      <Clause n={clause()} title="Costs the Employer carries by law" locked={L}>
-        {employer.employerCosts ?? 'None beyond the Employer’s own administrative time.'} These costs are outside this Visa Plan and will not be recovered from the Candidate, whether through
-        salary deductions, repayment or otherwise.
-      </Clause>
-
-      <Clause n={clause()} title="Sharing of visa-related costs">
-        <table className="mt-2 w-full border-collapse font-sans text-[14px]">
-          <thead>
-            <tr className="border-b border-ink-900 text-left text-[12px] text-ink-600">
-              <th className="py-2 pr-3 font-semibold">Cost</th>
-              <th className="py-2 font-semibold">Paid by</th>
-            </tr>
-          </thead>
-          <tbody>
-            {terms.items.map((it) => (
-              <tr key={it.key} className="border-b border-ink-200">
-                <td className="py-2.5 pr-3 text-ink-800">{OFFER_ITEM_LABEL[it.key]}</td>
-                <td className="py-2.5">
-                  <span key={it.payer} className={`offer-flash inline-flex rounded px-2 py-0.5 text-[13px] font-semibold ${PAYER_TONE[it.payer]}`}>
-                    {PAYER_LABEL[it.payer]}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            <tr className="border-b border-ink-200">
-              <td className="py-2.5 pr-3 text-ink-800">Salary and employment conditions</td>
-              <td className="py-2.5 text-[13px] font-semibold text-ink-600">{terms.salary ? `${money(terms.salary, code)} a year, per the employment contract` : 'Set by the Employer; not changed by this offer'}</td>
-            </tr>
-          </tbody>
-        </table>
-        <p className={`mt-3 ${L ? 'hidden' : ''}`}>
-          Where the Employer pays, it pays the provider directly or reimburses the Candidate within 30 days of receiving receipts. Where a cost is shared, each party pays half against
-          receipts.
-        </p>
-      </Clause>
-
-      <Clause n={clause()} title="Repayment" locked={L}>
-        {terms.repayMonths && employerPays.length ? (
-          <>
-            If the Candidate resigns within {terms.repayMonths} months of starting, they repay the costs the Employer actually paid under clause 4, reduced by one {terms.repayMonths === 12 ? 'twelfth' : 'twenty-fourth'} for
-            each full month worked. Nothing is repaid if the Employer ends the employment for any reason other than the Candidate’s gross misconduct. Repayment never covers costs in
-            clause 3 and may not take pay below the legal minimum or the visa salary threshold.
-          </>
-        ) : (
-          <>Costs the Employer pays under clause 4 are not repayable by the Candidate.</>
-        )}
-      </Clause>
-
-      {terms.salaryOffset ? (
-        <Clause n={clause()} title="Salary deduction" locked={L}>
-          Subject to the Candidate’s prior written consent, the Employer may deduct from the Candidate’s gross salary, during the first twelve (12) months of employment, an aggregate
-          amount not exceeding {money(terms.salaryOffset, code)}
-          {terms.salary ? ` (approximately ${Math.round((terms.salaryOffset / terms.salary) * 1000) / 10}% of the stated annual gross salary)` : ''}, in equal monthly
-          instalments and solely to recover costs actually paid by the Employer under clause 4. Deductions shall cease once those costs have been recovered in full; shall not apply to
-          any cost referred to in clause 3; and shall not reduce the Candidate’s pay below the applicable statutory minimum wage or the salary required for the {route.name}. Any amount so
-          deducted shall be credited against any repayment due under clause 5.
-        </Clause>
-      ) : null}
-
-      <Clause n={clause()} title="Start" locked={L}>
-        The Candidate can start work in {guide.name} within {terms.startWeeks} weeks of the visa being granted.
-        {terms.remoteStart && (
-          <>
-            {' '}
-            Until then, the Candidate offers to start remotely from their country of residence, as an independent contractor or through an Employer of Record, where the law there
-            allows. That work is not work in {guide.name} and needs no visa.
-          </>
-        )}
-      </Clause>
-
-      <Clause n={clause()} title="Pay and fair recruitment" locked={L}>
-        Pay and conditions are set by the Employer and must meet the {route.name} requirements and the law of {guide.name}. Nothing in this Visa Plan lowers them. No recruitment fee is
-        charged to the Candidate, and the Candidate keeps their own identity and travel documents.
-      </Clause>
-
-      {doc.note && (
-        <Clause n={clause()} title="Note from the Candidate" locked={L}>
-          <span className="whitespace-pre-line italic">{doc.note}</span>
-        </Clause>
-      )}
-
-      <Clause n={clause()} title="Status of this Visa Plan" locked={L}>
-        This is a proposal, not a contract. It becomes binding only when both parties sign it, or when its terms are written into the employment contract. It is governed by the law of{' '}
-        {guide.name} and is valid for {VALID_DAYS} days from issue. It was prepared with MadeVisa from official government sources and is not legal advice; check the details with the
-        official source or a qualified immigration adviser before signing.
-      </Clause>
-
-      {/* Printed only: the company replies in one click (links stay clickable in PDFs). */}
-      {doc.shareId && !L && (
-        <a
-          href={`https://madevisa.com${briefPath(doc.shareId)}`}
-          className="mt-8 hidden break-inside-avoid items-center justify-between gap-4 rounded-lg border-2 border-[#1D4ED8] px-5 py-4 font-sans no-underline print:flex"
-        >
-          <span>
-            <span className="block text-[14px] font-bold text-ink-950">Reply to {doc.candidateName.split(/\s+/)[0]} in one click</span>
-            <span className="block text-[12px] text-ink-600">Interested · Need more information · Not right now — no account needed</span>
-          </span>
-          <span className="shrink-0 text-[13px] font-bold text-[#1D4ED8]">madevisa.com{briefPath(doc.shareId)}</span>
-        </a>
-      )}
-
-      {/* Signatures */}
-      {L ? (
-        <section className="mt-10 flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#1D4ED8]/30 bg-[#1D4ED8]/[0.03] px-4 py-8 font-sans text-[14px] font-semibold text-[#1D4ED8]">
-          <Lock className="h-4 w-4" /> Full wording and signature lines unlock when you prepare the document
-        </section>
-      ) : (
-        <section className="mt-10 grid gap-10 break-inside-avoid font-sans text-[13px] sm:grid-cols-2">
-          <Sign who="Candidate" name={doc.candidateName} />
-          <Sign who={`For ${doc.companyName}`} />
-        </section>
-      )}
-
-      <footer className="mt-12 flex flex-wrap items-center justify-between gap-2 border-t border-ink-200 pt-3 font-sans text-[11px] text-ink-500">
-        <span>
-          {doc.ref}
-          {doc.shareId ? ` · Check the current version at madevisa.com${briefPath(doc.shareId)}` : ''}
-        </span>
-        {doc.linkedin && <span className="hidden print:inline">{doc.linkedin}</span>}
-      </footer>
-    </article>
-    </>
-  );
-}
-
-const PAYER_TONE: Record<string, string> = {
-  employer: 'bg-[#1D4ED8] text-white print:bg-transparent print:p-0 print:text-ink-900',
-  shared: 'bg-[#1D4ED8]/15 text-[#1D4ED8] print:bg-transparent print:p-0 print:text-ink-900',
-  candidate: 'bg-ink-100 text-ink-800 print:bg-transparent print:p-0 print:text-ink-900',
-};
-
-/**
- * Under the salary in the document: a sourced "meets the visa minimum" line,
- * only when it clearly does. Anything less certain says nothing extra — the
- * document is the candidate's pitch, and it must never overstate.
- */
-function SalaryMeetsLine({ salary, code }: { salary: number; code: string }) {
-  const v = checkVisaSalary({ countryCode: code, min: salary, max: null, currency: currencyFor(code).code, period: 'year' });
-  if (v?.kind !== 'clears') return <>To be confirmed in the employment contract</>;
-  return (
-    <>
-      To be confirmed in the employment contract.{' '}
-      <span className="font-semibold text-emerald-700">
-        ✓ Meets the {v.t.route} minimum of {formatMoney(v.t.standard.annual, v.t.currency)}
-      </span>{' '}
-      <span className="text-[11px] text-ink-500">
-        ({v.t.source.label}, checked {new Date(v.t.checkedOn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })})
-      </span>
-    </>
-  );
-}
-
-function Party({ k, v, sub }: { k: string; v: ReactNode; sub?: ReactNode }) {
-  return (
-    <div>
-      <dt className="text-[12px] text-ink-500">{k}</dt>
-      <dd className="mt-0.5 font-semibold text-ink-950">{v}</dd>
-      {sub && <dd className="text-[13px] text-ink-600">{sub}</dd>}
-    </div>
-  );
-}
-
-function Clause({ n, title, children, locked }: { n: number; title: string; children: ReactNode; locked?: boolean }) {
-  return (
-    <section className="mt-7 break-inside-avoid">
-      <h2 className="flex gap-3 font-sans text-[15px] font-bold text-ink-950">
-        <span className="w-8 shrink-0 tabular-nums text-[#1D4ED8] print:text-ink-900">{n}.</span>
-        {title}
-      </h2>
-      {locked ? (
-        // Preview: the wording isn't in the page at all until it's prepared.
-        <div className="mt-2.5 space-y-2 pl-11" aria-label="Unlocks when you prepare the document">
-          {[92, 100, 78].map((w, i) => (
-            <span key={i} className="block h-2.5 rounded-full bg-ink-100" style={{ width: `${w}%` }} />
-          ))}
-        </div>
-      ) : (
-        <div className="mt-1.5 pl-11 text-ink-800">{children}</div>
-      )}
-    </section>
-  );
-}
-
-function Sign({ who, name }: { who: string; name?: string }) {
-  return (
-    <div>
-      <p className="font-semibold text-ink-950">{who}</p>
-      <div className="mt-10 border-b border-ink-900" />
-      <p className="mt-1 text-ink-500">Signature</p>
-      <div className="mt-6 grid grid-cols-2 gap-4">
-        <div>
-          <div className="h-5 border-b border-ink-400 text-ink-900">{name}</div>
-          <p className="mt-1 text-ink-500">Name{name ? '' : ' and title'}</p>
-        </div>
-        <div>
-          <div className="h-5 border-b border-ink-400" />
-          <p className="mt-1 text-ink-500">Date</p>
-        </div>
-      </div>
-    </div>
   );
 }

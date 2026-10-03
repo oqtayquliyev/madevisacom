@@ -53,7 +53,7 @@ export function MyBriefsSection() {
             </h2>
             <OfferInfo light />
           </div>
-          <p className="mt-1 text-[13px] leading-5 text-white/80">Attach one to an application so the employer sees exactly how to sponsor you.</p>
+          <p className="mt-1 text-[13px] leading-5 text-white/80">Attach one to an application so the employer sees what sponsoring you would involve.</p>
         </div>
         <div className="flex items-center justify-between gap-3 border-t border-white/15 pt-3 sm:justify-end sm:border-0 sm:pt-0">
           <div className="sm:text-right">

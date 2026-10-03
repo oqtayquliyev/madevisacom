@@ -124,8 +124,8 @@ export function SponsorDocRow({ jobId, company, country, visaOffered, onAuth, co
   }
 
   const why = visaOffered
-    ? `${company} offers sponsorship. This one-page document shows them the visa route for your passport, their steps and who pays what — so HR can say yes faster.`
-    : `This ad doesn’t mention visa sponsorship. This one-page document shows ${company} the legal visa route, the few steps on their side and which costs you share.`;
+    ? `${company} offers sponsorship. This short proposal shows them the visa route that may apply, what it asks of them and who you suggest pays what — so HR has less to work out.`
+    : `This ad doesn’t mention visa sponsorship. This short proposal shows ${company} the visa route that may apply, what it asks of them and which costs you offer to share.`;
 
   return (
     <Row

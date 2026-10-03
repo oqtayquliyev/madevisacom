@@ -221,10 +221,10 @@ type ReplyStatsData = {
 };
 
 /**
- * The real number behind "2.3×": reply rate of documents vs. ordinary
- * tracked applications (both 21+ days old). Data: admin_offer_reply_stats()
- * (migration 20261115090000). Once `lift` appears, copy it into
- * OFFER_LIFT and the reply rate into BASELINE_REPLY_RATE (OfferOddsStat.tsx).
+ * Reply rate of documents vs. ordinary tracked applications (both 21+ days
+ * old). Data: admin_offer_reply_stats() (migration 20261115090000). For
+ * staff only: the public /offers page shows measured results from
+ * brief_outcomes() and never a "chance to be hired" multiplier.
  */
 function ReplyStats() {
   const [d, setD] = useState<ReplyStatsData | null>(null);
@@ -244,7 +244,7 @@ function ReplyStats() {
         <Tile v={d.lift == null ? '—' : `${d.lift}×`} k="Real lift" />
         <Tile v={`${d.documents.verified_reply} / ${d.documents.button_reply}`} k="Verified / all button replies" />
       </div>
-      <p className="mt-2 text-xs text-ink-500">{d.note} When the real lift appears, put it in OFFER_LIFT in OfferOddsStat.tsx.</p>
+      <p className="mt-2 text-xs text-ink-500">{d.note} For your eyes only: the public page shows measured replies, never a “chance to be hired” figure.</p>
     </div>
   );
 }

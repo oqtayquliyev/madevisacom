@@ -62,7 +62,7 @@ export function EmployerInboxPage({ go, onAuth }: Props) {
         </p>
         <h1 className="mt-4 max-w-3xl text-[30px] font-bold leading-tight tracking-tight text-ink-950 sm:text-[40px]">Visa Plans sent to your company</h1>
         <p className="mt-3 max-w-2xl text-[16px] leading-7 text-ink-600">
-          Candidates attach a one-page Visa Plan to their application: the legal visa route, the few steps on your side, and which costs they share. See them all in one place, and reply in one
+          Candidates attach a Visa Plan (a sponsorship proposal) to their application: the visa route that may apply, what it asks of you, and which costs they offer to share. Each one says what is confirmed and what still needs your confirmation. See them all in one place, and reply in one
           click.
         </p>
 

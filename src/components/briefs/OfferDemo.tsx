@@ -56,7 +56,7 @@ export function OfferDemo({ job }: { job?: { title: string; company: string; cod
           </span>
           <span className="text-[11px] text-ink-500">Visa Plan</span>
         </div>
-        <p className="mt-4 text-[20px] font-semibold leading-tight tracking-tight">Visa Plan — sponsorship & cost sharing</p>
+        <p className="mt-4 text-[20px] font-semibold leading-tight tracking-tight">Visa Plan — candidate sponsorship proposal</p>
         {job && (
           <p className="mt-1 flex items-center gap-2 font-sans text-[13px] text-ink-600">
             {guide && <CircleFlag countryCode={job.code} size={16} />}
@@ -64,10 +64,7 @@ export function OfferDemo({ job }: { job?: { title: string; company: string; cod
             {route ? ` · ${route.name}` : ''}
           </p>
         )}
-        <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-ink-100">
-          <span className="bg-[#1D4ED8] transition-[width] duration-300" style={{ width: `${100 - t.candidateShare}%` }} />
-          <span className="bg-[#1D4ED8]/25 transition-[width] duration-300" style={{ width: `${t.candidateShare}%` }} />
-        </div>
+        <p className="mt-3 font-sans text-[12px] text-ink-500">Who you propose pays each cost. The company can answer differently.</p>
         <table className="mt-3 w-full font-sans text-[13px]">
           <tbody>
             {t.items.map((it) => (
@@ -92,9 +89,9 @@ export function OfferDemo({ job }: { job?: { title: string; company: string; cod
         <DragSlider
           value={split}
           onChange={setSplit}
-          label="Try the cost-sharing slider"
+          label="Try the cost responsibility slider"
           valueText={splitWord(split)}
-          bubble={`${splitWord(split)} · you ${t.candidateShare}%`}
+          bubble={splitWord(split)}
           left="Better for you"
           right="Better for the company"
         />

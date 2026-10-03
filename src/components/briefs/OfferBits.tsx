@@ -57,11 +57,11 @@ export function OfferInfo({ className = '', light = false }: { className?: strin
           className="block max-h-[calc(100vh-16px)] overflow-y-auto rounded-xl bg-white p-4 text-left text-ink-700 shadow-xl ring-1 ring-ink-200"
         >
           <span className="block text-[14px] font-bold text-ink-950">How it helps</span>
-          <span className="mt-2 block text-[13px] leading-5">Most employers say no to sponsorship because they guess it’s slow, costly and risky. Your document answers that on one page:</span>
+          <span className="mt-2 block text-[13px] leading-5">An employer who has never sponsored often doesn’t know what it involves. Your proposal lays it out, and says what is known and what still needs confirming:</span>
           <span className="mt-2 block space-y-1.5 text-[13px] leading-5">
-            <span className="flex gap-2"><Dot />The legal route and the few steps on their side</span>
-            <span className="flex gap-2"><Dot />Which visa costs you’ll carry — you choose</span>
-            <span className="flex gap-2"><Dot />Signature lines, so HR can file it with the contract</span>
+            <span className="flex gap-2"><Dot />The route that may apply, with its official source, and what it asks of them</span>
+            <span className="flex gap-2"><Dot />Who you suggest pays each cost — you choose</span>
+            <span className="flex gap-2"><Dot />One-click replies, and terms they can carry into the contract</span>
           </span>
           <span className="mt-3 block border-t border-ink-100 pt-2 text-[12px] leading-5 text-ink-500">
             Part of MadeVisa Pro: 50 documents a month. You review everything first, and can correct it until the company accepts.

@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { briefRoutesFor, visaGuideByCode, type CandidateCover, type VisaGuide, type VisaRoute } from '@/data/visa';
 import { allCountries } from '@/data/allCountries';
 import type { OfferTerms } from '@/lib/sponsorOffer';
+import { withThe } from '@/lib/proposal';
 
 export type BriefStatus = 'created' | 'sent' | 'replied' | 'interview' | 'offer' | 'declined' | 'no_reply' | 'withdrawn';
 
@@ -109,7 +110,7 @@ function guideFor(code: string): VisaGuide {
  * route, and anything the local law puts on the employer stays theirs.
  */
 export function genericRoute(code: string): VisaRoute {
-  const name = countryName(code);
+  const name = withThe(countryName(code));
   const official = visaGuideByCode.get(code)?.routes[0]?.url ?? '';
   return {
     id: GENERIC_ROUTE_ID,
@@ -129,7 +130,7 @@ export function genericRoute(code: string): VisaRoute {
       ],
       timeline: `Depends on the route. The Candidate will check current processing times with the authorities of ${name}.`,
       candidateMayCover: ['visa-fee', 'relocation', 'translations', 'own-adviser'],
-      employerCosts: `Any fee or charge that the law of ${name} reserves to the employer. If that law puts one of the costs in clause 4 on the Employer, the Employer pays it and clause 4 does not apply to that cost.`,
+      employerCosts: `Any fee or charge that the law of ${name} reserves to the employer. If that law puts one of the costs listed in this proposal on the Employer, the Employer pays it and the proposal does not apply to that cost.`,
     },
   } as VisaRoute;
 }
@@ -313,7 +314,7 @@ export function recordBriefView(shareId: string): () => void {
 export type ReplyKind = 'interested' | 'more_info' | 'not_now' | 'accepted';
 
 export const REPLY_LABEL: Record<ReplyKind, string> = {
-  accepted: 'We accept these terms',
+  accepted: 'We accept in principle',
   interested: 'Interested — let’s talk',
   more_info: 'Need more information',
   not_now: 'Not right now',
@@ -436,11 +437,15 @@ export async function withdrawBrief(shareId: string): Promise<{ ok: boolean; err
 export function briefMessage(b: Pick<PublicBrief, 'job_title' | 'company_name' | 'country_code' | 'route_id' | 'candidate_name'>, url: string): string {
   const found = findRoute(b.country_code, b.route_id);
   const first = b.candidate_name.split(/\s+/)[0];
-  const effort = found?.route.employer && !found.route.employer.licenceNeeded ? ' It doesn’t need a sponsor licence on your side.' : '';
+  // Only a route we have checked is named; an unchecked country gets no route and no claim about it.
+  const checked = found && b.route_id !== GENERIC_ROUTE_ID ? found : null;
+  const where = found ? ` in ${found.guide.name}` : '';
   return [
     `Hi, I'm ${first} and I'm very interested in the ${b.job_title} role at ${b.company_name}.`,
-    `I've prepared a short Visa Plan on how hiring me would work${found ? ` in ${found.guide.name} through the ${found.route.name}` : ''}: the steps on your side and how I propose we share the visa costs.${effort}`,
+    `I would need visa sponsorship to work${where}, so I've prepared a short proposal to make that easy to discuss: ${
+      checked ? `the route that looks applicable (${checked.route.name}), the steps it usually involves on your side` : 'what would need confirming on your side'
+    } and how I suggest we share the costs. It marks clearly what is confirmed and what still needs your confirmation.`,
     url,
-    'Happy to answer any questions.',
+    'It is a starting point for a conversation, not a contract. Happy to answer any questions.',
   ].join('\n\n');
 }

@@ -126,8 +126,11 @@
   body:has(.offer-paper) * { visibility: hidden; }
   body:has(.offer-paper) .offer-paper,
   body:has(.offer-paper) .offer-paper * { visibility: visible; }
-  .offer-paper { font-size: 11pt; line-height: 1.55; }
+  .offer-paper { font-size: 10pt; line-height: 1.5; }
   .offer-paper a { color: inherit; text-decoration: none; }
   .offer-paper section { break-inside: avoid; }
+  /* Long tables (verification, costs) may run over a page; their rows never split. */
+  .offer-paper section.offer-flow { break-inside: auto; }
+  .offer-paper [data-row] { break-inside: avoid; }
   .offer-flash { animation: none; }
 }

@@ -40,7 +40,7 @@ export function EmployerReply({
   candidateName: string;
   candidateLinkedin: string | null;
   onSavePdf: () => void;
-  /** Offer "We accept these terms" (off when it is already confirmed, or the server can't record it yet). */
+  /** Offer "We accept in principle" (off when it is already accepted, or the server can't record it yet). */
   canAccept?: boolean;
   onAccepted?: () => void;
 }) {
@@ -105,7 +105,7 @@ export function EmployerReply({
           }}
           className="mt-3 block text-center text-[12px] font-semibold text-[#1D4ED8] hover:underline"
         >
-          Hiring here? See every Visa Plan sent to your company →
+          Hiring here? See every sponsorship proposal sent to your company →
         </a>
         {candidateLinkedin && (
           <a
@@ -124,7 +124,7 @@ export function EmployerReply({
   return (
     <div className="rounded-xl bg-white p-4 ring-1 ring-ink-200">
       <p className="text-[15px] font-bold text-ink-950">Reply to {first}</p>
-      <p className="mt-0.5 text-[13px] text-ink-600">{canAccept ? 'One click. Accepting confirms the terms; the other replies bind nothing.' : 'One click. Nothing is binding.'}</p>
+      <p className="mt-0.5 text-[13px] text-ink-600">{canAccept ? 'One click. This is a proposal: no reply here creates a contract.' : 'One click. Nothing here creates a contract.'}</p>
 
       {!kind ? (
         <div className="mt-3 space-y-2">
@@ -139,7 +139,8 @@ export function EmployerReply({
           <p className={`rounded-lg px-3 py-2 text-[13px] font-semibold ${kind === 'accepted' ? 'bg-emerald-50 text-emerald-800' : 'bg-[#1D4ED8]/[0.06] text-[#1D4ED8]'}`}>{REPLY_LABEL[kind]}</p>
           {kind === 'accepted' && (
             <p className="text-[12px] leading-5 text-ink-600">
-              The document will show “Confirmed by the Employer” with your name and today’s date, and {first} can no longer change it. It becomes binding when both parties sign.
+              The proposal will show “Accepted in principle by the employer” with your name and today’s date, and {first} can no longer change it. It tells {first} you are willing to go
+              ahead on this basis. It is not an employment contract: the terms count once they are in the employment contract or a signed agreement.
             </p>
           )}
           <input className={input} placeholder={kind === 'accepted' ? 'Your name' : 'Your name (optional)'} value={name} maxLength={80} onChange={(e) => setName(e.target.value)} autoComplete="name" />
