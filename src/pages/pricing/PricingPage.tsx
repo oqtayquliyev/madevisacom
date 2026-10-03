@@ -5,7 +5,9 @@ import { useSeo } from '@/lib/seo';
 import { WRAP, nav } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
 import { FREE_FEATURES, missingProfileFields, useMyPlan, type Billing, type PlanId } from '@/lib/plans';
-import { EMPLOYER_PRICES, FREE_DAILY_CHECKS, PLAN_USD, PRO_MONTHLY_DOCS, usePrices } from '@/lib/pricing';
+import { EMPLOYER_PRICES, FREE_DAILY_CHECKS, PLAN_RANGE, PLAN_USD, PRICE_EXAMPLES, priceRow, priceWithUsd, PRO_MONTHLY_DOCS, usePrices } from '@/lib/pricing';
+import { allCountries } from '@/data/allCountries';
+import { CircleFlag } from '@/components/common/CircleFlag';
 import { useCv } from '@/lib/cv/store';
 import { CvUpload } from '@/components/cv/CvUpload';
 import { BillingToggle, ProPlanCard } from '@/components/pro/ProPlanCard';
@@ -33,6 +35,81 @@ const COMPARE: { what: string; guest: string | boolean; free: string | boolean; 
   { what: 'Sponsorship documents', guest: false, free: false, pro: `${PRO_MONTHLY_DOCS} a month` },
 ];
 
+const nameOf = (code: string) => allCountries.find((c) => c.code === code)?.name ?? code;
+
+/**
+ * The price of Pro in every country, in the open: nobody has to sign up, or
+ * be in a particular country, to see what the plan costs anywhere.
+ */
+function PriceByCountry({ mine }: { mine: string | null }) {
+  const [picked, setPicked] = useState('');
+  const codes = [...new Set([...(mine ? [mine] : []), ...(picked ? [picked] : []), ...PRICE_EXAMPLES])];
+  const rows = codes.filter((c) => allCountries.some((x) => x.code === c)).map((c) => priceRow(c, nameOf(c)));
+  return (
+    <section id="prices" className="mt-12 scroll-mt-24" aria-labelledby="prices-title">
+      <h2 id="prices-title" className="text-2xl font-bold tracking-tight text-ink-950">
+        What MadeVisa Pro costs
+      </h2>
+      <p className="mt-1 max-w-3xl text-[15px] leading-6 text-ink-600">
+        <strong className="text-ink-900">
+          ${PLAN_RANGE.monthly.high} a month or ${PLAN_RANGE.yearly.high} a year
+        </strong>{' '}
+        in the highest-income countries. Where incomes are lower the price is lower, down to{' '}
+        <strong className="text-ink-900">
+          ${PLAN_RANGE.monthly.low} a month or ${PLAN_RANGE.yearly.low} a year
+        </strong>
+        . Prices are set in US dollars; where we show your currency, it is the same price rounded. The price for your country is shown above before you create an account, and again before you pay.
+      </p>
+      <div className="mt-4 overflow-x-auto rounded-2xl border border-ink-200 bg-white">
+        <table className="w-full min-w-[360px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-ink-200 text-xs font-bold uppercase tracking-wide text-ink-500">
+              <th scope="col" className="px-4 py-3 font-bold">
+                Country
+              </th>
+              <th scope="col" className="px-3 py-3 font-bold">
+                Monthly
+              </th>
+              <th scope="col" className="px-3 py-3 font-bold">
+                Yearly
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-ink-100">
+            {rows.map((r) => (
+              <tr key={r.code} data-price-row={r.code} className={r.code === mine ? 'bg-brand-50/60' : r.code === picked ? 'bg-amber-50/60' : ''}>
+                <th scope="row" className="px-4 py-2.5 font-medium text-ink-900">
+                  <span className="flex items-center gap-2">
+                    <CircleFlag countryCode={r.code} size={18} label="" />
+                    {r.name}
+                    {r.code === mine && <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold text-white">Your price</span>}
+                  </span>
+                </th>
+                <td className="px-3 py-2.5 tabular-nums text-ink-800">{priceWithUsd(r.monthly)}</td>
+                <td className="px-3 py-2.5 tabular-nums text-ink-800">{priceWithUsd(r.yearly)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-ink-700">
+        <span className="font-semibold">See the price in another country:</span>
+        <select value={picked} onChange={(e) => setPicked(e.target.value)} className="w-full min-w-0 max-w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 sm:w-auto sm:max-w-xs">
+          <option value="">Choose a country</option>
+          {allCountries.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="mt-2 text-xs leading-5 text-ink-500">
+        The table is for information: what you pay follows the country you are in when you subscribe. Pro is billed monthly or yearly. You can cancel any time, and it then stops at the end of the month or year you paid for.
+      </p>
+    </section>
+  );
+}
+
 export function PricingPage({ go, onAuth }: Props) {
   const { profile } = useAuth();
   const { isPro, sub } = useMyPlan();
@@ -42,7 +119,7 @@ export function PricingPage({ go, onAuth }: Props) {
 
   useSeo({
     title: 'Pricing — one plan: full CV match reports and sponsorship documents',
-    description: `Checking how well your CV matches a job is free. MadeVisa Pro adds the full report on every job and ${PRO_MONTHLY_DOCS} sponsorship documents a month — one plan, priced for your country in your currency.`,
+    description: `Checking how well your CV matches a job is free. MadeVisa Pro adds the full report on every job and ${PRO_MONTHLY_DOCS} sponsorship documents a month: $${PLAN_RANGE.monthly.high} a month or $${PLAN_RANGE.yearly.high} a year, less in lower-income countries (from $${PLAN_RANGE.monthly.low} a month).`,
     path: '/pricing',
   });
 
@@ -66,7 +143,7 @@ export function PricingPage({ go, onAuth }: Props) {
           <p className="text-sm font-semibold text-brand-700">Pricing</p>
           <h1 className="mx-auto mt-2 max-w-3xl text-3xl font-bold tracking-tight text-ink-950 sm:text-5xl">Check your match for free. One plan for everything else.</h1>
           <p className="mx-auto mt-4 max-w-2xl text-[16px] leading-7 text-ink-600">
-            Every job shows how well your CV fits it. Pro tells you exactly why, what to change, and adds the sponsorship document employers need to say yes to a visa.
+            Every job shows how well your CV fits it. Pro tells you exactly why, what to change, and adds the sponsorship document you send to an employer when the job needs a visa.
           </p>
         </div>
       </section>
@@ -124,6 +201,8 @@ export function PricingPage({ go, onAuth }: Props) {
 
           <ProPlanCard onAuth={onAuth} billing={billing} />
         </div>
+
+        <PriceByCountry mine={prices.country} />
 
         {/* What you see at each level */}
         <section className="mt-12" aria-labelledby="compare-title">

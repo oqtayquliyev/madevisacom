@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Check, Sparkles } from 'lucide-react';
 import { countryName } from '@/lib/visaFit';
 import { PRO_FEATURES, useMyPlan, type Billing } from '@/lib/plans';
-import { priceNote, priceRequestLabel, PRO_MONTHLY_DOCS, usePrices } from '@/lib/pricing';
+import { PLAN_RANGE, priceNote, priceRequestLabel, PRO_MONTHLY_DOCS, usePrices } from '@/lib/pricing';
 import { PlanRequestDialog } from '@/components/pro/PlanRequestDialog';
 
 type Cycle = Exclude<Billing, 'one_time'>;
@@ -45,12 +45,23 @@ export function ProPlanCard({ onAuth, billing: outer, compact = false }: { onAut
         <p className="text-lg font-bold text-ink-950">MadeVisa Pro</p>
         {!outer && <BillingToggle value={billing} onChange={setInner} saving={pro.saving} />}
       </div>
-      <p className="mt-2 text-4xl font-bold tracking-tight text-ink-950">
+      <p className="mt-2 text-4xl font-bold tracking-tight text-ink-950" data-pro-price>
         {price.label}
         <span className="text-base font-medium text-ink-500"> / {billing === 'monthly' ? 'month' : 'year'}</span>
       </p>
-      <p className="text-sm text-ink-500">{billing === 'yearly' ? `${pro.yearlyPerMonth.label} a month, billed yearly` : 'Cancel any time'}</p>
-      <p className="mt-1 text-xs text-ink-500">{priceNote(prices, countryName)}</p>
+      <p className="text-sm text-ink-500">
+        {price.local ? `${price.usdLabel} in US dollars · ` : ''}
+        {billing === 'yearly' ? `${pro.yearlyPerMonth.label} a month, billed yearly` : 'Cancel any time'}
+      </p>
+      <p className="mt-1 text-xs leading-5 text-ink-500">
+        {priceNote(prices, countryName)} Pro costs ${PLAN_RANGE.monthly.high} a month or ${PLAN_RANGE.yearly.high} a year in the highest-income countries and less elsewhere, down to $
+        {PLAN_RANGE.monthly.low} a month or ${PLAN_RANGE.yearly.low} a year.{' '}
+        {!compact && (
+          <a href="/pricing#prices" className="font-semibold text-brand-700 hover:underline">
+            Price in every country
+          </a>
+        )}
+      </p>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-800">Full CV match report on every job</p>
