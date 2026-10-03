@@ -255,6 +255,6 @@ export function useCv(): { cv: StoredCv | null; loading: boolean; hasCv: boolean
 /** "cv.pdf · 412 words · added 3 Oct". */
 export function cvSummary(cv: StoredCv): string {
   const date = new Date(cv.at);
-  const when = Number.isNaN(date.getTime()) ? '' : ` · added ${date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
+  const when = Number.isNaN(date.getTime()) ? '' : ` · added ${date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
   return `${cv.profile.words} words${when}`;
 }

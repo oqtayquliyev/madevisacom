@@ -224,7 +224,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                       handleNavClick(event, goToMyProfile)
                     }
                     title="Go to your profile"
-                    className="max-w-[5.5rem] origin-right truncate text-[14px] font-semibold text-ink-800 transition-[transform,color] duration-300 ease-out hover:text-[#2563EB] group-hover/acct:scale-[1.04] sm:max-w-[9rem] sm:text-[15px]"
+                    className="max-w-[5.5rem] origin-right truncate text-[14px] font-semibold text-ink-800 transition-[transform,color] duration-300 ease-out hover:text-[#2563EB] group-hover/acct:scale-[1.04] sm:max-w-[9rem] sm:text-[15px] md:max-lg:hidden"
                   >
                     {profile.full_name?.split(" ")[0] || "Profile"}
                   </a>

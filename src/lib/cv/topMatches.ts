@@ -55,10 +55,14 @@ export type TopMatch = {
   /** Skills the ad names, and how many of them the CV shows. */
   asked: number;
   covered: number;
+  /** Skills the ad names that the CV doesn't mention — required ones first (at most 8). */
+  missing: string[];
+  /** The score this job would get if the CV mentioned every skill the ad names. Never below `score`. */
+  potential: number;
 };
 export type TopResult = {
   /** Shape of the saved result; older ones are searched again. */
-  v: 2;
+  v: 3;
   cvAt: string;
   at: number;
   /** Ads read and scored. */
@@ -68,6 +72,8 @@ export type TopResult = {
   items: TopMatch[];
   /** The CV is in another language and couldn't be translated (guests). */
   cvForeign: boolean;
+  /** Things to fix on the CV itself — the same for every job (no dates, few numbers, no Skills section…). */
+  tips: string[];
 };
 
 export type Stage = 'jobs' | 'reading' | 'translating' | 'scoring';
@@ -91,7 +97,7 @@ function readSaved(cv: StoredCv | null): TopResult | null {
   if (!cv) return null;
   try {
     const v = JSON.parse(window.localStorage.getItem(KEY) ?? 'null') as TopResult | null;
-    if (v && v.v === 2 && v.cvAt === cv.at && Date.now() - v.at < TOP_TTL_MS && Array.isArray(v.items)) return v;
+    if (v && v.v === 3 && v.cvAt === cv.at && Date.now() - v.at < TOP_TTL_MS && Array.isArray(v.items)) return v;
   } catch {
     /* ignore */
   }
@@ -226,7 +232,7 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
     const me: EnglishCv = await cvInEnglish(cv, userId);
     const words = shortlistWords(me.profile);
     if (!words.title.length && !words.skill.length) {
-      const empty: TopResult = { v: 2, cvAt: cv.at, at: Date.now(), read: 0, pool: 0, items: [], cvForeign: me.state === 'foreign' };
+      const empty: TopResult = { v: 3, cvAt: cv.at, at: Date.now(), read: 0, pool: 0, items: [], cvForeign: me.state === 'foreign', tips: [] };
       writeSaved(empty);
       return set({ status: 'done', stage: null, progress: 1, result: empty });
     }
@@ -286,10 +292,14 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
     set({ stage: 'scoring', progress: 0.92 });
 
     const items: TopMatch[] = [];
+    let tips: string[] = [];
     for (const r of readable) {
       const ad = english.get(r.id)!;
       const job = parseJob({ title: ad.title, description: ad.description, department: r.job_function, experienceHint: r.experience_level || expHint.get(r.id) || null });
       const m = matchCv(me.profile, me.text, job);
+      if (!items.length) tips = m.health.filter((h) => !h.ok).map((h) => h.text);
+      // The same job, scored as if the CV mentioned every skill the ad names: how far the CV's wording alone can move it.
+      const full = m.skills.covered < m.skills.asked ? matchCv({ ...me.profile, skills: { ...me.profile.skills, ...Object.fromEntries(job.skills.map((s) => [s.id, Math.max(2, me.profile.skills[s.id] ?? 0)])) } }, me.text, job).score : m.score;
       const x = extra.get(r.id);
       items.push({
         id: r.id, title: r.title, company: r.company ?? 'Company', logo: r.logo_url, country: r.country, cc: r.cc, city: r.city, remote: r.remote,
@@ -299,10 +309,12 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
         visa: x?.visa_status ?? (x?.visa_sponsorship ? 'offered' : null),
         postedAt: x?.source_posted_at ?? x?.created_at ?? r.created_at ?? null,
         asked: m.skills.asked, covered: m.skills.covered,
+        missing: m.skills.missing.slice(0, 8).map((k) => k.name),
+        potential: Math.max(m.score, full),
       });
     }
     items.sort((a, b) => b.score - a.score);
-    const result: TopResult = { v: 2, cvAt: cv.at, at: Date.now(), read: readable.length, pool: pool.length, items: items.filter((x) => x.score >= MIN_SCORE).slice(0, KEEP), cvForeign: me.state === 'foreign' };
+    const result: TopResult = { v: 3, cvAt: cv.at, at: Date.now(), read: readable.length, pool: pool.length, items: items.filter((x) => x.score >= MIN_SCORE).slice(0, KEEP), cvForeign: me.state === 'foreign', tips };
     writeSaved(result);
     set({ status: 'done', stage: null, progress: 1, result });
   } catch (e) {
