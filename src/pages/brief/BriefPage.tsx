@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, Copy, Download, Link2, Loader2, Lock, Paperclip, Unlock } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Check, Copy, Download, Link2, Loader2, Lock, Paperclip, Unlock, X } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { useAuth } from '@/lib/auth';
@@ -60,6 +61,7 @@ import { allCountries } from '@/data/allCountries';
 import { nav } from '@/lib/pageLayout';
 import { EXPERIENCE_OPTIONS } from '@/lib/plans';
 import { usePersonalization } from '@/lib/personalization';
+import { ProPlanCard } from '@/components/pro/ProPlanCard';
 
 type Props = { shareId: string; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
@@ -174,6 +176,8 @@ function NewOffer({ go, onAuth }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // The plan and its price are shown at the moment someone asks for the download.
+  const [planOpen, setPlanOpen] = useState(false);
   // Starts on the recommended, balanced terms until the candidate changes them.
   const [useRec, setUseRec] = useState(true);
   const { profile: visitor } = usePersonalization();
@@ -286,16 +290,26 @@ function NewOffer({ go, onAuth }: Props) {
   };
 
   // Step 1: check, then show the final review. Step 2 (confirmed): pay and create.
+  const keepDraft = () => {
+    saveOfferDraft({ ed, name, headline, note, country, routeId, useRec, roleTitle });
+    rememberAuthIntent({ reason: 'offer', next: `${window.location.pathname}${window.location.search}` });
+  };
+  const fail = (message: string) => {
+    setError(message);
+    // The message sits by the button at the end of the side panel; bring it into view.
+    window.requestAnimationFrame(() => document.getElementById('offer-pay')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+  };
   const review = () => {
-    if (!session) {
-      saveOfferDraft({ ed, name, headline, note, country, routeId, useRec, roleTitle });
-      rememberAuthIntent({ reason: 'offer', next: `${window.location.pathname}${window.location.search}` });
-      return onAuth?.('register');
+    // No plan yet (or no account): this is the moment to show the price and what it covers.
+    if (!canPay && !credits?.pro) {
+      if (!session) keepDraft();
+      return setPlanOpen(true);
     }
-    if (!canPay) return nav('/pricing#pro');
-    if (!name.trim()) return setError('Add the name the employer should see.');
-    if (!job.title) return setError('Add the role you are applying for.');
-    if (!ed.employer.name.trim()) return setError('Add the company this document is for.');
+    // Pro, all of this month's documents used.
+    if (!canPay) return fail(`All ${PRO_MONTHLY_DOCS} documents for this month are used. They renew on the 1st.`);
+    if (!name.trim()) return fail('Add the name the employer should see.');
+    if (!job.title) return fail('Add the role you are applying for.');
+    if (!ed.employer.name.trim()) return fail('Add the company this document is for.');
     setError(null);
     setConfirming(true);
   };
@@ -348,6 +362,27 @@ function NewOffer({ go, onAuth }: Props) {
       go={go}
       onAuth={onAuth}
       panelFirstOnMobile
+      banner={
+        <div className="border-b border-emerald-200 bg-emerald-50">
+          <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center gap-x-4 gap-y-2.5 px-3 py-3 sm:px-6">
+            <span className="flex shrink-0 items-center gap-1.5">
+              {from && from !== el.code && (
+                <>
+                  <CircleFlag countryCode={from} size={24} label={from} />
+                  <ChevronRightIcon />
+                </>
+              )}
+              <CircleFlag countryCode={el.code} size={24} label={guide.name} />
+            </span>
+            <p className="min-w-0 flex-1 basis-56 text-[14px] leading-5 text-ink-800">
+              <strong className="text-ink-950">Your sponsorship document{ed.employer.name ? ` for ${ed.employer.name}` : ''} is ready.</strong> Review it, then download the PDF.
+            </p>
+            <button onClick={review} disabled={busy} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-5 py-2.5 text-[14px] font-bold text-white hover:bg-brand-800 disabled:opacity-60">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Download PDF
+            </button>
+          </div>
+        </div>
+      }
       paper={<OfferDocument doc={doc} terms={terms} guide={guide} route={route} code={el.code} locked />}
       panel={
         <>
@@ -445,6 +480,17 @@ function NewOffer({ go, onAuth }: Props) {
               onConfirm={() => void generate()}
             />
           )}
+          {planOpen && (
+            <PlanSheet
+              company={ed.employer.name}
+              signedIn={Boolean(session)}
+              onClose={() => setPlanOpen(false)}
+              onAuth={(page) => {
+                keepDraft();
+                onAuth?.(page);
+              }}
+            />
+          )}
         </>
       }
     />
@@ -531,7 +577,7 @@ function headlineFromProfile(p: { occupation?: string | null; specialization?: s
 /** Cost, balance and the one button: unlock + download. */
 function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { credits: OfferCredits | null; signedIn: boolean; usesPro: boolean; canPay: boolean; busy: boolean; error: string | null; onGo: () => void }) {
   return (
-    <div className="space-y-3">
+    <div id="offer-pay" className="space-y-3">
       <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-ink-200">
         <dl className="space-y-1.5 text-[14px]">
           <div className="flex justify-between">
@@ -563,14 +609,56 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
       </div>
       {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{error}</p>}
       <button onClick={onGo} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800 disabled:opacity-60">
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : canPay ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-        {!signedIn ? 'Create an account to continue' : canPay ? `Prepare & download${usesPro ? ' · Pro' : ''}` : credits?.pro ? 'All 50 used this month' : `Get Pro · ${PRO_MONTHLY_DOCS} documents a month`}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : canPay ? <Unlock className="h-4 w-4" /> : credits?.pro ? <Lock className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+        {canPay ? `Review & download${usesPro ? ' · Pro' : ''}` : credits?.pro ? `All ${PRO_MONTHLY_DOCS} used this month` : 'Download PDF'}
       </button>
       <div className="flex items-center justify-between text-[12px] text-ink-500">
         <span>You review everything before it’s counted. After that it’s final.</span>
         <OfferInfo />
       </div>
     </div>
+  );
+}
+
+/**
+ * Shown when someone without the plan asks for the download: the price for
+ * their country and everything the plan covers, right where they are.
+ */
+function PlanSheet({ company, signedIn, onClose, onAuth }: { company: string; signedIn: boolean; onClose: () => void; onAuth?: Props['onAuth'] }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  // On the page's top layer: the side panel it is opened from is sticky, which would keep it under the site header.
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-ink-950/50 sm:items-center sm:p-4 print:hidden" role="dialog" aria-modal="true" aria-labelledby="plan-sheet-title" onClick={onClose}>
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-ink-50 p-4 shadow-2xl sm:rounded-3xl sm:p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 id="plan-sheet-title" className="text-[20px] font-bold leading-snug tracking-tight text-ink-950">
+              Download your document{company ? ` for ${company}` : ''}
+            </h2>
+            <p className="mt-1 text-[13.5px] leading-5 text-ink-600">The PDF is part of MadeVisa Pro. Your document stays as you set it.</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="-mr-1 -mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-ink-100">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="mt-6">
+          <ProPlanCard onAuth={onAuth} />
+        </div>
+        {!signedIn && (
+          <p className="mt-4 text-center text-[13px] text-ink-600">
+            Already have Pro?{' '}
+            <button onClick={() => onAuth?.('login')} className="font-semibold text-[#1D4ED8] hover:underline">
+              Sign in
+            </button>
+          </p>
+        )}
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -739,11 +827,14 @@ function Desk({
   onAuth,
   paper,
   panel,
+  banner,
   loading,
   panelFirstOnMobile = false,
 }: {
   go: Props['go'];
   onAuth: Props['onAuth'];
+  /** A full-width line under the site header (not printed). */
+  banner?: ReactNode;
   paper?: ReactNode;
   panel?: ReactNode;
   loading?: boolean;
@@ -754,6 +845,7 @@ function Desk({
     <div className="min-h-screen bg-[#e9edf3] text-ink-900 print:bg-white">
       <div className="print:hidden">
         <LandingHeader go={go} onAuth={onAuth} />
+        {!loading && banner}
       </div>
       <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-3 py-6 sm:px-6 sm:py-10 lg:grid-cols-[minmax(0,1fr)_340px] print:block print:max-w-none print:p-0">
         <div className={`min-w-0 ${panelFirstOnMobile ? 'order-last lg:order-none' : ''}`}>

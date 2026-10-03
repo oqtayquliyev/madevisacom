@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
-import { ArrowRight, BadgeCheck, ChevronRight, Download, FileSignature, Languages, Lock, MapPin, PencilLine, Plane, RefreshCw, Sparkles, X } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Check, ChevronRight, Download, FileSignature, Languages, Lock, MapPin, PencilLine, Plane, RefreshCw, Sparkles, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { countryName, nav } from '@/lib/pageLayout';
@@ -8,7 +8,6 @@ import { briefEligibility, briefPath, fetchMyBriefs, newOfferPath } from '@/lib/
 import { isLocalJobFor } from '@/lib/visaFit';
 import { usePersonalization } from '@/lib/personalization';
 import { useMyPlan } from '@/lib/plans';
-import { PRO_MONTHLY_DOCS, usePrices } from '@/lib/pricing';
 import { useOutcomes } from '@/lib/cv/outcomes';
 import { MIN_SCORE, useTopMatches, type TopMatch, type TopResult, type TopState } from '@/lib/cv/topMatches';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -45,31 +44,47 @@ export const ENCOURAGEMENT = [
   'If you match most of an ad, apply. Waiting for a perfect match means never applying.',
 ];
 
-const STAGE_TEXT: Record<NonNullable<TopState['stage']>, string> = {
-  jobs: 'Finding jobs with titles like yours…',
-  reading: 'Reading the job ads…',
-  translating: 'Translating ads written in other languages…',
-  scoring: 'Comparing each one with your CV…',
+const STAGES: NonNullable<TopState['stage']>[] = ['jobs', 'reading', 'translating', 'scoring'];
+const STAGE_TEXT: Record<NonNullable<TopState['stage']>, [doing: string, done: string]> = {
+  jobs: ['Finding jobs with titles like yours', 'Jobs with titles like yours found'],
+  reading: ['Reading the job ads', 'Job ads read'],
+  translating: ['Translating ads in other languages', 'Ads translated'],
+  scoring: ['Comparing each one with your CV', 'Compared with your CV'],
 };
 
+/** The search, as a list that grows: each stage appears when it starts and gets its tick when it ends. */
 export function SearchProgress({ state }: { state: Pick<TopState, 'stage' | 'progress'> }) {
-  const [line, setLine] = useState(0);
+  const stage = state.stage ?? 'jobs';
+  const at = STAGES.indexOf(stage);
+  // Translation only shows if it actually happened.
+  const [translated, setTranslated] = useState(false);
   useEffect(() => {
-    const t = window.setInterval(() => setLine((n) => (n + 1) % ENCOURAGEMENT.length), 3600);
-    return () => window.clearInterval(t);
-  }, []);
+    if (stage === 'translating') setTranslated(true);
+  }, [stage]);
+  const rows = STAGES.filter((s, i) => i <= at && (s !== 'translating' || translated || stage === 'translating'));
+  const finished = stage === 'scoring' && state.progress >= 1;
   const pct = Math.round(Math.max(0.05, Math.min(1, state.progress)) * 100);
   return (
-    <section aria-live="polite" aria-busy="true" className="mx-auto max-w-2xl rounded-3xl bg-white px-6 py-10 text-center shadow-soft ring-1 ring-ink-200 sm:px-10 sm:py-12">
-      <span className="mx-auto block h-14 w-14 animate-spin rounded-full border-[5px] border-brand-100 border-t-brand-600" aria-hidden />
-      <h2 className="mt-5 text-[20px] font-bold tracking-tight text-ink-950">Looking for the jobs you match most</h2>
-      <p className="mt-1 text-[14px] text-ink-600">{STAGE_TEXT[state.stage ?? 'jobs']}</p>
-      <div className="mx-auto mt-5 h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-ink-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+    <section aria-live="polite" aria-busy="true" className="mx-auto max-w-md rounded-3xl bg-white px-6 py-8 shadow-soft ring-1 ring-ink-200 sm:px-8">
+      <h2 className="text-[19px] font-bold tracking-tight text-ink-950">Looking for the jobs you match most</h2>
+      <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-ink-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
         <div className="h-full rounded-full bg-brand-600 transition-[width] duration-500 ease-out" style={{ width: `${pct}%` }} />
       </div>
-      <p key={line} className="mx-auto mt-8 max-w-md animate-fade-in text-[15px] font-medium leading-6 text-ink-800">
-        “{ENCOURAGEMENT[line]}”
-      </p>
+      <ul className="mt-5 space-y-2.5">
+        <li className="flex items-center gap-2.5 text-[14px] text-ink-600">
+          <Check className="h-4 w-4 shrink-0 text-emerald-600" strokeWidth={3} /> CV read
+        </li>
+        {rows.map((s) => {
+          const done = STAGES.indexOf(s) < at || finished;
+          return (
+            <li key={s} className={`flex animate-fade-up items-center gap-2.5 text-[14px] motion-reduce:animate-none ${done ? 'text-ink-600' : 'font-semibold text-ink-950'}`}>
+              {done ? <Check className="h-4 w-4 shrink-0 text-emerald-600" strokeWidth={3} /> : <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-brand-100 border-t-brand-600" aria-hidden />}
+              {STAGE_TEXT[s][done ? 1 : 0]}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-6 border-t border-ink-100 pt-4 text-[13px] leading-5 text-ink-500">{ENCOURAGEMENT[0]}</p>
     </section>
   );
 }
@@ -113,16 +128,15 @@ function Logo({ m, size = 52 }: { m: TopMatch; size?: number }) {
   );
 }
 
-/** What the document strip says and does for this visitor. */
+/** Where the document button goes, and what it is called for this visitor. */
 type DocAction = {
-  /** Pro: the document is drafted on opening, so the strip says it is ready to review. */
+  /** Pro members read the whole document; everyone else sees a preview until they download. */
   pro: boolean;
-  /** Label for people without the plan. */
-  planLabel: string;
   /** Documents this person already made, by job id → share id. */
   made: Map<string, string>;
   go: (m: TopMatch) => void;
 };
+const docLabel = (m: TopMatch, doc: DocAction) => (doc.made.has(m.id) ? 'Open your PDF' : doc.pro ? 'Review & download' : 'Preview & download');
 
 /** Sponsorship documents this account already made (job id → share id). */
 function useMadeDocs(enabled: boolean): Map<string, string> {
@@ -152,69 +166,26 @@ function PlaceChip({ place, country }: { place: Place; country: string | null })
   if (place.kind === 'free') {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11.5px] font-bold text-emerald-800">
-        <BadgeCheck className="h-3 w-3" /> No visa needed for you
+        <BadgeCheck className="h-3 w-3" /> No visa needed
       </span>
     );
   }
   if (place.kind === 'abroad') {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2 py-0.5 text-[11.5px] font-semibold text-ink-700">
-        <Plane className="h-3 w-3" /> Abroad{country ? `: a work visa for ${country}` : ' for you'}
+        <Plane className="h-3 w-3" /> Work visa{country ? `: ${country}` : ''}
       </span>
     );
   }
   return null;
 }
 
-/** The strip under a job abroad: the visa, and the document that goes to the company. */
-function DocStrip({ m, doc, lead }: { m: TopMatch; doc: DocAction; lead: boolean }) {
-  const have = doc.made.has(m.id);
-  const label = have ? 'Open your PDF' : doc.pro ? 'Review & download PDF' : doc.planLabel;
-  return (
-    <div className={`flex border-t border-ink-100 bg-brand-50/50 px-4 sm:px-5 ${lead ? 'flex-col gap-3 py-3.5 sm:flex-row sm:items-center' : 'flex-wrap items-center gap-x-3 gap-y-2 py-2.5'}`}>
-      <p className={`min-w-0 flex-1 text-[13px] leading-5 text-ink-700 ${lead ? '' : 'basis-52'}`}>
-        <FileSignature className="mr-1 inline h-3.5 w-3.5 -translate-y-px text-brand-700" />
-        {have ? (
-          <>
-            <strong className="text-ink-950">Your document for {m.company} is saved.</strong>
-            {lead ? ' Download the PDF and send it with your CV.' : ''}
-          </>
-        ) : doc.pro ? (
-          <>
-            <strong className="text-ink-950">Your sponsorship document for {m.company} is ready to review.</strong>
-            {lead ? ` It is filled in with the visa route${m.country ? ` for ${m.country}` : ''}, their steps and who pays what. Check it, download the PDF, and send it with your CV.` : ''}
-          </>
-        ) : lead ? (
-          <>
-            <strong className="text-ink-950">You’d need a work visa here.</strong> Send {m.company} your sponsorship document with your CV: the visa route, their few steps, and who pays what.
-          </>
-        ) : (
-          <>
-            <strong className="text-ink-950">Visa needed.</strong> Your sponsorship document for {m.company}
-          </>
-        )}
-      </p>
-      <button
-        onClick={() => doc.go(m)}
-        className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full text-[13px] font-bold ${
-          lead || (doc.pro && !have) ? 'bg-brand-600 px-4 py-2 text-white hover:bg-brand-700' : 'px-3 py-1.5 text-brand-700 ring-1 ring-brand-200 hover:bg-white'
-        }`}
-      >
-        {(doc.pro || have) && <Download className="h-3.5 w-3.5" />}
-        {label}
-        {!doc.pro && !have && <ArrowRight className="h-3.5 w-3.5" />}
-      </button>
-    </div>
-  );
-}
-
-/** One match, as a card: logo, title, place, pay, the score — and, for a job abroad, the document that goes with it. */
-function MatchCard({ m, place, doc, lead = false }: { m: TopMatch; place: Place; doc: DocAction; lead?: boolean }) {
+/** One match: logo, title, place, pay, score — and one line for the document when the job is abroad. */
+function MatchCard({ m, place, doc }: { m: TopMatch; place: Place; doc: DocAction }) {
   const href = hrefOf(m);
   const tone = toneFor(m.score);
-  const share = m.asked > 0 ? Math.round((100 * m.covered) / m.asked) : null;
   return (
-    <article className={`group overflow-hidden rounded-2xl bg-white transition hover:shadow-soft-lg ${lead ? 'ring-2 ring-brand-600' : 'ring-1 ring-ink-200 hover:ring-brand-300'}`}>
+    <article className="group overflow-hidden rounded-2xl bg-white ring-1 ring-ink-200 transition hover:shadow-soft-lg hover:ring-brand-300">
       <a href={href} onClick={go(href)} className="block p-4 sm:p-5">
         <div className="flex items-start gap-3.5">
           <Logo m={m} />
@@ -227,37 +198,38 @@ function MatchCard({ m, place, doc, lead = false }: { m: TopMatch; place: Place;
                 {where(m) || 'Location on the ad'}
               </span>
               {m.remote && <span className="font-semibold text-emerald-700">Remote</span>}
+              {m.salary && <span className="font-slab font-bold text-ink-950">{m.salary}</span>}
             </p>
-            {m.salary && <p className="mt-1.5 font-slab text-[16px] font-bold leading-snug text-ink-950">{m.salary}</p>}
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+              <PlaceChip place={place} country={m.country} />
+              {m.visa === 'offered' && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11.5px] font-bold text-brand-800">Sponsors visas</span>}
+              {m.visa === 'not_offered' && place.kind === 'abroad' && <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11.5px] font-semibold text-ink-600">No sponsorship</span>}
+              <JobAgeBadge iso={m.postedAt} />
+              {m.translated && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-ink-400" title="Compared in its English translation">
+                  <Languages className="h-3 w-3" /> translated
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex shrink-0 flex-col items-center gap-1">
-            <MatchRing score={m.score} size={64} />
+            <MatchRing score={m.score} size={60} />
             <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${tone.bg} ${tone.text}`}>{m.label}</span>
           </div>
         </div>
-
-        <div className="mt-3.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-          <PlaceChip place={place} country={m.country} />
-          {m.visa === 'offered' && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11.5px] font-bold text-brand-800">The ad says it sponsors visas</span>}
-          {m.visa === 'not_offered' && place.kind === 'abroad' && <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11.5px] font-semibold text-ink-600">The ad says no visa sponsorship</span>}
-          <JobAgeBadge iso={m.postedAt} />
-          {share != null && (
-            <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-600">
-              <span className="h-1.5 w-14 overflow-hidden rounded-full bg-ink-100" aria-hidden>
-                <span className="block h-full rounded-full bg-ink-700" style={{ width: `${share}%` }} />
-              </span>
-              {m.covered} of {m.asked} skills in your CV
-            </span>
-          )}
-          {m.translated && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-ink-400">
-              <Languages className="h-3 w-3" /> compared in English translation
-            </span>
-          )}
-        </div>
       </a>
 
-      {place.doc && <DocStrip m={m} doc={doc} lead={lead} />}
+      {place.doc && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-ink-100 bg-brand-50/50 px-4 py-2.5 sm:px-5">
+          <p className="min-w-0 flex-1 basis-44 text-[13px] font-semibold leading-5 text-ink-900">
+            <FileSignature className="mr-1 inline h-3.5 w-3.5 -translate-y-px text-brand-700" />
+            {doc.made.has(m.id) ? 'Sponsorship document saved' : 'Sponsorship document ready'}
+          </p>
+          <button onClick={() => doc.go(m)} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-bold text-brand-700 ring-1 ring-brand-200 hover:bg-white">
+            <Download className="h-3.5 w-3.5" /> {docLabel(m, doc)}
+          </button>
+        </div>
+      )}
     </article>
   );
 }
@@ -274,7 +246,6 @@ function LockedRows({ scores, onAuth, next }: { scores: number[]; onAuth?: OnAut
     ['48%', '56%'],
     ['70%', '38%'],
     ['54%', '47%'],
-    ['66%', '41%'],
   ];
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white ring-1 ring-ink-200">
@@ -291,16 +262,13 @@ function LockedRows({ scores, onAuth, next }: { scores: number[]; onAuth?: OnAut
         ))}
       </div>
       {/* In front, in the normal flow: the box is always as tall as this card plus its padding, so nothing is cut. */}
-      <div className="relative grid place-items-center bg-white/55 px-4 py-7 sm:py-9">
+      <div className="relative grid place-items-center bg-white/55 px-4 py-6">
         <div className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-lg ring-1 ring-ink-200">
-          <span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-brand-50 text-brand-700">
-            <Lock className="h-5 w-5" />
-          </span>
-          <p className="mt-3 text-[16px] font-bold leading-snug text-ink-950">
-            {count} more {count === 1 ? 'job matches' : 'jobs match'} your CV
+          <p className="flex items-center justify-center gap-2 text-[16px] font-bold leading-snug text-ink-950">
+            <Lock className="h-4 w-4 text-brand-700" />
+            {count} more {count === 1 ? 'match' : 'matches'}
           </p>
-          <p className="mt-1 text-[13px] leading-5 text-ink-600">Create a free account to see all of them. Your CV is saved with it, so you won’t upload it again.</p>
-          <button onClick={() => signUp('register')} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-[14px] font-bold text-white hover:bg-brand-700">
+          <button onClick={() => signUp('register')} className="mt-3.5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-[14px] font-bold text-white hover:bg-brand-700">
             Create free account <ArrowRight className="h-4 w-4" />
           </button>
           <button onClick={() => signUp('login')} className="mt-2 text-[13px] font-semibold text-brand-700 hover:underline">
@@ -319,126 +287,169 @@ export function tiers(items: TopMatch[]) {
   return { strong, good, partial: items.length - strong - good, best: items[0]?.score ?? 0 };
 }
 
-/**
- * Under this best score the page leads with how to raise it. 70% sits in the
- * lower half of "Good match" (65–79): the job is worth applying to, but the CV
- * is leaving points on the table — usually skills it doesn't name.
- */
+/** Under this best score the page also lists the fixes to the CV itself. */
 export const WEAK_BELOW = 70;
-/** How many missing skills are named without the plan. */
-const FREE_MISSING = 3;
+/** A reachable score is only worth a headline when it is this many points above today's. */
+const WORTH_SAYING = 5;
 
-/** Skills the matched ads ask for that the CV doesn't mention, most asked-for first. */
-function missingAcross(items: TopMatch[]): { name: string; jobs: number }[] {
-  const n = new Map<string, number>();
-  for (const m of items) for (const s of m.missing ?? []) n.set(s, (n.get(s) ?? 0) + 1);
-  return [...n].map(([name, jobs]) => ({ name, jobs })).sort((a, b) => b.jobs - a.jobs || a.name.localeCompare(b.name));
+/**
+ * Counts 0 → n, one step every `gap` ms, so a new result builds up in front of
+ * the visitor instead of landing as a wall. A saved result (or a visitor who
+ * asked for less motion) gets everything at once.
+ */
+function useReveal(n: number, fresh: boolean, gap = 450): number {
+  const still = !fresh || (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  // The first step is there from the start, so the card is never an empty frame.
+  const [step, setStep] = useState(still ? n : 1);
+  useEffect(() => {
+    if (still) return setStep(n);
+    setStep(1);
+    const t = window.setInterval(() => setStep((s) => (s >= n ? s : s + 1)), gap);
+    return () => window.clearInterval(t);
+  }, [n, still, gap]);
+  return step;
 }
+const shown = (on: boolean) => `transition duration-500 ease-out motion-reduce:transition-none ${on ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'}`;
 
-/** A number with what it counts — text in ink, no colour doing the talking. */
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="rounded-2xl bg-white px-4 py-3.5 ring-1 ring-ink-200">
-      <dd className="text-[26px] font-bold leading-none tracking-tight tabular-nums text-ink-950">{value}</dd>
-      <dt className="mt-1.5 text-[12.5px] leading-4 text-ink-600">{label}</dt>
-    </div>
-  );
+/** A number that counts up to its value once `run` turns true. */
+function useCount(to: number, run: boolean, from = 0, ms = 650): number {
+  const [v, setV] = useState(run ? to : from);
+  useEffect(() => {
+    if (!run) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return setV(to);
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / ms);
+      setV(Math.round(from + (to - from) * k));
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [to, run, from, ms]);
+  return v;
 }
 
 /**
- * Shown when the best match is under WEAK_BELOW: what the CV doesn't say yet,
- * and the score the best job would get if it did. The reachable score is the
- * same engine run again with the ad's skills present — a score, not a promise.
+ * The best job as three steps: where the CV stands, what to add, and what to
+ * send. Step 2's number is the same score engine run again with the ad's
+ * skills in the CV — a match score, never a chance of being hired.
  */
-function ImproveBlock({ lead, missing, tips, isPro, planLabel }: { lead: TopMatch; missing: { name: string; jobs: number }[]; tips: string[]; isPro: boolean; planLabel: string }) {
-  const gain = lead.potential - lead.score;
-  const open = isPro ? missing.slice(0, 12) : missing.slice(0, FREE_MISSING);
-  const locked = missing.length - open.length;
-  const leadMissing = lead.missing?.length ?? 0;
+function Roadmap({ lead, place, doc, from, step, fresh }: { lead: TopMatch; place: Place; doc: DocAction; from: string | null; step: number; fresh: boolean }) {
+  const outcomes = useOutcomes();
   const href = hrefOf(lead);
+  const gain = lead.potential - lead.score;
+  const missing = lead.missing ?? [];
+  const now = useCount(lead.score, step >= 1, fresh ? 0 : lead.score);
+  const reach = useCount(lead.potential, step >= 2, fresh ? lead.score : lead.potential);
+  const fromName = from ? countryName(from) : null;
+  const n = (i: number) => (
+    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-ink-950 text-[12px] font-bold tabular-nums text-white" aria-hidden>
+      {i}
+    </span>
+  );
   return (
-    <section aria-labelledby="improve-title" className="mt-6 overflow-hidden rounded-2xl bg-white ring-1 ring-ink-200">
-      <div className="px-4 pt-5 sm:px-6">
-        <h3 id="improve-title" className="text-[19px] font-bold leading-snug tracking-tight text-ink-950">
-          {gain >= 5 ? `Your CV can score higher than ${lead.score}%` : 'Make your CV say more of what these ads ask for'}
-        </h3>
-        <p className="mt-1 max-w-2xl text-[13.5px] leading-6 text-ink-600">
-          The score compares the words in your CV with the words in each ad. Most of the gap is usually something you have done but haven’t written down.
-        </p>
+    <div className="mt-6 overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-ink-200">
+      <a href={href} onClick={go(href)} className="group flex items-center gap-3.5 px-4 pt-4 sm:px-6 sm:pt-5">
+        <Logo m={lead} size={48} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-xs font-semibold text-ink-500">{lead.company}</span>
+          <span className="block break-words font-title text-[17px] font-bold leading-snug text-ink-950 [overflow-wrap:anywhere] group-hover:text-brand-700 sm:text-lg">{lead.title}</span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-2.5 text-[13px] text-ink-600">
+            <span className="flex items-center gap-1.5">
+              {lead.cc && <CircleFlag countryCode={lead.cc} label={lead.country ?? undefined} size={15} />}
+              {where(lead) || 'Location on the ad'}
+            </span>
+            {lead.salary && <span className="font-slab font-bold text-ink-950">{lead.salary}</span>}
+          </span>
+        </span>
+      </a>
+
+      {/* One track: today's score, then how far the CV's wording can take it. */}
+      <div className="mx-4 mt-4 flex h-2 overflow-hidden rounded-full bg-ink-100 sm:mx-6" role="img" aria-label={gain >= WORTH_SAYING ? `${lead.score}% today, up to ${lead.potential}%` : `${lead.score}% match`}>
+        <span className="h-full bg-ink-800 transition-[width] duration-700 ease-out motion-reduce:transition-none" style={{ width: `${step >= 1 ? lead.score : 0}%` }} />
+        {gain > 0 && <span className="h-full border-l-2 border-white bg-brand-500 transition-[width] duration-700 ease-out motion-reduce:transition-none" style={{ width: `${step >= 2 ? gain : 0}%` }} />}
       </div>
 
-      {gain >= 5 && (
-        <div className="mx-4 mt-4 rounded-xl bg-ink-50 px-4 py-3.5 sm:mx-6">
-          <div className="flex flex-col gap-2 text-ink-950 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
-            <p className="min-w-0 text-[13px] leading-5 text-ink-700">
-              <span className="block font-semibold text-ink-950">{lead.title}</span>
-              {lead.company}
-            </p>
-            <p className="shrink-0 whitespace-nowrap tabular-nums sm:text-right">
-              <span className="text-[15px] font-semibold text-ink-600">{lead.score}% now</span>
-              <span className="mx-1.5 text-ink-400" aria-hidden>
-                →
-              </span>
-              <span className="text-[22px] font-bold leading-none">up to {lead.potential}%</span>
-            </p>
+      <ol className="mt-1 grid gap-px bg-ink-100 sm:grid-cols-3">
+        <li className="bg-white px-4 py-4 sm:px-6 sm:py-5">
+          <div className={shown(step >= 1)}>
+          <p className="flex items-center gap-2 text-[13px] font-bold text-ink-950">{n(1)} Today</p>
+          <p className="mt-2.5 text-[34px] font-bold leading-none tracking-tight tabular-nums text-ink-950">{now}%</p>
+          <p className="mt-1 text-[13px] text-ink-600">your match with this job</p>
           </div>
-          <div className="mt-2.5 flex h-2.5 overflow-hidden rounded-full bg-white ring-1 ring-ink-200" role="img" aria-label={`${lead.score}% now, up to ${lead.potential}% if your CV mentions the skills the ad names`}>
-            <span className="h-full bg-ink-700" style={{ width: `${lead.score}%` }} />
-            <span className="h-full border-l-2 border-white bg-brand-500" style={{ width: `${gain}%` }} />
-          </div>
-          <p className="mt-2 text-[12px] leading-5 text-ink-600">
-            {leadMissing === 1 ? 'The ad names 1 skill' : `The ad names ${leadMissing} skills`} your CV doesn’t mention. With {leadMissing === 1 ? 'it' : 'them'} in your CV, this job scores {lead.potential}%. Add only what is true for you.
-          </p>
-        </div>
-      )}
+        </li>
 
-      <div className="grid gap-x-8 gap-y-5 px-4 py-5 sm:grid-cols-2 sm:px-6">
-        {missing.length > 0 && (
-          <div className="min-w-0">
-            <p className="text-[13px] font-bold text-ink-950">Skills these ads ask for that your CV doesn’t mention</p>
-            <ul className="mt-2.5 space-y-1.5">
-              {open.map((s) => (
-                <li key={s.name} className="flex items-baseline justify-between gap-3 text-[13.5px]">
-                  <span className="min-w-0 break-words font-semibold text-ink-900">{s.name}</span>
-                  <span className="shrink-0 text-[12px] tabular-nums text-ink-500">
-                    {s.jobs} {s.jobs === 1 ? 'job' : 'jobs'}
-                  </span>
-                </li>
-              ))}
-              {locked > 0 && (
-                <li className="flex items-center gap-2 rounded-lg bg-ink-50 px-2.5 py-2 text-[12.5px] leading-4 text-ink-700">
-                  <Lock className="h-3.5 w-3.5 shrink-0 text-ink-500" />
-                  {locked} more {locked === 1 ? 'skill is' : 'skills are'} named in the full report
-                </li>
+        <li className="bg-white px-4 py-4 sm:px-6 sm:py-5">
+          <div className={shown(step >= 2)}>
+          <p className="flex items-center gap-2 text-[13px] font-bold text-ink-950">{n(2)} Add to your CV</p>
+          {gain >= WORTH_SAYING && missing.length > 0 ? (
+            <>
+              <p className="mt-2.5 text-[34px] font-bold leading-none tracking-tight tabular-nums text-brand-700">
+                <span className="text-[15px] font-semibold text-ink-600">up to </span>
+                {reach}%
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-1.5">
+                {missing.slice(0, 4).map((s) => (
+                  <li key={s} className="rounded-full bg-brand-50 px-2 py-0.5 text-[12px] font-semibold text-brand-800">
+                    {s}
+                  </li>
+                ))}
+                {missing.length > 4 && <li className="px-1 py-0.5 text-[12px] text-ink-500">+{missing.length - 4}</li>}
+              </ul>
+              <p className="mt-1.5 text-[11.5px] leading-4 text-ink-500">Only the ones you really have.</p>
+            </>
+          ) : (
+            <p className="mt-2.5 flex items-start gap-1.5 text-[14px] leading-5 text-ink-700">
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" strokeWidth={3} /> Your CV already names what this ad asks for.
+            </p>
+          )}
+          </div>
+        </li>
+
+        <li className="bg-white px-4 py-4 sm:px-6 sm:py-5">
+          <div className={shown(step >= 3)}>
+          {place.doc ? (
+            <>
+              <p className="flex items-center gap-2 text-[13px] font-bold text-ink-950">{n(3)} Send your document</p>
+              <p className="mt-2.5 flex items-center gap-2 text-[13px] font-semibold text-ink-800">
+                {from && from !== lead.cc && (
+                  <>
+                    <CircleFlag countryCode={from} label={fromName ?? from} size={24} />
+                    <ArrowRight className="h-4 w-4 text-ink-400" aria-label="to" />
+                  </>
+                )}
+                {lead.cc && <CircleFlag countryCode={lead.cc} label={lead.country ?? undefined} size={24} />}
+                <span className="min-w-0 truncate">{lead.country}</span>
+              </p>
+              <p className="mt-2 text-[13px] leading-5 text-ink-600">
+                Your sponsorship document for {lead.company} is {doc.made.has(lead.id) ? 'saved' : 'ready'}.
+              </p>
+              <button onClick={() => doc.go(lead)} className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-brand-600 px-4 py-2.5 text-[13.5px] font-bold text-white hover:bg-brand-700">
+                <Download className="h-4 w-4" /> {docLabel(lead, doc)}
+              </button>
+              {outcomes && (
+                <p className="mt-2 text-[11.5px] leading-4 text-ink-500">
+                  {Math.round((100 * outcomes.opened) / outcomes.made)}% of the {outcomes.made.toLocaleString('en')} documents made on MadeVisa were opened by the employer.
+                </p>
               )}
-            </ul>
+            </>
+          ) : (
+            <>
+              <p className="flex items-center gap-2 text-[13px] font-bold text-ink-950">{n(3)} Apply</p>
+              <p className="mt-2.5 flex items-center gap-2 text-[14px] font-semibold text-ink-800">
+                {lead.cc && <CircleFlag countryCode={lead.cc} label={lead.country ?? undefined} size={24} />}
+                {place.kind === 'here' ? 'In your country' : place.kind === 'free' ? 'No visa needed' : lead.country}
+              </p>
+              <a href={href} onClick={go(href)} className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-brand-600 px-4 py-2.5 text-[13.5px] font-bold text-white hover:bg-brand-700">
+                Open the job <ArrowRight className="h-4 w-4" />
+              </a>
+            </>
+          )}
           </div>
-        )}
-        {tips.length > 0 && (
-          <div className="min-w-0">
-            <p className="text-[13px] font-bold text-ink-950">Fixes to the CV itself</p>
-            <ul className="mt-2.5 space-y-2">
-              {tips.slice(0, 4).map((t) => (
-                <li key={t} className="flex gap-2 text-[13px] leading-5 text-ink-700">
-                  <PencilLine className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-500" /> {t}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-3 border-t border-ink-100 bg-ink-50/60 px-4 py-3.5 sm:flex-row sm:items-center sm:px-6">
-        <p className="min-w-0 flex-1 text-[13px] leading-5 text-ink-700">
-          {isPro
-            ? 'Your full report lists every missing skill and the exact lines to change, job by job. Upload the new CV here and every job is scored again.'
-            : 'The full report names every missing skill and the exact lines to change, job by job. Upload the improved CV and every job is scored again.'}
-        </p>
-        <button onClick={() => nav(isPro ? href : '/pricing#pro')} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-ink-950 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-ink-800">
-          {isPro ? 'Open the full report' : `Full report · ${planLabel}`} <ArrowRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
-    </section>
+        </li>
+      </ol>
+    </div>
   );
 }
 
@@ -447,7 +458,6 @@ type Filter = 'all' | 'here' | 'sponsor';
 export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult; onAuth?: OnAuth; onAgain?: () => void }) {
   const { session } = useAuth();
   const { isPro } = useMyPlan();
-  const prices = usePrices();
   const visitor = useVisitor();
   const made = useMadeDocs(Boolean(session));
   const [all, setAll] = useState(false);
@@ -455,36 +465,27 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
   const items = result.items;
   const t = tiers(items);
   const guest = !session;
+  // A result that has just been worked out builds up step by step; a saved one is simply there.
+  const fresh = useMemo(() => Date.now() - result.at < 20_000, [result.at]);
+  const step = useReveal(9, fresh);
 
-  // Everything below is counted from the visitor's own matches — nothing is estimated.
   const facts = useMemo(() => {
     const places = new Map(items.map((m) => [m.id, placeOf(m, visitor)]));
-    const good = items.filter((m) => m.score >= 65);
-    const asked = good.reduce((n, m) => n + m.asked, 0);
-    const covered = good.reduce((n, m) => n + m.covered, 0);
-    const paid = good.filter((m) => m.payUsdYear).sort((a, b) => a.payUsdYear! - b.payUsdYear!);
     return {
       places,
       here: items.filter((m) => ['here', 'free'].includes(places.get(m.id)!.kind)).length,
-      abroad: items.filter((m) => places.get(m.id)!.doc).length,
       sponsor: items.filter((m) => m.visa === 'offered').length,
-      fresh: items.filter((m) => daysOld(m) <= 7).length,
       countries: new Set(items.map((m) => m.cc).filter(Boolean)).size,
-      skills: asked >= 5 ? Math.round((100 * covered) / asked) : null,
-      lowestPay: paid[0] ?? null,
-      missing: missingAcross(items),
     };
   }, [items, visitor]);
 
-  const planLabel = `${prices.pro.monthly.label} a month`;
+  // The document page is open to everyone: it shows the document, and asks for the plan at download.
   const doc: DocAction = {
     pro: isPro,
-    planLabel: `In Pro · ${planLabel}`,
     made,
     go: (m) => {
       const share = made.get(m.id);
-      if (share) return nav(briefPath(share));
-      nav(isPro ? `${newOfferPath(m.id)}${m.cc ? `&country=${m.cc}` : ''}` : '/pricing#pro');
+      nav(share ? briefPath(share) : `${newOfferPath(m.id)}${m.cc ? `&country=${m.cc}` : ''}`);
     },
   };
 
@@ -529,6 +530,7 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
       return rank(b) - rank(a);
     })[0] ?? items[0];
   const leadPlace = facts.places.get(lead.id)!;
+  const canReach = lead.potential - lead.score >= WORTH_SAYING && (lead.missing ?? []).length > 0;
 
   const pool = filter === 'here' ? items.filter((m) => ['here', 'free'].includes(facts.places.get(m.id)!.kind)) : filter === 'sponsor' ? items.filter((m) => m.visa === 'offered') : items;
   const rest = pool.filter((m) => m.id !== lead.id || filter !== 'all');
@@ -536,27 +538,17 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
   const visible = guest ? rest.slice(0, GUEST_VISIBLE - 1) : all ? rest : rest.slice(0, 11);
   const hiddenRows = rest.slice(visible.length);
   const hidden = hiddenRows.length;
-  const place = visitor.currentLocation ? countryName(visitor.currentLocation) : null;
-  const tips = result.tips ?? [];
-  const weak = t.best < WEAK_BELOW && (facts.missing.length > 0 || tips.length > 0);
-
-  const stats: [string, string][] = [];
-  if (t.strong > 0) stats.push([String(t.strong), `${t.strong === 1 ? 'job' : 'jobs'} you match at 80% or more`]);
-  else stats.push([`${t.best}%`, 'your best match']);
-  if (facts.skills != null) stats.push([`${facts.skills}%`, 'of the skills these ads name are already in your CV']);
-  if (facts.here > 0) stats.push([String(facts.here), `${facts.here === 1 ? 'is' : 'are'} ${place ? `in ${place} or` : ''} open to you without a visa`.replace(/\s+/g, ' ')]);
-  else if (facts.countries > 1) stats.push([String(facts.countries), 'countries your matches are in']);
-  if (facts.sponsor > 0) stats.push([String(facts.sponsor), `${facts.sponsor === 1 ? 'ad says' : 'ads say'} the company sponsors visas`]);
-  else if (facts.fresh > 0) stats.push([String(facts.fresh), `${facts.fresh === 1 ? 'was' : 'were'} posted in the last 7 days`]);
+  const tips = t.best < WEAK_BELOW ? result.tips ?? [] : [];
 
   return (
     <section aria-labelledby="top-title" className="mx-auto max-w-3xl">
-      <div className="text-center">
-        <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-bold text-emerald-800">
-          <Sparkles className="h-3.5 w-3.5" /> Your matches
-        </p>
-        <h2 id="top-title" className="mt-3 text-balance text-[26px] font-bold leading-tight tracking-tight text-ink-950 [word-spacing:0.08em] sm:text-[32px]">
-          {t.strong > 0 ? (
+      <div className={`text-center ${shown(step >= 0)}`}>
+        <h2 id="top-title" className="text-balance text-[26px] font-bold leading-tight tracking-tight text-ink-950 [word-spacing:0.08em] sm:text-[34px]">
+          {canReach ? (
+            <>
+              You’re at {lead.score}%. Your CV can reach <span className="whitespace-nowrap text-brand-700">{lead.potential}%</span>.
+            </>
+          ) : t.strong > 0 ? (
             <>
               You match{' '}
               <span className="whitespace-nowrap text-emerald-700">
@@ -564,61 +556,45 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
               </span>{' '}
               at 80% or more
             </>
-          ) : t.good > 0 ? (
-            <>
-              You match{' '}
-              <span className="whitespace-nowrap text-brand-700">
-                {t.good}&nbsp;{t.good === 1 ? 'job' : 'jobs'}
-              </span>{' '}
-              at 65% or more
-            </>
           ) : (
-            <>Your {items.length} closest {items.length === 1 ? 'job' : 'jobs'}</>
+            <>Your best match is {t.best}%</>
           )}
         </h2>
         <p className="mx-auto mt-2 max-w-xl text-[14px] leading-6 text-ink-600">
-          {t.strong > 0 && t.good > 0 ? `and ${t.good} more at 65–79%. ` : ''}
-          Best match: <strong className="text-ink-950">{t.best}%</strong>. {ENCOURAGEMENT[1]}
+          {items.length} {items.length === 1 ? 'job matches' : 'jobs match'} your CV
+          {facts.countries > 1 ? `, in ${facts.countries} countries` : ''}. Start with this one.
         </p>
       </div>
-
-      <dl className={`mt-6 grid grid-cols-2 gap-3 ${stats.length >= 4 ? 'sm:grid-cols-4' : stats.length === 3 ? 'sm:grid-cols-3' : ''}`}>
-        {stats.map(([value, label]) => (
-          <Stat key={label} value={value} label={label} />
-        ))}
-      </dl>
 
       {result.cvForeign && (
-        <p className="mx-auto mt-4 max-w-xl rounded-lg bg-amber-50 px-3 py-2 text-center text-[13px] leading-5 text-amber-900">Your CV isn’t in English, so it was compared as it is. With a free account it is translated for matching, which is more accurate.</p>
+        <p className="mx-auto mt-4 max-w-xl rounded-lg bg-amber-50 px-3 py-2 text-center text-[13px] leading-5 text-amber-900">Your CV isn’t in English, so it was compared as it is. A free account translates it for a closer match.</p>
       )}
 
-      {/* Where to start */}
-      <div className="mt-8">
-        <p className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] font-bold text-brand-700">
-          <span className="inline-flex items-center gap-1.5">
-            <Sparkles className="h-4 w-4" /> Start with this one
-          </span>
-          <span className="font-normal text-ink-500">
-            {[
-              lead.score === t.best ? 'your best match' : `${lead.score}% match`,
-              daysOld(lead) <= 14 ? 'posted recently' : null,
-              leadPlace.kind === 'here' ? 'in your country' : leadPlace.kind === 'free' ? 'no visa needed' : null,
-            ]
-              .filter(Boolean)
-              .join(', ')}
-          </span>
-        </p>
-        <MatchCard m={lead} place={leadPlace} doc={doc} lead />
-      </div>
+      <Roadmap lead={lead} place={leadPlace} doc={doc} from={visitor.currentLocation} step={step} fresh={fresh} />
 
-      {weak && <ImproveBlock lead={lead} missing={facts.missing} tips={tips} isPro={isPro} planLabel={planLabel} />}
+      {tips.length > 0 && (
+        <details className={`group mt-3 rounded-2xl bg-white ring-1 ring-ink-200 ${shown(step >= 4)}`}>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[14px] font-bold text-ink-950 sm:px-6 [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-2">
+              <PencilLine className="h-4 w-4 text-ink-500" /> {tips.length} {tips.length === 1 ? 'fix' : 'fixes'} to your CV
+            </span>
+            <ChevronRight className="h-4 w-4 text-ink-400 transition group-open:rotate-90" />
+          </summary>
+          <ul className="space-y-1.5 border-t border-ink-100 px-4 py-3 sm:px-6">
+            {tips.map((x) => (
+              <li key={x} className="text-[13px] leading-5 text-ink-700">
+                {x}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
-      {/* The rest */}
       {items.length > 1 && (
         <>
-          <div className="mt-8 flex flex-wrap items-center justify-between gap-2">
+          <div className={`mt-8 flex flex-wrap items-center justify-between gap-2 ${shown(step >= 4)}`}>
             <h3 className="text-[16px] font-bold text-ink-950">
-              {filter === 'all' ? `Your other ${items.length - 1} ${items.length - 1 === 1 ? 'match' : 'matches'}` : `${pool.length} ${pool.length === 1 ? 'match' : 'matches'}`}
+              {filter === 'all' ? `${items.length - 1} more ${items.length - 1 === 1 ? 'match' : 'matches'}` : `${pool.length} ${pool.length === 1 ? 'match' : 'matches'}`}
             </h3>
             {!guest && (facts.here > 0 || facts.sponsor > 0) && (
               <div className="flex flex-wrap gap-1 rounded-full bg-ink-100 p-1 text-[12.5px] font-semibold" role="tablist" aria-label="Show">
@@ -639,10 +615,16 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
             )}
           </div>
           <div className="mt-3 space-y-3">
-            {visible.map((m) => (
-              <MatchCard key={m.id} m={m} place={facts.places.get(m.id)!} doc={doc} />
+            {visible.map((m, i) => (
+              <div key={m.id} className={shown(step >= 5 + Math.min(i, 3))}>
+                <MatchCard m={m} place={facts.places.get(m.id)!} doc={doc} />
+              </div>
             ))}
-            {guest && hidden > 0 && <LockedRows scores={hiddenRows.map((m) => m.score)} onAuth={onAuth} next="/cv-match" />}
+            {guest && hidden > 0 && (
+              <div className={shown(step >= 6)}>
+                <LockedRows scores={hiddenRows.map((m) => m.score)} onAuth={onAuth} next="/cv-match" />
+              </div>
+            )}
           </div>
         </>
       )}
@@ -650,146 +632,20 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
       {!guest && hidden > 0 && (
         <div className="mt-3 text-center">
           <button onClick={() => setAll(true)} className="rounded-full px-4 py-2 text-[13px] font-bold text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50">
-            Show all {rest.length} matches
+            Show all {rest.length}
           </button>
         </div>
       )}
 
-      <p className="mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[12px] text-ink-500">
-        <span>
-          We read the {result.read} ads closest to your CV{result.pool > result.read ? `, out of ${result.pool} with titles like yours` : ''}. Kept for 24 hours.
-        </span>
+      <p className={`mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[12px] text-ink-500 ${shown(step >= 6)}`}>
+        <span>From the {result.read} ads closest to your CV.</span>
         {onAgain && !guest && (
           <button onClick={onAgain} className="inline-flex items-center gap-1 font-semibold text-brand-700 hover:underline">
             <RefreshCw className="h-3 w-3" /> Search again
           </button>
         )}
       </p>
-
-      {!isPro && <PlanPitch total={items.length} abroad={facts.abroad} lowestPay={facts.lowestPay} lead={lead} toAdd={facts.missing.length + tips.length} />}
     </section>
-  );
-}
-
-/**
- * The plan as a receipt: what one month's price covers for THIS visitor,
- * line by line, with the amount to pay today at the bottom. Quantities are
- * counted from their matches. The "results so far" line appears only when
- * MadeVisa's own records hold enough documents to give real shares.
- */
-function PlanPitch({ total, abroad, lowestPay, lead, toAdd }: { total: number; abroad: number; lowestPay: TopMatch | null; lead: TopMatch; toAdd: number }) {
-  const prices = usePrices();
-  const outcomes = useOutcomes();
-  const pro = prices.pro;
-  const monthPay = lowestPay?.payUsdYear ? lowestPay.payUsdYear / 12 : null;
-  const pct = monthPay ? (100 * pro.monthly.usd) / monthPay : null;
-  const share = (n: number) => Math.round((100 * n) / (outcomes?.made || 1));
-
-  const lines: { qty: string; name: string; text: string }[] = [
-    {
-      qty: String(total),
-      name: total === 1 ? 'full match report' : 'full match reports',
-      text: 'One for every job you match: where each point of the score comes from, and the lines to change in your CV before you apply.',
-    },
-    abroad > 0
-      ? {
-          qty: String(abroad),
-          name: abroad === 1 ? 'sponsorship document' : 'sponsorship documents',
-          text: `One for each match that needs a work visa, as a PDF to send with your CV: the visa route, the employer’s steps and who pays what. The plan allows ${PRO_MONTHLY_DOCS} a month.`,
-        }
-      : {
-          qty: String(PRO_MONTHLY_DOCS),
-          name: 'sponsorship documents a month',
-          text: 'For any job abroad you apply to, as a PDF to send with your CV: the visa route, the employer’s steps and who pays what.',
-        },
-    ...(toAdd > 0
-      ? [
-          {
-            qty: String(toAdd),
-            name: toAdd === 1 ? 'thing to add to your CV, named' : 'things to add to your CV, named',
-            text: 'Every skill these ads ask for that your CV doesn’t mention, and the fixes to the CV itself. Upload the new version and each job is scored again.',
-          },
-        ]
-      : []),
-    {
-      qty: 'No limit',
-      name: 'on missing-skills checks',
-      text: 'On any job on MadeVisa. Without the plan it is 3 jobs a day.',
-    },
-  ];
-
-  return (
-    <aside aria-labelledby="pitch-title" className="mt-10 overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-ink-200">
-      <div className="px-5 pt-6 sm:px-8 sm:pt-8">
-        <p className="text-[13px] font-bold text-brand-700">MadeVisa Pro</p>
-        <h3 id="pitch-title" className="mt-1 text-balance text-[24px] font-bold leading-tight tracking-tight text-ink-950 sm:text-[28px]">
-          What {pro.monthly.label} covers this month
-        </h3>
-        <p className="mt-1.5 max-w-xl text-[14px] leading-6 text-ink-600">
-          Start today with <strong className="font-semibold text-ink-950">{lead.title}</strong> at {lead.company}, your {lead.score}% match.
-        </p>
-      </div>
-
-      <dl className="mt-5 px-5 sm:px-8">
-        {lines.map((l) => (
-          <div key={l.name} className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-x-3 border-t border-dashed border-ink-200 py-3.5 sm:grid-cols-[6.5rem_minmax(0,1fr)] sm:gap-x-5">
-            <dt className={`font-bold leading-none tracking-tight tabular-nums text-ink-950 ${/^\d+$/.test(l.qty) ? 'text-[30px] sm:text-[34px]' : 'pt-1 text-[15px] leading-5 sm:text-[17px]'}`}>{l.qty}</dt>
-            <dd className="min-w-0">
-              <p className="text-[15px] font-bold leading-snug text-ink-950">{l.name}</p>
-              <p className="mt-0.5 text-[13px] leading-5 text-ink-600">{l.text}</p>
-            </dd>
-          </div>
-        ))}
-      </dl>
-
-      {outcomes && (
-        <div className="mx-5 mb-5 rounded-xl bg-ink-50 px-4 py-3.5 sm:mx-8">
-          <p className="text-[13px] font-bold text-ink-950">How sponsorship documents have done so far</p>
-          <dl className="mt-2 flex flex-wrap gap-x-7 gap-y-2">
-            <div>
-              <dd className="text-[20px] font-bold leading-none tabular-nums text-ink-950">{share(outcomes.opened)}%</dd>
-              <dt className="mt-1 text-[12px] text-ink-600">opened by the employer</dt>
-            </div>
-            <div>
-              <dd className="text-[20px] font-bold leading-none tabular-nums text-ink-950">{share(outcomes.replied)}%</dd>
-              <dt className="mt-1 text-[12px] text-ink-600">got a reply</dt>
-            </div>
-            {outcomes.interview > 0 && (
-              <div>
-                <dd className="text-[20px] font-bold leading-none tabular-nums text-ink-950">{outcomes.interview}</dd>
-                <dt className="mt-1 text-[12px] text-ink-600">led to an interview</dt>
-              </div>
-            )}
-          </dl>
-          <p className="mt-2 text-[11.5px] leading-4 text-ink-500">
-            Counted from all {outcomes.made.toLocaleString('en')} documents made on MadeVisa at least a week ago. Past results, not a promise about yours.
-          </p>
-        </div>
-      )}
-
-      <div className="bg-ink-950 px-5 py-5 text-white sm:px-8 sm:py-6">
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
-          <div>
-            <p className="text-[13px] text-white/70">To pay today</p>
-            <p className="mt-0.5 text-[36px] font-bold leading-none tracking-tight tabular-nums">{pro.monthly.label}</p>
-            <p className="mt-1.5 text-[13px] text-white/70">for one month</p>
-          </div>
-          <button onClick={() => nav('/pricing#pro')} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-7 py-3.5 text-[15px] font-bold text-ink-950 hover:bg-brand-50 sm:w-auto">
-            Get Pro <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
-        <ul className="mt-4 space-y-1 border-t border-white/15 pt-3.5 text-[12.5px] leading-5 text-white/75">
-          <li>Cancel any time; it stops at the end of the month.</li>
-          <li>Full refund within 14 days if you haven’t used a sponsorship document.</li>
-          <li>Or {pro.yearlyPerMonth.label} a month when billed yearly.</li>
-          {lowestPay && pct != null && (
-            <li>
-              For scale: the lowest pay shown among your matches is {lowestPay.salary} ({lowestPay.company}). One month of Pro is {pct < 1 ? 'less than 1%' : `about ${Math.round(pct)}%`} of one month of that pay.
-            </li>
-          )}
-        </ul>
-      </div>
-    </aside>
   );
 }
 
