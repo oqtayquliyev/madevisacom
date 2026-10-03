@@ -17,8 +17,7 @@ import { slugify } from '../src/lib/jobUrl';
 import { legalPages } from '../src/data/legalContent';
 import { infoPages } from '../src/data/infoContent';
 import { visaGuides } from '../src/data/visa';
-import { allCountries } from '../src/data/allCountries';
-import { PLAN_RANGE, PRICE_EXAMPLES, priceRow, priceWithUsd, PRO_MONTHLY_DOCS } from '../src/lib/planPrice';
+import { PLAN_RANGE, PRO_MONTHLY_DOCS } from '../src/lib/planPrice';
 
 export const config = { runtime: 'edge' };
 
@@ -532,13 +531,20 @@ async function staticPage(slug: string): Promise<Page | null> {
   }
 
   if (slug === 'pricing') {
-    // The price is printed here, in the page itself, so nobody has to run the app, sign up or be in a
-    // particular country to see what the plan costs. Same numbers as the app: src/lib/planPrice.ts.
+    // The list price is printed here, in the page itself, so nobody has to run the app or sign up to
+    // see what the plan costs. Same numbers as the app: src/lib/planPrice.ts. Regional prices are
+    // not listed country by country (that would be a guide to the cheapest VPN location); each
+    // visitor sees their own price on the page.
     const R = PLAN_RANGE;
-    const first = new Set<string>(PRICE_EXAMPLES);
-    const named = allCountries.map((c) => priceRow(c.code, c.name));
-    const order = [...PRICE_EXAMPLES.map((code) => named.find((r) => r.code === code)).filter((r): r is NonNullable<typeof r> => Boolean(r)), ...named.filter((r) => !first.has(r.code))];
-    const desc = `Checking how well your CV matches a job is free. MadeVisa Pro adds the full report on every job and ${PRO_MONTHLY_DOCS} sponsorship documents a month: $${R.monthly.high} a month or $${R.yearly.high} a year, less in lower-income countries (from $${R.monthly.low} a month).`;
+    const desc = `Checking how well your CV matches a job is free. MadeVisa Pro adds the full report on every job and ${PRO_MONTHLY_DOCS} sponsorship documents a month: $${R.monthly.high} a month or $${R.yearly.high} a year, with lower regional prices in lower-income countries.`;
+    const offer = (name: string, price: number, unit: 'MON' | 'ANN') => ({
+      '@type': 'Offer',
+      name,
+      price,
+      priceCurrency: 'USD',
+      url: `${SITE}/pricing`,
+      priceSpecification: { '@type': 'UnitPriceSpecification', price, priceCurrency: 'USD', billingDuration: 1, unitCode: unit },
+    });
     return {
       title: 'Pricing — one plan: full CV match reports and sponsorship documents',
       description: desc,
@@ -551,20 +557,15 @@ async function staticPage(slug: string): Promise<Page | null> {
           name: 'MadeVisa Pro',
           description: `Subscription for job seekers: the full CV match report on every job and ${PRO_MONTHLY_DOCS} sponsorship documents a month. Billed monthly or yearly.`,
           brand: { '@type': 'Brand', name: 'MadeVisa' },
-          offers: [
-            { '@type': 'AggregateOffer', name: 'MadeVisa Pro, monthly', priceCurrency: 'USD', lowPrice: R.monthly.low, highPrice: R.monthly.high, offerCount: order.length, url: `${SITE}/pricing` },
-            { '@type': 'AggregateOffer', name: 'MadeVisa Pro, yearly', priceCurrency: 'USD', lowPrice: R.yearly.low, highPrice: R.yearly.high, offerCount: order.length, url: `${SITE}/pricing` },
-          ],
+          offers: [offer('MadeVisa Pro, monthly', R.monthly.high, 'MON'), offer('MadeVisa Pro, yearly', R.yearly.high, 'ANN')],
         },
       ],
       body:
         '<h1>Pricing</h1><p>Every job, reply rate and visa route on MadeVisa is free, and so is the match score between your CV and any job. With a free account you also see the skills missing from your CV on 3 jobs a day.</p>' +
         `<h2>MadeVisa Pro: $${R.monthly.high} a month or $${R.yearly.high} a year</h2>` +
-        `<p>That is the price in the highest-income countries, for example the United States, the United Kingdom and Germany. Where incomes are lower the price is lower, down to $${R.monthly.low} a month or $${R.yearly.low} a year. The price for each country is in the table below. Prices are set in US dollars; where a local currency is shown, it is the same price rounded.</p>` +
-        `<p>Pro is one plan, billed monthly or yearly. It includes the full CV match report on every job, ${PRO_MONTHLY_DOCS} sponsorship documents a month, instant job alerts, full company response data and the companies that sponsor visas. You see the price for your country on this page before you create an account, and again before you pay. You can cancel any time, and it then stops at the end of the month or year you paid for.</p>` +
-        `<h2>Pro price by country</h2><table><thead><tr><th>Country</th><th>Monthly</th><th>Yearly</th></tr></thead><tbody>${order
-          .map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(priceWithUsd(r.monthly))} a month</td><td>${esc(priceWithUsd(r.yearly))} a year</td></tr>`)
-          .join('')}</tbody></table>` +
+        `<p>Pro is one plan, billed monthly or yearly: $${R.monthly.high} a month, or $${R.yearly.high} a year. It includes the full CV match report on every job, ${PRO_MONTHLY_DOCS} sponsorship documents a month, instant job alerts, full company response data and the companies that sponsor visas.</p>` +
+        '<p>Prices are set in US dollars. In countries where incomes are lower, a regional price applies; it follows the country you live in and pay from. The price for your country is shown on this page, in your currency where we can, before you create an account, and again before you pay.</p>' +
+        '<p>You can cancel any time, and Pro then stops at the end of the month or year you paid for.</p>' +
         '<h2>For employers</h2><p>Sponsored jobs ($149 for 30 days), featured placement in social posts, employer plans and Hiring Briefs.</p>' +
         footerLinks(),
       maxAge: 3600,

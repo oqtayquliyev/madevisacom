@@ -183,22 +183,8 @@ export function money(usd: number, country: string | null | undefined): Money {
 /** The yearly price in USD that goes with a monthly price. */
 export const yearlyUsd = (monthly: number) => Math.round(monthly * YEARLY_MONTHS);
 
-/** Lowest and highest price, monthly and yearly, in USD. */
+/** Lowest and highest price, monthly and yearly, in USD. Only the highest (the list price) is printed in public. */
 export const PLAN_RANGE = {
   monthly: { low: PLAN_USD.floor, high: PLAN_USD.top },
   yearly: { low: yearlyUsd(PLAN_USD.floor), high: yearlyUsd(PLAN_USD.top) },
 } as const;
-
-export type PriceRow = { code: string; name: string; monthly: Money; yearly: Money };
-
-/** The plan's price in one country, as shown to someone there. */
-export function priceRow(code: string, name: string): PriceRow {
-  const usd = planUsd(code);
-  return { code, name, monthly: money(usd, code), yearly: money(yearlyUsd(usd), code) };
-}
-
-/** Countries shown first on the pricing page: a spread of regions and price levels. */
-export const PRICE_EXAMPLES = ['US', 'GB', 'DE', 'CA', 'AE', 'PL', 'TR', 'AZ', 'BR', 'IN', 'PH', 'NG'] as const;
-
-/** "$9" or, where the price is shown in local currency, "AZN 15 ($9)". */
-export const priceWithUsd = (m: Money) => (m.local ? `${m.label} (${m.usdLabel})` : m.usdLabel);

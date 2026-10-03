@@ -5,9 +5,8 @@ import { useSeo } from '@/lib/seo';
 import { WRAP, nav } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
 import { FREE_FEATURES, missingProfileFields, useMyPlan, type Billing, type PlanId } from '@/lib/plans';
-import { EMPLOYER_PRICES, FREE_DAILY_CHECKS, PLAN_RANGE, PLAN_USD, PRICE_EXAMPLES, priceRow, priceWithUsd, PRO_MONTHLY_DOCS, usePrices } from '@/lib/pricing';
-import { allCountries } from '@/data/allCountries';
-import { CircleFlag } from '@/components/common/CircleFlag';
+import { EMPLOYER_PRICES, FREE_DAILY_CHECKS, PLAN_RANGE, PLAN_USD, PRO_MONTHLY_DOCS, usePrices, type Money, type Prices } from '@/lib/pricing';
+import { countryName } from '@/lib/visaFit';
 import { useCv } from '@/lib/cv/store';
 import { CvUpload } from '@/components/cv/CvUpload';
 import { BillingToggle, ProPlanCard } from '@/components/pro/ProPlanCard';
@@ -35,76 +34,40 @@ const COMPARE: { what: string; guest: string | boolean; free: string | boolean; 
   { what: 'Sponsorship documents', guest: false, free: false, pro: `${PRO_MONTHLY_DOCS} a month` },
 ];
 
-const nameOf = (code: string) => allCountries.find((c) => c.code === code)?.name ?? code;
-
 /**
- * The price of Pro in every country, in the open: nobody has to sign up, or
- * be in a particular country, to see what the plan costs anywhere.
+ * What Pro costs, in plain words and without an account: the list price, and
+ * the price for the visitor's own country. Deliberately NOT a table of every
+ * country: a public list of the cheapest countries is an invitation to pick
+ * one with a VPN. Each visitor sees the list price and their own.
  */
-function PriceByCountry({ mine }: { mine: string | null }) {
-  const [picked, setPicked] = useState('');
-  const codes = [...new Set([...(mine ? [mine] : []), ...(picked ? [picked] : []), ...PRICE_EXAMPLES])];
-  const rows = codes.filter((c) => allCountries.some((x) => x.code === c)).map((c) => priceRow(c, nameOf(c)));
+function ProPrice({ prices }: { prices: Prices }) {
+  const pro = prices.pro;
+  const place = prices.country ? countryName(prices.country) ?? prices.country : null;
+  const usd = (m: Money) => (m.local ? ` (${m.usdLabel})` : '');
   return (
-    <section id="prices" className="mt-12 scroll-mt-24" aria-labelledby="prices-title">
-      <h2 id="prices-title" className="text-2xl font-bold tracking-tight text-ink-950">
+    <section id="prices" className="mt-12 scroll-mt-24 rounded-2xl border border-ink-200 bg-white p-6" aria-labelledby="prices-title">
+      <h2 id="prices-title" className="text-lg font-bold text-ink-950">
         What MadeVisa Pro costs
       </h2>
-      <p className="mt-1 max-w-3xl text-[15px] leading-6 text-ink-600">
-        <strong className="text-ink-900">
-          ${PLAN_RANGE.monthly.high} a month or ${PLAN_RANGE.yearly.high} a year
-        </strong>{' '}
-        in the highest-income countries. Where incomes are lower the price is lower, down to{' '}
-        <strong className="text-ink-900">
-          ${PLAN_RANGE.monthly.low} a month or ${PLAN_RANGE.yearly.low} a year
-        </strong>
-        . Prices are set in US dollars; where we show your currency, it is the same price rounded. The price for your country is shown above before you create an account, and again before you pay.
-      </p>
-      <div className="mt-4 overflow-x-auto rounded-2xl border border-ink-200 bg-white">
-        <table className="w-full min-w-[360px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-ink-200 text-xs font-bold uppercase tracking-wide text-ink-500">
-              <th scope="col" className="px-4 py-3 font-bold">
-                Country
-              </th>
-              <th scope="col" className="px-3 py-3 font-bold">
-                Monthly
-              </th>
-              <th scope="col" className="px-3 py-3 font-bold">
-                Yearly
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-ink-100">
-            {rows.map((r) => (
-              <tr key={r.code} data-price-row={r.code} className={r.code === mine ? 'bg-brand-50/60' : r.code === picked ? 'bg-amber-50/60' : ''}>
-                <th scope="row" className="px-4 py-2.5 font-medium text-ink-900">
-                  <span className="flex items-center gap-2">
-                    <CircleFlag countryCode={r.code} size={18} label="" />
-                    {r.name}
-                    {r.code === mine && <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold text-white">Your price</span>}
-                  </span>
-                </th>
-                <td className="px-3 py-2.5 tabular-nums text-ink-800">{priceWithUsd(r.monthly)}</td>
-                <td className="px-3 py-2.5 tabular-nums text-ink-800">{priceWithUsd(r.yearly)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-ink-700">
-        <span className="font-semibold">See the price in another country:</span>
-        <select value={picked} onChange={(e) => setPicked(e.target.value)} className="w-full min-w-0 max-w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 sm:w-auto sm:max-w-xs">
-          <option value="">Choose a country</option>
-          {allCountries.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p className="mt-2 text-xs leading-5 text-ink-500">
-        The table is for information: what you pay follows the country you are in when you subscribe. Pro is billed monthly or yearly. You can cancel any time, and it then stops at the end of the month or year you paid for.
+      <dl className="mt-3 grid gap-4 sm:grid-cols-2">
+        <div>
+          <dt className="text-sm font-semibold text-ink-500">List price</dt>
+          <dd className="mt-0.5 text-[17px] font-bold text-ink-950">
+            ${PLAN_RANGE.monthly.high} a month or ${PLAN_RANGE.yearly.high} a year
+          </dd>
+        </div>
+        <div data-my-price>
+          <dt className="text-sm font-semibold text-ink-500">{place ? `Your price in ${place}` : 'Your price'}</dt>
+          <dd className="mt-0.5 text-[17px] font-bold text-ink-950">
+            {pro.monthly.label}
+            {usd(pro.monthly)} a month or {pro.yearly.label}
+            {usd(pro.yearly)} a year
+          </dd>
+        </div>
+      </dl>
+      <p className="mt-3 max-w-3xl text-sm leading-6 text-ink-600">
+        Prices are set in US dollars. In countries where incomes are lower, a regional price applies; it follows the country you live in and pay from, and is confirmed at payment. Pro is billed
+        monthly or yearly. You can cancel any time, and it then stops at the end of the month or year you paid for.
       </p>
     </section>
   );
@@ -119,7 +82,7 @@ export function PricingPage({ go, onAuth }: Props) {
 
   useSeo({
     title: 'Pricing — one plan: full CV match reports and sponsorship documents',
-    description: `Checking how well your CV matches a job is free. MadeVisa Pro adds the full report on every job and ${PRO_MONTHLY_DOCS} sponsorship documents a month: $${PLAN_RANGE.monthly.high} a month or $${PLAN_RANGE.yearly.high} a year, less in lower-income countries (from $${PLAN_RANGE.monthly.low} a month).`,
+    description: `Checking how well your CV matches a job is free. MadeVisa Pro adds the full report on every job and ${PRO_MONTHLY_DOCS} sponsorship documents a month: $${PLAN_RANGE.monthly.high} a month or $${PLAN_RANGE.yearly.high} a year, with lower regional prices in lower-income countries.`,
     path: '/pricing',
   });
 
@@ -202,7 +165,7 @@ export function PricingPage({ go, onAuth }: Props) {
           <ProPlanCard onAuth={onAuth} billing={billing} />
         </div>
 
-        <PriceByCountry mine={prices.country} />
+        <ProPrice prices={prices} />
 
         {/* What you see at each level */}
         <section className="mt-12" aria-labelledby="compare-title">
@@ -290,7 +253,7 @@ export function PricingPage({ go, onAuth }: Props) {
                 { q: 'Who can see my CV?', a: 'You, and MadeVisa staff when they need it to run or support the service — for example to fix a problem with your account or to improve how CVs are read. It is never sent or shown to employers: you apply on the employer’s own site, with your own file. Until you create an account your CV stays in your browser. You can replace or delete it in your profile at any time.' },
                 { q: 'What is the sponsorship document, and is it legally binding?', a: 'It is a proposal you send to an employer when a job needs a visa: the route that may apply, what it usually asks of the employer, and who you suggest pays each cost. Every line shows its source and whether it is known, your proposal, or still needs confirmation. It is not a contract, a job offer or a visa guarantee: its terms count only once you and the employer put them into the employment contract or a signed agreement. It never moves costs the law puts on the employer, never touches salary, and isn’t legal advice.' },
                 { q: 'Can I buy one document without the plan?', a: `No — documents are part of Pro, ${PRO_MONTHLY_DOCS} each calendar month, which is cheaper than they were one by one. Credits you bought or earned before this change are still yours and still work.` },
-                { q: 'Why is the price different in my country?', a: `The price follows what people earn where you live: ${prices.m(PLAN_USD.top).usdLabel} a month in the highest-income countries, less everywhere else, down to ${prices.m(PLAN_USD.floor).usdLabel}. We read your country from your internet connection and show the price in your currency when we can (otherwise in US dollars). Pro is exactly the same in every country.` },
+                { q: 'Why is the price different in my country?', a: `The list price is ${prices.m(PLAN_USD.top).usdLabel} a month. Where incomes are lower, a regional price applies, so the plan stays affordable there. It follows the country you live in and pay from, which we read from your internet connection and confirm at payment, and it is shown in your currency when we can (otherwise in US dollars). Pro is exactly the same in every country.` },
                 { q: 'How do I pay?', a: 'Choose monthly or yearly and send the short form. We email you a secure payment link within one working day, and Pro starts as soon as it’s paid. No card is needed to send the request.' },
                 { q: 'Can I cancel? Can I get a refund?', a: 'Yes. Monthly stops at the end of the month, yearly at the end of the year — email hello@madevisa.com. Within 14 days of first starting Pro, if you haven’t used any Pro documents, you get a full refund — see the Sponsorship Document Terms.' },
                 { q: 'Does paying change Company Scores?', a: 'Never. Scores and reply rates are calculated the same way for every company — see our Advertising Policy.' },

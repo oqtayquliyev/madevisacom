@@ -54,13 +54,8 @@ export function ProPlanCard({ onAuth, billing: outer, compact = false }: { onAut
         {billing === 'yearly' ? `${pro.yearlyPerMonth.label} a month, billed yearly` : 'Cancel any time'}
       </p>
       <p className="mt-1 text-xs leading-5 text-ink-500">
-        {priceNote(prices, countryName)} Pro costs ${PLAN_RANGE.monthly.high} a month or ${PLAN_RANGE.yearly.high} a year in the highest-income countries and less elsewhere, down to $
-        {PLAN_RANGE.monthly.low} a month or ${PLAN_RANGE.yearly.low} a year.{' '}
-        {!compact && (
-          <a href="/pricing#prices" className="font-semibold text-brand-700 hover:underline">
-            Price in every country
-          </a>
-        )}
+        {priceNote(prices, countryName)}
+        {prices.reduced ? ` List price $${PLAN_RANGE.monthly.high} a month or $${PLAN_RANGE.yearly.high} a year.` : ''}
       </p>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
