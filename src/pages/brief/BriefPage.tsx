@@ -426,9 +426,9 @@ function NewOffer({ go, onAuth }: Props) {
           <h1 className="mt-4 text-[24px] font-bold leading-tight tracking-tight text-ink-950">First, your full name</h1>
           <label className="mt-4 block">
             <span className="text-[13px] font-semibold text-ink-800">As in your passport</span>
-            <input id="offer-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoComplete="name" placeholder="e.g. Aysel Rashad qizi Mammadova" className={`${INPUT} py-3 text-[16px]`} />
+            <input id="offer-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoComplete="name" placeholder="First name, middle name, family name" className={`${INPUT} py-3 text-[16px]`} />
           </label>
-          <p className="mt-2 text-[12.5px] leading-5 text-ink-500">Include your father’s name if your passport shows it. The company sees exactly this name on the document.</p>
+          <p className="mt-2 text-[12.5px] leading-5 text-ink-500">Include your middle name if your passport shows one. The company sees exactly this name on the document.</p>
           {name.trim() && !good && <p className="mt-2 text-[12.5px] font-semibold text-amber-700">Add your family name too.</p>}
           <button type="submit" disabled={!good} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800 disabled:opacity-50">
             Continue
@@ -508,7 +508,7 @@ function NewOffer({ go, onAuth }: Props) {
           <label className="block">
             <span className="text-[13px] font-semibold text-ink-800">Full name, as in your passport</span>
             <input id="offer-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoComplete="name" className={`${INPUT} ${hasFullName(name) ? '' : 'border-rose-300'}`} />
-            <span className="mt-1 block text-[12px] leading-4 text-ink-500">With your father’s name if your passport shows it.</span>
+            <span className="mt-1 block text-[12px] leading-4 text-ink-500">With your middle name if your passport shows one.</span>
           </label>
           <label className="block">
             <span className="text-[13px] font-semibold text-ink-800">Role and experience</span>
