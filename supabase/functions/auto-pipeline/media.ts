@@ -1,10 +1,12 @@
-// The media library — real photos and video clips behind posts and reels.
+// The media library — real photos and video clips of the countries MadeVisa
+// posts about, used everywhere a picture is needed: the photo that opens a
+// post, the footage behind a reel, the cover of a blog article.
 //
-//   { cron: "media" }  → runMedia(): for each country MadeVisa posts about
-//   (and "ZZ" = any country: people at work, interviews, airports), look up
-//   upright photos and clips on a free stock site and save them in
-//   `social_media` (migration 20261127090000) with the photographer's name
-//   and the page they came from.
+//   { cron: "media" }  → runMedia(): for every main destination, look up
+//   upright photos, wide photos and clips on a free stock site and save
+//   them in `social_media` (migration 20261127090000) with the
+//   photographer's name and the page they came from. Then give every blog
+//   article without a cover one of the wide photos.
 //
 //   Two sources, whichever key is set as a secret on this function:
 //     PIXABAY_API_KEY  Pixabay (pixabay.com/api/docs — the key is shown there
@@ -15,8 +17,14 @@
 //     PEXELS_API_KEY   Pexels. Its addresses are permanent, nothing is copied.
 //   With both set, Pixabay is used (Pexels stopped giving out new keys in 2026).
 //
-//   loadMedia() gives the program a picker: the photo or clips for a
-//   country that were used least recently, so nothing comes straight back.
+//   loadMedia() gives the program a picker. A post about a country gets
+//   that country's pictures and never another country's; a post about no
+//   country in particular (a CV tip, a question) takes its turn through all
+//   of them. The one used least recently goes first, so nothing comes
+//   straight back.
+//
+// There is no "any country" group: only destinations. Rows left under the
+// old code "ZZ" are removed at the next fill.
 //
 // Stock photos are free to use; the people in them have not endorsed
 // anything, so posts never present a face as a named person or as someone
@@ -25,29 +33,29 @@
 // deno-lint-ignore-file no-explicit-any
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { hash } from './programSchedule.ts';
-import { LANDMARK, PEOPLE_FOOTAGE } from './programFormats.ts';
+import { LANDMARK } from './programFormats.ts';
 import type { Service } from './shared.ts';
 
-/** Code for media that fits any country. */
-export const ANY = 'ZZ';
-const PHOTOS_PER_COUNTRY = 10;
-const CLIPS_PER_COUNTRY = 5;
-const PHOTOS_ANY = 40;
-const CLIPS_ANY = 20;
+/** The retired "any country" code; such rows are ignored and cleaned up. */
+const RETIRED = 'ZZ';
+/** Per country: upright photos (posts, reels), wide photos (article covers), clips (reels). */
+const TARGET = { photo: 10, wide: 4, video: 5 } as const;
+type Shape = keyof typeof TARGET;
 /** Searches per run. Pexels allows 200 an hour and Pixabay 100 a minute; one run stays far below both. */
 const MAX_REQUESTS = 70;
 
-const ANY_PHOTOS = ['young professional working on laptop', 'job interview', 'colleagues talking in office', 'woman working in cafe with laptop', 'man at office desk', 'traveler at airport with suitcase', 'person writing resume', 'team meeting diverse'];
-
-type Row = { id: number; code: string; kind: 'photo' | 'video'; url: string; credit: string | null; last_used_at: string | null; uses: number };
+type Row = { id: number; code: string; kind: 'photo' | 'video'; url: string; credit: string | null; last_used_at: string | null; uses: number; width: number | null; height: number | null };
 export type Shot = { id: number | null; url: string; credit: string | null };
+const isWide = (r: { width: number | null; height: number | null }) => Boolean(r.width && r.height && r.width > r.height);
 
 export type MediaLibrary = {
-  /** A photo for the country; `any` also accepts a general one when the country has none. */
-  photo(code: string | null | undefined, seed: number, any?: boolean): Shot | null;
-  /** Clips for a reel: the country's first, then general ones. */
+  /** An upright photo: the country's own, or — with no country — the next one in turn from the whole library. */
+  photo(code: string | null | undefined, seed: number): Shot | null;
+  /** A wide photo (article covers), picked the same way. */
+  wide(code: string | null | undefined, seed: number): Shot | null;
+  /** Clips for a reel: the country's own, or — with no country — a mix from the whole library. */
   clips(code: string | null | undefined, seed: number): { id: number; url: string; credit: string | null }[];
-  counts: { photos: number; videos: number };
+  counts: { photos: number; wide: number; videos: number; countries: number };
 };
 
 /** Least recently used first; among equals the seed decides, so two posts written together differ. */
@@ -61,36 +69,48 @@ function order(rows: Row[], seed: number): Row[] {
 
 export async function loadMedia(service: Service, single: Map<string, { url: string; credit: string | null }>): Promise<MediaLibrary> {
   // Before the migration is run the table is missing: the query errors and the library is simply empty.
-  const { data } = await service.from('social_media').select('id, code, kind, url, credit, last_used_at, uses').eq('enabled', true).limit(4000);
-  const rows = ((data ?? []) as Row[]).filter((r) => r.url);
-  const by = (code: string, kind: Row['kind']) => rows.filter((r) => r.code === code && r.kind === kind);
+  const { data } = await service.from('social_media').select('id, code, kind, url, credit, last_used_at, uses, width, height').eq('enabled', true).neq('code', RETIRED).limit(6000);
+  const rows = ((data ?? []) as Row[]).filter((r) => r.url && r.code !== RETIRED);
+  const upright = rows.filter((r) => r.kind === 'photo' && !isWide(r));
+  const wide = rows.filter((r) => r.kind === 'photo' && isWide(r));
+  const videos = rows.filter((r) => r.kind === 'video');
   const handed = new Set<number>();
+  const shot = (r: Row): Shot => {
+    handed.add(r.id);
+    r.last_used_at = new Date().toISOString(); // so the next pick in this run takes another one
+    return { id: r.id, url: r.url, credit: r.credit };
+  };
+  const pickFrom = (pool: Row[], code: string | null | undefined, seed: number): Row | undefined => {
+    const cc = (code ?? '').toUpperCase();
+    const list = order(cc ? pool.filter((r) => r.code === cc) : pool, seed);
+    return list.find((r) => !handed.has(r.id)) ?? list[0];
+  };
   return {
-    counts: { photos: rows.filter((r) => r.kind === 'photo').length, videos: rows.filter((r) => r.kind === 'video').length },
-    photo(code, seed, any = false) {
-      const cc = (code ?? '').toUpperCase();
-      const pool = cc ? order(by(cc, 'photo'), seed) : [];
-      const pick = pool.find((r) => !handed.has(r.id)) ?? pool[0];
-      if (pick) {
-        handed.add(pick.id);
-        return { id: pick.id, url: pick.url, credit: pick.credit };
-      }
+    counts: { photos: upright.length, wide: wide.length, videos: videos.length, countries: new Set(rows.map((r) => r.code)).size },
+    photo(code, seed) {
+      const pick = pickFrom(upright, code, seed);
+      if (pick) return shot(pick);
       // The photo added by hand for this country (Admin → Social media → Country photos).
-      const own = cc ? single.get(cc) : undefined;
-      if (own) return { id: null, url: own.url, credit: own.credit };
-      if (!any) return null;
-      const general = order(by(ANY, 'photo'), seed);
-      const g = general.find((r) => !handed.has(r.id)) ?? general[0];
-      if (!g) return null;
-      handed.add(g.id);
-      return { id: g.id, url: g.url, credit: g.credit };
+      const own = code ? single.get(code.toUpperCase()) : undefined;
+      return own ? { id: null, url: own.url, credit: own.credit } : null;
+    },
+    wide(code, seed) {
+      const pick = pickFrom(wide, code, seed);
+      return pick ? shot(pick) : null;
     },
     clips(code, seed) {
       const cc = (code ?? '').toUpperCase();
-      const own = cc ? order(by(cc, 'video'), seed) : [];
-      const general = order(by(ANY, 'video'), seed);
-      // A reel about a country never shows footage of another one: its own clips, else general ones.
-      return [...own, ...(own.length >= 2 ? [] : general)].slice(0, 6).map((r) => ({ id: r.id, url: r.url, credit: r.credit }));
+      if (cc) return order(videos.filter((r) => r.code === cc), seed).slice(0, 6).map((r) => ({ id: r.id, url: r.url, credit: r.credit }));
+      // No country in particular: the least used clips, at most one per country, so a reel moves between places.
+      const seen = new Set<string>();
+      const mix: Row[] = [];
+      for (const r of order(videos, seed)) {
+        if (seen.has(r.code)) continue;
+        seen.add(r.code);
+        mix.push(r);
+        if (mix.length >= 6) break;
+      }
+      return mix.map((r) => ({ id: r.id, url: r.url, credit: r.credit }));
     },
   };
 }
@@ -113,7 +133,7 @@ type Source = {
   name: 'pexels' | 'pixabay';
   /** True when files must be copied into our own storage before use. */
   copy: boolean;
-  photos(query: string, want: number): Promise<Found[]>;
+  photos(query: string, want: number, wide: boolean): Promise<Found[]>;
   videos(query: string, want: number): Promise<Found[]>;
 };
 
@@ -129,13 +149,14 @@ function photoUrl(src: Record<string, string> | undefined): string | null {
 const pexels = (key: string): Source => ({
   name: 'pexels',
   copy: false,
-  async photos(query, want) {
-    const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&orientation=portrait&per_page=${Math.min(30, want + 6)}`, { headers: { Authorization: key }, signal: AbortSignal.timeout(20_000) });
+  async photos(query, want, wide) {
+    const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&orientation=${wide ? 'landscape' : 'portrait'}&per_page=${Math.min(30, want + 6)}`, { headers: { Authorization: key }, signal: AbortSignal.timeout(20_000) });
     if (!res.ok) throw new Error(`Pexels answered ${res.status}`);
     const photos = ((await res.json()).photos ?? []) as any[];
     return photos
+      .filter((p) => (wide ? p.width > p.height : p.height >= p.width))
       .map((p): Found | null => {
-        const url = photoUrl(p.src);
+        const url = wide ? p.src?.large2x ?? p.src?.large ?? null : photoUrl(p.src);
         return url ? { kind: 'photo', url, thumb: p.src?.medium ?? p.src?.small ?? null, credit: p.photographer ? String(p.photographer).slice(0, 80) : null, page: p.url ?? null, source_id: String(p.id), width: p.width ?? null, height: p.height ?? null, seconds: null } : null;
       })
       .filter((x): x is Found => Boolean(x));
@@ -167,12 +188,12 @@ const pixabayCredit = (user: unknown) => `${String(user ?? '').slice(0, 60) || '
 const pixabay = (key: string): Source => ({
   name: 'pixabay',
   copy: true,
-  async photos(query, want) {
-    const res = await fetch(`https://pixabay.com/api/?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query.slice(0, 100))}&image_type=photo&orientation=vertical&safesearch=true&min_height=1200&per_page=${Math.max(3, Math.min(40, want + 8))}`, { signal: AbortSignal.timeout(20_000) });
+  async photos(query, want, wide) {
+    const res = await fetch(`https://pixabay.com/api/?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query.slice(0, 100))}&image_type=photo&orientation=${wide ? 'horizontal&min_width=1200' : 'vertical&min_height=1200'}&safesearch=true&per_page=${Math.max(3, Math.min(40, want + 8))}`, { signal: AbortSignal.timeout(20_000) });
     if (!res.ok) throw new Error(`Pixabay answered ${res.status}`);
     const hits = ((await res.json()).hits ?? []) as any[];
     return hits
-      .filter((h) => h.largeImageURL && /\.jpe?g(\?|$)/i.test(String(h.largeImageURL)))
+      .filter((h) => h.largeImageURL && /\.jpe?g(\?|$)/i.test(String(h.largeImageURL)) && (wide ? h.imageWidth > h.imageHeight : h.imageHeight >= h.imageWidth))
       .map((h): Found => ({ kind: 'photo', url: h.largeImageURL, thumb: null, credit: pixabayCredit(h.user), page: h.pageURL ?? null, source_id: String(h.id), width: h.imageWidth ?? null, height: h.imageHeight ?? null, seconds: null }));
   },
   async videos(query, want) {
@@ -228,14 +249,56 @@ async function settle(service: Service, source: Source, code: string, f: Found):
 }
 
 /** What to search for, per country: people in its best-known city first, then the place itself. */
-function queriesFor(code: string): { photos: string[]; videos: string[] } {
-  if (code === ANY) return { photos: ANY_PHOTOS, videos: PEOPLE_FOOTAGE };
+function queriesFor(code: string): Record<Shape, string[]> {
   const city = LANDMARK[code];
   const country = regionName(code);
+  const list = (...q: (string | null)[]) => q.filter((x): x is string => Boolean(x));
   return {
-    photos: [city ? `${city} street people` : null, city ? `${city} city` : null, `${country} people`, `${country} city`].filter((x): x is string => Boolean(x)),
-    videos: [city ? `${city} people walking` : null, city ? `${city} city` : null, `${country} city`].filter((x): x is string => Boolean(x)),
+    photo: list(city ? `${city} street people` : null, city ? `${city} city` : null, `${country} people`, `${country} city`),
+    wide: list(city ? `${city} skyline` : null, city ? `${city} city` : null, `${country} landscape`),
+    video: list(city ? `${city} people walking` : null, city ? `${city} city` : null, `${country} city`),
   };
+}
+
+/** The old "any country" rows: remove them and the files copied for them. */
+async function dropRetired(service: Service): Promise<number> {
+  const { data } = await service.from('social_media').select('id').eq('code', RETIRED).limit(1000);
+  const n = ((data ?? []) as unknown[]).length;
+  if (!n) return 0;
+  await service.from('social_media').delete().eq('code', RETIRED);
+  try {
+    const { data: files } = await service.storage.from('social-images').list(`library/${RETIRED}`, { limit: 1000 });
+    const paths = ((files ?? []) as { name: string }[]).map((f) => `library/${RETIRED}/${f.name}`);
+    if (paths.length) await service.storage.from('social-images').remove(paths);
+  } catch {
+    /* the files are only leftovers; the rows are what matter */
+  }
+  return n;
+}
+
+/**
+ * Blog articles without a cover get a wide photo from the library: their
+ * country's, or — for an article about no country — the next one in turn.
+ * An article about a country the library has no wide photo for is left alone.
+ */
+export async function coverArticles(service: Service): Promise<number> {
+  const { data, error } = await service.from('articles').select('id, country_code').is('cover_url', null).order('publish_at', { ascending: false, nullsFirst: true }).limit(300);
+  const todo = (data ?? []) as { id: string; country_code: string | null }[];
+  if (error || !todo.length) return 0;
+  const lib = await loadMedia(service, new Map());
+  if (!lib.counts.wide) return 0;
+  const used: number[] = [];
+  let done = 0;
+  for (const a of todo) {
+    const shot = lib.wide(a.country_code, hash(a.id));
+    if (!shot) continue;
+    const { error: upErr } = await service.from('articles').update({ cover_url: shot.url }).eq('id', a.id).is('cover_url', null);
+    if (upErr) break;
+    if (shot.id) used.push(shot.id);
+    done++;
+  }
+  if (used.length) await service.rpc('social_media_used', { p_ids: used });
+  return done;
 }
 
 /**
@@ -244,6 +307,18 @@ function queriesFor(code: string): { photos: string[]; videos: string[] } {
  * Returns one line for the run log, or null when nothing was needed.
  */
 export async function runMedia(service: Service, force: boolean): Promise<string | null> {
+  const note = await fill(service, force);
+  // Whatever the fill did, articles that still have no cover get one from what is there.
+  const covered = await coverArticles(service).catch(() => 0);
+  if (covered && force) {
+    const line = `${note ?? 'Photo and clip library:'} ${covered} blog ${covered === 1 ? 'article' : 'articles'} got a cover photo.`;
+    await service.from('social_program').update({ media_note: line.slice(0, 300) }).eq('id', true);
+    return line;
+  }
+  return note;
+}
+
+async function fill(service: Service, force: boolean): Promise<string | null> {
   const finish = async (ok: boolean, note: string) => {
     await service.from('social_program').update({ media_at: new Date().toISOString(), media_note: note.slice(0, 300) }).eq('id', true);
     if (force || !ok) await service.rpc('pipeline_finished', { p_kind: 'media', p_ok: ok, p_summary: note, p_detail: null });
@@ -257,21 +332,23 @@ export async function runMedia(service: Service, force: boolean): Promise<string
   /** Copying files takes time; stop early enough to finish inside one run. */
   const outOfTime = () => Date.now() - started > 100_000;
 
-  const { data: existing, error } = await service.from('social_media').select('code, kind, source, source_id, query, created_at').limit(8000);
+  const dropped = await dropRetired(service).catch(() => 0);
+  const { data: existing, error } = await service.from('social_media').select('code, kind, source, source_id, query, created_at, width, height').limit(8000);
   if (error) return finish(false, 'Photo and clip library: run the migration 20261127090000_control_room_cvs_media.sql first.');
   const have = new Map<string, number>();
   const seen = new Set<string>();
   // Searches already made in the last 24 hours aren't repeated (the sites ask for that).
   const asked = new Set<string>();
-  for (const r of (existing ?? []) as { code: string; kind: string; source: string; source_id: string | null; query: string | null; created_at: string }[]) {
-    have.set(`${r.code}:${r.kind}`, (have.get(`${r.code}:${r.kind}`) ?? 0) + 1);
+  for (const r of (existing ?? []) as { code: string; kind: 'photo' | 'video'; source: string; source_id: string | null; query: string | null; created_at: string; width: number | null; height: number | null }[]) {
+    const shape: Shape = r.kind === 'video' ? 'video' : isWide(r) ? 'wide' : 'photo';
+    have.set(`${r.code}:${shape}`, (have.get(`${r.code}:${shape}`) ?? 0) + 1);
     if (r.source_id) seen.add(`${r.source}:${r.kind}:${r.source_id}`);
-    if (r.query && Date.now() - Date.parse(r.created_at) < 24 * 3_600_000) asked.add(`${r.source}:${r.kind}:${r.query}`);
+    if (r.query && Date.now() - Date.parse(r.created_at) < 24 * 3_600_000) asked.add(`${r.source}:${shape}:${r.query}`);
   }
 
   // Which countries: the ones jobs are collected from, the program's focus, and every country with a known city.
   const [{ data: settings }, { data: program }] = await Promise.all([service.from('auto_release_settings').select('country_order').eq('id', true).maybeSingle(), service.from('social_program').select('focus').eq('id', true).maybeSingle()]);
-  const codes = [ANY, ...new Set([...(((program as any)?.focus ?? []) as string[]), ...(((settings as any)?.country_order ?? []) as string[]), ...Object.keys(LANDMARK)].map((c) => String(c).toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c) && c !== ANY))];
+  const codes = [...new Set([...(((program as any)?.focus ?? []) as string[]), ...(((settings as any)?.country_order ?? []) as string[]), ...Object.keys(LANDMARK)].map((c) => String(c).toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c) && c !== RETIRED))];
 
   let requests = 0;
   let photos = 0;
@@ -285,19 +362,20 @@ export async function runMedia(service: Service, force: boolean): Promise<string
   for (const code of codes) {
     if (requests >= budget || outOfTime()) break;
     const q = queriesFor(code);
-    for (const kind of ['photo', 'video'] as const) {
-      const target = code === ANY ? (kind === 'photo' ? PHOTOS_ANY : CLIPS_ANY) : kind === 'photo' ? PHOTOS_PER_COUNTRY : CLIPS_PER_COUNTRY;
-      let missing = target - (have.get(`${code}:${kind}`) ?? 0);
-      const queries = kind === 'photo' ? q.photos : q.videos;
+    for (const shape of ['photo', 'video', 'wide'] as const) {
+      const kind = shape === 'video' ? 'video' : 'photo';
+      const target = TARGET[shape];
+      let missing = target - (have.get(`${code}:${shape}`) ?? 0);
+      const queries = q[shape];
       // A share per search, so one search term doesn't fill the whole country with look-alikes.
       const perQuery = Math.max(3, Math.ceil(target / queries.length) + 1);
       for (const query of queries) {
         if (missing <= 0 || requests >= budget || outOfTime()) break;
-        if (asked.has(`${source.name}:${kind}:${query}`)) continue;
-        asked.add(`${source.name}:${kind}:${query}`);
+        if (asked.has(`${source.name}:${shape}:${query}`)) continue;
+        asked.add(`${source.name}:${shape}:${query}`);
         requests++;
         try {
-          const hits = (kind === 'photo' ? await source.photos(query, missing) : await source.videos(query, missing)).filter((f) => !seen.has(`${source.name}:${f.kind}:${f.source_id}`)).slice(0, Math.min(missing, perQuery));
+          const hits = (kind === 'photo' ? await source.photos(query, missing, shape === 'wide') : await source.videos(query, missing)).filter((f) => !seen.has(`${source.name}:${f.kind}:${f.source_id}`)).slice(0, Math.min(missing, perQuery));
           // Five at a time: photos from a "copy" source are fetched and stored here.
           const found: Found[] = [];
           for (let at = 0; at < hits.length && !outOfTime(); at += 5) {
@@ -329,8 +407,9 @@ export async function runMedia(service: Service, force: boolean): Promise<string
     if (problems.length) return finish(false, `Photo and clip library: nothing added — ${problems[0]}.`);
     await service.from('social_program').update({ media_at: new Date().toISOString() }).eq('id', true);
     if (!force) return null;
+    if (dropped) return finish(true, `Photo and clip library: removed ${dropped} “any country” items. Nothing new to add right now.`);
     return finish(true, short ? 'Photo and clip library: nothing new right now. The searches for the countries that are still short were already made today — the sites ask not to repeat a search within 24 hours. Press again tomorrow.' : 'Photo and clip library: already full for every country.');
   }
   const more = requests >= budget || outOfTime() ? ' — press again for more' : short ? ' — some countries are still short; more can be found tomorrow' : '';
-  return finish(true, `Photo and clip library: added ${photos} ${photos === 1 ? 'photo' : 'photos'} and ${clips} ${clips === 1 ? 'clip' : 'clips'} for ${touched.size} ${touched.size === 1 ? 'country' : 'countries'}${more} (from ${source.name === 'pixabay' ? 'Pixabay' : 'Pexels'}).`);
+  return finish(true, `Photo and clip library: added ${photos} ${photos === 1 ? 'photo' : 'photos'} and ${clips} ${clips === 1 ? 'clip' : 'clips'} for ${touched.size} ${touched.size === 1 ? 'country' : 'countries'}${more} (from ${source.name === 'pixabay' ? 'Pixabay' : 'Pexels'}).${dropped ? ` Removed ${dropped} “any country” items.` : ''}`);
 }

@@ -6,6 +6,8 @@ import { ArticlesSection } from '@/pages/admin/ArticlesSection';
 import { PlansSection } from '@/pages/admin/PlansSection';
 import { OffersSection } from '@/pages/admin/OffersSection';
 import { SocialSection } from '@/pages/admin/SocialSection';
+import { ControlRoom } from '@/pages/admin/ControlRoom';
+import { CvsSection } from '@/pages/admin/CvsSection';
 import { ExperienceReportsSection } from '@/pages/admin/ExperienceReportsSection';
 import { JobReportsSection } from '@/pages/admin/JobReportsSection';
 import { countNewJobReports } from '@/lib/jobReports';
@@ -13,7 +15,7 @@ import { listTotpFactors } from '@/lib/mfa';
 import { UpdateAllJobsPanel } from '@/pages/admin/UpdateAllJobsPanel';
 import { FindCompaniesPanel } from '@/pages/admin/FindCompaniesPanel';
 import { PublisherFilterChips, RegisteredCompanyPanel, type PublisherFilter } from '@/pages/admin/RegisteredCompanyPanel';
-import { CreditCard, FileSignature, Bell, Briefcase, CheckCircle2, Loader2, XCircle, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ImageIcon, Inbox, Landmark, Mail, Newspaper, Pencil, RefreshCw, ScanSearch, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
+import { CreditCard, FileSignature, FileText, Gauge, Bell, Briefcase, CheckCircle2, Loader2, XCircle, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ImageIcon, Inbox, Landmark, Mail, Newspaper, Pencil, RefreshCw, ScanSearch, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { ImportCenter } from '@/pages/admin/ImportCenter';
@@ -115,14 +117,16 @@ const orgIcon: Record<OrgType, typeof Building2> = {
   expert: UserRound,
 };
 
-type AdminTab = 'inbox' | 'listings' | 'imports' | 'companies' | 'articles' | 'plans' | 'offers' | 'images' | 'settings';
+type AdminTab = 'control' | 'inbox' | 'listings' | 'imports' | 'companies' | 'articles' | 'plans' | 'cvs' | 'offers' | 'images' | 'settings';
 const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Inbox }[] = [
+  { key: 'control', label: 'Control room', icon: Gauge },
   { key: 'inbox', label: 'Requests', icon: Inbox },
   { key: 'listings', label: 'Listings', icon: Briefcase },
   { key: 'imports', label: 'Import & sync', icon: RefreshCw },
   { key: 'companies', label: 'Companies & access', icon: Building2 },
   { key: 'articles', label: 'Articles', icon: Newspaper },
   { key: 'plans', label: 'Plans', icon: CreditCard },
+  { key: 'cvs', label: 'CVs', icon: FileText },
   { key: 'offers', label: 'Visa Plans', icon: FileSignature },
   { key: 'images', label: 'Social media', icon: ImageIcon },
   { key: 'settings', label: 'Settings', icon: Settings },
@@ -169,7 +173,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
 
   const [tab, setTabState] = useState<AdminTab>(() => {
     const t = new URLSearchParams(window.location.search).get('tab') as AdminTab | null;
-    return t && ADMIN_TABS.some((x) => x.key === t) ? t : 'inbox';
+    return t && ADMIN_TABS.some((x) => x.key === t) ? t : 'control';
   });
   const setTab = (t: AdminTab) => {
     setTabState(t);
@@ -389,7 +393,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-ink-950">Admin panel</h1>
-            <p className="mt-1 text-sm text-ink-500">Requests, listings, imports and company access in one place.</p>
+            <p className="mt-1 text-sm text-ink-500">One switch for everything that runs by itself, and requests, listings, CVs and company access in one place.</p>
           </div>
           <button
             onClick={() => setTab('inbox')}
@@ -413,7 +417,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
           </div>
         )}
 
-        <nav className="sticky top-0 z-10 -mx-5 mt-6 flex gap-1 overflow-x-auto border-b border-ink-200 bg-[#f8fafc] px-5 sm:mx-0 sm:px-0">
+        <nav className="sticky top-0 z-10 -mx-5 mt-6 flex gap-1 overflow-x-auto border-b border-ink-200 bg-[#f8fafc] px-5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           {ADMIN_TABS.map(({ key, label, icon: Icon }) => {
             const badge = tabBadge(key);
             return (
@@ -436,7 +440,11 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
           })}
         </nav>
 
-        {dataLoading ? (
+        {/* These two load their own data, so they don't wait for the listings. */}
+        {tab === 'control' && <ControlRoom onOpen={setTab} />}
+        {tab === 'cvs' && <CvsSection />}
+
+        {tab === 'control' || tab === 'cvs' ? null : dataLoading ? (
           <AdminLoadingPanel parts={loadParts} startedAt={loadStartedAt} onRetry={() => loadAll()} />
         ) : (
           <>

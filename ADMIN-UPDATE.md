@@ -68,7 +68,16 @@ To change the numbers: `cv_guest_daily_uploads()` and the `15` in `user_cvs_limi
 
 **Real photos instead of graphics only.** Strategy → *Photo first* (the default): each post opens with a real photograph — the country's streets, people at work — with the headline on it and the photographer's name; the card with the numbers follows as the second image. Reels play real clips from the library behind the text. *Graphic* brings back cards only.
 
-**Photos & clips (new sub-tab).** The library the photos come from: about 10 photos and 5 clips per country plus general ones (people at work, interviews, airports). “Fill the library” fills it on the server from Pixabay; it tops itself up daily while the program runs. You can switch any item off, remove it, or add your own photo or clip by address. The old one-photo-per-country list still works as a fallback.
+**Photos & clips (new sub-tab).** The library every picture comes from, for every main destination: about 10 upright photos, 4 wide photos and 5 clips per country. “Fill the library” fills it on the server from Pixabay; it tops itself up daily while the program runs. You can switch any item off, remove it, or add your own photo or clip by address. The old one-photo-per-country list still works as a fallback.
+
+The library is connected to everything that needs a picture:
+
+- **posts** — with *Photo first*, each post opens with an upright photo under its headline;
+- **reels** — the clips play behind the text; with no clip for a country, its photo is used with a slow zoom;
+- **blog articles** — an article without a cover gets a wide photo by itself (within a day, or at once when you press Fill the library). Paste your own address in the article editor to choose the picture yourself;
+- **article posts** — the post about a new article uses a photo of its country.
+
+A post, reel or article about a country only ever gets that country's pictures. One about no country in particular (a CV tip, a question, the match score) takes its turn through all destinations. There is no “any country” group; items filled under it earlier are removed at the next fill.
 
 **Signed by (optional).** Strategy → a first name of a real person on your team; captions then end “— Name, MadeVisa”.
 
@@ -108,6 +117,7 @@ supabase/migrations/20261127090000_control_room_cvs_media.sql     NEW
 ```
 src/pages/admin/SocialSection.tsx
 src/pages/admin/social/MediaLibrary.tsx           NEW
+src/pages/admin/ArticlesSection.tsx, src/pages/blog/ArticlePage.tsx   article covers from the library
 src/pages/admin/social/ProgramPanel.tsx, StrategyPanel.tsx, ReelParts.tsx, shared.tsx
 api/_post.ts, api/og/post.ts                      photo image template
 scripts/render-reels.mjs                          reels use library clips first

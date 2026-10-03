@@ -7,11 +7,15 @@ import { btn, btnPrimary, card, input, inputAuto, when, type ProgramRow } from '
 
 // Social media → Photos & clips.
 //
-// The library of real photos and video clips the program puts behind posts
-// and reels: several per country, plus general ones (people at work,
-// interviews, airports) under "Any country". "Fill the library" asks the
-// server to look them up; nothing is copied — a post loads the file when it
-// is made, and carries the photographer's name.
+// The library of real photos and video clips of the countries MadeVisa posts
+// about. Everything that needs a picture takes it from here: the photo that
+// opens a post, the footage behind a reel, the cover of a blog article.
+// "Fill the library" asks the server to look them up for every main
+// destination; each post carries the photographer's name.
+//
+// Three shapes per country: upright photos (posts, reels), wide photos
+// (article covers) and clips (reels). There is no "any country" group: a post
+// about no country in particular takes its turn through all of them.
 //
 // Table social_media, migration 20261127090000. Filled by the pipeline
 // (media.ts), which needs the secret PIXABAY_API_KEY (or PEXELS_API_KEY).
@@ -28,25 +32,31 @@ type Item = {
   query: string | null;
   source: string;
   seconds: number | null;
+  width: number | null;
+  height: number | null;
   enabled: boolean;
   uses: number;
   last_used_at: string | null;
 };
 
-const ANY = 'ZZ';
-const countryName = (code: string) => (code === ANY ? 'Any country' : visaGuides.find((g) => g.code === code)?.name ?? new Intl.DisplayNames(['en'], { type: 'region' }).of(code) ?? code);
+/** The retired "any country" code: such rows are hidden here and removed at the next fill. */
+const RETIRED = 'ZZ';
+const countryName = (code: string) => visaGuides.find((g) => g.code === code)?.name ?? new Intl.DisplayNames(['en'], { type: 'region' }).of(code) ?? code;
+const isWide = (it: Pick<Item, 'kind' | 'width' | 'height'>) => it.kind === 'photo' && Boolean(it.width && it.height && it.width > it.height);
+type Shape = 'photo' | 'wide' | 'video';
+const shapeOf = (it: Item): Shape => (it.kind === 'video' ? 'video' : isWide(it) ? 'wide' : 'photo');
 
 export function MediaLibrary({ program, onChange }: { program: ProgramRow; onChange: () => void }) {
   const [items, setItems] = useState<Item[] | null>(null);
   const [missing, setMissing] = useState(false);
   const [code, setCode] = useState<string>('all');
-  const [kind, setKind] = useState<'all' | 'photo' | 'video'>('all');
+  const [kind, setKind] = useState<'all' | Shape>('all');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [add, setAdd] = useState({ code: '', kind: 'photo' as Item['kind'], url: '', credit: '' });
+  const [add, setAdd] = useState({ code: '', kind: 'photo' as Shape, url: '', credit: '' });
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase.from('social_media').select('id, code, kind, url, thumb, credit, page, query, source, seconds, enabled, uses, last_used_at').order('code').order('id').limit(5000);
+    const { data, error } = await supabase.from('social_media').select('id, code, kind, url, thumb, credit, page, query, source, seconds, width, height, enabled, uses, last_used_at').neq('code', RETIRED).order('code').order('id').limit(5000);
     if (error) return setMissing(true);
     setItems((data ?? []) as Item[]);
   }, []);
@@ -81,10 +91,10 @@ export function MediaLibrary({ program, onChange }: { program: ProgramRow; onCha
   };
   const addOne = async () => {
     const cc = add.code.trim().toUpperCase();
-    if (!/^[A-Z]{2}$/.test(cc)) return setMsg('Country: two letters, e.g. DE. Use ZZ for “any country”.');
+    if (!/^[A-Z]{2}$/.test(cc) || cc === RETIRED) return setMsg('Country: its two letters, e.g. DE for Germany.');
     if (!/^https:\/\/\S+$/.test(add.url.trim())) return setMsg('The file needs an https:// address.');
     setBusy('add');
-    const { error } = await supabase.from('social_media').insert({ code: cc, kind: add.kind, url: add.url.trim(), thumb: add.kind === 'photo' ? add.url.trim() : null, credit: add.credit.trim().slice(0, 80) || null, source: 'manual' });
+    const { error } = await supabase.from('social_media').insert({ code: cc, kind: add.kind === 'video' ? 'video' : 'photo', url: add.url.trim(), thumb: add.kind === 'video' ? null : add.url.trim(), credit: add.credit.trim().slice(0, 80) || null, source: 'manual', ...(add.kind === 'wide' ? { width: 1600, height: 900 } : {}) });
     setBusy(null);
     setMsg(error ? error.message : 'Added.');
     if (!error) {
@@ -94,11 +104,10 @@ export function MediaLibrary({ program, onChange }: { program: ProgramRow; onCha
   };
 
   const byCode = useMemo(() => {
-    const m = new Map<string, { photos: number; videos: number }>();
+    const m = new Map<string, Record<Shape, number>>();
     for (const it of items ?? []) {
-      const c = m.get(it.code) ?? { photos: 0, videos: 0 };
-      if (it.kind === 'photo') c.photos++;
-      else c.videos++;
+      const c = m.get(it.code) ?? { photo: 0, wide: 0, video: 0 };
+      c[shapeOf(it)]++;
       m.set(it.code, c);
     }
     return m;
@@ -112,10 +121,9 @@ export function MediaLibrary({ program, onChange }: { program: ProgramRow; onCha
     );
   }
 
-  const codes = [...byCode.keys()].sort((a, b) => (a === ANY ? -1 : b === ANY ? 1 : countryName(a).localeCompare(countryName(b))));
-  const shown = (items ?? []).filter((it) => (code === 'all' || it.code === code) && (kind === 'all' || it.kind === kind));
-  const photos = (items ?? []).filter((x) => x.kind === 'photo').length;
-  const clips = (items ?? []).length - photos;
+  const codes = [...byCode.keys()].sort((a, b) => countryName(a).localeCompare(countryName(b)));
+  const shown = (items ?? []).filter((it) => (code === 'all' || it.code === code) && (kind === 'all' || shapeOf(it) === kind));
+  const count = (sh: Shape) => (items ?? []).filter((x) => shapeOf(x) === sh).length;
   const failed = Boolean(program.media_note && /add the secret|nothing added|run the migration|answered \d/i.test(program.media_note));
 
   return (
@@ -125,7 +133,7 @@ export function MediaLibrary({ program, onChange }: { program: ProgramRow; onCha
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold text-ink-950">Photos and clips</h3>
             <p className="mt-1 text-xs leading-5 text-ink-600">
-              Real photos and short videos for every country MadeVisa posts about — streets, cities, people at work — plus general ones under “Any country”. With the look set to <strong>Photo first</strong> (Strategy), each post opens with one of these under its headline, and reels play the clips behind the text. The one used least recently is picked, so the feed doesn’t repeat itself.
+              Real photos and short videos of every main destination — streets, skylines, people in the city. Everything that needs a picture takes it from here: with the look set to <strong>Photo first</strong> (Strategy) each post opens with one under its headline, reels play the clips behind the text, and blog articles without a cover get a wide photo. A post about a country uses that country’s pictures only; a post about no country in particular takes its turn through all of them. The one used least recently goes first, so nothing repeats.
             </p>
             <p className="mt-2 text-xs leading-5 text-ink-600">
               They come from Pixabay (or Pexels, if you have a key for it) — free stock sites — and each post carries the photographer’s name. The people in them are strangers: posts never name them, and never say or suggest they are MadeVisa users or that the caption is their story.
@@ -138,11 +146,12 @@ export function MediaLibrary({ program, onChange }: { program: ProgramRow; onCha
             <p className="mt-1.5 text-[11px] text-ink-500">About 15 countries per press · tops itself up daily while the program runs</p>
           </div>
         </div>
-        <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-ink-100 pt-4 text-sm sm:max-w-md">
+        <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-ink-100 pt-4 text-sm sm:max-w-xl sm:grid-cols-4">
           {[
-            [photos, 'photos'],
-            [clips, 'clips'],
-            [codes.filter((c) => c !== ANY).length, 'countries'],
+            [count('photo'), 'upright photos'],
+            [count('wide'), 'wide photos'],
+            [count('video'), 'clips'],
+            [codes.length, 'countries'],
           ].map(([n, l]) => (
             <div key={String(l)}>
               <dd className="text-2xl font-bold tabular-nums text-ink-950">{Number(n).toLocaleString('en-US')}</dd>
@@ -170,14 +179,14 @@ export function MediaLibrary({ program, onChange }: { program: ProgramRow; onCha
               <option value="all">Every country ({items.length})</option>
               {codes.map((c) => (
                 <option key={c} value={c}>
-                  {countryName(c)} · {byCode.get(c)?.photos ?? 0} photos, {byCode.get(c)?.videos ?? 0} clips
+                  {countryName(c)} · {(byCode.get(c)?.photo ?? 0) + (byCode.get(c)?.wide ?? 0)} photos, {byCode.get(c)?.video ?? 0} clips
                 </option>
               ))}
             </select>
             <div className="flex rounded-lg border border-ink-200 bg-white p-0.5 text-xs font-semibold">
-              {(['all', 'photo', 'video'] as const).map((k) => (
+              {(['all', 'photo', 'wide', 'video'] as const).map((k) => (
                 <button key={k} onClick={() => setKind(k)} className={`rounded-md px-3 py-1.5 ${kind === k ? 'bg-ink-950 text-white' : 'text-ink-600 hover:bg-ink-50'}`}>
-                  {k === 'all' ? 'All' : k === 'photo' ? 'Photos' : 'Clips'}
+                  {k === 'all' ? 'All' : k === 'photo' ? 'Upright' : k === 'wide' ? 'Wide' : 'Clips'}
                 </button>
               ))}
             </div>
@@ -192,9 +201,10 @@ export function MediaLibrary({ program, onChange }: { program: ProgramRow; onCha
                 <div className="relative aspect-[4/5] bg-ink-200">
                   {it.thumb ? <img src={it.thumb} alt="" loading="lazy" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center text-ink-400">{it.kind === 'video' ? <Video className="h-6 w-6" /> : <ImageIcon className="h-6 w-6" />}</span>}
                   <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-ink-950/75 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                    {it.code === ANY ? 'Any' : <CircleFlag countryCode={it.code} size={11} />}
-                    {it.code === ANY ? '' : it.code}
+                    <CircleFlag countryCode={it.code} size={11} />
+                    {it.code}
                   </span>
+                  {isWide(it) && <span className="absolute right-1.5 top-1.5 rounded-full bg-ink-950/75 px-1.5 py-0.5 text-[10px] font-semibold text-white">Wide · articles</span>}
                   {it.kind === 'video' && (
                     <span className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-ink-950/75 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                       <Play className="h-2.5 w-2.5 fill-current" /> {it.seconds ? `${it.seconds}s` : 'clip'}
@@ -228,10 +238,11 @@ export function MediaLibrary({ program, onChange }: { program: ProgramRow; onCha
         <p className="mt-2 max-w-3xl text-xs leading-5 text-ink-600">
           Your own footage is the most convincing thing you can post: a team member on camera, your office, an event. Upload it anywhere public (for example Supabase Storage → social-images) and paste its address. Use only material you have the right to use, and only faces of people who agreed to be in MadeVisa’s posts.
         </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-[90px_110px_1fr_180px_auto]">
-          <input className={input} value={add.code} maxLength={2} onChange={(e) => setAdd((a) => ({ ...a, code: e.target.value.toUpperCase() }))} placeholder="DE / ZZ" aria-label="Country code" />
-          <select className={input} value={add.kind} onChange={(e) => setAdd((a) => ({ ...a, kind: e.target.value as Item['kind'] }))} aria-label="Kind">
-            <option value="photo">Photo</option>
+        <div className="mt-3 grid gap-2 sm:grid-cols-[70px_140px_1fr_180px_auto]">
+          <input className={input} value={add.code} maxLength={2} onChange={(e) => setAdd((a) => ({ ...a, code: e.target.value.toUpperCase() }))} placeholder="DE" aria-label="Country code" />
+          <select className={input} value={add.kind} onChange={(e) => setAdd((a) => ({ ...a, kind: e.target.value as Shape }))} aria-label="Kind">
+            <option value="photo">Upright photo</option>
+            <option value="wide">Wide photo</option>
             <option value="video">Clip (MP4)</option>
           </select>
           <input className={input} value={add.url} onChange={(e) => setAdd((a) => ({ ...a, url: e.target.value }))} placeholder="https://… (JPG, PNG or a vertical MP4)" aria-label="File address" />
@@ -241,10 +252,7 @@ export function MediaLibrary({ program, onChange }: { program: ProgramRow; onCha
           </button>
         </div>
         <p className="mt-2 text-[11px] text-ink-500">
-          Photos work best upright (4:5 or taller), at least 1080 px wide. Clips: vertical, 6–90 seconds.{' '}
-          <button className={`${btn} ml-1 !px-2 !py-0.5`} onClick={() => setAdd((a) => ({ ...a, code: ANY }))}>
-            Use for any country
-          </button>
+          Upright photos (4:5 or taller, at least 1080 px wide) open posts and sit behind reels; wide photos (about 16:9) become article covers; clips should be vertical, 6–90 seconds. Give each one the country it shows.
         </p>
       </details>
     </div>

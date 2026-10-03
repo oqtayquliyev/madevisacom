@@ -448,7 +448,7 @@ async function writeSlot(
       // carry a photo keep theirs; on Telegram (one image) a list of jobs stays a list of jobs.
       if (settings.look !== 'graphic' && !images.some((im) => /[?&]img=/.test(im.url)) && !(p === 'telegram' && JOB_FORMATS.has(kind))) {
         const cc = typeof draft.meta?.cc === 'string' ? draft.meta.cc : /^[A-Za-z]{2}$/.test(draft.topic) ? draft.topic : null;
-        const shot = photos.photo(cc, seed, true);
+        const shot = photos.photo(cc, seed);
         if (shot) {
           const sp = new URLSearchParams({ t: 'photo', size: pr.size, h: draft.headline.slice(0, 200), img: shot.url, v: '1' });
           if (shot.credit) sp.set('cr', shot.credit);

@@ -111,7 +111,7 @@ export function ArticlePage({ slug, go, onAuth }: Props) {
           </header>
 
           <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8 sm:py-12">
-            {article.cover_url && <img src={article.cover_url} alt="" className="mb-8 w-full rounded-xl object-cover" />}
+            {article.cover_url && <img src={article.cover_url} alt="" className="mb-8 aspect-[2/1] w-full rounded-xl object-cover" />}
             <article className={PROSE} dangerouslySetInnerHTML={{ __html: purifyArticleHtml(article.body_html) }} />
 
             <aside className="mt-14 grid gap-4 sm:grid-cols-2">

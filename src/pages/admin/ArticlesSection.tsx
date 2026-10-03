@@ -151,6 +151,7 @@ function Editor({ initial, onClose, onSaved }: { initial: Partial<Article>; onCl
             <label className="block text-xs font-medium text-ink-700 sm:col-span-2">
               Cover image URL (optional)
               <input className={`${input} mt-1`} value={a.cover_url ?? ''} onChange={(e) => set({ cover_url: e.target.value })} placeholder="https://…" />
+              <span className="mt-1 block text-[11px] font-normal leading-4 text-ink-500">Left empty, a wide photo of the article’s country is added by itself from Social media → Photos &amp; clips (within a day, or when you press Fill the library). Paste your own address to choose the picture yourself.</span>
             </label>
           </div>
 
