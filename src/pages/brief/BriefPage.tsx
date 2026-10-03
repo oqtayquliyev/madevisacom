@@ -669,28 +669,29 @@ function NewOffer({ go, onAuth }: Props) {
         <EmployerControl value={ed.employer} onChange={(e) => patch({ employer: e })} />
       </div>
 
-      {/* 3. The terms: a sound default, changeable */}
-      <RecommendedPanel
-        company={companyName || 'this company'}
-        from={from}
-        to={el.code}
-        toName={guide.name}
-        terms={recTerms}
-        code={el.code}
-        active={isRecommended}
-        onApply={() => {
-          setUseRec(true);
-          setEd((d) => (d ? { ...d, overrides: {} } : d));
-        }}
-      />
-      <details className="group rounded-xl bg-white shadow-sm ring-1 ring-ink-200">
+      {/* 3. The terms: open, with what we recommend for this company and country first */}
+      <details open className="group rounded-xl bg-white shadow-sm ring-1 ring-ink-200">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 text-[15px] font-bold text-ink-950 [&::-webkit-details-marker]:hidden">
-          Change the terms or add a note
-          <span className="flex items-center gap-2 text-[12px] font-semibold text-ink-500">
-            Optional <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
+          <span className="min-w-0">
+            The terms{companyName ? ` for ${companyName}` : ''} in {guide.name}
+            <span className="block text-[12.5px] font-normal text-ink-500">Recommended ones are filled in. Change them or add a note if you like.</span>
           </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-ink-500 transition group-open:rotate-180" />
         </summary>
         <div className="space-y-4 border-t border-ink-100 p-4">
+          <RecommendedPanel
+            company={companyName || 'this company'}
+            from={from}
+            to={el.code}
+            toName={guide.name}
+            terms={recTerms}
+            code={el.code}
+            active={isRecommended}
+            onApply={() => {
+              setUseRec(true);
+              setEd((d) => (d ? { ...d, overrides: {} } : d));
+            }}
+          />
           <EditorPanels ed={edNow} terms={terms} code={el.code} onChange={patch} hideEmployer />
           <label className="block">
             <span className="text-[13px] font-semibold text-ink-800">Note to the hiring manager</span>
