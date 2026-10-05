@@ -156,6 +156,7 @@ export const legalPages: Record<string, LegalPageContent> = {
           'Google — Google Analytics (visit statistics, with advertising features off).',
           'Google — optional “Sign in with Google” and web fonts.',
           'Cloudflare — the bot check (Turnstile) on sign-up and sign-in.',
+          'Gumroad — card payments for MadeVisa Pro. When you choose to pay by card we pass your account email to Gumroad’s payment page so it is filled in for you. Gumroad is the seller named on your receipt and collects your card and billing details itself, under its own privacy policy; we never see your card. Gumroad tells us that you paid, the amount, the country of the payment and when the membership renews, is cancelled or ends.',
           'Google Cloud Translation or Microsoft Azure Translator — machine translation into English of job ads written in another language and, for people with an account, of a CV written in another language, so the two can be compared. Email addresses, phone numbers and web links are removed from a CV before it is sent; the rest of its text, which can include your name, is sent for translation only.',
           'Cloudinary and our own storage — images such as logos and profile photos.',
           'BigDataCloud and ipwho.is — turning a location or network address into a country code.',
@@ -468,7 +469,7 @@ export const legalPages: Record<string, LegalPageContent> = {
       {
         heading: 'Pro',
         paragraphs: [
-          'MadeVisa Pro is one plan, billed monthly or yearly. Its price depends on the country you are in, which we detect from your internet connection, and is shown in your local currency where possible (otherwise in US dollars). The price shown when you send your request is the price you pay.',
+          'MadeVisa Pro is one plan, billed monthly or yearly. Its price depends on the country you are in, which we detect from your internet connection, and is shown in your local currency where possible (otherwise in US dollars). The price shown when you send your request, or on the payment step when you pay by card, is the price you pay. Card payments are taken in US dollars by Gumroad, which is the seller named on your receipt; you can cancel there at any time.',
           'Pro includes 50 sponsorship documents each calendar month, the full CV match report on every job, instant job alerts and full company data. Unused documents don’t carry over to the next month. A fair-use limit of 30 documents in any 7 days applies.',
           'Previewing, adjusting the terms and seeing the demo are free. A document is counted only when you approve it.',
         ],

@@ -2,9 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, Loader2, Mail, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { PLAN_NAME, type PlanId } from '@/lib/plans';
+import { GumroadCard } from '@/pages/admin/GumroadCard';
 
-// Admin → Plans: every plan request (also emailed to hello@madevisa.com),
-// and who has Pro. Flow until a payment provider is connected:
+// Admin → Plans: card payments (Gumroad), every plan request (also emailed to
+// hello@madevisa.com), and who has Pro.
+// With card payments on, "Get Pro" is paid on Gumroad and Pro switches on by
+// itself. Without them (and for employer products), the flow is:
 // 1. email the person a payment link  2. once paid → Activate.
 
 type Req = {
@@ -113,8 +116,9 @@ export function PlansSection() {
           <p className="mt-3 text-xs leading-5 text-ink-500">“Hit the free limit” = free accounts that used all 3 missing-skill checks today — the people most likely to want Pro.</p>
         </section>
       )}
+      <GumroadCard />
       <p className="rounded-lg bg-ink-100 px-3 py-2 text-xs leading-5 text-ink-600">
-        One plan now: MadeVisa Pro (full CV match reports + 50 sponsorship documents a month), monthly or yearly, priced per country — the request shows the price the person saw. Until payments are connected: reply to the request email (it goes to hello@madevisa.com) with a payment link, mark it <em>Contacted</em>, and once paid click <em>Activate</em>. The person gets a notification.
+        One plan: MadeVisa Pro (full CV match reports + 50 sponsorship documents a month), monthly or yearly, priced per country. With card payments on, people pay on Gumroad and Pro switches on by itself; nothing to do here. Requests below come in when card payments are off, and for employer products: reply to the request email (it goes to hello@madevisa.com) with a payment link, mark it <em>Contacted</em>, and once paid click <em>Activate</em>. The person gets a notification.
       </p>
       {msg && <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">{msg}</p>}
 

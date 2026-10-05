@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Check, Sparkles } from 'lucide-react';
+import { Check, ExternalLink, Sparkles } from 'lucide-react';
 import { countryName } from '@/lib/visaFit';
 import { PRO_FEATURES, useMyPlan, type Billing } from '@/lib/plans';
 import { PLAN_RANGE, priceNote, priceRequestLabel, PRO_MONTHLY_DOCS, usePrices } from '@/lib/pricing';
+import { manageUrl, useCardPayments } from '@/lib/gumroad';
 import { PlanRequestDialog } from '@/components/pro/PlanRequestDialog';
+import { PlanCheckoutDialog } from '@/components/pro/PlanCheckoutDialog';
 
 type Cycle = Exclude<Billing, 'one_time'>;
 
@@ -24,13 +26,19 @@ export function BillingToggle({ value, onChange, saving }: { value: Cycle; onCha
  * MadeVisa Pro — the one plan: price for the visitor's country in their
  * currency, monthly or yearly, what's in it, and the button to get it.
  * `billing` can be controlled from outside (pricing page) or left to the card.
+ *
+ * The button: with card payments on (Admin → Plans) it opens Gumroad's
+ * checkout and Pro switches on by itself; otherwise it opens the request form.
+ * A member who pays by card gets "Manage or cancel" under it.
  */
 export function ProPlanCard({ onAuth, billing: outer, compact = false }: { onAuth?: (p: 'login' | 'register') => void; billing?: Cycle; compact?: boolean }) {
   const prices = usePrices();
   const { isPro, sub } = useMyPlan();
   // Monthly first: the smallest amount to pay today is the price people see.
   const [inner, setInner] = useState<Cycle>('monthly');
-  const [dialog, setDialog] = useState(false);
+  const card = useCardPayments();
+  // 'pay' = Gumroad's checkout; 'request' = the form (card payments off, or not reachable just now).
+  const [dialog, setDialog] = useState<'pay' | 'request' | null>(null);
   const billing = outer ?? inner;
   const pro = prices.pro;
   const price = billing === 'monthly' ? pro.monthly : pro.yearly;
@@ -75,17 +83,28 @@ export function ProPlanCard({ onAuth, billing: outer, compact = false }: { onAut
         ))}
       </ul>
 
-      <button onClick={() => setDialog(true)} disabled={isPro} className="mt-6 rounded-lg bg-brand-600 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
-        {isPro ? `Your plan${sub?.current_period_end ? ` · until ${new Date(sub.current_period_end).toLocaleDateString()}` : ''}` : 'Get Pro'}
+      <button onClick={() => setDialog(card.on ? 'pay' : 'request')} disabled={isPro} className="mt-6 rounded-lg bg-brand-600 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+        {isPro ? `Your plan${sub?.current_period_end ? ` · ${sub.cancel_at_period_end ? 'ends' : 'until'} ${new Date(sub.current_period_end).toLocaleDateString()}` : ''}` : 'Get Pro'}
       </button>
+      {isPro && sub?.provider === 'gumroad' && sub.provider_ref ? (
+        <p className="mt-2 text-center text-xs leading-5 text-ink-500">
+          {sub.cancel_at_period_end ? 'Cancelled: Pro stays on until that date and is not renewed. ' : `Renews every ${sub.billing === 'yearly' ? 'year' : 'month'}. `}
+          <a href={manageUrl(sub.provider_ref)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand-700 hover:underline">
+            {sub.cancel_at_period_end ? 'Start it again on Gumroad' : 'Manage or cancel on Gumroad'} <ExternalLink className="h-3 w-3" />
+          </a>
+        </p>
+      ) : !isPro && card.on ? (
+        <p className="mt-2 text-center text-xs text-ink-500">Pay by card on Gumroad, our payment partner. Pro starts at once.</p>
+      ) : null}
 
-      {dialog && (
+      {dialog === 'pay' && <PlanCheckoutDialog billing={billing} onClose={() => setDialog(null)} onAuth={onAuth} onUnavailable={() => setDialog('request')} />}
+      {dialog === 'request' && (
         <PlanRequestDialog
           plan="pro"
           billing={billing}
           priceLabel={priceRequestLabel(prices, billing === 'monthly' ? 'Pro monthly' : 'Pro yearly', price)}
           region={prices.country ?? prices.tier}
-          onClose={() => setDialog(false)}
+          onClose={() => setDialog(null)}
           onAuth={onAuth}
         />
       )}

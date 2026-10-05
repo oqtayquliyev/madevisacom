@@ -5,9 +5,11 @@
 //     and so are the missing skills on 3 jobs a day)
 //   • 50 sponsorship documents a month
 //   • instant job alerts, full company reply data, companies that sponsor
-// Until a payment provider is connected, choosing the plan sends a request
-// (plan_requests, migration 20261107090000): hello@madevisa.com gets an
-// email, admins get a notification, and an admin activates it after payment.
+// Paying: when card payments are connected (Admin → Plans, src/lib/gumroad.ts)
+// "Get Pro" goes to Gumroad's checkout and Pro switches on by itself. Until
+// then, choosing the plan sends a request (plan_requests, migration
+// 20261107090000): hello@madevisa.com gets an email, admins get a
+// notification, and an admin activates it after payment.
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -83,41 +85,104 @@ export async function submitPlanRequest(r: PlanRequest): Promise<{ ok: true } | 
   return { ok: true };
 }
 
-export type Subscription = { plan: string; status: string; current_period_end: string | null };
+export type Subscription = {
+  plan: string;
+  status: string;
+  current_period_end: string | null;
+  /** 'gumroad' when paid by card; absent when an admin switched it on. */
+  provider?: string | null;
+  /** The membership's id at the payment provider (for "Manage or cancel"). */
+  provider_ref?: string | null;
+  billing?: string | null;
+  /** Cancelled: Pro runs until current_period_end and is not renewed. */
+  cancel_at_period_end?: boolean;
+};
 
 let proCache: { userId: string; sub: Subscription | null; at: number } | null = null;
+/** One read at a time per person, shared by every part of the page that asks. */
+let proInflight: { userId: string; promise: Promise<Subscription | null> } | null = null;
+const planListeners = new Set<() => void>();
+
+/** Read the plan again everywhere it is shown (after a payment, a cancellation…). */
+export function refreshMyPlan(): void {
+  proCache = null;
+  proInflight = null;
+  planListeners.forEach((l) => l());
+}
+
+let lapseChecked = false;
+
+/** The card-payment columns exist from migration 20261203090000; before it, the three original ones are read. */
+async function loadSubscription(userId: string): Promise<Subscription | null> {
+  const read = () => supabase.from('subscriptions').select('plan, status, current_period_end, provider, provider_ref, billing, cancel_at_period_end').eq('user_id', userId).maybeSingle();
+  const full = await read();
+  if (full.error) {
+    const basic = await supabase.from('subscriptions').select('plan, status, current_period_end').eq('user_id', userId).maybeSingle();
+    return (basic.data as Subscription | null) ?? null;
+  }
+  const s = (full.data as Subscription | null) ?? null;
+  // Paid by card and run out without being cancelled: a renewal notice may have
+  // been lost on the way. Ask the server to look at the payment once, then read again.
+  const ended = s?.current_period_end ? Date.parse(s.current_period_end) : NaN;
+  if (s?.provider === 'gumroad' && s.status === 'active' && !s.cancel_at_period_end && ended < Date.now() && ended > Date.now() - 21 * 86_400_000 && !lapseChecked) {
+    lapseChecked = true;
+    try {
+      await supabase.functions.invoke('gumroad', { body: { action: 'refresh' } });
+      const again = await read();
+      if (!again.error) return (again.data as Subscription | null) ?? null;
+    } catch {
+      /* keep what we read */
+    }
+  }
+  return s;
+}
 
 /** The signed-in person's active plan (null = free). */
 export function useMyPlan(): { isPro: boolean; sub: Subscription | null; loading: boolean } {
   const { user } = useAuth();
+  const [tick, setTick] = useState(0);
   const cached = user && proCache?.userId === user.id && Date.now() - proCache.at < 5 * 60_000 ? proCache : null;
   const [sub, setSub] = useState<Subscription | null>(cached?.sub ?? null);
   const [loading, setLoading] = useState(Boolean(user) && !cached);
+  useEffect(() => {
+    const again = () => setTick((n) => n + 1);
+    planListeners.add(again);
+    return () => {
+      planListeners.delete(again);
+    };
+  }, []);
   useEffect(() => {
     if (!user) {
       setSub(null);
       setLoading(false);
       return;
     }
-    if (cached) return;
+    if (cached) {
+      setSub(cached.sub);
+      return;
+    }
     let alive = true;
-    supabase
-      .from('subscriptions')
-      .select('plan, status, current_period_end')
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!alive) return;
-        const s = (data as Subscription | null) ?? null;
-        proCache = { userId: user.id, sub: s, at: Date.now() };
-        setSub(s);
-        setLoading(false);
+    const uid = user.id;
+    if (proInflight?.userId !== uid) {
+      const promise = loadSubscription(uid).then((s) => {
+        if (proInflight?.promise === promise) {
+          proCache = { userId: uid, sub: s, at: Date.now() };
+          proInflight = null;
+        }
+        return s;
       });
+      proInflight = { userId: uid, promise };
+    }
+    void proInflight.promise.then((s) => {
+      if (!alive) return;
+      setSub(s);
+      setLoading(false);
+    });
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, tick]);
   const isPro = Boolean(sub && sub.status === 'active' && (!sub.current_period_end || Date.parse(sub.current_period_end) > Date.now()));
   return { isPro, sub, loading };
 }

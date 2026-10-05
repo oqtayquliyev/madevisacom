@@ -8,6 +8,7 @@ import { FREE_FEATURES, missingProfileFields, useMyPlan, type Billing, type Plan
 import { EMPLOYER_PRICES, FREE_DAILY_CHECKS, PLAN_RANGE, PLAN_USD, PRO_MONTHLY_DOCS, usePrices, type Money, type Prices } from '@/lib/pricing';
 import { countryName } from '@/lib/visaFit';
 import { useCv } from '@/lib/cv/store';
+import { useCardPayments } from '@/lib/gumroad';
 import { CvUpload } from '@/components/cv/CvUpload';
 import { BillingToggle, ProPlanCard } from '@/components/pro/ProPlanCard';
 import { PlanRequestDialog } from '@/components/pro/PlanRequestDialog';
@@ -77,6 +78,8 @@ export function PricingPage({ go, onAuth }: Props) {
   const { profile } = useAuth();
   const { isPro, sub } = useMyPlan();
   const { cv } = useCv();
+  // Card payments on (Admin → Plans): the two answers about paying and cancelling say how that works.
+  const card = useCardPayments();
   const [billing, setBilling] = useState<Exclude<Billing, 'one_time'>>('monthly');
   const [dialog, setDialog] = useState<{ plan: PlanId; billing: Billing; label: string } | null>(null);
 
@@ -254,8 +257,12 @@ export function PricingPage({ go, onAuth }: Props) {
                 { q: 'What is the sponsorship document, and is it legally binding?', a: 'It is a proposal you send to an employer when a job needs a visa: the route that may apply, what it usually asks of the employer, and who you suggest pays each cost. Every line shows its source and whether it is known, your proposal, or still needs confirmation. It is not a contract, a job offer or a visa guarantee: its terms count only once you and the employer put them into the employment contract or a signed agreement. It never moves costs the law puts on the employer, never touches salary, and isn’t legal advice.' },
                 { q: 'Can I buy one document without the plan?', a: `No — documents are part of Pro, ${PRO_MONTHLY_DOCS} each calendar month, which is cheaper than they were one by one. Credits you bought or earned before this change are still yours and still work.` },
                 { q: 'Why is the price different in my country?', a: `The list price is ${prices.m(PLAN_USD.top).usdLabel} a month. Where incomes are lower, a regional price applies, so the plan stays affordable there. It follows the country you live in and pay from, which we read from your internet connection and confirm at payment, and it is shown in your currency when we can (otherwise in US dollars). Pro is exactly the same in every country.` },
-                { q: 'How do I pay?', a: 'Choose monthly or yearly and send the short form. We email you a secure payment link within one working day, and Pro starts as soon as it’s paid. No card is needed to send the request.' },
-                { q: 'Can I cancel? Can I get a refund?', a: 'Yes. Monthly stops at the end of the month, yearly at the end of the year — email hello@madevisa.com. Within 14 days of first starting Pro, if you haven’t used any Pro documents, you get a full refund — see the Sponsorship Document Terms.' },
+                card.on
+                  ? { q: 'How do I pay?', a: 'Choose monthly or yearly and press Get Pro. You pay by card on Gumroad, our payment partner, in US dollars; MadeVisa never sees your card. Pro starts by itself a moment after the payment, and Gumroad emails you the receipt.' }
+                  : { q: 'How do I pay?', a: 'Choose monthly or yearly and send the short form. We email you a secure payment link within one working day, and Pro starts as soon as it’s paid. No card is needed to send the request.' },
+                card.on
+                  ? { q: 'Can I cancel? Can I get a refund?', a: 'Yes. Under your plan on this page choose “Manage or cancel on Gumroad”, or use the link in your receipt. Monthly then stops at the end of the month, yearly at the end of the year. Within 14 days of first starting Pro, if you haven’t used any Pro documents, you get a full refund: write to hello@madevisa.com — see the Sponsorship Document Terms.' }
+                  : { q: 'Can I cancel? Can I get a refund?', a: 'Yes. Monthly stops at the end of the month, yearly at the end of the year — email hello@madevisa.com. Within 14 days of first starting Pro, if you haven’t used any Pro documents, you get a full refund — see the Sponsorship Document Terms.' },
                 { q: 'Does paying change Company Scores?', a: 'Never. Scores and reply rates are calculated the same way for every company — see our Advertising Policy.' },
               ]}
             />
