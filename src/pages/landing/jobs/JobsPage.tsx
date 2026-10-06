@@ -40,6 +40,7 @@ import { useJobFacets } from '@/lib/jobFacets';
 import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
 import { useSeo } from '@/lib/seo';
+import { SEO_META } from '@/lib/seoMeta';
 import { PersonalizationBar } from '@/components/opportunities/PersonalizationBar';
 import { jobPath } from '@/lib/jobUrl';
 import { experienceBucket } from '@/lib/jobText';
@@ -371,12 +372,8 @@ function TextField({ label, value, onChange, placeholder }: { label: string; val
 }
 
 export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
-  useSeo({
-    title: 'Jobs Beyond LinkedIn: Company Career Pages & Jobs Abroad',
-    description:
-      'Discover jobs beyond traditional job boards. MadeVisa collects international jobs and global opportunities from company career pages and other sources, at home or abroad.',
-    path: '/jobs',
-  });
+  // Filtered views (/jobs?country=…) all point their canonical at /jobs.
+  useSeo({ ...SEO_META.jobs, path: '/jobs', ogImage: 'https://madevisa.com/api/og/page?p=jobs' });
 
   const initial = useMemo(() => new URLSearchParams(window.location.search), []);
 

@@ -23,6 +23,7 @@ import {
 } from '@/lib/programs';
 import { computeEligibility, usePersonalization } from '@/lib/personalization';
 import { useSeo } from '@/lib/seo';
+import { COMING_SOON_NOINDEX } from '@/lib/seoMeta';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { PersonalizationBar, EligibilityBadge } from '@/components/opportunities/PersonalizationBar';
@@ -358,7 +359,8 @@ type ProgramsPageProps = {
 
 export function ProgramsPage({ go, onAuth, goToProgram, mode = 'programs' }: ProgramsPageProps) {
   const config = MODE_CONFIG[mode];
-  useSeo({ title: config.seoTitle, description: config.seoDescription, path: config.path });
+  // Programs and Study are "soon" (no listings yet): kept out of the index until they launch.
+  useSeo({ title: config.seoTitle, description: config.seoDescription, path: config.path, noindex: COMING_SOON_NOINDEX[config.path === '/study' ? 'study' : 'programs'] });
 
   const initial = useMemo(() => new URLSearchParams(window.location.search), []);
   const allTypes = config.allTypesLabel;

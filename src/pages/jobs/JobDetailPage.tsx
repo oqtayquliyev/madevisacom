@@ -30,6 +30,7 @@ import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { useSeo } from '@/lib/seo';
+import { jobTitleMeta, titleLocation } from '@/lib/seoMeta';
 import { purifyJobHtml, sanitizeJobHtml } from '@/lib/atsImport';
 import { formatRelativeTime } from '@/lib/dates';
 import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
@@ -154,10 +155,12 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
   useSeo({
     // useSeo appends " | MadeVisa" → "Title at Company, Location | MadeVisa"
-    title: job ? `${job.title} at ${job.company}${location ? `, ${location}` : ''}` : 'Job',
+    title: job ? jobTitleMeta({ title: job.title, company: job.company, location: titleLocation(location), visa: Boolean(job.visaSponsorship || job.visaStatus === 'offered') }) : 'Job',
     description: job ? jobMetaDescription(job, location, cleaned?.html) : 'View this job listing on MadeVisa, including requirements and how to apply.',
     path: canonicalPath,
-    noindex: job === null,
+    // Closed jobs stay reachable for people who saved the link, but leave the index
+    // (the server also answers 410 for them).
+    noindex: job === null || Boolean(job?.closed),
     // Generated per job by /api/og/job (see api/og/job.ts); crawlers get it via middleware.ts.
     ogImage: raw?.id ? `${window.location.origin}/api/og/job?id=${raw.id.slice(0, 8)}` : job?.imageUrl ?? undefined,
   });
@@ -165,7 +168,10 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // JobPosting structured data — individual job pages only (never the
   // /jobs list), built strictly from fields the job actually has.
   useEffect(() => {
-    if (!job || !raw) return;
+    if (!job || !raw || job.closed) {
+      document.getElementById('jobposting-jsonld')?.remove();
+      return;
+    }
     const data = buildJobPostingJsonLd(job, raw, canonicalPath);
     if (!data) return;
     const script = document.createElement('script');
@@ -850,7 +856,9 @@ function stripHtml(html: string): string {
 /** Unique per job: title, company, location, type/salary when known, then the start of the real description. */
 function jobMetaDescription(job: Job, location: string, cleanedHtml?: string | null): string {
   const facts = [job.type, job.salary].filter(Boolean).join(' · ');
-  let text = `${job.title} at ${job.company}${location ? ` in ${location}` : ''}.${facts ? ` ${facts}.` : ''}`;
+  const loc = titleLocation(location);
+  const visa = job.visaSponsorship || job.visaStatus === 'offered' ? ' Visa sponsorship offered.' : '';
+  let text = `${job.title} at ${job.company}${loc === 'Remote' ? ', remote' : loc ? ` in ${loc}` : ''}.${facts ? ` ${facts}.` : ''}${visa}`;
   const body = cleanedHtml ? stripHtml(cleanedHtml) : job.description ? stripHtml(job.description) : '';
   if (body) text += ` ${body}`;
   else text += ' See requirements and apply on MadeVisa.';
@@ -920,6 +928,9 @@ function buildJobPostingJsonLd(job: Job, raw: SponsoredJob, path: string): Recor
       },
     };
   }
+
+  // Google needs either a place or, for remote jobs, the countries applicants may live in.
+  if (!data.jobLocation && !data.applicantLocationRequirements) return null;
 
   if (raw.salary_status === 'disclosed' && (raw.salary_min != null || raw.salary_max != null)) {
     const value: Record<string, unknown> = { '@type': 'QuantitativeValue', unitText: SALARY_UNIT_MAP[raw.salary_period] ?? 'YEAR' };

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowRight, ArrowUp, Building2, Loader2, Search, SlidersHorizontal, TrendingDown, TrendingUp, X } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { SEO_META } from '@/lib/seoMeta';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { companyPath, fetchCompaniesDirectory, type DirectoryCompany } from '@/lib/companies';
@@ -81,11 +82,7 @@ function growthOf(c: DirectoryCompany): number | null {
 }
 
 export function CompaniesPage({ go, onAuth }: Props) {
-  useSeo({
-    title: 'Company Scores — hiring activity & applicant response',
-    description: 'Search companies by where they hire, how much they are hiring and how often they reply to applicants — based on real data on MadeVisa.',
-    path: '/companies',
-  });
+  useSeo({ ...SEO_META.companies, path: '/companies', ogImage: 'https://madevisa.com/api/og/page?p=companies' });
   const [rows, setRows] = useState<DirectoryCompany[] | null | undefined>(undefined);
   const [f, setF] = useState<Filters>(readFilters);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);

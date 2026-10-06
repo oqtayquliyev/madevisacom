@@ -29,7 +29,7 @@ export type InfoPageContent = {
 export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
   about: {
     slug: 'about',
-    title: 'What is MadeVisa? Jobs abroad, and a sponsorship proposal to start the visa conversation',
+    title: 'What Is MadeVisa? Jobs Abroad & Visa Sponsorship Proposals',
     description:
       'MadeVisa brings live jobs from employers’ own career pages, shows which companies reply, and lets you attach a sponsorship proposal that shows the employer what sponsoring your visa would involve.',
     eyebrow: 'About MadeVisa',

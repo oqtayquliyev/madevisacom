@@ -2,6 +2,7 @@ import type { MouseEvent } from 'react';
 import { ArrowDown, FileCheck2, Paperclip, SlidersHorizontal } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { SEO_META } from '@/lib/seoMeta';
 import { useAuth } from '@/lib/auth';
 import { WRAP, nav } from '@/lib/pageLayout';
 import { allowanceLabel, useOfferCredits } from '@/lib/sponsorOffer';
@@ -36,11 +37,7 @@ export function OffersPage({ go, onAuth }: Props) {
   const credits = useOfferCredits();
   const prices = usePrices();
 
-  useSeo({
-    title: 'Visa Plan for your job application — MadeVisa',
-    description: 'Job doesn’t mention a visa? Attach a Visa Plan, your sponsorship proposal: the visa route, the employer’s steps and who pays what. 50 a month are part of MadeVisa Pro.',
-    path: '/offers',
-  });
+  useSeo({ ...SEO_META.offers, path: '/offers' });
 
   const jump = (id: string) => (e: MouseEvent) => {
     e.preventDefault();

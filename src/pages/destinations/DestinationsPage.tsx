@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ArrowUpRight, Info, Search } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { SEO_META } from '@/lib/seoMeta';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -24,8 +25,8 @@ const OPEN: RouteStatus[] = ['citizen', 'free', 'eligible', 'likely'];
 
 export function DestinationsPage({ go, onAuth }: DestinationsPageProps) {
   useSeo({
-    title: 'Visas by Country — visa routes, sponsorship rates and companies hiring by country',
-    description: `Compare ${visaGuides.length} countries: visa routes you qualify for, live visa-sponsored job counts, companies hiring, and years to permanent residence and citizenship.`,
+    ...SEO_META.destinations,
+    ogImage: 'https://madevisa.com/api/og/page?p=destinations',
     path: '/destinations',
   });
 

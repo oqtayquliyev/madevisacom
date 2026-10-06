@@ -1,6 +1,8 @@
 // One place for each top-level page's share text. Used by the page share
 // image (api/og/page.ts) and by middleware.ts for link-preview tags.
 
+import { SEO_META } from '../src/lib/seoMeta';
+
 export type PageKey = 'home' | 'jobs' | 'programs' | 'study' | 'companies' | 'destinations' | 'network' | 'feedback';
 
 export type PageMeta = {
@@ -20,8 +22,8 @@ export type PageMeta = {
 export const PAGES: Record<PageKey, PageMeta> = {
   home: {
     path: '/',
-    title: 'MadeVisa — Jobs straight from company career pages',
-    description: 'Skip the reposts. Live jobs from company career pages, which companies actually reply, and visa routes by country — in one place.',
+    title: SEO_META.home.title,
+    description: SEO_META.home.description,
     label: null,
     headline: 'Find your path with MadeVisa.',
     sub: "Live jobs straight from company career pages — with insights on who's hiring and who replies.",
@@ -29,8 +31,8 @@ export const PAGES: Record<PageKey, PageMeta> = {
   },
   jobs: {
     path: '/jobs',
-    title: 'Live jobs from company career pages, updated daily | MadeVisa',
-    description: 'Thousands of new jobs every day, straight from company career pages. Filter by country, visa sponsorship, salary and remote work.',
+    title: SEO_META.jobs.title,
+    description: SEO_META.jobs.description,
     label: 'Jobs',
     headline: 'Jobs straight from company career pages',
     sub: 'Filter by country, visa sponsorship, salary and remote work.',
@@ -56,8 +58,8 @@ export const PAGES: Record<PageKey, PageMeta> = {
   },
   companies: {
     path: '/companies',
-    title: 'Insights — which companies reply, who is hiring and who sponsors visas | MadeVisa',
-    description: 'Reply rates from real applicants, hiring activity and visa sponsorship for every company — check before you apply.',
+    title: SEO_META.companies.title,
+    description: SEO_META.companies.description,
     label: 'Insights',
     headline: "Who's hiring — and who actually replies",
     sub: 'Hiring activity and reply rates from real applicants, for every company.',
@@ -65,8 +67,8 @@ export const PAGES: Record<PageKey, PageMeta> = {
   },
   destinations: {
     path: '/destinations',
-    title: 'Where can your passport take you? Visa routes by country | MadeVisa',
-    description: 'Check which visa routes you qualify for in 21 countries, with live visa-sponsored jobs and the companies hiring there.',
+    title: SEO_META.destinations.title,
+    description: SEO_META.destinations.description,
     label: 'Destinations',
     headline: 'Where can you go?',
     sub: 'Visa routes, sponsorship rates and companies hiring — country by country.',
@@ -74,8 +76,8 @@ export const PAGES: Record<PageKey, PageMeta> = {
   },
   network: {
     path: '/network',
-    title: 'Recruiters — hiring managers and recruiters who hire across borders | MadeVisa',
-    description: 'Hiring managers, recruiters and visa experts who hire internationally, and the employers that sponsor visas. Contact details are never shown.',
+    title: SEO_META.network.title,
+    description: SEO_META.network.description,
     label: 'Recruiters',
     headline: 'Recruiters on MadeVisa',
     sub: 'Hiring managers, recruiters and visa experts who hire across borders.',
@@ -83,8 +85,8 @@ export const PAGES: Record<PageKey, PageMeta> = {
   },
   feedback: {
     path: '/feedback',
-    title: 'How did your application really go? | MadeVisa',
-    description: 'Share how your job application went — no reply, rejection, interview or offer. Private, and it shows which companies really reply.',
+    title: SEO_META.feedback.title,
+    description: SEO_META.feedback.description,
     label: 'Hiring Feedback',
     headline: 'How did your application go?',
     sub: 'Share it in 20 seconds, privately — and see which companies really reply.',

@@ -59,24 +59,29 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   if (f === 'pages') {
-    const main: [string, string, string][] = [
-      ['/', 'daily', '1.0'],
-      ['/jobs', 'hourly', '0.9'],
-      ['/companies', 'daily', '0.8'],
-      ['/job-market', 'hourly', '0.8'],
-      ['/destinations', 'weekly', '0.8'],
-      ['/blog', 'daily', '0.7'],
-      ['/feedback', 'daily', '0.6'],
-      ['/network', 'daily', '0.5'],
-      ['/about', 'monthly', '0.6'],
-      ['/how-it-works', 'monthly', '0.6'],
-      ['/cv-match', 'monthly', '0.7'],
-      ['/pricing', 'monthly', '0.5'],
-      ['/submit-job', 'monthly', '0.4'],
-      ['/official-sources', 'monthly', '0.3'],
-      ['/employers/inbox', 'monthly', '0.4'],
+    // Only canonical, indexable pages. lastmod is given only where the content
+    // really changes every day (live lists); a static page stamped "today" on
+    // every request teaches Google to ignore lastmod for the whole site.
+    // Programs and Study stay out until they have listings (see COMING_SOON_NOINDEX).
+    const main: [string, string, string, boolean][] = [
+      ['/', 'daily', '1.0', true],
+      ['/jobs', 'hourly', '0.9', true],
+      ['/companies', 'daily', '0.8', true],
+      ['/job-market', 'hourly', '0.8', true],
+      ['/destinations', 'weekly', '0.8', false],
+      ['/offers', 'monthly', '0.7', false],
+      ['/cv-match', 'monthly', '0.7', false],
+      ['/blog', 'daily', '0.7', false],
+      ['/feedback', 'daily', '0.6', false],
+      ['/network', 'daily', '0.5', false],
+      ['/about', 'monthly', '0.6', false],
+      ['/how-it-works', 'monthly', '0.6', false],
+      ['/pricing', 'monthly', '0.5', false],
+      ['/submit-job', 'monthly', '0.4', false],
+      ['/official-sources', 'monthly', '0.3', false],
+      ['/employers/inbox', 'monthly', '0.3', false],
     ];
-    return xml(urlset([...main.map(([p, c, pr]) => url(p, today, c, pr)), ...legalPageOrder.map((s) => url(`/${s}`, undefined, 'yearly', '0.2'))]), 86400);
+    return xml(urlset([...main.map(([p, c, pr, live]) => url(p, live ? today : undefined, c, pr)), ...legalPageOrder.map((s) => url(`/${s}`, undefined, 'yearly', '0.2'))]), 86400);
   }
 
   if (f === 'destinations') {

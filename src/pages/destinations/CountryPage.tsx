@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, ArrowUpRight, BadgeCheck, Building2, ChevronDown, ChevronRight, ExternalLink, Globe2, Info, Landmark, Languages, Plane, Search, Wallet } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { destinationDescriptionMeta, destinationTitleMeta } from '@/lib/seoMeta';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -48,11 +49,11 @@ export function CountryPage({ slug, go, onAuth }: Props) {
   const guide = visaGuideBySlug.get(slug.replace(/\/+$/, '').toLowerCase());
 
   useSeo({
-    title: guide ? `${guide.name} — visas, sponsored jobs & companies hiring` : 'Destination',
-    description: guide
-      ? `Visa routes for ${guide.name}, years to permanent residence and citizenship, plus live visa-sponsored jobs and the companies hiring there.`
-      : 'Destination guide on MadeVisa.',
-    path: `/destinations/${slug}`,
+    title: guide ? destinationTitleMeta(guide.name) : 'Destination',
+    description: guide ? destinationDescriptionMeta(guide.name) : 'Destination guide on MadeVisa.',
+    path: guide ? `/destinations/${guide.slug}` : `/destinations/${slug}`,
+    noindex: !guide,
+    ogImage: 'https://madevisa.com/api/og/page?p=destinations',
   });
 
   if (!guide) return <NotFoundPage go={go} onAuth={onAuth} />;

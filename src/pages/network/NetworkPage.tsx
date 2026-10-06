@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BadgeCheck, Briefcase, Building2, ExternalLink, Loader2, Search, ShieldCheck, UserRound, Users } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { SEO_META } from '@/lib/seoMeta';
 import { useAuth } from '@/lib/auth';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -39,8 +40,8 @@ const TAB_FROM_URL = (): Tab => {
 
 export function NetworkPage({ go, onAuth }: Props) {
   useSeo({
-    title: 'Recruiters — hiring managers and recruiters hiring across borders',
-    description: 'Hiring managers, recruiters and visa experts who hire internationally, and the employers that sponsor visas — with live sponsorship rates.',
+    ...SEO_META.network,
+    ogImage: 'https://madevisa.com/api/og/page?p=network',
     path: '/network',
   });
   const { session, profile } = useAuth();

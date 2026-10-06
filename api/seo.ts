@@ -14,10 +14,20 @@
 import { PAGES, type PageKey } from './_pages';
 import { escHtml as esc } from './_supa';
 import { slugify } from '../src/lib/jobUrl';
-import { legalPages } from '../src/data/legalContent';
 import { infoPages } from '../src/data/infoContent';
 import { visaGuides } from '../src/data/visa';
 import { PLAN_RANGE, PRO_MONTHLY_DOCS } from '../src/lib/planPrice';
+import { legalPageOrder, legalPages } from '../src/data/legalContent';
+import {
+  COMING_SOON_NOINDEX,
+  SEO_META,
+  companyDescriptionMeta,
+  companyTitleMeta,
+  destinationDescriptionMeta,
+  destinationTitleMeta,
+  jobTitleMeta,
+  titleLocation,
+} from '../src/lib/seoMeta';
 
 export const config = { runtime: 'edge' };
 
@@ -173,7 +183,7 @@ function withBootGuard(html: string): string {
 }
 
 const HEAD_TAGS =
-  /<meta\s+[^>]*?(?:name|property)\s*=\s*"(?:description|robots|og:title|og:description|og:url|og:image|og:type|og:image:width|og:image:height|twitter:card|twitter:title|twitter:description|twitter:image)"[^>]*>\s*/gi;
+  /<meta\s+[^>]*?(?:name|property)\s*=\s*"(?:description|robots|og:title|og:description|og:url|og:image|og:type|og:locale|og:image:width|og:image:height|twitter:card|twitter:title|twitter:description|twitter:image)"[^>]*>\s*/gi;
 
 function render(tpl: string, p: Page): string {
   const title = p.title.includes('MadeVisa') ? p.title : `${p.title} | MadeVisa`;
@@ -185,8 +195,10 @@ function render(tpl: string, p: Page): string {
     `<title>${esc(title)}</title>`,
     `<meta name="description" content="${esc(clip(p.description, 300))}">`,
     `<meta name="robots" content="${p.noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large, max-snippet:-1'}">`,
-    `<link rel="canonical" href="${esc(url)}" data-ssr-path="${esc(p.path)}">`,
+    // Error pages (404/410) get no canonical: there is no "right" version of them to point at.
+    ...(p.status && p.status >= 400 ? [] : [`<link rel="canonical" href="${esc(url)}" data-ssr-path="${esc(p.path)}">`]),
     `<meta property="og:type" content="${p.ogType ?? 'website'}">`,
+    `<meta property="og:locale" content="en_US">`,
     `<meta property="og:title" content="${esc(title)}">`,
     `<meta property="og:description" content="${esc(clip(p.description, 300))}">`,
     `<meta property="og:url" content="${esc(url)}">`,
@@ -211,14 +223,18 @@ function render(tpl: string, p: Page): string {
 
 const footerLinks = () =>
   `<nav aria-label="MadeVisa"><h2>Explore MadeVisa</h2><ul class="links">${[
-    ['/jobs', 'Live jobs from company career pages'],
+    ['/jobs', 'Jobs abroad, live from company career pages'],
     ['/cv-match', 'CV match — how well your CV fits a job'],
+    ['/offers', 'Visa Plan — a sponsorship proposal for your application'],
     ['/companies', 'Company Scores — who replies to applicants'],
     ['/job-market', 'Job market insights, updated hourly'],
-    ['/destinations', 'Visas by country'],
+    ['/destinations', 'Work visas by country'],
     ['/blog', 'Hiring reports and visa guides'],
+    ['/pricing', 'Pricing'],
     ['/about', 'About MadeVisa'],
     ['/how-it-works', 'How MadeVisa works'],
+    ['/editorial-policy', 'Editorial policy'],
+    ['/contact', 'Contact'],
   ]
     .map(([h, t]) => `<li>${link(h, t)}</li>`)
     .join('')}</ul></nav>`;
@@ -263,7 +279,8 @@ function jobPostingLd(j: SeoJob, path: string, descriptionHtml: string): Record<
   if (j.iso && (!remote || j.city)) {
     d.jobLocation = { '@type': 'Place', address: { '@type': 'PostalAddress', ...(j.city ? { addressLocality: j.city } : {}), addressCountry: j.iso } };
   }
-  if (!d.jobLocation && !remote) return null; // Google requires a location or remote
+  // Google requires a place, or for remote jobs the countries applicants may live in.
+  if (!d.jobLocation && !d.applicantLocationRequirements) return null;
   if (j.salary_min != null || j.salary_max != null) {
     const value: Record<string, unknown> = { '@type': 'QuantitativeValue', unitText: SALARY_UNIT[j.salary_period ?? ''] ?? 'YEAR' };
     if (j.salary_min != null && j.salary_max != null && j.salary_min !== j.salary_max) {
@@ -324,8 +341,11 @@ async function jobPage(a: string, b: string | null, reqPath: string): Promise<Pa
   const guide = j.iso ? visaGuides.find((g) => g.code === j.iso) : undefined;
 
   return {
-    title: `${j.title} at ${j.company}${loc ? `, ${loc}` : ''}`,
-    description: clip(`${j.title} at ${j.company}${loc ? ` in ${loc}` : ''}.${j.employment_type && j.employment_type !== 'Other' ? ` ${j.employment_type}.` : ''} ${text}`, 160),
+    title: jobTitleMeta({ title: j.title, company: j.company, location: titleLocation(loc), visa: j.visa }),
+    description: clip(
+      `${j.title} at ${j.company}${titleLocation(loc) === 'Remote' ? ', remote' : titleLocation(loc) ? ` in ${titleLocation(loc)}` : ''}.${j.employment_type && j.employment_type !== 'Other' ? ` ${j.employment_type}.` : ''}${j.visa ? ' Visa sponsorship offered.' : ''} ${text}`,
+      160
+    ),
     path,
     image: `${SITE}/api/og/job?id=${j.id.slice(0, 8)}`,
     jobPosting: jobPostingLd(j, path, descHtml) ?? undefined,
@@ -345,17 +365,16 @@ async function jobPage(a: string, b: string | null, reqPath: string): Promise<Pa
 
 async function jobsPage(): Promise<Page> {
   const latest = (await rpc<LatestJob[]>('seo_latest_jobs', { p_limit: 80 })) ?? [];
-  const m = PAGES.jobs;
   const byCountry = new Map<string, number>();
   for (const j of latest) if (j.country) byCountry.set(j.country, (byCountry.get(j.country) ?? 0) + 1);
   return {
-    title: m.title,
-    description: m.description,
+    title: SEO_META.jobs.title,
+    description: SEO_META.jobs.description,
     path: '/jobs',
     image: `${SITE}/api/og/page?p=jobs`,
     jsonld: [crumbsLd([['MadeVisa', '/'], ['Jobs', '/jobs']])],
     body:
-      `<h1>Live jobs from company career pages</h1><p>${esc(m.description)}</p>` +
+      `<h1>Jobs abroad, live from company career pages</h1><p>${esc(SEO_META.jobs.description)}</p>` +
       `<h2>Just added</h2><ul class="links">${latest
         .map((j) => `<li>${link(jobPath(j), `${j.title} — ${j.company}${j.city || j.country ? `, ${[j.city, j.country].filter(Boolean).join(', ')}` : ''}`)}</li>`)
         .join('')}</ul>` +
@@ -367,18 +386,22 @@ async function jobsPage(): Promise<Page> {
 
 async function homePage(): Promise<Page> {
   const latest = (await rpc<LatestJob[]>('seo_latest_jobs', { p_limit: 30 })) ?? [];
-  const m = PAGES.home;
   return {
-    title: 'MadeVisa | Jobs from the Source + Hiring Insights',
-    description: m.description,
+    title: SEO_META.home.title,
+    description: SEO_META.home.description,
     path: '/',
     body:
-      `<h1>Jobs straight from company career pages — and the insight to apply smarter</h1><p>${esc(m.description)}</p>` +
+      // Same headline as the app's hero, plus one plain statement of what MadeVisa is —
+      // for search engines and AI crawlers that read the HTML without running the app.
+      `<h1>Find a job abroad. See how well you match it.</h1><p>${esc(SEO_META.home.description)}</p>` +
+      `<p>MadeVisa is a job search platform for people who want to work in another country. It lists jobs taken directly from employers’ own career pages, shows which jobs state visa sponsorship, which companies reply to applicants, and the visa routes for working in each country. MadeVisa does not issue visas, act as an immigration adviser or guarantee a job or a visa.</p>` +
       `<ul class="links">${[
-        ['/jobs', 'Browse live jobs'],
+        ['/jobs', 'Browse jobs abroad'],
+        ['/jobs?visa=1', 'Jobs that state visa sponsorship'],
         ['/companies', 'Company Scores: which companies reply'],
+        ['/destinations', 'Work visas by country'],
+        ['/offers', 'Visa Plan: a sponsorship proposal for your application'],
         ['/job-market', 'The job market, live'],
-        ['/destinations', 'Visas by country'],
         ['/blog', 'Hiring reports and visa guides'],
       ]
         .map(([h, t]) => `<li>${link(h, t)}</li>`)
@@ -403,11 +426,22 @@ async function companyPage(slug: string, reqPath: string): Promise<Page | Respon
     [c.name, path],
   ];
   return {
-    title: `${c.name} — jobs, hiring activity & applicant response`,
-    description: `${c.live_jobs ? `${c.live_jobs.toLocaleString('en-US')} open ${c.live_jobs === 1 ? 'job' : 'jobs'} at ${c.name}` : `Jobs at ${c.name}`}, plus real hiring activity and whether the company replies to applicants — tracked on MadeVisa.`,
+    title: companyTitleMeta(c.name),
+    description: companyDescriptionMeta(c.name, c.live_jobs),
     path,
     image: `${SITE}/api/og/company?slug=${encodeURIComponent(slug)}`,
-    jsonld: [crumbsLd(crumbs), { '@context': 'https://schema.org', '@type': 'Organization', name: c.name, ...(c.website ? { url: c.website } : {}), ...(c.logo ? { logo: c.logo } : {}) }],
+    jsonld: [
+      crumbsLd(crumbs),
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        '@id': `${SITE}${path}#organization`,
+        name: c.name,
+        ...(c.website ? { url: c.website } : {}),
+        ...(c.logo ? { logo: c.logo } : {}),
+        ...(c.country ? { address: { '@type': 'PostalAddress', addressCountry: c.country } } : {}),
+      },
+    ],
     body:
       crumbsHtml(crumbs) +
       `<h1>${esc(c.name)}</h1><p class="meta">${c.country ? `${esc(c.country)} · ` : ''}${c.live_jobs.toLocaleString('en-US')} open jobs on MadeVisa</p>` +
@@ -428,8 +462,8 @@ function destinationPage(slug: string, reqPath: string): Page {
     [g.name, path],
   ];
   return {
-    title: `${g.name} — visas, sponsored jobs & companies hiring`,
-    description: `Visa routes for ${g.name}, years to permanent residence and citizenship, plus live visa-sponsored jobs and the companies hiring there.`,
+    title: destinationTitleMeta(g.name),
+    description: destinationDescriptionMeta(g.name),
     path,
     image: `${SITE}/api/og/page?p=destinations`,
     jsonld: [crumbsLd(crumbs)],
@@ -440,6 +474,7 @@ function destinationPage(slug: string, reqPath: string): Page {
       `<h2>Visa routes</h2><table><thead><tr><th>Route</th><th>Valid for</th><th>Fee</th></tr></thead><tbody>${g.routes
         .map((r) => `<tr><td><strong>${esc(r.name)}</strong><br>${esc(r.summary)}</td><td>${esc(r.validity)}</td><td>${esc(r.fee ?? '—')}</td></tr>`)
         .join('')}</tbody></table>` +
+      `<p>${link(`/jobs?country=${encodeURIComponent(g.name)}`, `Live jobs in ${g.name}`)} · ${link(`/jobs?country=${encodeURIComponent(g.name)}&visa=1`, `Jobs in ${g.name} that state visa sponsorship`)}</p>` +
       `<h2>Official sources</h2><ul class="links">${g.officialLinks.map((l) => `<li><a href="${esc(l.url)}" rel="nofollow noopener">${esc(l.label)}</a></li>`).join('')}</ul>` +
       footerLinks(),
     maxAge: 3600,
@@ -451,8 +486,8 @@ type ArticleRow = { slug: string; title: string; excerpt: string; body_html?: st
 async function blogPage(): Promise<Page> {
   const list = (await rest<ArticleRow[]>(`articles?select=slug,title,excerpt,category,publish_at,updated_at,cover_url,author_name&status=eq.published&publish_at=lte.${new Date().toISOString()}&order=publish_at.desc&limit=80`)) ?? [];
   return {
-    title: 'MadeVisa Blog — hiring reports, visa guides and job-search advice',
-    description: 'Weekly hiring reports from live jobs, visa guides by country and practical advice for applying — and hiring — across borders.',
+    title: SEO_META.blog.title,
+    description: SEO_META.blog.description,
     path: '/blog',
     jsonld: [crumbsLd([['MadeVisa', '/'], ['Blog', '/blog']]), { '@context': 'https://schema.org', '@type': 'Blog', name: 'MadeVisa Blog', url: `${SITE}/blog` }],
     body:
@@ -546,7 +581,7 @@ async function staticPage(slug: string): Promise<Page | null> {
       priceSpecification: { '@type': 'UnitPriceSpecification', price, priceCurrency: 'USD', billingDuration: 1, unitCode: unit },
     });
     return {
-      title: 'Pricing — one plan: full CV match reports and sponsorship documents',
+      title: SEO_META.pricing.title,
       description: desc,
       path,
       jsonld: [
@@ -574,8 +609,8 @@ async function staticPage(slug: string): Promise<Page | null> {
 
   if (slug === 'cv-match') {
     return {
-      title: 'CV match — see how well your CV fits a job before you apply',
-      description: 'Upload your CV once. On every job, MadeVisa shows a match score, the skills the ad asks for that your CV doesn’t show, and what to change. The score is free.',
+      title: SEO_META.cvMatch.title,
+      description: SEO_META.cvMatch.description,
       path,
       jsonld: [crumbsLd([['MadeVisa', '/'], ['CV match', path]])],
       body:
@@ -595,7 +630,7 @@ async function staticPage(slug: string): Promise<Page | null> {
       ? `${n(d.live_jobs)} live jobs from ${n(d.companies)} companies in ${n(d.countries)} countries. Who’s hiring this week, the most in-demand roles, remote work and visa sponsorship — updated every hour.`
       : 'Live hiring data from company career pages: who is hiring, in-demand roles, remote work and visa sponsorship by country.';
     return {
-      title: 'Job market insights — who’s hiring, where and how, updated hourly',
+      title: SEO_META.jobMarket.title,
       description: desc,
       path,
       image: `${SITE}/api/og/page?p=jobs`,
@@ -619,6 +654,43 @@ async function staticPage(slug: string): Promise<Page | null> {
     };
   }
 
+  if (slug === 'offers') {
+    const m = SEO_META.offers;
+    return {
+      title: m.title,
+      description: m.description,
+      path,
+      jsonld: [crumbsLd([['MadeVisa', '/'], ['Visa Plan', path]])],
+      body:
+        '<h1>Job doesn’t mention a visa? Send them a Visa Plan.</h1>' +
+        '<p>An employer who has never sponsored often doesn’t know what it involves. A Visa Plan is your proposal: the route that may apply, what it asks of them, and which costs you offer to cover.</p>' +
+        '<h2>How it works</h2><ol>' +
+        '<li><strong>Open a job and check your match.</strong> The document is listed under “Your application” as the missing piece. Or type any company yourself.</li>' +
+        '<li><strong>Choose who pays what.</strong> Start from a balanced suggestion and change any line. The route that may apply and what it asks of the employer are filled in for you.</li>' +
+        '<li><strong>Attach the PDF when you apply.</strong> A short proposal with the source of every line. The employer sees what sponsoring you would involve, what is confirmed and what is still open, and can reply in one click.</li>' +
+        '</ol>' +
+        `<h2>What it costs</h2><p>Visa Plans are part of MadeVisa Pro: ${PRO_MONTHLY_DOCS} a month, with the full CV match report on every job. ${link('/pricing', 'See pricing')}.</p>` +
+        `<p>A Visa Plan is a proposal written by you, not legal advice. It does not guarantee that an employer will sponsor you or that a visa will be granted. ${link('/sponsorship-document-terms', 'Sponsorship document terms')}.</p>` +
+        footerLinks(),
+      maxAge: 3600,
+    };
+  }
+
+  if (slug === 'official-sources') {
+    const m = SEO_META.officialSources;
+    return {
+      title: m.title,
+      description: m.description,
+      path,
+      jsonld: [crumbsLd([['MadeVisa', '/'], ['Official sources', path]])],
+      body:
+        `<h1>Official sources</h1><p>${esc(m.description)}</p>` +
+        `<h2>Visa routes by country, with their official sources</h2><ul class="links">${visaGuides.map((g) => `<li>${link(`/destinations/${g.slug}`, `${g.name}: visa routes and official links`)}</li>`).join('')}</ul>` +
+        footerLinks(),
+      maxAge: 86400,
+    };
+  }
+
   const legal = legalPages[slug];
   if (legal) {
     return {
@@ -637,17 +709,41 @@ async function staticPage(slug: string): Promise<Page | null> {
 
   const key = (['companies', 'destinations', 'feedback', 'network', 'programs', 'study'] as PageKey[]).find((k) => PAGES[k].path === path);
   if (key) {
-    const m = PAGES[key];
+    const m = { ...PAGES[key], ...(SEO_META as Record<string, { title: string; description: string }>)[key] };
     const extra =
       key === 'destinations'
         ? `<ul class="links">${visaGuides.map((g) => `<li>${link(`/destinations/${g.slug}`, `${g.name} — visas, jobs and companies hiring`)}</li>`).join('')}</ul>`
         : '';
-    return { title: m.title, description: m.description, path, image: `${SITE}/api/og/page?p=${key}`, jsonld: [crumbsLd([['MadeVisa', '/'], [m.label ?? m.headline, path]])], body: `<h1>${esc(m.headline)}</h1><p>${esc(m.description)}</p>${extra}${footerLinks()}`, maxAge: 1800 };
+    const noindex = (key === 'programs' || key === 'study') && COMING_SOON_NOINDEX[key];
+    return { title: m.title, description: m.description, noindex, path, image: `${SITE}/api/og/page?p=${key}`, jsonld: [crumbsLd([['MadeVisa', '/'], [m.label ?? m.headline, path]])], body: `<h1>${esc(m.headline)}</h1><p>${esc(m.description)}</p>${extra}${footerLinks()}`, maxAge: 1800 };
   }
   return null;
 }
 
 // ---------------------------------------------------------------------------
+// Every other address (the vercel.json catch-all). Pages the app knows get the
+// app with 200; anything else gets the same app (so people still see the
+// friendly "page not found" screen) but with a real 404 status and noindex, so
+// Google doesn't index mistyped or invented URLs as copies of the homepage
+// ("soft 404").
+// Keep in step with the routes in src/App.tsx.
+// ---------------------------------------------------------------------------
+
+const SPA_EXACT = new Set<string>([
+  '/', '/index.html', '/login', '/register', '/reset-password', '/verify-email',
+  '/jobs', '/programs', '/study', '/sponsored-programs', '/submit-job', '/submit-program',
+  '/profile', '/dashboard', '/admin', '/company', '/companies', '/network', '/experts',
+  '/destinations', '/feedback', '/official-sources', '/official-partners',
+  '/alerts/unsubscribe', '/employers/inbox', '/about', '/how-it-works', '/offers',
+  '/pricing', '/cv-match', '/cv', '/job-market', '/blog',
+  ...legalPageOrder.map((s) => `/${s}`),
+]);
+const SPA_PREFIXES = ['/jobs/', '/companies/', '/destinations/', '/programs/', '/feedback/', '/brief/', '/admin/', '/u/', '/blog/'];
+
+export function isKnownAppPath(rawPath: string): boolean {
+  const p = (`/${rawPath.replace(/^\/+/, '')}`).replace(/\/+$/, '') || '/';
+  return SPA_EXACT.has(p) || SPA_PREFIXES.some((x) => p.startsWith(x) && p.length > x.length);
+}
 
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
@@ -678,7 +774,18 @@ export default async function handler(req: Request): Promise<Response> {
       const to = j && !j.closed ? `${jobPath(j)}${utm}` : `/jobs${utm}`;
       return new Response(null, { status: j && !j.closed ? 301 : 302, headers: { Location: to, 'Cache-Control': 'public, s-maxage=3600' } });
     }
-    if (r === 'job' && a) page = await jobPage(a, b, `/jobs/${a}${b ? `/${b}` : ''}`);
+    if (r === 'spa') {
+      if (isKnownAppPath(q.get('p') ?? '')) return plainApp();
+      page = {
+        status: 404,
+        noindex: true,
+        title: 'Page not found',
+        description: 'This page isn’t on MadeVisa. Browse live jobs abroad, company scores and visa routes by country.',
+        path: `/${(q.get('p') ?? '').replace(/^\/+/, '')}`,
+        body: `<h1>This page isn’t on MadeVisa</h1><p>The address may be mistyped, or the page has moved.</p>${footerLinks()}`,
+        maxAge: 300,
+      };
+    } else if (r === 'job' && a) page = await jobPage(a, b, `/jobs/${a}${b ? `/${b}` : ''}`);
     else if (r === 'jobs') page = await jobsPage();
     else if (r === 'home') page = await homePage();
     else if (r === 'company' && s) page = await companyPage(s, `/companies/${s}`);

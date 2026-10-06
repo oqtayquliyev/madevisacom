@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, ArrowUpRight, Loader2 } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { SEO_META } from '@/lib/seoMeta';
 import { WRAP } from '@/lib/pageLayout';
 import { useInsights } from '@/lib/insights';
 import { companyPath } from '@/lib/companies';
@@ -72,7 +73,7 @@ export function JobMarketPage({ go, onAuth }: Props) {
   const [countrySort, setCountrySort] = useState<'jobs' | 'visa' | 'remote'>('jobs');
 
   useSeo({
-    title: 'Job market insights — who’s hiring, where and how, updated hourly',
+    title: SEO_META.jobMarket.title,
     description: d
       ? `${fmt(d.live_jobs)} live jobs from ${fmt(d.companies)} companies in ${fmt(d.countries)} countries. See who’s hiring this week, the most in-demand roles, remote work and visa sponsorship — updated every hour.`
       : 'Live hiring data from company career pages: who is hiring this week, the most in-demand roles, remote work, salary transparency and visa sponsorship by country.',

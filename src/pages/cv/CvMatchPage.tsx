@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, Briefcase, ChevronDown, FileSearch, GraduationCap, Languages, ListChecks, ScanSearch, Timer, Upload } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { SEO_META } from '@/lib/seoMeta';
 import { useSiteStats } from '@/lib/siteStats';
 import { WRAP, nav } from '@/lib/pageLayout';
 import { FREE_DAILY_CHECKS } from '@/lib/pricing';
@@ -56,7 +57,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
   const { cv, cvReady, status, result } = top;
   const site = useSiteStats();
   useSeo({
-    title: 'CV match — upload your CV and see the jobs you match most',
+    title: SEO_META.cvMatch.title,
     description: `Upload your CV and MadeVisa shows the live jobs it matches best, highest score first — and, on each job, the skills the ad asks for that your CV doesn’t show. The score is free; missing skills are free on ${FREE_DAILY_CHECKS} jobs a day.`,
     path: '/cv-match',
   });

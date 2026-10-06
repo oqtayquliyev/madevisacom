@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { SEO_META } from '@/lib/seoMeta';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { SharePromo } from '@/components/companies/SharePromo';
@@ -74,11 +75,13 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
   }, [slug]);
 
   useSeo({
-    title: company ? `${company.name} — share how your application went` : 'Hiring Feedback — how companies really respond to applicants',
+    title: company ? `${company.name} — share how your application went` : SEO_META.feedback.title,
     description: company
       ? `Applied to ${company.name}? Share in 20 seconds how it went — privately. It helps the next applicants and ${company.name}'s hiring team.`
       : 'Share how your job application went — no response, rejection, interview or offer. Private, reviewed, and it shows which companies really reply.',
     path: slug ? `/feedback/${slug}` : '/feedback',
+    // One feedback form per company is a near-copy of the company page: keep those out of the index.
+    noindex: Boolean(slug),
   });
 
   const pickList = useMemo(() => (rows ?? []).map((c) => ({ id: c.id, name: c.name, logo_url: c.logo_url })), [rows]);

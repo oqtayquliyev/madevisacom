@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowUpRight, Clock, Loader2 } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { SEO_META } from '@/lib/seoMeta';
 import { WRAP } from '@/lib/pageLayout';
 import { articlePath, CATEGORY_LABEL, CATEGORY_ORDER, fetchArticles, type ArticleCard, type ArticleCategory } from '@/lib/articles';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -54,9 +55,10 @@ export function BlogPage({ go, onAuth }: Props) {
   const [articles, setArticles] = useState<ArticleCard[] | null>(null);
 
   useSeo({
-    title: category === 'all' ? 'MadeVisa Blog — hiring reports, visa guides and job-search advice' : `${CATEGORY_LABEL[category]} | MadeVisa Blog`,
+    title: category === 'all' ? SEO_META.blog.title : `${CATEGORY_LABEL[category]} | MadeVisa Blog`,
     description: CATEGORY_BLURB[category],
-    path: category === 'all' ? '/blog' : `/blog?c=${category}`,
+    // ?c= is a filter on the same list; the server HTML for /blog also says /blog.
+    path: '/blog',
   });
 
   useEffect(() => {

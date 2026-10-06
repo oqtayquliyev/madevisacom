@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, CheckCircle2, FileSignature, Lock, ScanSearch, Minus } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { SEO_META } from '@/lib/seoMeta';
 import { WRAP, nav } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
 import { FREE_FEATURES, missingProfileFields, useMyPlan, type Billing, type PlanId } from '@/lib/plans';
@@ -84,7 +85,7 @@ export function PricingPage({ go, onAuth }: Props) {
   const [dialog, setDialog] = useState<{ plan: PlanId; billing: Billing; label: string } | null>(null);
 
   useSeo({
-    title: 'Pricing — one plan: full CV match reports and sponsorship documents',
+    title: SEO_META.pricing.title,
     description: `Checking how well your CV matches a job is free. MadeVisa Pro adds the full report on every job and ${PRO_MONTHLY_DOCS} sponsorship documents a month: $${PLAN_RANGE.monthly.high} a month or $${PLAN_RANGE.yearly.high} a year, with lower regional prices in lower-income countries.`,
     path: '/pricing',
   });

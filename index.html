@@ -29,38 +29,41 @@
       content="width=device-width, initial-scale=1.0"
     />
 
-    <title>MadeVisa | Jobs from the Source + Hiring Insights</title>
+    <title>MadeVisa — Find Jobs Abroad with Visa Sponsorship</title>
 
     <link
       rel="icon"
       type="image/png"
       href="https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789558197/madevisa-fav_j8ot2d.png"
     />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <meta
       name="description"
-      content="Live jobs straight from company career pages, plus hiring insights: company scores, reply rates and hiring trends. Programs, study and visas too — in one place."
+      content="Live jobs straight from company career pages, filterable by visa sponsorship, country and remote work. Upload your CV once and see your match on every job — free."
     />
 
     <meta
       name="robots"
-      content="index, follow"
+      content="index, follow, max-image-preview:large, max-snippet:-1"
     />
 
     <meta
       property="og:title"
-      content="MadeVisa | Jobs from the Source + Hiring Insights"
+      content="MadeVisa — Find Jobs Abroad with Visa Sponsorship"
     />
 
     <meta
       property="og:description"
-      content="Live jobs straight from company career pages, plus hiring insights: company scores, reply rates and hiring trends. Programs, study and visas too — in one place."
+      content="Live jobs straight from company career pages, filterable by visa sponsorship, country and remote work. Upload your CV once and see your match on every job — free."
     />
 
     <meta
       property="og:type"
       content="website"
     />
+
+    <meta property="og:locale" content="en_US" />
 
     <meta
       property="og:image"
@@ -84,12 +87,12 @@
 
     <meta
       name="twitter:title"
-      content="MadeVisa | Jobs from the Source + Hiring Insights"
+      content="MadeVisa — Find Jobs Abroad with Visa Sponsorship"
     />
 
     <meta
       name="twitter:description"
-      content="Live jobs straight from company career pages, plus hiring insights: company scores, reply rates and hiring trends. Programs, study and visas too — in one place."
+      content="Live jobs straight from company career pages, filterable by visa sponsorship, country and remote work. Upload your CV once and see your match on every job — free."
     />
 
     <meta
@@ -119,45 +122,47 @@
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&family=Fraunces:opsz,wght@9..144,400..800&display=swap" />
     </noscript>
 
+    <!-- Who MadeVisa is (Organization) and the site's name (WebSite, used by Google for the
+         site name shown in results). sameAs lists only MadeVisa's own profiles, the same
+         ones linked in the footer. -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "MadeVisa",
-        "url": "https://madevisa.com/",
-        "logo": "https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789558197/madevisa-fav_j8ot2d.png",
-        "email": "hello@madevisa.com",
-        "address": {
-          "@type": "PostalAddress",
-          "streetAddress": "Cherkassi Street",
-          "addressLocality": "Sumgayit",
-          "addressCountry": "AZ"
-        },
-        "description": "MadeVisa is a job search and hiring-insights platform: live jobs from company career pages, Company Scores built from real applicant outcomes, hiring trends, and visa, program and study pathways."
-      }
-    </script>
-
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "MadeVisa",
-        "url": "https://madevisa.com/",
-        "applicationCategory": "BusinessApplication",
-        "operatingSystem": "Web",
-        "description": "Search live jobs from company career pages and see hiring insights: Company Scores, applicant reply rates, hiring trends by company and country, and hiring feedback.",
-        "featureList": ["Live jobs from company career pages", "Company Scores and reply rates", "Hiring trends by company and country", "Hiring feedback from applicants", "Visa, program and study pathways"],
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
-      }
-    </script>
-
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "MadeVisa",
-        "alternateName": "Made Visa",
-        "url": "https://madevisa.com/"
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://madevisa.com/#organization",
+            "name": "MadeVisa",
+            "alternateName": ["Made Visa", "madevisa.com"],
+            "url": "https://madevisa.com/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789558197/madevisa-fav_j8ot2d.png"
+            },
+            "email": "hello@madevisa.com",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "Cherkassi Street",
+              "addressLocality": "Sumgayit",
+              "addressCountry": "AZ"
+            },
+            "description": "MadeVisa is a job search platform for people who want to work abroad: live jobs from employers' own career pages, which jobs state visa sponsorship, which companies reply to applicants, visa routes by country, and Visa Plans — sponsorship proposals candidates attach to their applications.",
+            "sameAs": [
+              "https://www.linkedin.com/company/madevisa",
+              "https://www.instagram.com/madevisacom",
+              "https://www.facebook.com/madevisa"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://madevisa.com/#website",
+            "name": "MadeVisa",
+            "alternateName": "Made Visa",
+            "url": "https://madevisa.com/",
+            "inLanguage": "en",
+            "publisher": { "@id": "https://madevisa.com/#organization" }
+          }
+        ]
       }
     </script>
   </head>

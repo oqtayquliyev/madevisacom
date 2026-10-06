@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/favicon.ico",
+      "destination": "https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789558197/madevisa-fav_j8ot2d.png"
+    },
+    {
+      "source": "/apple-touch-icon.png",
+      "destination": "https://res.cloudinary.com/dkvg0oo8c/image/upload/c_pad,w_180,h_180,b_white/v1789558197/madevisa-fav_j8ot2d.png"
+    },
+    {
       "source": "/sitemap.xml",
       "destination": "/api/sitemap?f=index"
     },
@@ -45,12 +53,12 @@
       "destination": "/api/seo?r=article&s=:s"
     },
     {
-      "source": "/:s(about|how-it-works|pricing|cv-match|job-market|contact|privacy|terms|cookies|disclaimer|advertising-policy|sponsored-listing-terms|sponsorship-document-terms|editorial-policy|corrections|verification-policy|companies|destinations|feedback|network|programs|study)",
+      "source": "/:s(about|how-it-works|pricing|cv-match|job-market|contact|privacy|terms|cookies|disclaimer|advertising-policy|sponsored-listing-terms|sponsorship-document-terms|editorial-policy|corrections|verification-policy|companies|destinations|feedback|network|programs|study|offers|official-sources)",
       "destination": "/api/seo?r=page&s=:s"
     },
     {
-      "source": "/((?!api/|assets/).*)",
-      "destination": "/index.html"
+      "source": "/:p((?!api/|assets/).*)",
+      "destination": "/api/seo?r=spa&p=:p"
     }
   ],
   "headers": [
@@ -104,5 +112,6 @@
       "destination": "/official-sources",
       "permanent": true
     }
-  ]
+  ],
+  "trailingSlash": false
 }

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
+import { companyDescriptionMeta, companyTitleMeta } from '@/lib/seoMeta';
 import { useUkSponsor } from '@/lib/sponsorRegister';
 import { SponsorAnswer } from '@/components/companies/SponsorProof';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -26,7 +27,7 @@ import { HireCountries } from '@/components/companies/HireCountries';
 import { ShareExperienceDialog } from '@/components/companies/ShareExperienceDialog';
 import { feedbackPath, fetchExperienceSummary, scoreWord, type ExperienceSummary } from '@/lib/companyExperiences';
 import { CircleFlag } from '@/components/common/CircleFlag';
-import { fetchCompanyBySlug, fetchCompanyInsights, type CompanyInsights, type CompanyProfile } from '@/lib/companies';
+import { companyPath, fetchCompanyBySlug, fetchCompanyInsights, type CompanyInsights, type CompanyProfile } from '@/lib/companies';
 import { fetchPublishedJobsByPublisher, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { fetchPublishedProgramsByPublisher, type SponsoredProgram } from '@/lib/programs';
 import { jobPath } from '@/lib/jobUrl';
@@ -102,13 +103,12 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
 
   const ukSponsor = useUkSponsor(company?.id);
   useSeo({
-    title: company ? `${company.name} — visa sponsorship, jobs & applicant response` : 'Company',
-    description: company
-      ? ukSponsor
-        ? `Does ${company.name} sponsor visas? Yes — it holds a UK sponsor licence (Home Office register). Open jobs, hiring activity and applicant response data on MadeVisa.`
-        : `Open jobs and programs at ${company.name}, plus real hiring activity and applicant response data tracked on MadeVisa.`
-      : 'Company profile on MadeVisa.',
-    path: `/companies/${slug}`,
+    title: company ? companyTitleMeta(company.name) : 'Company',
+    description: company ? companyDescriptionMeta(company.name, jobs?.length, Boolean(ukSponsor)) : 'Company profile on MadeVisa.',
+    // Always the company's own address, whatever spelling the visitor arrived on.
+    path: company ? companyPath(company) : `/companies/${slug}`,
+    noindex: company === null,
+    ogImage: `https://madevisa.com/api/og/company?slug=${encodeURIComponent(company ? companyPath(company).slice('/companies/'.length) : slug)}`,
   });
 
   const shownJobs = useMemo(() => {

@@ -70,7 +70,9 @@ export function useSeo({ title, description, path, noindex = false, ogImage = DE
 
     document.title = fullTitle;
     setMetaByName('description', description);
-    setMetaByName('robots', noindex ? 'noindex, nofollow' : 'index, follow');
+    // Same directives as the server-rendered HTML (api/seo.ts). "follow" even on noindex pages, so
+    // links from them (closed jobs → other jobs at the company) still count.
+    setMetaByName('robots', noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large, max-snippet:-1');
     setCanonical(url);
 
     setMetaByProperty('og:title', fullTitle);
