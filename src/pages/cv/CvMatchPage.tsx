@@ -17,6 +17,8 @@ import { ProPlanCard } from '@/components/pro/ProPlanCard';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { Faq } from '@/pages/info/InfoPage';
+import { TestimonialsSection } from '@/components/common/Testimonials';
+import { PRO_TESTIMONIALS } from '@/data/testimonials';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
@@ -197,6 +199,17 @@ export function CvMatchPage({ go, onAuth }: Props) {
             </div>
           </More>
         </div>
+
+        {!searching && (
+          <TestimonialsSection
+            id="cv-match-feedback"
+            eyebrow="From MadeVisa Pro members"
+            items={PRO_TESTIMONIALS}
+            title="What Pro and CV match did for them."
+            sub={`${PRO_TESTIMONIALS.length} Pro members, all 5 stars`}
+            className="pt-2"
+          />
+        )}
 
         <section className="mx-auto max-w-3xl">
           <h2 className="text-[20px] font-bold tracking-tight text-ink-950">Questions</h2>

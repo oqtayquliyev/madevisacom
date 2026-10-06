@@ -7,6 +7,7 @@ import { jobPath } from '@/lib/jobUrl';
 import { briefEligibility, briefPath, fetchMyBriefs, newOfferPath } from '@/lib/briefs';
 import { isLocalJobFor } from '@/lib/visaFit';
 import { usePersonalization } from '@/lib/personalization';
+import { TestimonialTicker } from '@/components/common/Testimonials';
 import { useMyPlan } from '@/lib/plans';
 import { useOutcomes } from '@/lib/cv/outcomes';
 import { MIN_SCORE, useTopMatches, type TopMatch, type TopResult, type TopState } from '@/lib/cv/topMatches';
@@ -84,7 +85,9 @@ export function SearchProgress({ state }: { state: Pick<TopState, 'stage' | 'pro
           );
         })}
       </ul>
-      <p className="mt-6 border-t border-ink-100 pt-4 text-[13px] leading-5 text-ink-500">{ENCOURAGEMENT[0]}</p>
+      <div className="mt-6 border-t border-ink-100 pt-4">
+        <TestimonialTicker />
+      </div>
     </section>
   );
 }
