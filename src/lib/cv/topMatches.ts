@@ -29,6 +29,8 @@ import { skillName } from '@/lib/cv/skills';
 import { TITLE_NOISE } from '@/lib/cv/text';
 import { useCv, type StoredCv } from '@/lib/cv/store';
 import { cvInEnglish, jobsInEnglish, type EnglishCv } from '@/lib/cv/translate';
+import { matchQ } from '@/lib/apply/facts';
+import type { MatchQ } from '@/lib/apply/types';
 
 export type TopMatch = {
   /** Job uuid — also the key "Check your match" uses for this job. */
@@ -59,10 +61,15 @@ export type TopMatch = {
   missing: string[];
   /** The score this job would get if the CV mentioned every skill the ad names. Never below `score`. */
   potential: number;
+  /** For Auto Apply (src/lib/apply): the parts of the score a decision looks at, the kind of role, who posted it, where the work is done. */
+  q?: MatchQ;
+  role?: string | null;
+  publisherId?: string | null;
+  arrangement?: 'onsite' | 'hybrid' | 'remote' | null;
 };
 export type TopResult = {
   /** Shape of the saved result; older ones are searched again. */
-  v: 3;
+  v: 4;
   cvAt: string;
   at: number;
   /** Ads read and scored. */
@@ -97,7 +104,7 @@ function readSaved(cv: StoredCv | null): TopResult | null {
   if (!cv) return null;
   try {
     const v = JSON.parse(window.localStorage.getItem(KEY) ?? 'null') as TopResult | null;
-    if (v && v.v === 3 && v.cvAt === cv.at && Date.now() - v.at < TOP_TTL_MS && Array.isArray(v.items)) return v;
+    if (v && v.v === 4 && v.cvAt === cv.at && Date.now() - v.at < TOP_TTL_MS && Array.isArray(v.items)) return v;
   } catch {
     /* ignore */
   }
@@ -170,6 +177,7 @@ type AdRow = {
   visa_status?: 'offered' | 'not_offered' | null;
   source_posted_at?: string | null;
   created_at?: string | null;
+  work_arrangement?: 'onsite' | 'hybrid' | 'remote' | null;
 };
 
 const PER_YEAR: Record<SalaryPeriod, number> = { hour: 2000, day: 230, week: 48, month: 12, year: 1 };
@@ -232,7 +240,7 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
     const me: EnglishCv = await cvInEnglish(cv, userId);
     const words = shortlistWords(me.profile);
     if (!words.title.length && !words.skill.length) {
-      const empty: TopResult = { v: 3, cvAt: cv.at, at: Date.now(), read: 0, pool: 0, items: [], cvForeign: me.state === 'foreign', tips: [] };
+      const empty: TopResult = { v: 4, cvAt: cv.at, at: Date.now(), read: 0, pool: 0, items: [], cvForeign: me.state === 'foreign', tips: [] };
       writeSaved(empty);
       return set({ status: 'done', stage: null, progress: 1, result: empty });
     }
@@ -255,7 +263,7 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
     const texts = new Map<string, string>();
     const expHint = new Map<string, string>();
     const extra = new Map<string, AdRow>();
-    const FULL = 'id, html:facts->>html, exp:facts->facts->>experience, salary_status, salary_min, salary_max, salary_currency, salary_period, compensation_text, visa_sponsorship, visa_status, source_posted_at, created_at';
+    const FULL = 'id, html:facts->>html, exp:facts->facts->>experience, salary_status, salary_min, salary_max, salary_currency, salary_period, compensation_text, visa_sponsorship, visa_status, source_posted_at, created_at, work_arrangement';
     let cols = FULL;
     for (let i = 0; i < chosen.length; i += 12) {
       const ids = chosen.slice(i, i + 12).map((r) => r.id);
@@ -311,10 +319,11 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
         asked: m.skills.asked, covered: m.skills.covered,
         missing: m.skills.missing.slice(0, 8).map((k) => k.name),
         potential: Math.max(m.score, full),
+        q: matchQ(m, job, me.profile), role: job.category?.label ?? null, publisherId: r.publisher_id, arrangement: x?.work_arrangement ?? null,
       });
     }
     items.sort((a, b) => b.score - a.score);
-    const result: TopResult = { v: 3, cvAt: cv.at, at: Date.now(), read: readable.length, pool: pool.length, items: items.filter((x) => x.score >= MIN_SCORE).slice(0, KEEP), cvForeign: me.state === 'foreign', tips };
+    const result: TopResult = { v: 4, cvAt: cv.at, at: Date.now(), read: readable.length, pool: pool.length, items: items.filter((x) => x.score >= MIN_SCORE).slice(0, KEEP), cvForeign: me.state === 'foreign', tips };
     writeSaved(result);
     set({ status: 'done', stage: null, progress: 1, result });
   } catch (e) {

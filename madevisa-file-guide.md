@@ -32,6 +32,14 @@ structure and help Claude orient instantly regardless of which page you're editi
 `src/pages/cv/CvMatchPage.tsx` (`/cv-match`)
 `supabase/migrations/20261126090000_cv_match_one_plan.sql`
 
+**Auto Apply (the "Apply with MadeVisa" block on /cv-match, and "Your applications")**
+`src/lib/apply/` — the rules: `decision.ts` (apply / review / skip, priority, sponsorship), `profile.ts` (saved answers — add a line to `RULES` to teach it a question), `tailor.ts` (the tailored CV and its "nothing added" check), `coverLetter.ts`, `runner.ts` (the queue), `allowance.ts`, `machine.ts` (allowed states), `channels.ts`, `store.ts` (database calls)
+`src/components/apply/` — the screens: `AutoApply.tsx` (start here), `ApplicationSummary.tsx`, `ApplicationPreferences.tsx`, `ApplicationReview.tsx`, `ApplicationProgress.tsx`, `ApplicationReceipt.tsx`, `ApplicationTracker.tsx`, `ApplyChannelControl.tsx` (admin: switch a job to "applications through MadeVisa")
+`supabase/migrations/20261204090000_auto_apply.sql` — every table and rule (allowance numbers: table `apply_settings`)
+`supabase/functions/apply/` — the one server part: sends an application by email for employers that take them through MadeVisa
+`AUTO-APPLY-UPDATE.md` — what it does and what it can't
+Tests: `npm test` (and `supabase/tests/auto_apply.test.sql` on a scratch database)
+
 **Pricing / the plan**
 `src/lib/pricing.ts` (price per country, currencies, what's in the plan)
 `src/lib/plans.ts`

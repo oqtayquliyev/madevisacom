@@ -40,7 +40,7 @@ export type CvProfile = {
   numbers: number;
 };
 
-type Section = 'top' | 'experience' | 'education' | 'skills' | 'languages' | 'summary' | 'other';
+export type Section = 'top' | 'experience' | 'education' | 'skills' | 'languages' | 'summary' | 'other';
 
 const HEADERS: [Section, RegExp][] = [
   ['experience', /^(?:work|professional|employment|relevant|career)?\s*(?:experience|history|background)s?$|^(?:employment|work history|career history|berufserfahrung|berufliche erfahrung|expérience professionnelle|experiencia laboral|experiencia profesional|esperienza lavorativa|iş təcrübəsi|опыт работы|positions held)$/i],
@@ -51,7 +51,8 @@ const HEADERS: [Section, RegExp][] = [
   ['other', /^(?:projects?|certifications?|certificates|courses|training|awards|publications|references|interests|hobbies|volunteering|volunteer experience|achievements|personal details|contact|additional information)$/i],
 ];
 
-function sectionOf(line: string): Section | null {
+/** Which CV section a line opens ("Work experience", "Skills"…), or null when it isn't a section heading. */
+export function sectionOf(line: string): Section | null {
   const t = line.replace(/[:：•|_\-–—]+$/g, '').replace(/^[•\-–—\d.\s]+/, '').trim();
   if (!t || t.length > 42 || t.split(/\s+/).length > 5) return null;
   for (const [name, re] of HEADERS) if (re.test(t)) return name;

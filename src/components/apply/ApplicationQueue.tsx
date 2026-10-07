@@ -1,0 +1,41 @@
+import { ChevronRight } from 'lucide-react';
+import type { App } from '@/lib/apply/store';
+import { MatchRing } from '@/components/cv/MatchBits';
+import { ApplicationStatus, VerifiedBadge } from '@/components/apply/ApplicationStatus';
+
+const ACTION: Partial<Record<App['status'], string>> = { needs_answer: 'Answer question', review_required: 'Open and send', failed: 'See why' };
+
+/** The applications of a batch, one line each: where it stands, and what it needs from the person. */
+export function ApplicationQueue({ apps, onOpen, currentId, max }: { apps: App[]; onOpen: (app: App) => void; currentId?: string | null; max?: number }) {
+  const shown = max ? apps.slice(0, max) : apps;
+  return (
+    <ul className="divide-y divide-ink-100 overflow-hidden rounded-2xl bg-white ring-1 ring-ink-200">
+      {shown.map((a) => {
+        const action = ACTION[a.status];
+        const open = !['queued', 'preparing', 'submitting'].includes(a.status);
+        return (
+          <li key={a.id}>
+            <button type="button" disabled={!open} onClick={() => onOpen(a)} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left sm:px-4 ${open ? 'hover:bg-ink-50' : ''} ${currentId === a.id ? 'bg-brand-50/50' : ''}`}>
+              <MatchRing score={a.score} size={36} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13.5px] font-semibold text-ink-950">{a.title}</span>
+                <span className="block truncate text-[12px] text-ink-500">{a.company}</span>
+                {/* On a phone the state sits under the job, so the title keeps its room. */}
+                <span className="mt-1 flex flex-wrap gap-1 sm:hidden">
+                  <ApplicationStatus app={a} />
+                  <VerifiedBadge app={a} />
+                </span>
+              </span>
+              <span className="hidden shrink-0 items-center gap-1 sm:flex">
+                <VerifiedBadge app={a} />
+                <ApplicationStatus app={a} />
+              </span>
+              {action ? <span className="hidden shrink-0 text-[12.5px] font-bold text-brand-700 sm:inline">{action}</span> : null}
+              {open && <ChevronRight className="h-4 w-4 shrink-0 text-ink-300" aria-hidden />}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}

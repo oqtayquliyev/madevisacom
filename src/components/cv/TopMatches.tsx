@@ -15,6 +15,7 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
 import { MatchRing, toneFor } from '@/components/cv/MatchBits';
+import { AutoApply } from '@/components/apply/AutoApply';
 
 // The pieces that show "the jobs you match most":
 //   SearchProgress     while the search runs (with a few true, encouraging lines)
@@ -352,7 +353,7 @@ function Roadmap({ lead, place, doc, from, step, fresh }: { lead: TopMatch; plac
     </span>
   );
   return (
-    <div className="mt-6 overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-ink-200">
+    <div id="best-match" className="mt-6 scroll-mt-24 overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-ink-200">
       <a href={href} onClick={go(href)} className="group flex items-center gap-3.5 px-4 pt-4 sm:px-6 sm:pt-5">
         <Logo m={lead} size={48} />
         <span className="min-w-0 flex-1">
@@ -518,6 +519,7 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
     const places = new Map(items.map((m) => [m.id, placeOf(m, visitor)]));
     return {
       places,
+      kinds: new Map([...places].map(([id, p]) => [id, p.kind])),
       here: items.filter((m) => ['here', 'free'].includes(places.get(m.id)!.kind)).length,
       sponsor: items.filter((m) => m.visa === 'offered').length,
       countries: new Set(items.map((m) => m.cc).filter(Boolean)).size,
@@ -588,7 +590,7 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
   return (
     <section aria-labelledby="top-title" className="mx-auto max-w-3xl">
       <div className={`text-center ${shown(step >= 0)}`}>
-        <h2 id="top-title" className="text-balance text-[26px] font-bold leading-tight tracking-tight text-ink-950 [word-spacing:0.08em] sm:text-[34px]">
+        <h2 id="top-title" className="scroll-mt-24 text-balance text-[26px] font-bold leading-tight tracking-tight text-ink-950 [word-spacing:0.08em] sm:text-[34px]">
           {canReach ? (
             <>
               You’re at {lead.score}%. Your CV can reach <span className="whitespace-nowrap text-brand-700">{lead.potential}%</span>.
@@ -614,6 +616,11 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
       {result.cvForeign && (
         <p className="mx-auto mt-4 max-w-xl rounded-lg bg-amber-50 px-3 py-2 text-center text-[13px] leading-5 text-amber-900">Your CV isn’t in English, so it was compared as it is. A free account translates it for a closer match.</p>
       )}
+
+      {/* Auto Apply: what MadeVisa would apply to, the batch as it runs, and what came of it. */}
+      <div className={shown(step >= 1)}>
+        <AutoApply result={result} places={facts.kinds} onAuth={onAuth} onAgain={guest ? undefined : onAgain} canImprove={canReach || tips.length > 0} />
+      </div>
 
       <Roadmap lead={lead} place={leadPlace} doc={doc} from={visitor.currentLocation} step={step} fresh={fresh} />
 

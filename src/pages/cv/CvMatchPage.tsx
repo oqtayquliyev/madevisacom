@@ -14,6 +14,7 @@ import { CvUpload } from '@/components/cv/CvUpload';
 import { MatchLevels } from '@/components/cv/MatchShowcase';
 import { ENCOURAGEMENT, GUEST_VISIBLE, SearchProgress, TopMatchesList } from '@/components/cv/TopMatches';
 import { ProPlanCard } from '@/components/pro/ProPlanCard';
+import { AutoApplyTracker } from '@/components/apply/AutoApply';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { Faq } from '@/pages/info/InfoPage';
@@ -32,9 +33,9 @@ const PARTS: { name: string; points: number; text: string }[] = [
 ];
 
 const STEPS: { icon: typeof Upload; title: string; text: string }[] = [
-  { icon: Upload, title: 'Upload your CV', text: 'PDF or Word. It is read on your device and never sent to employers.' },
+  { icon: Upload, title: 'Upload your CV', text: 'PDF or Word. It is read on your device, and goes to an employer only when you ask.' },
   { icon: FileSearch, title: 'We compare it with live jobs', text: 'The ads closest to your experience are read and scored, one by one.' },
-  { icon: ListChecks, title: 'Open your best matches', text: 'Highest score first: where each job is, what it pays if the ad says, whether you need a visa, and what your CV is missing for it.' },
+  { icon: ListChecks, title: 'Open your best matches — or apply', text: 'Highest score first: where each job is, what it pays if the ad says, whether you need a visa. With an account, MadeVisa prepares a tailored application for each one worth applying to.' },
 ];
 
 /** The search is quick; the waiting screen stays this long so it can be read. */
@@ -99,7 +100,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
           <div className="mx-auto mt-6 max-w-xl text-left">
             <CvUpload tone="light" allowRemove />
           </div>
-          <p className="mt-2 text-[12px] text-white/65">Free. Read on your device; never sent to employers.</p>
+          <p className="mt-2 text-[12px] text-white/65">Free. Read on your device; sent to an employer only when you ask.</p>
         </div>
       </section>
 
@@ -145,6 +146,9 @@ export function CvMatchPage({ go, onAuth }: Props) {
             </button>
           </p>
         )}
+
+        {/* Every application prepared or sent through MadeVisa (shown once there is one). */}
+        {cv && !searching && <AutoApplyTracker />}
 
         <div className="mx-auto max-w-3xl space-y-3">
           {p && (
@@ -217,7 +221,11 @@ export function CvMatchPage({ go, onAuth }: Props) {
             <Faq
               items={[
                 { q: 'Which files can I upload?', a: 'PDF or Word (.docx), up to 5 MB. Plain text and .odt work too. A scanned CV — a picture of a page — has no text to read, so export it from Word or Google Docs instead, or paste the text.' },
-                { q: 'Who sees my CV?', a: 'You, and MadeVisa staff when they need it to run or support the service — for example to fix a problem with your account or to improve how CVs are read. It is never sent or shown to employers: you apply on the employer’s own site, with your own file. Until you create an account your CV stays in your browser. You can replace or delete it at any time.' },
+                { q: 'Who sees my CV?', a: 'You, and MadeVisa staff when they need it to run or support the service — for example to fix a problem with your account or to improve how CVs are read. It goes to an employer only when you ask MadeVisa to apply to that employer’s job for you, and only if the employer takes applications through MadeVisa. Until you create an account your CV stays in your browser. You can replace or delete it at any time.' },
+                { q: 'What does “Apply to N jobs” do?', a: 'MadeVisa looks at every match and recommends one of three things: apply, review first, or skip — with the reason. For each job you apply to, it tailors your CV to the ad (your own lines, reordered so the most relevant come first — nothing is added), writes a cover letter when the ad asks for one or the match is one of your strongest, and fills in your saved answers. You can pause or stop at any time, and open any application to see exactly what was used.' },
+                { q: 'Does MadeVisa submit the applications itself?', a: 'Where the employer takes applications through MadeVisa, yes: your tailored CV and details are emailed to the employer, replies come straight to you, and the application is marked “Verified submission” once delivery is confirmed. Most employers only take applications on their own careers site, behind a sign-in or a check that a person is applying. MadeVisa does not get round those. For these jobs your application is prepared and marked “Ready to send”: you open the employer’s form, attach the tailored CV, paste your answers, and tell MadeVisa when it’s sent.' },
+                { q: 'What if a form asks something MadeVisa doesn’t know?', a: 'It stops that application and asks you — it never guesses, and it never answers questions about gender, ethnicity or similar for you. Your answer is saved for next time unless you choose “Ask me each time”. The other applications carry on meanwhile.' },
+                { q: 'How many applications can I make?', a: 'It comes with your plan — there is nothing extra to buy. The number left this month is shown under the Apply button. An application counts once MadeVisa has finished its part — sent, or prepared and ready for you to send. One that fails, or that you skip before then, uses nothing. You also choose the most MadeVisa may work on in a day.' },
                 { q: 'My score is low but I can do the job. Why?', a: 'The score reads the CV, not you. If the ad asks for a skill and your CV doesn’t name it, it counts as missing — which is also how a recruiter’s search and screening software see it. Add what is true, in the ad’s own words, and check again.' },
                 { q: 'Does a high score mean I’ll get an interview?', a: 'No. It means your CV says what the ad asks for. Employers also weigh things no CV check can see — and, abroad, whether they can sponsor a visa, which is what the sponsorship document is for.' },
                 { q: 'Does it work for jobs or CVs that aren’t in English?', a: 'Yes. An ad written in another language is compared in an English translation when one is available, and a CV in another language is translated once you have an account (translation is done by a machine translation service). Without a translation, skills, role, years and education are still compared and wording is left out. A language the ad requires and your CV doesn’t list holds the score down.' },

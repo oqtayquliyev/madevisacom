@@ -496,7 +496,7 @@ export function LandingHero(_props: LandingHeroProps) {
                   <Search className="h-4 w-4" /> Open a job and check your match
                 </a>
               )}
-              {!hasCv && <p className="mt-2 text-[12px] text-white/65">Free. Your CV is never sent to employers.</p>}
+              {!hasCv && <p className="mt-2 text-[12px] text-white/65">Free. Your CV goes to an employer only when you ask.</p>}
             </div>
 
           </div>
