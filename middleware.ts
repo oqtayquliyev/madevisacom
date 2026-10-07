@@ -12,7 +12,7 @@
 // Real visitors — and search engines, which render JavaScript — pass
 // straight through to the normal site, so nothing is "cloaked".
 
-import { next } from '@vercel/edge';
+import { next, rewrite } from '@vercel/edge';
 import { fetchShareJob, jobIdFromPath, shareDescription } from './api/_jobShare';
 import { PAGES, pageKeyForPath } from './api/_pages';
 import { escHtml as esc, fetchShareCompany, fetchShareProfile } from './api/_supa';
@@ -129,10 +129,24 @@ async function previewFor(url: URL): Promise<Preview | null> {
   return { title: m.title, description: m.description, image: `${o}/api/og/page?p=${key}`, alt: m.headline };
 }
 
+/**
+ * The homepage, for everyone who isn't a link-preview bot.
+ *
+ * vercel.json sends "/" to the server-rendered homepage (/api/seo?r=home), but
+ * Vercel looks for a static file before it applies those rewrites — and "/"
+ * has one, index.html. So the homepage was the only main page still served as
+ * the empty app shell: no canonical, no heading, no text, no links for a
+ * search engine to follow. Middleware runs before static files, so the
+ * homepage is sent to its server-rendered version from here.
+ * (/api/seo loads the shell from /index.html, which this file doesn't match,
+ * and falls back to the plain app if anything goes wrong.)
+ */
+const serverHome = (request: Request, url: URL) => (url.pathname === '/' ? rewrite(new URL('/api/seo?r=home', request.url)) : next());
+
 export default async function middleware(request: Request) {
-  if (!PREVIEW_BOTS.test(request.headers.get('user-agent') ?? '')) return next();
   const url = new URL(request.url);
+  if (!PREVIEW_BOTS.test(request.headers.get('user-agent') ?? '')) return serverHome(request, url);
   const preview = await previewFor(url).catch(() => null);
-  if (!preview) return next();
+  if (!preview) return serverHome(request, url);
   return html(preview, `${url.origin}${url.pathname}`);
 }

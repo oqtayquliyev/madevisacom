@@ -77,9 +77,9 @@ export default async function handler(req: Request): Promise<Response> {
       ['/about', 'monthly', '0.6', false],
       ['/how-it-works', 'monthly', '0.6', false],
       ['/pricing', 'monthly', '0.5', false],
-      ['/submit-job', 'monthly', '0.4', false],
       ['/official-sources', 'monthly', '0.3', false],
-      ['/employers/inbox', 'monthly', '0.3', false],
+      // /submit-job and /employers/inbox are left out: they are forms for signed-in companies, served as the
+      // bare app with the homepage's title and no content of their own — to Google, two more copies of the homepage.
     ];
     return xml(urlset([...main.map(([p, c, pr, live]) => url(p, live ? today : undefined, c, pr)), ...legalPageOrder.map((s) => url(`/${s}`, undefined, 'yearly', '0.2'))]), 86400);
   }

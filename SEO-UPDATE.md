@@ -418,3 +418,26 @@ Indeed, Glassdoor) dominate head terms; niche visa-sponsorship boards and reloca
 and "does {company} sponsor". Their weak spot is that sponsorship labels are rarely evidenced and they
 show nothing about employer response. MadeVisa's edge — evidence + reply data + a proposal tool —
 is where to compete, not on raw job count.
+
+---
+
+## Follow-up, 8 Oct 2026: the homepage was still the empty app shell
+
+Found while looking at a Search Console notice ("Page with redirect"; 1 page indexed, 5 not).
+
+- **Homepage.** `https://madevisa.com/` was returning the bare `index.html`: no canonical, no `og:url`,
+  no heading, no text, no links. Every other main page (`/jobs`, `/cv-match`, …) was server-rendered
+  as intended. Cause: `vercel.json` rewrites `/` to `/api/seo?r=home`, but Vercel serves a static file
+  before it applies rewrites, and `/` has one (`index.html`). Fix: `middleware.ts` (which runs before
+  static files) now sends `/` to `/api/seo?r=home`. Link-preview bots still get their preview page.
+- **Sitemap.** `/submit-job` and `/employers/inbox` were listed in `sitemaps/pages.xml` but are served
+  as the bare app with the homepage's title — two more copies of the homepage. Removed from
+  `api/sitemap.ts`.
+- **"Page with redirect" itself** is expected: it is Google noting addresses that redirect by design
+  (trailing slash, old job slugs, `http://`, `www.`). No "Validate fix" needed.
+
+Checked locally with pretend data (middleware decisions, the rendered homepage, the sitemap).
+**Not checked on Vercel** — after deploying, open `view-source:https://madevisa.com/` and look for
+`rel="canonical"` and `<div id="ssr">`.
+
+Still open: confirm in Vercel → Domains that `www.madevisa.com` redirects to `madevisa.com`.
