@@ -111,10 +111,28 @@ let state: State = {
   auto: null,
   error: null,
   loadedFor: null,
-  sending: null,
+  sending: typeof window === 'undefined' ? null : savedSending(),
 };
 const listeners = new Set<() => void>();
+const SENDING_KEY = 'mv:applySending';
+/** "Sent" survives a reload for half an hour, so the page doesn't offer "Apply now" again meanwhile. */
+function savedSending(): Sending | null {
+  try {
+    const v = JSON.parse(window.localStorage.getItem('mv:applySending') ?? 'null') as Sending | null;
+    return v && Date.now() - v.at < 30 * 60_000 ? v : null;
+  } catch {
+    return null;
+  }
+}
 const set = (next: Partial<State>) => {
+  if ('sending' in next) {
+    try {
+      if (next.sending) window.localStorage.setItem(SENDING_KEY, JSON.stringify(next.sending));
+      else window.localStorage.removeItem(SENDING_KEY);
+    } catch {
+      /* private mode: fine */
+    }
+  }
   state = { ...state, ...next };
   listeners.forEach((l) => l());
 };

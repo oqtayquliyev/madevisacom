@@ -1,4 +1,4 @@
-import { ChevronRight, Zap } from 'lucide-react';
+import { Check, ChevronRight, Zap } from 'lucide-react';
 import { useApplyState, type App } from '@/lib/apply/store';
 import { MatchRing } from '@/components/cv/MatchBits';
 import { ApplicationStatus, VerifiedBadge } from '@/components/apply/ApplicationStatus';
@@ -40,8 +40,8 @@ export function ApplicationQueue({ apps, onOpen, onSend, currentId, max }: { app
             {onSend && a.status === 'ready' && (
               <span className="shrink-0 pr-3 sm:pr-4">
                 {sending && (!sending.ids || sending.ids.includes(a.id)) ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-[12.5px] font-bold text-brand-700">
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600 motion-reduce:animate-none" aria-hidden /> Starting…
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[12.5px] font-bold text-emerald-800">
+                    <Check className="h-3.5 w-3.5" strokeWidth={3} /> Sending
                   </span>
                 ) : (
                   <button type="button" onClick={() => onSend(a)} className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-3.5 py-1.5 text-[12.5px] font-bold text-white hover:bg-brand-700">
