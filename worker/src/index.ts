@@ -34,6 +34,8 @@ const HOST_GAP = Math.max(0, Number(process.env.HOST_GAP_SECONDS) || 20) * 1000;
 const ONCE = process.env.ONCE === '1';
 /** Set when the worker runs on a schedule (GitHub Actions): how often it runs, so the site knows when it will be back. */
 const EVERY = Number(process.env.WORKER_EVERY_MINUTES) || 0;
+/** The most one application may take (opening, filling, submitting, confirming). */
+const JOB_LIMIT = Math.max(60, Number(process.env.JOB_LIMIT_SECONDS) || 180) * 1000;
 
 const db = createClient(url, key, { auth: { persistSession: false } });
 const log = (...a: unknown[]) => console.log(new Date().toISOString(), WORKER, ...a);
@@ -72,8 +74,13 @@ async function handle(job: Job): Promise<void> {
   log('start', job.id, job.platform, job.company, '—', job.title);
 
   let report: Report;
+  // One application never holds up the rest: after JOB_LIMIT it is given back to try again later.
+  let timer: NodeJS.Timeout | undefined;
+  const limit = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('job_timeout')), JOB_LIMIT);
+  });
   try {
-    report = await processJob(job, {
+    report = await Promise.race([limit, processJob(job, {
       browser: getBrowser,
       originalCv: async () => {
         const o = await rpc<{ use: boolean; path: string | null; name: string | null } | null>('apply_worker_original_cv', { p_user: job.userId });
@@ -97,10 +104,20 @@ async function handle(job: Job): Promise<void> {
       },
       fetch,
       log: (...a) => log(job.id, ...a),
-    });
+    })]);
   } catch (e) {
-    log('crash', job.id, String(e));
-    report = { to: 'ready', detail: { code: 'worker_error', reason: 'Something went wrong in MadeVisa’s application service.', retryInSeconds: 900 } };
+    const slow = String(e).includes('job_timeout');
+    log(slow ? 'too slow' : 'crash', job.id, String(e));
+    report = slow
+      ? { to: 'ready', detail: { code: 'timeout', reason: 'The employer’s site was too slow to answer.', retryInSeconds: 1800 } }
+      : { to: 'ready', detail: { code: 'worker_error', reason: 'Something went wrong in MadeVisa’s application service.', retryInSeconds: 900 } };
+    // A page that hangs keeps its browser busy: start a fresh one for the next application.
+    if (slow) {
+      await browser?.close().catch(() => {});
+      browser = null;
+    }
+  } finally {
+    clearTimeout(timer);
   }
   const r = await rpc<{ ok: boolean; code?: string }>('apply_worker_report', { p_id: job.id, p_worker: WORKER, p_to: report.to, p_detail: report.detail });
   log('done', job.id, report.to, report.detail.code ?? '', `${Math.round((Date.now() - started) / 1000)}s`, r?.ok ? '' : `(report: ${r?.code})`);
@@ -114,6 +131,10 @@ async function main() {
   log('starting', VERSION);
   let settings = { enabled: true, autoSubmit: true, concurrency: 2 };
   let beatAt = 0;
+  // Check in every 30 s even while applications are being worked on, so the site shows "online".
+  const beat = setInterval(() => {
+    void rpc('apply_worker_beat', { p_worker: WORKER, p_version: VERSION, p_info: { host: hostname(), node: process.version, ...(EVERY ? { mode: 'scheduled', everyMinutes: EVERY } : {}) } });
+  }, 30_000);
   let autoAt = 0;
   while (!stopping) {
     // Pro members with auto-apply on: new matching jobs become ready applications (at most every 10 minutes).
@@ -134,11 +155,14 @@ async function main() {
     if (ONCE) break;
     await new Promise((r) => setTimeout(r, POLL));
   }
+  clearInterval(beat);
   await browser?.close().catch(() => {});
   log('stopped');
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main()
+  .then(() => process.exit(0))
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
