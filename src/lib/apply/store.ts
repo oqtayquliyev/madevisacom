@@ -13,6 +13,7 @@
 // in the database (migrations 20261204090000 and 20261205090000); this file
 // asks, shows and prepares — it never decides that an application was submitted.
 
+import { isConsentStop } from '@/lib/apply/login';
 import { useEffect, useSyncExternalStore } from 'react';
 import { track } from '@vercel/analytics';
 import { supabase } from '@/lib/supabase';
@@ -567,6 +568,25 @@ async function reanswer(app: App, given: Record<string, string>, extra: Answer[]
   const answers = [...answersFor(job, ctx)];
   for (const e of extra) if (!answers.some((a) => a.id === e.id || a.label === e.label)) answers.push(e);
   await supabase.rpc('apply_save', { p_id: app.id, p_cv: null, p_letter: null, p_answers: answers, p_concepts: conceptAnswers(job, ctx) });
+}
+
+/**
+ * "I agree to the privacy notice": this application, and every other one in its
+ * batch stopped only by a privacy notice, go back to MadeVisa to submit.
+ */
+export async function acceptConsent(app: App, cv: StoredCv | null): Promise<{ ok: boolean; error?: string }> {
+  if (!cv) return { ok: false, error: 'Your CV isn’t loaded yet. Try again in a moment.' };
+  const given: Record<string, string> = { ...(state.queue?.plan?.given ?? {}), consent: 'Yes' };
+  const targets = [app, ...state.apps.filter((a) => a.id !== app.id && a.queueId === app.queueId && a.status === 'needs_attention' && isConsentStop(a.reason))];
+  for (const t of targets) {
+    await reanswer(t, given, [], cv);
+    const r = await move(t.id, 'ready');
+    if (!r.ok && t === app) return { ok: false, error: r.message };
+  }
+  if (state.queue && state.queue.id === app.queueId && state.queue.state !== 'running') await setQueue('running');
+  kick();
+  watch();
+  return { ok: true };
 }
 
 /** "Let MadeVisa try again" — one that failed, was blocked, or stopped at a CAPTCHA. */

@@ -1,3 +1,4 @@
+import { quickPicks } from '@/lib/apply/login';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { toUsd } from '@/lib/pricing';
@@ -86,6 +87,9 @@ export function AutoApply({ result, places, onAuth, onAgain }: Props) {
     });
   }, [jobs, places, auto.prefs, auto.profile, auto.server, now, signedIn]);
 
+  // The quick 3: ones MadeVisa can submit by itself come first; sites that need the person's own login go last.
+  const top3 = useMemo(() => quickPicks(planned.auto, (p) => auto.server.get(p.job.id)?.url), [planned.auto, auto.server]);
+
   // The recommended ones are ticked to begin with; the person's own ticks are kept until the list itself changes.
   const autoKey = planned.auto.map((p) => p.job.id).join(',');
   useEffect(() => {
@@ -141,7 +145,7 @@ export function AutoApply({ result, places, onAuth, onAgain }: Props) {
     // Recommended defaults are already set: nothing to configure before applying.
     if (next === 'review') setSheet('review');
     // Quick apply: the top 3.
-    else void apply(planned.auto.slice(0, 3));
+    else void apply(top3);
   };
   const dismiss = () => {
     if (!auto.queue) return;
@@ -186,7 +190,7 @@ export function AutoApply({ result, places, onAuth, onAgain }: Props) {
         />
       ) : (
         <ApplicationSummary
-          top={planned.auto.slice(0, 3)}
+          top={top3}
           status={status}
           auto={auto.auto}
           onApply={() => begin('apply')}

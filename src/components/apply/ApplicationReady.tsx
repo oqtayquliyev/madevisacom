@@ -72,6 +72,9 @@ export function ApplicationReady({ plan, jobs, status, email: savedEmail, onClos
   const [error, setError] = useState<string | null>(null);
 
   const n = jobs.length;
+  // The privacy-notice consent isn't a question: it's a tick next to the button, at the end.
+  const consentItem = plan.ask.find((a) => a.key === 'consent') ?? null;
+  const asks = plan.ask.filter((a) => a !== consentItem);
   const blocked = plan.jobs.filter((j) => j.outcome === 'blocked');
   const stuck = plan.jobs.filter((j) => j.outcome === 'attention');
   const answeredExtra = plan.extra.filter((x) => given[x.key]?.trim());
@@ -80,7 +83,8 @@ export function ApplicationReady({ plan, jobs, status, email: savedEmail, onClos
     const done = new Set([...plan.ask, ...answeredExtra].map((a) => a.key));
     return plan.jobs.filter((j) => j.outcome === 'apply' && j.waits.every((w) => done.has(w))).length;
   }, [plan, answeredExtra]);
-  const missing = plan.ask.filter((a) => !given[a.key]?.trim());
+  const missing = asks.filter((a) => !given[a.key]?.trim());
+  const agreed = !consentItem || given.consent === 'Yes';
   const emailOk = EMAIL.test(email.trim());
 
   const save = async () => {
@@ -101,9 +105,22 @@ export function ApplicationReady({ plan, jobs, status, email: savedEmail, onClos
       footer={
         <div>
           {error && <p className="mb-2 text-[13px] text-rose-700">{error}</p>}
+          {consentItem && (
+            <label className="mb-3 flex cursor-pointer items-start gap-3 text-[13.5px] font-semibold leading-5 text-ink-900">
+              <input
+                type="checkbox"
+                checked={given.consent === 'Yes'}
+                onChange={(e) => setGiven((g) => ({ ...g, consent: e.target.checked ? 'Yes' : '' }))}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-brand-600"
+              />
+              <span>
+                I confirm MadeVisa may accept the privacy notice of {consentItem.companies.length === 1 ? consentItem.companies[0] : `these ${consentItem.companies.length} employers`} for me.
+              </span>
+            </label>
+          )}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button onClick={save} disabled={busy || missing.length > 0 || !emailOk || going === 0} className={`${BTN.primary} w-full whitespace-nowrap sm:w-auto sm:flex-1`}>
-              <Send className="h-4 w-4" /> {busy ? 'Saving…' : plan.ask.length ? `Save answers & apply to ${going} ${going === 1 ? 'job' : 'jobs'}` : `Apply to ${going} ${going === 1 ? 'job' : 'jobs'}`}
+            <button onClick={save} disabled={busy || missing.length > 0 || !agreed || !emailOk || going === 0} className={`${BTN.primary} w-full whitespace-nowrap sm:w-auto sm:flex-1`}>
+              <Send className="h-4 w-4" /> {busy ? 'Saving…' : asks.length ? `Save answers & apply to ${going} ${going === 1 ? 'job' : 'jobs'}` : `Apply to ${going} ${going === 1 ? 'job' : 'jobs'}`}
             </button>
             <button onClick={onReview} disabled={busy} className={`${BTN.secondary} w-full sm:w-auto`}>
               Review selected jobs
@@ -115,19 +132,16 @@ export function ApplicationReady({ plan, jobs, status, email: savedEmail, onClos
     >
       <div className="rounded-2xl bg-emerald-50/70 p-4 ring-1 ring-emerald-200">
         <p className="text-[15px] font-bold leading-snug text-emerald-950">
-          MadeVisa already has <span className="tabular-nums">{plan.coverage.pct}%</span> of the information these applications need.
+          {asks.length === 0 ? 'Nothing is missing.' : `${asks.length} ${asks.length === 1 ? 'answer' : 'answers'} and MadeVisa does the rest.`}
         </p>
-        <p className="mt-1.5 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[13px] font-bold text-ink-900 ring-1 ring-emerald-200">
-          <span className="tabular-nums">{plan.ask.length}</span> {plan.ask.length === 1 ? 'answer' : 'answers'} <span aria-hidden>→</span> <span className="tabular-nums">{plan.ready}</span> {plan.ready === 1 ? 'application' : 'applications'}
-        </p>
-        <p className="mt-2 text-[13px] leading-5 text-emerald-900">
-          {plan.ask.length === 0 ? 'Nothing is missing. MadeVisa can apply right away.' : `We only need ${plan.ask.length === 1 ? '1 answer' : `${plan.ask.length} answers`} from you. MadeVisa will reuse ${plan.ask.length === 1 ? 'it' : 'them'} across your applications.`}
+        <p className="mt-0.5 text-[13px] text-emerald-900">
+          <span className="tabular-nums">{plan.coverage.pct}%</span> already filled from your CV and profile.
         </p>
       </div>
 
-      {plan.ask.length > 0 && (
+      {asks.length > 0 && (
         <ul className="mt-4 space-y-2.5">
-          {plan.ask.map((item) => (
+          {asks.map((item) => (
             <Question key={item.key} item={item} n={n} value={given[item.key] ?? ''} onChange={(v) => setGiven((g) => ({ ...g, [item.key]: v }))} />
           ))}
         </ul>
@@ -167,7 +181,7 @@ export function ApplicationReady({ plan, jobs, status, email: savedEmail, onClos
               </li>
             ))}
           </ul>
-          <p className="mt-1.5 text-[12.5px] leading-5 text-amber-900">MadeVisa still prepares them (tailored CV, answers) and keeps them under “Needs attention”. They don’t hold up the others.</p>
+          <p className="mt-1.5 text-[12.5px] leading-5 text-amber-900">They wait under “Need you” with everything ready to paste.</p>
         </div>
       )}
 
@@ -185,7 +199,6 @@ export function ApplicationReady({ plan, jobs, status, email: savedEmail, onClos
             </button>
           </p>
         )}
-        <p className="mt-1.5 text-[12.5px] leading-5 text-ink-500">Employers reply to this address, and their confirmation emails arrive there.</p>
       </div>
 
       {plan.reused.length > 0 && (
@@ -217,9 +230,9 @@ export function ApplicationReady({ plan, jobs, status, email: savedEmail, onClos
       {status.worker && !status.worker.online && (
         <p className="mt-2 rounded-xl bg-ink-50 px-3 py-2 text-[12.5px] leading-5 text-ink-600">MadeVisa’s application service is offline right now. Your applications will be prepared now and submitted as soon as it’s back.</p>
       )}
-      <p className="mt-4 flex items-start gap-2 text-[12.5px] leading-5 text-ink-600">
+      <p className="mt-4 flex items-start gap-2 text-[12.5px] leading-5 text-ink-500">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-        <span>MadeVisa never invents information. Your answers are saved to your application profile, so you won’t be asked again — change them any time.</span>
+        <span>Nothing is made up. Answers are saved, so you’re asked once.</span>
       </p>
     </Sheet>
   );

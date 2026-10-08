@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, Check, Copy, Download, FileText, HelpCircle, Image as ImageIcon, Lock } from 'lucide-react';
 import { docxBytes, downloadBytes, letterLines } from '@/lib/apply/docx';
-import { STAGES, STAGE_LABEL, useApplyState, answerAttention, fetchReceipt, fileLink, markSent, recordOutcome, retry, skip, type App, type Receipt, type Stage } from '@/lib/apply/store';
+import { isConsentStop } from '@/lib/apply/login';
+import { STAGES, STAGE_LABEL, useApplyState, acceptConsent, answerAttention, fetchReceipt, fileLink, markSent, recordOutcome, retry, skip, type App, type Receipt, type Stage } from '@/lib/apply/store';
 import { cvDownloadUrl, type StoredCv } from '@/lib/cv/store';
 import type { Needed } from '@/lib/apply/types';
 import { ApplicationStatus, VerifiedBadge } from '@/components/apply/ApplicationStatus';
@@ -196,9 +197,10 @@ function Answers({ app, cv, onDone }: { app: App; cv: StoredCv | null; onDone: (
   );
 }
 
-/** Finish it yourself: the employer's page, and everything prepared for it. */
-function FinishYourself({ app, onDone }: { app: App; onDone: () => void }) {
+/** Finish it yourself: the employer's page, your answers to paste, your CV — then one tap to log it. */
+function FinishYourself({ app, r, onDone, main }: { app: App; r: Receipt | null; onDone: () => void; main?: boolean }) {
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sent = async () => {
     setBusy(true);
@@ -208,17 +210,44 @@ function FinishYourself({ app, onDone }: { app: App; onDone: () => void }) {
     if (!res.ok) return setError(res.message);
     onDone();
   };
+  const copy = async () => {
+    const text = (r?.answers ?? []).map((a) => `${a.label}\n${a.value}`).join('\n\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setError('Couldn’t copy. Open “Show CV, cover letter and answers” below instead.');
+    }
+  };
   return (
-    <div className="mt-3">
+    <div className="mt-2">
       {error && <p className="mb-2 text-[13px] text-rose-700">{error}</p>}
       <div className="flex flex-wrap gap-2">
         {app.url && (
-          <a href={app.url} target="_blank" rel="noopener noreferrer" className={BTN.secondary}>
-            Open the employer’s page <ArrowUpRight className="h-4 w-4" />
+          <a href={app.url} target="_blank" rel="noopener noreferrer" className={main ? BTN.primary : BTN.secondary}>
+            Open {app.company}’s page <ArrowUpRight className="h-4 w-4" />
           </a>
         )}
+        {(r?.answers.length ?? 0) > 0 && (
+          <button type="button" onClick={copy} className={BTN.secondary}>
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? 'Copied' : 'Copy my answers'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={async () => {
+            const url = await cvDownloadUrl();
+            if (url) window.open(url, '_blank', 'noopener');
+          }}
+          className={BTN.secondary}
+        >
+          <Download className="h-4 w-4" /> My CV
+        </button>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
         <button onClick={sent} disabled={busy} className={BTN.secondary}>
-          <Check className="h-4 w-4" /> {busy ? 'Saving…' : 'I submitted it myself'}
+          <Check className="h-4 w-4" /> {busy ? 'Saving…' : 'Done, I applied'}
         </button>
         <button
           onClick={async () => {
@@ -231,6 +260,35 @@ function FinishYourself({ app, onDone }: { app: App; onDone: () => void }) {
           Skip this job
         </button>
       </div>
+    </div>
+  );
+}
+
+/** A privacy notice was the only thing missing: one tick, and MadeVisa submits it. */
+function Consent({ app, cv, onDone }: { app: App; cv: StoredCv | null; onDone: () => void }) {
+  const [yes, setYes] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="mb-4 rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200">
+      <label className="flex cursor-pointer items-start gap-3 text-[14px] font-semibold leading-5 text-ink-950">
+        <input type="checkbox" checked={yes} onChange={(e) => setYes(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" />
+        <span>I agree to {app.company}’s privacy notice</span>
+      </label>
+      {error && <p className="mt-2 text-[13px] text-rose-700">{error}</p>}
+      <button
+        disabled={!yes || busy}
+        onClick={async () => {
+          setBusy(true);
+          const r = await acceptConsent(app, cv);
+          setBusy(false);
+          if (!r.ok) return setError(r.error ?? 'That didn’t save. Try again.');
+          onDone();
+        }}
+        className={`${BTN.primary} mt-3 w-full`}
+      >
+        {busy ? 'Starting…' : 'Submit it for me'}
+      </button>
     </div>
   );
 }
@@ -284,6 +342,42 @@ function Timeline({ app }: { app: App }) {
 }
 
 /** Which "needs attention" reasons another try can fix. */
+/** One short line: what stopped it. */
+function headline(app: App): string {
+  switch (app.reasonCode) {
+    case 'handover':
+      return 'Prepared, not sent yet.';
+    case 'login_required':
+      return `${app.company}’s site needs your own login.`;
+    case 'captcha':
+      return `${app.company}’s site showed a “prove you’re human” check.`;
+    case 'closed':
+      return 'This job has closed.';
+    case 'no_form':
+      return 'No online form MadeVisa can reach.';
+    case 'unconfirmed':
+      return `Sent, but ${app.company} didn’t confirm it.`;
+    default:
+      return app.reason ?? 'MadeVisa couldn’t finish this one by itself.';
+  }
+}
+
+/** The quickest way through, when there is one. */
+function tip(app: App): string | null {
+  switch (app.reasonCode) {
+    case 'login_required':
+      return 'Quickest: sign in there with Google or LinkedIn, attach your CV, paste your answers. About 3 minutes.';
+    case 'captcha':
+      return 'Try again — it often passes the second time. Or do it yourself in 2 minutes.';
+    case 'unconfirmed':
+      return `Check ${app.emailUsed ?? 'your inbox'} for their email before trying again.`;
+    case 'no_form':
+      return 'Their page may ask you to email your CV.';
+    default:
+      return null;
+  }
+}
+
 const RETRYABLE = new Set(['captcha', 'fill_failed', 'form_refused', 'handover', 'dry_run', 'no_submit', 'unreachable', 'error', 'retries', 'timeout', 'worker_error', 'mail_not_set_up', 'channel_off', 'unconfirmed', 'prepare']);
 
 type Props = { app: App; cv: StoredCv | null; onClose: () => void };
@@ -310,6 +404,7 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
     if (url) window.open(url, '_blank', 'noopener');
   };
   const attention = app.status === 'needs_attention' || app.status === 'blocked' || app.status === 'failed';
+  const consent = app.status === 'needs_attention' && isConsentStop(app.reason) && app.needs.every((n) => n.key === 'consent' || /privacy/i.test(n.label));
   const title = app.status === 'submitted' ? 'Application submitted' : attention ? 'Review application' : ['queued', 'analyzing', 'preparing', 'ready', 'submitting'].includes(app.status) ? 'Application in progress' : 'Your application';
 
   return (
@@ -334,13 +429,14 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
 
       <Timeline app={app} />
 
-      {attention && (
+      {attention && consent && <Consent app={app} cv={cv} onDone={onClose} />}
+      {attention && !consent && (
         <div className="mb-4 rounded-2xl bg-amber-50 p-3.5 ring-1 ring-amber-200">
-          <p className="flex items-start gap-2 text-[13.5px] leading-5 text-amber-950">
+          <p className="flex items-start gap-2 text-[13.5px] font-semibold leading-5 text-amber-950">
             {app.status === 'blocked' ? <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /> : <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />}
-            <span>{app.reasonCode === 'handover' ? 'This application was prepared but not sent yet.' : app.reason ?? 'MadeVisa couldn’t finish this application by itself.'}</span>
+            <span>{headline(app)}</span>
           </p>
-          {app.reasonCode === 'unconfirmed' && <p className="mt-1.5 text-[12.5px] leading-5 text-amber-900">Check {app.emailUsed ?? 'your inbox'} for a confirmation from {app.company} before trying again.</p>}
+          {tip(app) && <p className="mt-1 pl-6 text-[12.5px] leading-5 text-amber-900">{tip(app)}</p>}
           {app.status !== 'blocked' && app.needs.length === 0 && RETRYABLE.has(app.reasonCode ?? '') && (
             <button
               disabled={busy}
@@ -350,18 +446,18 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
                 setBusy(false);
                 onClose();
               }}
-              className={`${app.reasonCode === 'handover' ? BTN.primary : BTN.small} mt-3`}
+              className={`${BTN.primary} mt-3`}
             >
               {busy ? 'Starting…' : app.reasonCode === 'handover' ? 'Let MadeVisa submit it' : 'Let MadeVisa try again'}
             </button>
           )}
         </div>
       )}
-      {app.status === 'needs_attention' && app.needs.length > 0 && <Answers app={app} cv={cv} onDone={onClose} />}
+      {app.status === 'needs_attention' && app.needs.length > 0 && !consent && <Answers app={app} cv={cv} onDone={onClose} />}
       {attention && (
         <div className="mb-4">
-          <p className="text-[13px] font-semibold text-ink-800">{app.needs.length > 0 || RETRYABLE.has(app.reasonCode ?? '') ? 'Or do it yourself' : 'Finish it yourself'}</p>
-          <FinishYourself app={app} onDone={onClose} />
+          {(consent || app.needs.length > 0 || RETRYABLE.has(app.reasonCode ?? '')) && <p className="text-[12.5px] font-semibold text-ink-500">Or apply yourself</p>}
+          <FinishYourself app={app} r={r} onDone={onClose} main={app.status === 'blocked' && !consent} />
         </div>
       )}
 
