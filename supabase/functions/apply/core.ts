@@ -14,6 +14,8 @@ export type Deps = {
   fetch: typeof fetch;
 };
 
+import { readForms, type FormRead } from './forms.ts';
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -200,6 +202,23 @@ async function questions(deps: Deps, body: Json): Promise<Response> {
   }
 }
 
+/**
+ * Read the application forms of a batch before anything is asked or sent: { action: 'analyze', application_ids }.
+ * Only the person's own applications; the forms are kept (application_forms) and returned.
+ */
+async function analyze(deps: Deps, user: { id: string }, body: Json): Promise<Response> {
+  const ids: string[] = Array.isArray(body?.application_ids) ? body.application_ids.filter((x: unknown) => typeof x === 'string' && UUID.test(x)).slice(0, 60) : [];
+  if (!ids.length) return json({ ok: false, reason: 'Nothing to read.' }, 400);
+  const t = await deps.rpc('apply_form_targets', { p_user: user.id, p_ids: ids });
+  if (t.error) return json({ ok: false, reason: 'The applications could not be read.' }, 500);
+  const targets = (Array.isArray(t.data) ? t.data : []) as { id: string; url: string | null; email: boolean; open: boolean }[];
+  const open = targets.filter((x) => x.open);
+  const forms: Record<string, FormRead> = await readForms(deps.fetch, open.map((x) => ({ id: x.id, url: x.url, email: x.email })));
+  for (const x of targets) if (!x.open) forms[x.id] = { platform: null, status: 'closed', questions: null };
+  await deps.rpc('apply_forms_store', { p_user: user.id, p_forms: forms });
+  return json({ ok: true, forms });
+}
+
 export function makeHandler(deps: Deps) {
   return async (req: Request): Promise<Response> => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -210,6 +229,7 @@ export function makeHandler(deps: Deps) {
     try {
       if (body?.action === 'submit') return await submit(deps, user, body);
       if (body?.action === 'questions') return await questions(deps, body);
+      if (body?.action === 'analyze') return await analyze(deps, user, body);
       return json({ ok: false, reason: 'Unknown action.' }, 400);
     } catch (e) {
       console.error('apply', e);

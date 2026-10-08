@@ -1,0 +1,21 @@
+{
+  "name": "madevisa-apply-worker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Submits MadeVisa applications on employers' career sites, in the background.",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node dist/worker.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "fflate": "^0.8.2",
+    "playwright-core": "1.56.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "vitest": "^2.1.9"
+  }
+}

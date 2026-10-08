@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, Check, Copy, Download, FileText, HelpCircle } from 'lucide-react';
-import { SPONSOR_LABEL } from '@/lib/apply/decision';
+import { ArrowUpRight, Check, Copy, Download, FileText, HelpCircle, Image as ImageIcon, Lock } from 'lucide-react';
 import { docxBytes, downloadBytes, letterLines } from '@/lib/apply/docx';
-import { STAGES, STAGE_LABEL, answer, fetchReceipt, markSent, recordOutcome, retry, skip, type App, type Receipt, type Stage } from '@/lib/apply/store';
+import { STAGES, STAGE_LABEL, answerAttention, fetchReceipt, fileLink, markSent, recordOutcome, retry, skip, type App, type Receipt, type Stage } from '@/lib/apply/store';
 import type { StoredCv } from '@/lib/cv/store';
 import type { Needed } from '@/lib/apply/types';
 import { ApplicationStatus, VerifiedBadge } from '@/components/apply/ApplicationStatus';
@@ -131,17 +130,16 @@ function Outcomes({ app, r, onChange }: { app: App; r: Receipt; onChange: (o: Re
   );
 }
 
-/** Questions only the person can answer. Saved for next time, unless they say otherwise. */
+/** What one application is waiting on: answered here once, saved for next time, and MadeVisa carries on. */
 function Answers({ app, cv, onDone }: { app: App; cv: StoredCv | null; onDone: () => void }) {
   const [values, setValues] = useState<Record<string, string>>({});
-  const [keep, setKeep] = useState<Record<string, 'save' | 'ask' | 'once'>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ready = app.needs.every((n) => values[n.id]?.trim());
   const input = (n: Needed) => {
     const v = values[n.id] ?? '';
     const set = (x: string) => setValues((s) => ({ ...s, [n.id]: x }));
-    if (n.options?.length || n.kind === 'yesno') {
+    if (n.options?.length || n.kind === 'yesno' || n.kind === 'checkbox') {
       const opts = n.options?.length ? n.options : ['Yes', 'No'];
       return (
         <div role="radiogroup" aria-label={n.label} className="flex flex-wrap gap-1.5">
@@ -153,61 +151,59 @@ function Answers({ app, cv, onDone }: { app: App; cv: StoredCv | null; onDone: (
         </div>
       );
     }
-    // Asked up front for every job abroad: a plain yes or no.
-    if (n.key === 'sponsorship' || n.key === 'relocation' || n.key === 'work_authorization') {
-      return (
-        <div role="radiogroup" aria-label={n.label} className="flex gap-1.5">
-          {['Yes', 'No'].map((o) => (
-            <button key={o} type="button" role="radio" aria-checked={v === o} onClick={() => set(o)} className={`rounded-full px-4 py-1.5 text-[13px] font-bold ring-1 ${v === o ? 'bg-ink-950 text-white ring-ink-950' : 'bg-white text-ink-700 ring-ink-200 hover:ring-ink-400'}`}>
-              {o}
-            </button>
-          ))}
-        </div>
-      );
-    }
     return n.kind === 'long' ? <textarea value={v} onChange={(e) => set(e.target.value)} rows={4} maxLength={4000} aria-label={n.label} className={FIELD} /> : <input value={v} onChange={(e) => set(e.target.value)} maxLength={300} aria-label={n.label} className={FIELD} />;
   };
   const send = async () => {
     setBusy(true);
     setError(null);
-    const r = await answer(app, app.needs.map((n) => ({ need: n, value: values[n.id] ?? '', keep: keep[n.id] ?? 'save' })), cv);
+    const r = await answerAttention(app, values, cv);
     setBusy(false);
     if (!r.ok) return setError(r.error ?? 'That didn’t save. Try again.');
     onDone();
   };
   return (
-    <div>
-      <p className="flex items-start gap-2 rounded-2xl bg-amber-50 p-3.5 text-[13px] leading-5 text-amber-950 ring-1 ring-amber-200">
-        <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-        {app.reason ?? 'The employer asked a question that MadeVisa cannot safely answer automatically.'}
-      </p>
-      <ul className="mt-4 space-y-4">
+    <div className="mb-4">
+      <ul className="space-y-4">
         {app.needs.map((n) => (
           <li key={n.id}>
             <p className="text-[14px] font-bold leading-snug text-ink-950">{n.label}</p>
             <p className="mb-2 text-[12px] text-ink-500">{n.why}</p>
             {input(n)}
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-ink-600" role="radiogroup" aria-label="Next time">
-              {(
-                [
-                  ['save', 'Use this answer next time'],
-                  ['ask', 'Ask me each time'],
-                  ['once', 'Just for this application'],
-                ] as const
-              ).map(([k, label]) => (
-                <label key={k} className="flex items-center gap-1.5">
-                  <input type="radio" name={`keep-${n.id}`} checked={(keep[n.id] ?? 'save') === k} onChange={() => setKeep((s) => ({ ...s, [n.id]: k }))} className="h-3.5 w-3.5 border-ink-300 text-brand-600 focus:ring-brand-200" />
-                  {label}
-                </label>
-              ))}
-            </div>
           </li>
         ))}
       </ul>
-      {error && <p className="mt-3 text-[13px] text-rose-700">{error}</p>}
-      <div className="mt-5 flex flex-wrap gap-2">
-        <button onClick={send} disabled={!ready || busy} className={`${BTN.primary} flex-1`}>
-          {busy ? 'Saving…' : 'Continue applications'}
+      <p className="mt-3 text-[12px] text-ink-500">Saved to your application profile, so MadeVisa won’t ask again.</p>
+      {error && <p className="mt-2 text-[13px] text-rose-700">{error}</p>}
+      <button onClick={send} disabled={!ready || busy} className={`${BTN.primary} mt-3 w-full`}>
+        {busy ? 'Saving…' : 'Save answer & let MadeVisa apply'}
+      </button>
+    </div>
+  );
+}
+
+/** Finish it yourself: the employer's page, and everything prepared for it. */
+function FinishYourself({ app, onDone }: { app: App; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const sent = async () => {
+    setBusy(true);
+    setError(null);
+    const res = await markSent(app);
+    setBusy(false);
+    if (!res.ok) return setError(res.message);
+    onDone();
+  };
+  return (
+    <div className="mt-3">
+      {error && <p className="mb-2 text-[13px] text-rose-700">{error}</p>}
+      <div className="flex flex-wrap gap-2">
+        {app.url && (
+          <a href={app.url} target="_blank" rel="noopener noreferrer" className={BTN.secondary}>
+            Open the employer’s page <ArrowUpRight className="h-4 w-4" />
+          </a>
+        )}
+        <button onClick={sent} disabled={busy} className={BTN.secondary}>
+          <Check className="h-4 w-4" /> {busy ? 'Saving…' : 'I submitted it myself'}
         </button>
         <button
           onClick={async () => {
@@ -215,7 +211,7 @@ function Answers({ app, cv, onDone }: { app: App; cv: StoredCv | null; onDone: (
             onDone();
           }}
           disabled={busy}
-          className={BTN.secondary}
+          className="rounded-full px-3 py-2 text-[13px] font-semibold text-ink-600 hover:bg-ink-50"
         >
           Skip this job
         </button>
@@ -224,37 +220,33 @@ function Answers({ app, cv, onDone }: { app: App; cv: StoredCv | null; onDone: (
   );
 }
 
-type Props = { app: App; cv: StoredCv | null; onClose: () => void; onNext?: () => void };
+/** Which "needs attention" reasons another try can fix. */
+const RETRYABLE = new Set(['captcha', 'fill_failed', 'form_refused', 'handover', 'dry_run', 'no_submit', 'unreachable', 'error', 'retries', 'timeout', 'worker_error', 'mail_not_set_up', 'channel_off', 'unconfirmed', 'prepare']);
+
+type Props = { app: App; cv: StoredCv | null; onClose: () => void };
 
 /**
- * One application, opened: answer what is asked, send what is ready, or —
- * once it has gone — the receipt of exactly what was submitted.
+ * One application, opened: what it is waiting on, or — once submitted — the
+ * receipt of exactly what was sent, with which email, and the employer's confirmation.
  */
-export function ApplicationReceipt({ app, cv, onClose, onNext }: Props) {
+export function ApplicationReceipt({ app, cv, onClose }: Props) {
   const [r, setR] = useState<Receipt | null>(null);
   const [busy, setBusy] = useState(false);
-  const [opened, setOpened] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     setR(null);
-    setOpened(false);
-    setError(null);
     void fetchReceipt(app.id).then((x) => alive && setR(x));
     return () => {
       alive = false;
     };
   }, [app.id, app.status]);
 
-  const title = app.status === 'submitted' ? 'Application submitted' : app.status === 'needs_answer' ? 'Answer question' : app.status === 'review_required' ? 'Ready to send' : app.status === 'failed' ? 'Application needs your attention' : 'Your application';
-  const sent = async () => {
-    setBusy(true);
-    setError(null);
-    const res = await markSent(app);
-    setBusy(false);
-    if (!res.ok) return setError(res.message);
-    if (onNext) onNext();
+  const open = async (path: string) => {
+    const url = await fileLink(path);
+    if (url) window.open(url, '_blank', 'noopener');
   };
+  const attention = app.status === 'needs_attention' || app.status === 'blocked' || app.status === 'failed';
+  const title = app.status === 'submitted' ? 'Application submitted' : attention ? 'Review application' : app.status === 'ready' || app.status === 'submitting' ? 'MadeVisa is on it' : 'Your application';
 
   return (
     <Sheet
@@ -276,76 +268,45 @@ export function ApplicationReceipt({ app, cv, onClose, onNext }: Props) {
         {app.status === 'submitted' && <span className="text-[12.5px] text-ink-500">Submitted {ago(app.submittedAt)}</span>}
       </div>
 
-      {app.status === 'needs_answer' && <Answers app={app} cv={cv} onDone={onClose} />}
-
-      {app.status === 'failed' && (
-        <div className="mb-4 rounded-2xl bg-rose-50 p-3.5 ring-1 ring-rose-200">
-          <p className="text-[13.5px] font-bold text-rose-950">Could not submit</p>
-          <p className="mt-0.5 text-[13px] leading-5 text-rose-900">{app.reason ?? 'Something went wrong while sending.'} Nothing was counted against your month.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+      {attention && (
+        <div className="mb-4 rounded-2xl bg-amber-50 p-3.5 ring-1 ring-amber-200">
+          <p className="flex items-start gap-2 text-[13.5px] leading-5 text-amber-950">
+            {app.status === 'blocked' ? <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /> : <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />}
+            <span>{app.reason ?? 'MadeVisa couldn’t finish this application by itself.'}</span>
+          </p>
+          {app.reasonCode === 'unconfirmed' && <p className="mt-1.5 text-[12.5px] leading-5 text-amber-900">Check {app.emailUsed ?? 'your inbox'} for a confirmation from {app.company} before trying again.</p>}
+          {app.status !== 'blocked' && app.needs.length === 0 && RETRYABLE.has(app.reasonCode ?? '') && (
             <button
+              disabled={busy}
               onClick={async () => {
-                await retry(app, cv);
+                setBusy(true);
+                await retry(app);
+                setBusy(false);
                 onClose();
               }}
-              className={BTN.small}
+              className={`${BTN.small} mt-3`}
             >
-              Try again
+              {busy ? 'Starting…' : 'Let MadeVisa try again'}
             </button>
-            <button
-              onClick={async () => {
-                await skip(app);
-                onClose();
-              }}
-              className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-ink-600 hover:bg-white"
-            >
-              Skip this job
-            </button>
-          </div>
+          )}
         </div>
       )}
-
-      {app.status === 'review_required' && (
-        <div className="mb-4 rounded-2xl bg-brand-50/60 p-3.5 ring-1 ring-brand-200">
-          <p className="text-[13px] leading-5 text-ink-800">{app.reason}</p>
-          <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-[13px] leading-5 text-ink-800 marker:font-bold marker:text-brand-700">
-            <li>Download the CV below.</li>
-            <li>Open the form and attach it. Your letter and answers are below, ready to copy.</li>
-            <li>Come back and say it’s sent, so MadeVisa can track it.</li>
-          </ol>
-          {error && <p className="mt-2 text-[13px] text-rose-700">{error}</p>}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {app.url && (
-              <a href={app.url} target="_blank" rel="noopener noreferrer" onClick={() => setOpened(true)} className={BTN.primary}>
-                Open the application form <ArrowUpRight className="h-4 w-4" />
-              </a>
-            )}
-            <button onClick={sent} disabled={busy} className={opened || !app.url ? BTN.primary : BTN.secondary}>
-              <Check className="h-4 w-4" /> {busy ? 'Saving…' : 'I’ve sent it'}
-            </button>
-            <button
-              onClick={async () => {
-                await skip(app);
-                if (onNext) onNext();
-                else onClose();
-              }}
-              disabled={busy}
-              className="rounded-full px-3 py-2 text-[13px] font-semibold text-ink-600 hover:bg-white"
-            >
-              Skip
-            </button>
-          </div>
+      {app.status === 'needs_attention' && app.needs.length > 0 && <Answers app={app} cv={cv} onDone={onClose} />}
+      {attention && (
+        <div className="mb-4">
+          <p className="text-[13px] font-semibold text-ink-800">{app.needs.length > 0 ? 'Or finish it yourself' : 'Finish it yourself'} — everything below is prepared for it.</p>
+          <FinishYourself app={app} onDone={onClose} />
         </div>
       )}
 
       {app.status === 'submitted' && (
-        <dl className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <dl className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {(
             [
-              ['CV', app.cvName ?? r?.cv?.name ?? 'Your CV'],
-              ['Cover letter', app.coverLetter ? 'Tailored' : 'None'],
-              ['Sponsorship', app.sponsorship === 'unclear' ? 'Information unavailable' : SPONSOR_LABEL[app.sponsorship]],
-              ['Sent', app.verified ? 'By MadeVisa' : 'By you, on the employer’s site'],
+              ['Submitted using', app.emailUsed ?? '—'],
+              ['When', app.submittedAt ? new Date(app.submittedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'],
+              ['How', app.verified ? (app.confirmation?.kind === 'email' ? 'Emailed by MadeVisa to the employer' : 'Submitted by MadeVisa on the employer’s careers site') : 'Submitted by you on the employer’s site'],
+              ['Confirmation', app.confirmation?.kind === 'self' ? 'Your word' : app.confirmation?.id && app.confirmation.id !== app.id ? app.confirmation.id : 'Employer’s confirmation page'],
             ] as [string, string][]
           ).map(([k, v]) => (
             <div key={k} className="rounded-2xl bg-ink-50 p-3">
@@ -355,15 +316,36 @@ export function ApplicationReceipt({ app, cv, onClose, onNext }: Props) {
           ))}
         </dl>
       )}
-      {app.status === 'submitted' && app.verified && app.confirmation?.id && (
-        <p className="mb-4 text-[12px] text-ink-500">
-          Delivery confirmation: <span className="font-mono text-ink-700">{app.confirmation.id}</span>
+      {app.status === 'submitted' && app.evidence && (
+        <div className="mb-4 rounded-2xl p-3.5 ring-1 ring-emerald-200">
+          <p className="text-[13px] font-bold text-emerald-900">What the employer’s site said</p>
+          {app.evidence.text && <p className="mt-1 text-[13px] italic leading-5 text-ink-700">“{app.evidence.text}”</p>}
+          <div className="mt-2 flex flex-wrap gap-2">
+            {app.evidence.screenshot && (
+              <button type="button" onClick={() => void open(app.evidence!.screenshot!)} className={BTN.small}>
+                <ImageIcon className="h-3.5 w-3.5" /> Screenshot
+              </button>
+            )}
+            {app.url && (
+              <a href={app.url} target="_blank" rel="noopener noreferrer" className={BTN.small}>
+                Job page <ArrowUpRight className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+      {app.status === 'submitted' && r?.file && (
+        <p className="mb-4 flex flex-wrap items-center gap-2 text-[12px] text-ink-500">
+          Exact CV file sent{r.file.sha256 ? <span className="font-mono">· {r.file.sha256.slice(0, 12)}</span> : null}
+          <button type="button" onClick={() => void open(r.file!.path)} className={BTN.link}>
+            Download it
+          </button>
         </p>
       )}
 
       {['skipped', 'already_applied', 'expired'].includes(app.status) && app.reason && <p className="mb-4 rounded-2xl bg-ink-50 p-3.5 text-[13px] leading-5 text-ink-700">{app.reason}</p>}
 
-      {app.status !== 'needs_answer' && (r ? (r.cv || r.letter || r.answers.length > 0) && <Documents r={r} app={app} /> : <p className="py-6 text-center text-[13px] text-ink-500">Loading what was prepared…</p>)}
+      {r ? (r.cv || r.letter || r.answers.length > 0) && <Documents r={r} app={app} /> : <p className="py-6 text-center text-[13px] text-ink-500">Loading what was prepared…</p>}
       {app.status === 'submitted' && r && <Outcomes app={app} r={r} onChange={(o) => setR({ ...r, outcomes: o })} />}
     </Sheet>
   );

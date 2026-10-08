@@ -12,12 +12,21 @@
 //       saved as the confirmation; without one the application is marked
 //       "Could not submit", never "Submitted". Repeating the call never sends
 //       twice.
+//   • { action: 'analyze', application_ids } (signed-in people) — before a
+//       batch is confirmed: which hiring system each application's form is on,
+//       whether it needs a sign-in, and its questions where the hiring system
+//       publishes them (Greenhouse, Lever, Ashby). Kept in application_forms.
+//       See forms.ts.
 //   • { action: 'questions', job_id } (signed-in people) — reads the public
 //       list of application questions for a job, where the employer's hiring
 //       system publishes one (Greenhouse today). Read-only.
 //
-// What it never does: fill in or submit a form on an employer's own site,
-// sign in anywhere as the candidate, or get round a human check.
+// What it never does: fill in or submit a form on an employer's own site
+// (that is the application worker's job — worker/README.md), sign in
+// anywhere as the candidate, or get round a human check.
+//
+// Since migration 20261205090000 the email channel is sent by the worker as
+// well; 'submit' stays for applications that were already "submitting".
 //
 // Mail: uses the Resend key already in the database (app_secrets
 // 'resend_api_key', and 'email_from' for the sender) — the same one the job

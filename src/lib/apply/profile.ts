@@ -10,6 +10,7 @@
 // guessing, and demographic questions are never answered at all.
 
 import type { CvProfile } from '@/lib/cv/cvProfile';
+import { classifyQuestion, fitOption, questionId } from '@/lib/apply/concepts';
 import type { Answered, ApplyPrefs, ApplyProfile, Needed, Question, QuestionKey, SavedAnswer } from '@/lib/apply/types';
 
 export const QUESTION_LABEL: Record<QuestionKey, string> = {
@@ -35,6 +36,12 @@ export const QUESTION_LABEL: Record<QuestionKey, string> = {
   source: 'How you heard about the job',
   consent: 'Consent to the employer’s privacy notice',
   demographic: 'Voluntary self-identification',
+  current_company: 'Current company',
+  remote_preference: 'How you prefer to work',
+  onsite_ok: 'Happy to work on-site or hybrid',
+  travel: 'Willing to travel for work',
+  over_18: 'At least 18 years old',
+  previously_employed: 'Worked for this company before',
 };
 
 /** The details the profile screen asks for once. */
@@ -58,51 +65,8 @@ export const PROFILE_FIELDS: { key: QuestionKey; hint: string; kind: 'text' | 'y
 export const BASIC_KEYS: QuestionKey[] = ['full_name', 'email', 'phone'];
 
 // --- Recognising a question -------------------------------------------------------
-
-const RULES: [QuestionKey, RegExp][] = [
-  // Order matters: the most specific first.
-  ['demographic', /\b(gender|sex\b|pronoun|race|ethnic|hispanic|latino|veteran|disab|sexual orientation|lgbt|date of birth|birth ?date|marital|religio|nationality at birth|age\b)/i],
-  ['consent', /\b(consent|privacy (policy|notice|statement)|data protection|gdpr|i agree|i acknowledge|terms (and|&) conditions|datenschutz)/i],
-  ['sponsorship', /\b(sponsor|sponsorship|visa support|work visa|h-?1b|skilled worker visa|blue card)\b/i],
-  ['work_authorization', /\b(authori[sz]ed to work|legally (allowed|permitted|able|entitled|eligible) to work|right to work|work (permit|authori[sz]ation)|eligible to work|arbeitserlaubnis|permission to work)\b/i],
-  ['salary_expectation', /\b(salary|compensation|pay|remuneration|gehalt|rémunération|salarial)\b.*\b(expect|desired|requirement|range|wish|vorstellung|souhait)|\b(expected|desired)\b.*\b(salary|compensation|pay)\b|gehaltsvorstellung|prétentions salariales/i],
-  ['notice_period', /\bnotice period\b|kündigungsfrist|préavis/i],
-  ['availability', /\b(start date|earliest (possible )?start|when (can|could) you start|available to start|availability|eintrittstermin|date de disponibilité)\b/i],
-  ['relocation', /\b(relocat|willing to move|open to moving|umzug)\b/i],
-  ['years_experience', /\b(how many )?years? of (relevant |professional |work(ing)? )?experience\b|\bjahre berufserfahrung\b/i],
-  ['linkedin', /\blinked ?in\b/i],
-  ['website', /\b(website|portfolio|github|personal site|url)\b/i],
-  ['first_name', /\b(first|given) name\b|\bvorname\b|\bprénom\b/i],
-  ['last_name', /\b(last|family) name\b|\bsurname\b|\bnachname\b|\bnom de famille\b/i],
-  ['full_name', /^(?:your )?(?:full |legal )?name\b|\bfull name\b|\blegal name\b/i],
-  ['email', /\be-?mail\b/i],
-  ['phone', /\b(phone|mobile|telephone|telefon|téléphone|cell)\b/i],
-  ['city', /\b(city|town|current location|where are you (based|located)|location \(city\)|wohnort|ville)\b/i],
-  ['country', /\bcountry\b|\bland\b|\bpays\b/i],
-  ['education', /\b(highest (level of )?education|degree|education level|abschluss|diplôme)\b/i],
-  ['languages', /\b(which )?languages?\b.*\b(speak|fluent|proficien)|\blanguage skills\b|sprachkenntnisse/i],
-  ['current_title', /\bcurrent (job )?title\b|\bcurrent (role|position)\b/i],
-  ['source', /\b(how did you (hear|find|learn)|where did you (hear|find|see)|referral source|source of application)\b/i],
-];
-
-/** Which standard question this is, or null for one we don't know. */
-export function classifyQuestion(label: string): QuestionKey | null {
-  const t = label.replace(/\s+/g, ' ').replace(/[*:?]+\s*$/, '').trim();
-  if (!t) return null;
-  for (const [key, re] of RULES) if (re.test(t)) return key;
-  return null;
-}
-
-/** A stable id for a question we don't recognise: its own words, tidied. */
-export const questionId = (label: string): string =>
-  label
-    .toLowerCase()
-    .replace(/[^a-z0-9À-ɏЀ-ӿ]+/gi, ' ')
-    .trim()
-    .split(' ')
-    .slice(0, 16)
-    .join('-')
-    .slice(0, 96);
+// The rules live in the normalization engine (concepts.ts); re-exported here for the code that already imports them.
+export { classifyQuestion, questionId } from '@/lib/apply/concepts';
 
 // --- Facts we may use ---------------------------------------------------------------
 
@@ -158,22 +122,8 @@ export function confidence(p: ApplyProfile): number | null {
 
 // --- Answering -------------------------------------------------------------------
 
-const YES = /^(yes|y|true|ja|oui|sí|si)\b/i;
-const NO = /^(no|n|false|nein|non)\b/i;
-
 /** Fit a saved answer to the choices a form offers — only on a clear match. */
-function pickOption(value: string, options: string[]): string | null {
-  const v = value.trim().toLowerCase();
-  const exact = options.find((o) => o.trim().toLowerCase() === v);
-  if (exact) return exact;
-  const yes = YES.test(v);
-  const no = NO.test(v);
-  if (yes || no) {
-    const hits = options.filter((o) => (yes ? YES : NO).test(o.trim()));
-    if (hits.length === 1) return hits[0];
-  }
-  return null;
-}
+const pickOption = (value: string, options: string[], key: QuestionKey | null = null): string | null => fitOption(value, options, key);
 
 function derived(key: QuestionKey, p: ApplyProfile, cv: CvProfile | null): { value: string; source: SavedAnswer['source'] } | null {
   const full = p.answers.full_name;
@@ -247,7 +197,7 @@ export function answerQuestions(
       continue;
     }
     if (q.options?.length) {
-      const picked = pickOption(fact.value, q.options);
+      const picked = pickOption(fact.value, q.options, key);
       if (!picked) {
         need('Your saved answer doesn’t match any of the choices on this form.');
         continue;

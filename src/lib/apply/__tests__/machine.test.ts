@@ -1,18 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { STATUSES, STATUS_LABEL, assertMove, canMove, isFinal, isPending, needsYou, nextStates } from '@/lib/apply/machine';
+import { STATUSES, STATUS_LABEL, assertMove, canMove, isFinal, isPending, needsYou, nextStates, statusText } from '@/lib/apply/machine';
 
 describe('application state transitions', () => {
-  it('follows the normal path to submitted', () => {
-    expect(canMove('queued', 'preparing')).toBe(true);
-    expect(canMove('preparing', 'submitting')).toBe(true);
-    expect(canMove('submitting', 'submitted')).toBe(true);
+  it('follows the batch path to submitted', () => {
+    const path = ['queued', 'analyzing', 'preparing', 'ready', 'submitting', 'submitted'] as const;
+    for (let i = 1; i < path.length; i += 1) expect(canMove(path[i - 1], path[i])).toBe(true);
   });
 
-  it('cannot be submitted without being prepared and sent', () => {
-    expect(canMove('queued', 'submitted')).toBe(false);
-    expect(canMove('preparing', 'submitted')).toBe(false);
-    expect(canMove('needs_answer', 'submitted')).toBe(false);
-    expect(canMove('failed', 'submitted')).toBe(false);
+  it('cannot be submitted by skipping steps', () => {
+    for (const s of ['queued', 'analyzing', 'preparing', 'ready', 'skipped'] as const) expect(canMove(s, 'submitted')).toBe(false);
     expect(() => assertMove('queued', 'submitted')).toThrow(/can’t become/);
   });
 
@@ -23,25 +19,18 @@ describe('application state transitions', () => {
     }
   });
 
-  it('an unanswered question stops one application, which can come back', () => {
-    expect(canMove('preparing', 'needs_answer')).toBe(true);
-    expect(canMove('needs_answer', 'queued')).toBe(true);
-    expect(canMove('needs_answer', 'submitting')).toBe(false);
+  it('one application needing the person can come back without restarting the batch', () => {
+    expect(canMove('submitting', 'needs_attention')).toBe(true);
+    expect(canMove('needs_attention', 'ready')).toBe(true);
+    expect(canMove('blocked', 'ready')).toBe(true);
+    // …or the person finishes it themselves.
+    expect(canMove('needs_attention', 'submitted')).toBe(true);
+    expect(canMove('blocked', 'submitted')).toBe(true);
   });
 
-  it('pausing puts the application in hand back in the queue', () => {
-    expect(canMove('preparing', 'queued')).toBe(true);
-    // Mid-send it must finish one way or the other first.
+  it('a site that didn’t respond goes back to ready, never straight to submitted again', () => {
+    expect(canMove('submitting', 'ready')).toBe(true);
     expect(canMove('submitting', 'queued')).toBe(false);
-  });
-
-  it('a failure is never hidden: it can be retried or skipped, nothing else', () => {
-    expect(nextStates('failed').sort()).toEqual(['queued', 'skipped']);
-  });
-
-  it('review required becomes submitted only when the person sends it', () => {
-    expect(canMove('review_required', 'submitted')).toBe(true);
-    expect(canMove('review_required', 'skipped')).toBe(true);
   });
 
   it('every state has a label and every move stays within the known states', () => {
@@ -53,7 +42,13 @@ describe('application state transitions', () => {
   });
 
   it('knows who has to act next', () => {
-    expect(STATUSES.filter(needsYou).sort()).toEqual(['failed', 'needs_answer', 'review_required']);
-    expect(STATUSES.filter(isPending).sort()).toEqual(['preparing', 'queued', 'submitting']);
+    expect(STATUSES.filter(needsYou).sort()).toEqual(['blocked', 'failed', 'needs_attention']);
+    expect(STATUSES.filter(isPending).sort()).toEqual(['analyzing', 'preparing', 'queued', 'ready', 'submitting']);
+  });
+
+  it('says who submitted it', () => {
+    expect(statusText({ status: 'submitted', verified: true, reasonCode: null })).toBe('Submitted');
+    expect(statusText({ status: 'submitted', verified: false, reasonCode: null })).toBe('Submitted by you');
+    expect(statusText({ status: 'blocked', verified: false, reasonCode: 'login_required' })).toBe('Needs a login');
   });
 });

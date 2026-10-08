@@ -5,17 +5,20 @@
 
 import type { AppStatus, Application } from '@/lib/apply/types';
 
-export const STATUSES: AppStatus[] = ['queued', 'preparing', 'needs_answer', 'submitting', 'submitted', 'failed', 'skipped', 'already_applied', 'expired', 'review_required'];
+export const STATUSES: AppStatus[] = ['queued', 'analyzing', 'preparing', 'ready', 'submitting', 'submitted', 'needs_attention', 'failed', 'skipped', 'blocked', 'already_applied', 'expired'];
 
 const MOVES: Record<AppStatus, AppStatus[]> = {
-  queued: ['preparing', 'skipped', 'already_applied', 'expired'],
+  queued: ['analyzing', 'preparing', 'skipped', 'already_applied', 'expired'],
+  analyzing: ['queued', 'preparing', 'needs_attention', 'blocked', 'skipped', 'already_applied', 'expired'],
   // Back to queued: the person paused while this one was being prepared.
-  preparing: ['queued', 'needs_answer', 'submitting', 'review_required', 'failed', 'skipped', 'expired', 'already_applied'],
-  needs_answer: ['queued', 'skipped', 'expired'],
-  submitting: ['submitted', 'failed', 'review_required'],
-  // The person sent it on the employer's site and said so — or chose not to.
-  review_required: ['submitted', 'queued', 'skipped', 'expired'],
-  failed: ['queued', 'skipped'],
+  preparing: ['queued', 'ready', 'needs_attention', 'blocked', 'failed', 'skipped', 'already_applied', 'expired'],
+  ready: ['submitting', 'queued', 'needs_attention', 'skipped', 'expired'],
+  // Back to ready: the employer's site didn't respond — the worker tries again later.
+  submitting: ['submitted', 'failed', 'needs_attention', 'blocked', 'ready', 'expired'],
+  // The person answered (ready), finished it themselves (submitted), or let it go.
+  needs_attention: ['queued', 'ready', 'submitted', 'skipped', 'expired'],
+  blocked: ['queued', 'ready', 'submitted', 'skipped'],
+  failed: ['queued', 'ready', 'submitted', 'skipped'],
   skipped: ['queued'],
   submitted: [],
   already_applied: [],
@@ -28,9 +31,9 @@ export const nextStates = (from: AppStatus): AppStatus[] => MOVES[from] ?? [];
 /** Nothing more will happen to it by itself. */
 export const isFinal = (s: AppStatus): boolean => MOVES[s].length === 0 || s === 'skipped';
 /** Waiting for the person. */
-export const needsYou = (s: AppStatus): boolean => s === 'needs_answer' || s === 'review_required' || s === 'failed';
-/** Still to be worked on by the queue. */
-export const isPending = (s: AppStatus): boolean => s === 'queued' || s === 'preparing' || s === 'submitting';
+export const needsYou = (s: AppStatus): boolean => s === 'needs_attention' || s === 'blocked' || s === 'failed';
+/** Still to be worked on — by the page or by the worker. */
+export const isPending = (s: AppStatus): boolean => s === 'queued' || s === 'analyzing' || s === 'preparing' || s === 'ready' || s === 'submitting';
 
 export class MoveError extends Error {
   constructor(
@@ -44,40 +47,41 @@ export function assertMove(from: AppStatus, to: AppStatus): void {
   if (!canMove(from, to)) throw new MoveError(from, to);
 }
 
-/** The words people see. "Review required" reads as "Ready to send" when the application itself is complete. */
+/** The words people see. */
 export const STATUS_LABEL: Record<AppStatus, string> = {
   queued: 'Queued',
+  analyzing: 'Checking the form',
   preparing: 'Preparing',
-  needs_answer: 'Needs your answer',
+  ready: 'Ready',
   submitting: 'Submitting',
   submitted: 'Submitted',
+  needs_attention: 'Needs attention',
   failed: 'Could not submit',
   skipped: 'Skipped',
+  blocked: 'Needs attention',
   already_applied: 'Already applied',
   expired: 'No longer open',
-  review_required: 'Review required',
 };
 
 export const STATUS_TONE: Record<AppStatus, 'ink' | 'brand' | 'amber' | 'emerald' | 'rose'> = {
   queued: 'ink',
+  analyzing: 'brand',
   preparing: 'brand',
-  needs_answer: 'amber',
+  ready: 'brand',
   submitting: 'brand',
   submitted: 'emerald',
+  needs_attention: 'amber',
   failed: 'rose',
   skipped: 'ink',
+  blocked: 'amber',
   already_applied: 'ink',
   expired: 'ink',
-  review_required: 'amber',
 };
 
-/**
- * How an application's state reads to the person. "Review required" with a
- * finished application behind it is "Ready to send"; a submitted one says
- * who sent it.
- */
+/** How an application's state reads to the person. A submitted one says who sent it. */
 export function statusText(a: Pick<Application, 'status' | 'verified' | 'reasonCode'>): string {
-  if (a.status === 'review_required' && (a.reasonCode === 'employer_site' || a.reasonCode === 'channel_off')) return 'Ready to send';
-  if (a.status === 'submitted') return a.verified ? 'Submitted' : 'Sent by you';
+  if (a.status === 'submitted') return a.verified ? 'Submitted' : 'Submitted by you';
+  if (a.status === 'blocked' && a.reasonCode === 'login_required') return 'Needs a login';
+  if (a.status === 'needs_attention' && a.reasonCode === 'dry_run') return 'Filled (test mode)';
   return STATUS_LABEL[a.status];
 }

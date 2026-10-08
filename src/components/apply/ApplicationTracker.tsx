@@ -25,7 +25,7 @@ export function ApplicationTracker({ apps, onOpen, refreshKey }: { apps: App[]; 
   }, [refreshKey]);
 
   const submitted = apps.filter((a) => a.status === 'submitted');
-  const todo = apps.filter((a) => ['needs_answer', 'review_required', 'failed'].includes(a.status));
+  const todo = apps.filter((a) => ['needs_attention', 'blocked', 'failed'].includes(a.status));
   const counts = useMemo(() => {
     const ids = new Set(submitted.map((a) => a.id));
     // How far each application got. Reaching a stage means the ones before it were passed too
@@ -51,7 +51,7 @@ export function ApplicationTracker({ apps, onOpen, refreshKey }: { apps: App[]; 
           <h2 id="tracker-title" className="text-[20px] font-bold tracking-tight text-ink-950">
             Your applications
           </h2>
-          <p className="text-[13px] text-ink-600">Everything prepared or sent through MadeVisa, with exactly what was used.</p>
+          <p className="text-[13px] text-ink-600">Everything MadeVisa submitted for you, with exactly what was used.</p>
         </div>
         <a
           href="/dashboard"

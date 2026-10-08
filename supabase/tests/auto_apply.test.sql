@@ -1,4 +1,4 @@
--- Tests for migration 20261204090000_auto_apply.sql.
+-- Tests for Auto Apply: migrations 20261204090000_auto_apply.sql and 20261205090000_auto_apply_batch.sql.
 -- Run on a scratch database that has every migration applied — never on the live one:
 --   psql -v ON_ERROR_STOP=1 -f supabase/tests/auto_apply.test.sql
 -- Everything happens inside one transaction that is rolled back at the end.
@@ -106,437 +106,458 @@ BEGIN
   PERFORM t.out();
 END $$;
 
-\echo '2. allowance comes with the plan; nothing is used yet'
+
+-- Helpers for the batch flow.
+-- Prepare one application the way the page does: read the form, tailor the CV, save the answers, ready.
+CREATE FUNCTION t.prepare(u text, j text, p_platform text DEFAULT 'greenhouse') RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE a uuid := t.app(u, j); r jsonb;
+BEGIN
+  PERFORM t.as(u);
+  r := public.apply_move(a, 'analyzing');
+  IF NOT (r->>'ok')::boolean THEN PERFORM t.out(); RETURN r; END IF;
+  PERFORM public.apply_save_form(a, p_platform, 'ok', jsonb_build_array(jsonb_build_object('id', 'gh:first_name', 'label', 'First Name', 'required', true, 'kind', 'text')));
+  r := public.apply_move(a, 'preparing');
+  PERFORM public.apply_save(a, jsonb_build_object('name', 'Leyla CV', 'content', 'Leyla…', 'meta', jsonb_build_object('lines', jsonb_build_array(jsonb_build_object('kind', 'name', 'text', 'Leyla')))),
+                            NULL,
+                            jsonb_build_array(jsonb_build_object('id', 'gh:first_name', 'label', 'First Name', 'value', 'Leyla', 'source', 'you', 'key', 'first_name'),
+                                              jsonb_build_object('id', 'gh:email', 'label', 'Email', 'value', u || '@example.com', 'source', 'account', 'key', 'email'),
+                                              jsonb_build_object('id', 'gh:sponsor', 'label', 'Will you need sponsorship?', 'value', 'Yes', 'source', 'derived', 'key', 'sponsorship')),
+                            jsonb_build_object('first_name', 'Leyla', 'sponsorship', 'Yes'));
+  r := public.apply_move(a, 'ready', jsonb_build_object('cvName', 'Leyla CV'));
+  PERFORM t.out();
+  RETURN r;
+END $$;
+CREATE FUNCTION t.claim(w text, n int) RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE r jsonb;
+BEGIN
+  PERFORM t.as('service'); r := public.apply_worker_claim(w, n); PERFORM t.out(); RETURN r;
+END $$;
+CREATE FUNCTION t.report(id uuid, w text, st text, d jsonb DEFAULT NULL) RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE r jsonb;
+BEGIN
+  PERFORM t.as('service'); r := public.apply_worker_report(id, w, st, d); PERFORM t.out(); RETURN r;
+END $$;
+CREATE FUNCTION t.queue(u text) RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER AS $$ SELECT id FROM public.application_queues WHERE user_id = t.id(u) ORDER BY created_at DESC LIMIT 1 $$;
+CREATE FUNCTION t.qstate(u text) RETURNS text LANGUAGE sql STABLE SECURITY DEFINER AS $$ SELECT state FROM public.application_queues WHERE id = t.queue(u) $$;
+CREATE FUNCTION t.credit(u text, j text) RETURNS text LANGUAGE sql STABLE SECURITY DEFINER AS $$ SELECT state FROM public.application_credits WHERE application_id = t.app(u, j) $$;
+CREATE FUNCTION t.confirm(u text, email text DEFAULT NULL) RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE r jsonb;
+BEGIN
+  PERFORM t.as(u);
+  r := public.apply_queue_set(t.queue(u), 'running', NULL, NULL, coalesce(email, u || '@example.com'));
+  PERFORM t.out(); RETURN r;
+END $$;
+-- Each test step starts from a clean clock: nothing held by an earlier step's batch.
+CREATE FUNCTION t.reset_day() RETURNS void LANGUAGE sql SECURITY DEFINER AS $$ UPDATE public.job_applications SET day_started = day_started - 1 WHERE day_started IS NOT NULL $$;
+
+\echo '2. allowance comes with the plan; the worker is reported offline until one checks in'
 DO $$
 DECLARE s jsonb;
 BEGIN
   PERFORM t.as('free'); s := public.apply_status(); PERFORM t.out();
   ASSERT (s->>'monthly')::int = 5 AND (s->>'left')::int = 5 AND NOT (s->>'pro')::boolean, s::text;
+  ASSERT NOT (s->'worker'->>'online')::boolean, 'no worker has checked in';
   PERFORM t.as('pro'); s := public.apply_status(); PERFORM t.out();
   ASSERT (s->>'monthly')::int = 150 AND (s->>'pro')::boolean, s::text;
-  ASSERT (public.apply_status()->>'signedIn')::boolean = false;
-END $$;
-
-\echo '3. preview: channel, closed, and nothing applied yet'
-DO $$
-DECLARE p jsonb;
-BEGIN
+  -- Only the worker can check in.
   PERFORM t.as('pro');
-  p := public.apply_preview(ARRAY[t.id('direct'), t.id('closed'), t.id('j1')]);
+  BEGIN
+    PERFORM public.apply_worker_beat('fake', 'x');
+    RAISE EXCEPTION 'a signed-in person checked in as a worker';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   PERFORM t.out();
-  ASSERT jsonb_array_length(p) = 3;
-  ASSERT (SELECT x->>'channel' FROM jsonb_array_elements(p) x WHERE x->>'id' = t.id('direct')::text) = 'madevisa';
-  ASSERT (SELECT x->>'channel' FROM jsonb_array_elements(p) x WHERE x->>'id' = t.id('j1')::text) = 'employer_site';
-  ASSERT (SELECT (x->>'closed')::boolean FROM jsonb_array_elements(p) x WHERE x->>'id' = t.id('closed')::text);
-  ASSERT (SELECT x->>'url' FROM jsonb_array_elements(p) x WHERE x->>'id' = t.id('j1')::text) = 'https://boards.greenhouse.io/beta/jobs/1001';
-  ASSERT NOT EXISTS (SELECT 1 FROM jsonb_array_elements(p) x WHERE (x->>'applied')::boolean OR (x->>'twin')::boolean);
+  PERFORM t.as('service'); s := public.apply_worker_beat('w1', '1.0.0', jsonb_build_object('host', 'test')); PERFORM t.out();
+  ASSERT (s->>'autoSubmit')::boolean AND (s->>'concurrency')::int = 2, s::text;
+  PERFORM t.as('pro'); s := public.apply_status(); PERFORM t.out();
+  ASSERT (s->'worker'->>'online')::boolean;
+  UPDATE public.apply_workers SET seen_at = now() - interval '10 minutes';
+  PERFORM t.as('pro'); ASSERT NOT (public.apply_status()->'worker'->>'online')::boolean, 'a worker silent for 10 minutes is not online'; PERFORM t.out();
+  UPDATE public.apply_workers SET seen_at = now();
 END $$;
 
-\echo '4. duplicate protection when a batch is queued'
+\echo '3. a batch starts as "analyzing": duplicates, closed jobs and the same role are left out'
 DO $$
 DECLARE r jsonb;
 BEGIN
   PERFORM t.as('pro');
-  -- Applied to j2 by hand before (the existing tracker).
   INSERT INTO public.application_reports (publisher_id, listing_kind, listing_id, listing_title) VALUES (t.id('beta'), 'job', t.id('j2'), 'Role number 2');
   UPDATE public.application_reports SET status = 'applied' WHERE listing_id = t.id('j2');
   r := public.apply_enqueue(t.items('direct', 'j1', 'j2', 'closed', 'twinA', 'twinB'), '2026-10-07T12:00:00Z');
   PERFORM t.out();
-  ASSERT r->'queue'->>'state' = 'running';
+  ASSERT r->'queue'->>'state' = 'analyzing', r::text;
   ASSERT t.status('pro', 'direct') = 'queued' AND t.status('pro', 'j1') = 'queued';
-  ASSERT t.status('pro', 'j2') = 'already_applied', 'a job applied to in the tracker must not be queued';
-  ASSERT t.status('pro', 'closed') = 'expired';
-  ASSERT t.status('pro', 'twinA') = 'queued' AND t.status('pro', 'twinB') = 'already_applied', 'the same role at the same company is one application';
-  ASSERT (SELECT reason FROM public.job_applications WHERE id = t.app('pro', 'twinB')) = 'This role at Acme GmbH is already in your applications.';
+  ASSERT t.status('pro', 'j2') = 'already_applied' AND t.status('pro', 'closed') = 'expired' AND t.status('pro', 'twinB') = 'already_applied';
   ASSERT (SELECT channel FROM public.job_applications WHERE id = t.app('pro', 'direct')) = 'madevisa';
-  -- The job's own facts come from the database, not the page.
-  ASSERT (SELECT company || '|' || cc FROM public.job_applications WHERE id = t.app('pro', 'j1')) = 'Beta BV|DE';
-
-  -- The same batch again adds nothing.
+  -- Starting again before confirming replaces the batch being set up — it is not doubled.
   PERFORM t.as('pro');
-  r := public.apply_enqueue(t.items('direct', 'j1'), NULL);
+  r := public.apply_enqueue(t.items('direct', 'j1', 'twinA', 'j3'), NULL);
   PERFORM t.out();
-  ASSERT (SELECT count(*) FROM public.job_applications WHERE user_id = t.id('pro')) = 6;
-  ASSERT (SELECT count(*) FROM public.application_queues WHERE user_id = t.id('pro')) = 1, 'an unfinished batch is carried on with, not doubled';
-  ASSERT t.events('pro', 'application_duplicate') >= 4;
-  ASSERT t.events('pro', 'application_queued') = 3;
-
-  -- And the preview now says so.
-  PERFORM t.as('pro');
-  r := public.apply_preview(ARRAY[t.id('j1'), t.id('j2'), t.id('twinB'), t.id('j3')]);
-  PERFORM t.out();
-  ASSERT (SELECT (x->>'applied')::boolean FROM jsonb_array_elements(r) x WHERE x->>'id' = t.id('j1')::text);
-  ASSERT (SELECT (x->>'applied')::boolean FROM jsonb_array_elements(r) x WHERE x->>'id' = t.id('j2')::text);
-  ASSERT (SELECT (x->>'twin')::boolean FROM jsonb_array_elements(r) x WHERE x->>'id' = t.id('twinB')::text);
-  ASSERT (SELECT NOT (x->>'applied')::boolean AND NOT (x->>'twin')::boolean FROM jsonb_array_elements(r) x WHERE x->>'id' = t.id('j3')::text);
+  ASSERT (SELECT count(*) FROM public.application_queues WHERE user_id = t.id('pro') AND state IN ('analyzing', 'awaiting_answers')) = 1;
+  ASSERT (SELECT state FROM public.application_queues WHERE user_id = t.id('pro') ORDER BY created_at LIMIT 1) = 'stopped';
+  ASSERT (SELECT count(*) FROM public.job_applications WHERE queue_id = t.queue('pro')) = 4, (SELECT count(*) FROM public.job_applications WHERE queue_id = t.queue('pro'))::text;
+  ASSERT t.status('pro', 'j3') = 'queued';
 END $$;
 
-\echo '5. state transitions are enforced'
+\echo '4. the allowed moves, and what only the worker may do'
 DO $$
-DECLARE r jsonb; a uuid := t.app('pro', 'direct');
+DECLARE r jsonb; a uuid := t.app('pro', 'j1');
 BEGIN
+  ASSERT (SELECT count(*) FROM unnest(ARRAY['queued','analyzing','preparing','ready','submitting','submitted','needs_attention','failed','skipped','blocked','already_applied','expired']) f,
+                              unnest(ARRAY['queued','analyzing','preparing','ready','submitting','submitted','needs_attention','failed','skipped','blocked','already_applied','expired']) g
+          WHERE public.apply_can_move(f, g)) = 5 + 7 + 8 + 5 + 6 + 5 + 4 + 4 + 1;
   PERFORM t.as('pro');
-  r := public.apply_move(a, 'submitted');
-  ASSERT NOT (r->>'ok')::boolean AND r->>'code' = 'invalid', 'queued → submitted must be refused';
-  r := public.apply_move(a, 'submitting');
-  ASSERT r->>'code' = 'invalid';
-  r := public.apply_move(a, 'preparing');
-  ASSERT (r->>'ok')::boolean AND r->'app'->>'status' = 'preparing';
-  -- Repeating a call is harmless.
-  r := public.apply_move(a, 'preparing');
-  ASSERT (r->>'ok')::boolean;
-  -- Someone else's application can't be touched.
-  PERFORM t.out(); PERFORM t.as('other');
-  r := public.apply_move(a, 'skipped');
-  ASSERT NOT (r->>'ok')::boolean AND r->>'code' = 'error';
-  ASSERT (SELECT count(*) FROM public.job_applications) = 0, 'row security: another person sees none of these';
+  r := public.apply_move(a, 'ready');
+  ASSERT NOT (r->>'ok')::boolean AND r->>'code' = 'invalid', 'queued → ready must be refused';
+  r := public.apply_move(a, 'analyzing'); ASSERT (r->>'ok')::boolean;
+  r := public.apply_move(a, 'preparing'); ASSERT (r->>'ok')::boolean;
+  -- Ready means the CV it will be sent with is saved.
+  r := public.apply_move(a, 'ready');
+  ASSERT NOT (r->>'ok')::boolean AND r->>'message' LIKE '%no CV%', r::text;
   PERFORM t.out();
-  -- Every pair agrees with the table in src/lib/apply/machine.ts.
-  ASSERT (SELECT count(*) FROM unnest(ARRAY['queued','preparing','needs_answer','submitting','submitted','failed','skipped','already_applied','expired','review_required']) f,
-                              unnest(ARRAY['queued','preparing','needs_answer','submitting','submitted','failed','skipped','already_applied','expired','review_required']) g
-          WHERE public.apply_can_move(f, g)) = 4 + 8 + 3 + 3 + 4 + 2 + 1;
-  ASSERT NOT public.apply_can_move('submitted', 'queued') AND NOT public.apply_can_move('needs_answer', 'submitting');
+  r := t.prepare('pro', 'j1');
+  ASSERT r->>'code' = 'invalid' AND r->'app'->>'status' = 'preparing', 'prepare restarts from analyzing — refused from preparing, as it should be';
+  PERFORM t.as('pro');
+  PERFORM public.apply_save(a, jsonb_build_object('name', 'CV', 'content', 'Leyla…', 'meta', jsonb_build_object('lines', '[]'::jsonb)), NULL, NULL, jsonb_build_object('sponsorship', 'Yes'));
+  r := public.apply_move(a, 'ready'); ASSERT (r->>'ok')::boolean, r::text;
+  -- The page can never submit, nor declare a ready application submitted.
+  r := public.apply_move(a, 'submitting'); ASSERT r->>'code' = 'invalid';
+  r := public.apply_move(a, 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'site', 'id', 'forged')));
+  ASSERT r->>'code' = 'invalid', r::text;
+  BEGIN
+    PERFORM public.apply_worker_claim('me', 5);
+    RAISE EXCEPTION 'a signed-in person claimed applications';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    PERFORM public.apply_worker_report(a, 'me', 'submitted', '{}'::jsonb);
+    RAISE EXCEPTION 'a signed-in person reported a submission';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  PERFORM t.out();
+  ASSERT (SELECT concepts->>'sponsorship' FROM public.job_applications WHERE id = a) = 'Yes';
+  -- Someone else sees nothing.
+  PERFORM t.as('other');
+  ASSERT (SELECT count(*) FROM public.job_applications) = 0 AND (SELECT count(*) FROM public.application_forms) = 0;
+  PERFORM t.out();
 END $$;
 
-\echo '6. a sent application: held, then used once; verified only from the sending function'
+\echo '5. nothing is sent before the person confirms; confirming needs an email'
 DO $$
-DECLARE r jsonb; a uuid := t.app('pro', 'direct'); ctx jsonb;
+DECLARE r jsonb;
 BEGIN
-  PERFORM t.as('pro');
-  PERFORM public.apply_save(a, jsonb_build_object('name', 'Leyla Data Analyst CV', 'content', 'Leyla…', 'meta', jsonb_build_object('changes', jsonb_build_array('Moved 3 skills'))),
-                            jsonb_build_object('name', 'Cover letter', 'content', 'Dear Acme…'),
-                            jsonb_build_array(jsonb_build_object('id', 'basic:email', 'label', 'Email', 'value', 'pro@example.com', 'source', 'account', 'key', 'email')));
-  r := public.apply_move(a, 'submitting', jsonb_build_object('cvName', 'Leyla Data Analyst CV', 'coverLetter', true));
+  r := t.prepare('pro', 'direct', 'email');
   ASSERT (r->>'ok')::boolean, r::text;
-  ASSERT (public.apply_status()->>'used')::int = 1, 'one is held while sending';
-  -- The page itself cannot declare it submitted.
-  r := public.apply_move(a, 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'email', 'id', 'forged')));
-  ASSERT NOT (r->>'ok')::boolean AND r->>'code' = 'invalid', 'the page marked a sending application as submitted';
-  -- Nor call the sending function's entry points.
-  BEGIN
-    PERFORM public.apply_finish(a, t.id('pro'), 'submitted', '{}'::jsonb);
-    RAISE EXCEPTION 'apply_finish was callable by a signed-in person';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
-  END;
-  BEGIN
-    PERFORM public.apply_send_context(a, t.id('pro'));
-    RAISE EXCEPTION 'apply_send_context was callable by a signed-in person';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
-  END;
+  r := t.prepare('pro', 'twinA');
+  r := t.prepare('pro', 'j3');
+  PERFORM t.as('pro');
+  r := public.apply_queue_set(t.queue('pro'), 'awaiting_answers', NULL, jsonb_build_object('ask', jsonb_build_array(jsonb_build_object('key', 'salary_expectation')), 'coverage', jsonb_build_object('pct', 92)));
+  ASSERT r->>'state' = 'awaiting_answers' AND r->'plan'->'coverage'->>'pct' = '92', r::text;
   PERFORM t.out();
-
-  PERFORM t.as('service');
-  ctx := public.apply_send_context(a, t.id('pro'));
-  ASSERT ctx->>'to' = 'jobs@acme.example' AND ctx->>'status' = 'submitting' AND (ctx->>'open')::boolean AND ctx->>'candidateEmail' = 'pro@example.com', ctx::text;
-  ASSERT ctx->'sentBefore' = 'null'::jsonb;
-  r := public.apply_finish(a, t.id('pro'), 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'email', 'id', 'msg_123'), 'sha256', 'abc'));
-  ASSERT (r->>'ok')::boolean AND (r->'app'->>'verified')::boolean AND r->'app'->'confirmation'->>'id' = 'msg_123', r::text;
-  -- Finishing twice changes nothing.
-  r := public.apply_finish(a, t.id('pro'), 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'email', 'id', 'msg_456')));
-  ASSERT r->'app'->'confirmation'->>'id' = 'msg_123';
-  ASSERT (public.apply_send_context(a, t.id('pro'))->'sentBefore'->>'id') = 'msg_123';
-  PERFORM t.out();
-
-  ASSERT t.used('pro') = 1 AND t.events('pro', 'application_credit_used') = 1 AND t.events('pro', 'application_submitted') = 1;
-  ASSERT (SELECT state FROM public.application_credits WHERE application_id = a) = 'used';
-  ASSERT (SELECT result || '|' || (detail->>'sha256') FROM public.application_attempts WHERE application_id = a) = 'sent|abc';
-  -- It is in the existing application tracker, confirmed.
-  ASSERT (SELECT status = 'applied' AND confirmed_at IS NOT NULL FROM public.application_reports WHERE user_id = t.id('pro') AND listing_id = t.id('direct'));
-  ASSERT (SELECT stage FROM public.application_outcomes WHERE application_id = a) = 'applied';
-  -- What was sent is frozen.
+  ASSERT jsonb_array_length(t.claim('w1', 5)) = 0, 'the worker must not take anything before the person confirms';
   PERFORM t.as('pro');
   BEGIN
-    PERFORM public.apply_save(a, jsonb_build_object('name', 'x', 'content', 'changed'));
-    RAISE EXCEPTION 'a sent application''s documents were changed';
+    PERFORM public.apply_queue_set(t.queue('pro'), 'running');
+    RAISE EXCEPTION 'confirmed without an email';
   EXCEPTION WHEN raise_exception THEN
-    IF SQLERRM NOT LIKE '%can’t be changed%' THEN RAISE; END IF;
+    IF SQLERRM NOT LIKE '%email address%' THEN RAISE; END IF;
   END;
-  ASSERT (SELECT content FROM public.application_documents WHERE application_id = a AND kind = 'cv') = 'Leyla…';
-  ASSERT (SELECT value FROM public.application_answers WHERE application_id = a) = 'pro@example.com';
-  r := public.apply_move(a, 'queued');
-  ASSERT NOT (r->>'ok')::boolean, 'submitted is final';
+  BEGIN
+    PERFORM public.apply_queue_set(t.queue('pro'), 'running', NULL, NULL, 'not-an-email');
+    RAISE EXCEPTION 'confirmed with a broken email';
+  EXCEPTION WHEN raise_exception THEN NULL;
+  END;
+  PERFORM t.out();
+  r := t.confirm('pro', 'Leyla@Example.com');
+  ASSERT r->>'state' = 'running' AND r->>'email' = 'leyla@example.com' AND r->>'confirmedAt' IS NOT NULL, r::text;
+  -- The page, refreshed, gets the batch back with its plan and email.
+  PERFORM t.as('pro');
+  r := public.apply_status();
+  ASSERT r->'queue'->>'email' = 'leyla@example.com' AND r->'queue'->'plan'->'coverage'->>'pct' = '92', r::text;
   PERFORM t.out();
 END $$;
 
-\echo '7. a failed send gives the allowance back; a retry is counted once'
+\echo '6. the worker claims, submits with evidence: held, then used once; into the tracker'
 DO $$
-DECLARE r jsonb; a uuid;
+DECLARE r jsonb; c jsonb; a uuid;
 BEGIN
-  PERFORM t.as('admin'); PERFORM public.apply_set_job_channel(t.id('j1'), true, 'jobs@beta.example'); PERFORM t.out();
-  UPDATE public.job_applications SET channel = 'madevisa' WHERE id = t.app('pro', 'j1');
+  INSERT INTO public.app_secrets (name, value) VALUES ('resend_api_key', 're_test'), ('email_from', 'MadeVisa <apply@send.madevisa.com>') ON CONFLICT (name) DO UPDATE SET value = excluded.value;
+  c := t.claim('w1', 2);
+  ASSERT jsonb_array_length(c) = 2, c::text;
+  -- Best rank first: direct (rank 99), j1 (rank 98).
+  ASSERT c->0->>'id' = t.app('pro', 'direct')::text AND c->1->>'id' = t.app('pro', 'j1')::text, c::text;
+  ASSERT c->0->>'channel' = 'madevisa' AND c->0->'mail'->>'to' = 'jobs@acme.example' AND c->0->'mail'->>'key' = 're_test';
+  ASSERT c->1->'mail' = 'null'::jsonb, 'an employer-site application carries no mail key';
+  -- The email used is the one in the application's answers; without one, the batch's.
+  ASSERT c->0->>'email' = 'pro@example.com' AND c->1->>'email' = 'leyla@example.com', c::text;
+  ASSERT c->0->'cv'->>'content' = 'Leyla…' AND jsonb_array_length(c->0->'answers') = 3 AND c->0->'concepts'->>'sponsorship' = 'Yes', c::text;
+  ASSERT c->0->'form'->>'platform' = 'email' AND (c->0->>'autoSubmit')::boolean;
+  ASSERT t.status('pro', 'direct') = 'submitting' AND t.credit('pro', 'direct') = 'held';
+  -- Another worker can't take the same ones.
+  -- Another worker takes what is left (twinA, j3) — never the two w1 holds.
+  ASSERT jsonb_array_length(t.claim('w2', 1)) = 1;
   a := t.app('pro', 'j1');
-  PERFORM t.as('pro');
-  r := public.apply_move(a, 'preparing'); r := public.apply_move(a, 'submitting');
-  ASSERT (public.apply_status()->>'used')::int = 2;
-  r := public.apply_move(a, 'failed', jsonb_build_object('reason', 'The employer’s mailbox refused the message.', 'code', 'bounced'));
-  ASSERT (r->>'ok')::boolean AND r->'app'->>'reason' = 'The employer’s mailbox refused the message.' AND NOT (r->'app'->>'verified')::boolean;
-  ASSERT (public.apply_status()->>'used')::int = 1, 'the held one must come back';
-  r := public.apply_move(a, 'queued'); r := public.apply_move(a, 'preparing'); r := public.apply_move(a, 'submitting');
-  PERFORM t.out();
   PERFORM t.as('service');
-  r := public.apply_finish(a, t.id('pro'), 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'email', 'id', 'msg_retry')));
+  ASSERT public.apply_worker_progress(a, 'w1', 'filling');
+  ASSERT NOT public.apply_worker_progress(a, 'w2', 'filling'), 'progress from a worker that doesn''t hold it';
+  ASSERT public.apply_worker_progress(a, 'w1', 'submitting');
   PERFORM t.out();
-  ASSERT t.used('pro') = 2;
-  ASSERT t.events('pro', 'application_credit_refunded') = 1 AND t.events('pro', 'application_failed') = 1 AND t.events('pro', 'application_credit_used') = 2;
-  ASSERT (SELECT count(*) FROM public.application_credits WHERE application_id = a) = 1, 'one entry per application';
-  ASSERT (SELECT count(*) FROM public.application_attempts WHERE application_id = a) = 2;
+  ASSERT (SELECT progress = 'submitting' AND submit_clicked_at IS NOT NULL FROM public.job_applications WHERE id = a);
+  r := t.report(a, 'w2', 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'site', 'id', 'x')));
+  ASSERT r->>'code' = 'not_held', r::text;
+  r := t.report(a, 'w1', 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'site', 'id', ''), 'sha256', 'abc123', 'cvPath', 'u/a/cv.docx',
+                                                     'evidence', jsonb_build_object('url', 'https://boards.greenhouse.io/beta/jobs/1001/confirmation', 'text', 'Thank you for applying.')));
+  ASSERT (r->>'ok')::boolean AND (r->'app'->>'verified')::boolean AND r->'app'->'confirmation'->>'kind' = 'site', r::text;
+  ASSERT r->'app'->'evidence'->>'text' = 'Thank you for applying.' AND r->'app'->>'emailUsed' = 'leyla@example.com';
+  ASSERT t.credit('pro', 'j1') = 'used';
+  ASSERT (SELECT cv_sha256 || '|' || cv_path FROM public.job_applications WHERE id = a) = 'abc123|u/a/cv.docx';
+  ASSERT (SELECT result || '|' || worker FROM public.application_attempts WHERE application_id = a) = 'sent|w1';
+  ASSERT (SELECT status = 'applied' AND confirmed_at IS NOT NULL FROM public.application_reports WHERE user_id = t.id('pro') AND listing_id = t.id('j1'));
+  ASSERT (SELECT stage FROM public.application_outcomes WHERE application_id = a) = 'applied';
+  -- Reported twice: nothing changes.
+  r := t.report(a, 'w1', 'failed', jsonb_build_object('reason', 'x'));
+  ASSERT r->>'code' = 'not_held' AND t.status('pro', 'j1') = 'submitted';
+  -- The email channel: a message id is the confirmation.
+  r := t.report(t.app('pro', 'direct'), 'w1', 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'email', 'id', 'msg_1')));
+  ASSERT (r->'app'->>'verified')::boolean AND r->'app'->'confirmation'->>'id' = 'msg_1';
+  -- Two used, one still held by w2.
+  ASSERT t.used('pro') = 3, t.used('pro')::text;
 END $$;
 
-\echo '8. the employer''s own site: never "submitting"; submitted only when the person says so — and never verified'
+\echo '7. partial success: one CAPTCHA and one sign-in don''t stop the batch; credits only for what was submitted'
 DO $$
-DECLARE r jsonb; a uuid := t.app('pro', 'twinA');
+DECLARE r jsonb; held jsonb; n int;
 BEGIN
+  -- w2 holds one of twinA / j3 from step 6.
+  held := (SELECT jsonb_agg(id) FROM public.job_applications WHERE locked_by = 'w2');
+  r := t.report((held->>0)::uuid, 'w2', 'needs_attention', jsonb_build_object('code', 'captcha', 'reason', 'The employer’s site asked for a human check (CAPTCHA). Open it to finish.'));
+  ASSERT (r->>'ok')::boolean AND r->'app'->>'reasonCode' = 'captcha';
+  ASSERT (SELECT state FROM public.application_credits WHERE application_id = (held->>0)::uuid) = 'released', 'a held credit is given back';
+  ASSERT t.qstate('pro') = 'running', 'one still to go';
+  r := t.claim('w1', 5);
+  ASSERT jsonb_array_length(r) = 1;
+  r := t.report((r->0->>'id')::uuid, 'w1', 'blocked', jsonb_build_object('code', 'login_required', 'reason', 'This employer requires an account login that MadeVisa cannot complete automatically.'));
+  ASSERT r->'app'->>'status' = 'blocked';
+  ASSERT t.qstate('pro') = 'done', (SELECT string_agg(status, ',') FROM public.job_applications WHERE queue_id = t.queue('pro')) || ' ' || t.qstate('pro');
+  ASSERT t.used('pro') = 2 AND t.events('pro', 'application_credit_refunded') = 2, t.used('pro')::text;
+  -- Told once: the bell and one email.
+  ASSERT (SELECT title FROM public.notifications WHERE user_id = t.id('pro') AND kind = 'auto_apply_done') = '2 applications submitted';
+  SELECT count(*) INTO n FROM net.calls WHERE body->'to'->>0 = 'leyla@example.com';
+  ASSERT n = 1, n::text;
+  ASSERT (SELECT headers->>'Idempotency-Key' FROM net.calls WHERE body->'to'->>0 = 'leyla@example.com') = 'madevisa-batch-' || t.queue('pro');
+  ASSERT (SELECT body->>'text' FROM net.calls WHERE body->'to'->>0 = 'leyla@example.com') LIKE '%2 applications were submitted%using leyla@example.com%';
+  PERFORM public.apply_queue_settle(t.queue('pro'));
+  ASSERT (SELECT count(*) FROM net.calls WHERE body->'to'->>0 = 'leyla@example.com') = 1, 'never told twice';
+END $$;
+
+\echo '8. needs attention: the person submits it themselves (not verified, no credit) or lets MadeVisa try again'
+DO $$
+DECLARE r jsonb; a uuid; b uuid;
+BEGIN
+  SELECT id INTO a FROM public.job_applications WHERE user_id = t.id('pro') AND status = 'needs_attention';
+  SELECT id INTO b FROM public.job_applications WHERE user_id = t.id('pro') AND status = 'blocked';
   PERFORM t.as('pro');
-  r := public.apply_move(a, 'preparing');
-  r := public.apply_move(a, 'submitting');
-  ASSERT NOT (r->>'ok')::boolean AND r->>'code' = 'invalid';
-  r := public.apply_move(a, 'review_required', jsonb_build_object('reason', 'Ready to send on the employer’s site.', 'code', 'employer_site', 'cvName', 'CV'));
-  ASSERT (r->>'ok')::boolean;
-  ASSERT (public.apply_status()->>'used')::int = 3, 'a prepared application handed over ready to send counts once';
-  r := public.apply_move(a, 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'email', 'id', 'forged')));
+  r := public.apply_move(b, 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'site', 'id', 'forged')));
   ASSERT (r->>'ok')::boolean AND NOT (r->'app'->>'verified')::boolean AND r->'app'->'confirmation'->>'kind' = 'self', r::text;
-  ASSERT (public.apply_status()->>'used')::int = 3, 'saying it was sent must not count it again';
+  ASSERT (public.apply_status()->>'used')::int = 2, 'self-submitted uses nothing by default';
+  -- Try again: back to ready, and the batch runs again.
+  r := public.apply_move(a, 'ready'); ASSERT (r->>'ok')::boolean;
+  r := public.apply_queue_set(t.queue('pro'), 'running');
+  ASSERT r->>'state' = 'running';
   PERFORM t.out();
-  ASSERT t.events('pro', 'application_requires_review') = 1;
-  -- The batch has nothing left to work on.
-  ASSERT (SELECT state FROM public.application_queues WHERE user_id = t.id('pro')) = 'done';
-  ASSERT t.events('pro', 'auto_apply_completed') = 1;
-END $$;
-
-\echo '9. a question only the person can answer; pause, resume and stop'
-DO $$
-DECLARE r jsonb; q uuid; a uuid; b uuid;
-BEGIN
+  ASSERT jsonb_array_length(t.claim('w1', 3)) = 1;
+  -- With charge_self_sent, "I submitted it" counts.
+  UPDATE public.apply_settings SET charge_self_sent = true;
+  r := t.report(a, 'w1', 'needs_attention', jsonb_build_object('code', 'captcha', 'reason', 'CAPTCHA'));
   PERFORM t.as('pro');
-  r := public.apply_enqueue(t.items('j3', 'j4', 'j5'), NULL);
-  q := (r->'queue'->>'id')::uuid;
-  a := t.app('pro', 'j3'); b := t.app('pro', 'j4');
-  ASSERT (SELECT count(*) FROM public.application_queues WHERE user_id = t.id('pro')) = 2, 'a finished batch is not reopened';
-  r := public.apply_move(a, 'preparing');
-  r := public.apply_move(a, 'needs_answer', jsonb_build_object('needs', jsonb_build_array(jsonb_build_object('id', 'q1', 'label', 'Why us?')), 'reason', 'The employer asked a question that MadeVisa cannot safely answer automatically.', 'code', 'question'));
-  ASSERT r->'app'->'needs'->0->>'label' = 'Why us?';
-  r := public.apply_move(a, 'review_required');
-  ASSERT NOT (r->>'ok')::boolean, 'an unanswered application cannot go on';
-  -- Pause while the next one is being prepared: it goes back in the queue.
-  r := public.apply_move(b, 'preparing');
-  r := public.apply_queue_set(q, 'paused');
-  ASSERT r->>'state' = 'paused' AND r->>'reason' = 'you';
-  PERFORM t.out();
-  ASSERT t.status('pro', 'j4') = 'queued' AND t.status('pro', 'j3') = 'needs_answer' AND t.status('pro', 'j5') = 'queued';
-  PERFORM t.as('pro');
-  r := public.apply_queue_set(q, 'running');
-  ASSERT r->>'state' = 'running' AND r->>'reason' IS NULL;
-  -- Answered: back in the queue with nothing asked.
-  r := public.apply_move(a, 'queued');
-  ASSERT r->'app'->'needs' = '[]'::jsonb AND r->'app'->>'reason' IS NULL;
-  r := public.apply_queue_set(q, 'stopped');
-  PERFORM t.out();
-  ASSERT (SELECT state FROM public.application_queues WHERE id = q) = 'stopped';
-  ASSERT (SELECT count(*) FROM public.job_applications WHERE queue_id = q AND status = 'queued') = 3, 'stopping loses nothing';
-  ASSERT t.events('pro', 'auto_apply_paused') = 1 AND t.events('pro', 'auto_apply_resumed') = 1 AND t.events('pro', 'auto_apply_stopped') = 1;
-  ASSERT t.used('pro') = 3;
-END $$;
-
-\echo '10. the monthly allowance stops a free account at 5, before sending'
-DO $$
-DECLARE r jsonb; g int; a uuid;
-BEGIN
-  PERFORM t.as('free');
-  r := public.apply_enqueue(t.items('j1', 'j2', 'j3', 'j4', 'j5', 'j6'), NULL);
-  FOR g IN 1..5 LOOP
-    a := t.app('free', 'j' || g);
-    r := public.apply_move(a, 'preparing');
-    r := public.apply_move(a, 'review_required', jsonb_build_object('code', 'employer_site'));
-    r := public.apply_move(a, 'submitted');
-    ASSERT (r->>'ok')::boolean, r::text;
-  END LOOP;
-  ASSERT (public.apply_status()->>'left')::int = 0;
-  a := t.app('free', 'j6');
-  r := public.apply_move(a, 'preparing');
-  r := public.apply_move(a, 'review_required', jsonb_build_object('code', 'employer_site'));
-  ASSERT NOT (r->>'ok')::boolean AND r->>'code' = 'allowance', r::text;
-  PERFORM t.out();
-  ASSERT t.status('free', 'j6') = 'preparing' AND t.used('free') = 5;
-  -- Skipping one that was never finished uses nothing; nor does one that is waiting for an answer.
-  ASSERT NOT EXISTS (SELECT 1 FROM public.application_credits WHERE application_id = a);
-  -- With Pro the same application goes through.
-  INSERT INTO public.subscriptions (user_id, plan, status) VALUES (t.id('free'), 'pro', 'active');
-  PERFORM t.as('free');
-  r := public.apply_move(a, 'review_required', jsonb_build_object('code', 'employer_site'));
-  ASSERT (r->>'ok')::boolean;
   r := public.apply_move(a, 'submitted');
-  ASSERT (r->>'ok')::boolean;
-  ASSERT (public.apply_status()->>'used')::int = 6;
+  ASSERT (r->>'ok')::boolean AND (public.apply_status()->>'used')::int = 3, public.apply_status()::text;
   PERFORM t.out();
-  DELETE FROM public.subscriptions WHERE user_id = t.id('free');
-  -- A sending channel checks before it sends.
-  UPDATE public.job_applications SET channel = 'madevisa', status = 'preparing' WHERE id = t.app('pro', 'j5');
-  UPDATE public.apply_settings SET pro_monthly = 3;
-  PERFORM t.as('pro');
-  r := public.apply_move(t.app('pro', 'j5'), 'submitting');
-  ASSERT NOT (r->>'ok')::boolean AND r->>'code' = 'allowance', r::text;
-  PERFORM t.out();
-  ASSERT t.status('pro', 'j5') = 'preparing' AND NOT EXISTS (SELECT 1 FROM public.application_credits WHERE application_id = t.app('pro', 'j5'));
-  UPDATE public.apply_settings SET pro_monthly = 150;
-  UPDATE public.job_applications SET channel = 'employer_site', status = 'queued' WHERE id = t.app('pro', 'j5');
+  UPDATE public.apply_settings SET charge_self_sent = false;
 END $$;
 
-\echo '11. a new month starts a new allowance'
+\echo '9. a site that doesn''t respond: tried again later, at most three times'
 DO $$
+DECLARE r jsonb; a uuid; i int;
 BEGIN
-  UPDATE public.application_credits SET period = '2026-01' WHERE user_id = t.id('free');
-  ASSERT t.used('free') = 0;
+  PERFORM t.as('pro');
+  r := public.apply_enqueue(t.items('j4', 'j5'), NULL);
+  PERFORM t.out();
+  r := t.prepare('pro', 'j4'); r := t.prepare('pro', 'j5');
+  r := t.confirm('pro');
+  a := t.app('pro', 'j4');
+  r := t.claim('w1', 1);
+  ASSERT r->0->>'id' = a::text, r::text;
+  r := t.report(a, 'w1', 'ready', jsonb_build_object('code', 'timeout', 'reason', 'The site took too long.', 'retryInSeconds', 120));
+  ASSERT t.status('pro', 'j4') = 'ready' AND t.credit('pro', 'j4') = 'released';
+  ASSERT (SELECT next_try_at > now() + interval '100 seconds' FROM public.job_applications WHERE id = a);
+  r := t.claim('w1', 5);
+  ASSERT jsonb_array_length(r) = 1 AND r->0->>'id' = t.app('pro', 'j5')::text, 'one waiting to try again is not taken early';
+  r := t.report(t.app('pro', 'j5'), 'w1', 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'site')));
+  FOR i IN 2..3 LOOP
+    UPDATE public.job_applications SET next_try_at = NULL WHERE id = a;
+    r := t.claim('w1', 1);
+    r := t.report(a, 'w1', 'ready', jsonb_build_object('code', 'timeout', 'retryInSeconds', 1));
+  END LOOP;
+  ASSERT t.status('pro', 'j4') = 'failed', t.status('pro', 'j4');
+  ASSERT (SELECT reason_code FROM public.job_applications WHERE id = a) = 'timeout';
+  ASSERT (SELECT count(*) FROM public.application_attempts WHERE application_id = a) = 3;
+  ASSERT t.credit('pro', 'j4') = 'released' AND t.qstate('pro') = 'done';
 END $$;
 
-\echo '12. the daily limit pauses the day''s work, not the batch'
+\echo '10. a worker that disappears: never sent twice'
+DO $$
+DECLARE r jsonb; a uuid; b uuid; n int;
+BEGIN
+  PERFORM t.as('pro');
+  r := public.apply_enqueue(t.items('j6', 'j7'), NULL);
+  PERFORM t.out();
+  r := t.prepare('pro', 'j6'); r := t.prepare('pro', 'j7');
+  r := t.confirm('pro');
+  r := t.claim('w9', 2);
+  a := t.app('pro', 'j6'); b := t.app('pro', 'j7');
+  PERFORM t.as('service'); PERFORM public.apply_worker_progress(b, 'w9', 'submitting'); PERFORM t.out();
+  UPDATE public.job_applications SET locked_at = now() - interval '20 minutes' WHERE id IN (a, b);
+  PERFORM t.as('service'); n := public.apply_worker_reap(15); PERFORM t.out();
+  ASSERT n = 2;
+  ASSERT t.status('pro', 'j6') = 'ready' AND t.credit('pro', 'j6') = 'released', 'not pressed: tried again';
+  ASSERT t.status('pro', 'j7') = 'needs_attention' AND (SELECT reason_code FROM public.job_applications WHERE id = b) = 'unconfirmed', 'pressed, no result: the person checks';
+  ASSERT (SELECT result FROM public.application_attempts WHERE application_id = a) = 'interrupted';
+END $$;
+
+\echo '11. the monthly allowance pauses a batch before submitting; a grant tops it up'
 DO $$
 DECLARE r jsonb; g int;
 BEGIN
-  PERFORM t.as('pro');
-  INSERT INTO public.application_preferences (prefs) VALUES (jsonb_build_object('maxPerDay', 7));
-  ASSERT (public.apply_status()->>'daily')::int = 7;
-  r := public.apply_enqueue(t.items('j6', 'j7', 'j8', 'j9', 'j10'), NULL);
-  -- 3 started earlier today (direct, j1, twinA) + j3 and j4 = 5; two more are allowed.
-  ASSERT (public.apply_status()->>'today')::int = 5, public.apply_status()::text;
-  r := public.apply_move(t.app('pro', 'j6'), 'preparing'); ASSERT (r->>'ok')::boolean;
-  r := public.apply_move(t.app('pro', 'j7'), 'preparing'); ASSERT (r->>'ok')::boolean;
-  r := public.apply_move(t.app('pro', 'j8'), 'preparing');
-  ASSERT NOT (r->>'ok')::boolean AND r->>'code' = 'daily_limit', r::text;
-  -- One already started today can be picked up again.
-  r := public.apply_move(t.app('pro', 'j6'), 'queued'); r := public.apply_move(t.app('pro', 'j6'), 'preparing');
-  ASSERT (r->>'ok')::boolean;
-  PERFORM t.out();
-  ASSERT t.status('pro', 'j8') = 'queued';
-  -- Tomorrow it goes on.
-  UPDATE public.job_applications SET day_started = day_started - 1 WHERE user_id = t.id('pro');
-  PERFORM t.as('pro');
-  r := public.apply_move(t.app('pro', 'j8'), 'preparing');
-  ASSERT (r->>'ok')::boolean;
-  -- The person's own number can never exceed the site's.
-  UPDATE public.application_preferences SET prefs = jsonb_build_object('maxPerDay', 500);
-  ASSERT (public.apply_status()->>'daily')::int = 30;
-  PERFORM t.out();
-END $$;
-
-\echo '13. a job that closes, or is applied to elsewhere, after it was queued'
-DO $$
-DECLARE r jsonb;
-BEGIN
-  UPDATE public.sponsored_jobs SET status = 'expired' WHERE id = t.id('j9');
-  PERFORM t.as('pro');
-  INSERT INTO public.application_reports (publisher_id, listing_kind, listing_id, listing_title) VALUES (t.id('beta'), 'job', t.id('j10'), 'Role number 10');
-  UPDATE public.application_reports SET status = 'applied' WHERE listing_id = t.id('j10');
-  r := public.apply_move(t.app('pro', 'j9'), 'preparing');
-  ASSERT NOT (r->>'ok')::boolean AND r->>'code' = 'expired' AND r->'app'->>'status' = 'expired', r::text;
-  r := public.apply_move(t.app('pro', 'j10'), 'preparing');
-  ASSERT NOT (r->>'ok')::boolean AND r->>'code' = 'duplicate' AND r->'app'->>'status' = 'already_applied', r::text;
-  PERFORM t.out();
-END $$;
-
-\echo '14. outcomes: from the person, and from the existing tracker'
-DO $$
-DECLARE r jsonb; a uuid := t.app('pro', 'direct');
-BEGIN
-  PERFORM t.as('pro');
-  r := public.apply_outcome(a, 'assessment');
-  ASSERT jsonb_array_length(r) = 2;
-  BEGIN
-    PERFORM public.apply_outcome(t.app('pro', 'j8'), 'interview');
-    RAISE EXCEPTION 'an outcome was recorded for an application that was not submitted';
-  EXCEPTION WHEN raise_exception THEN
-    IF SQLERRM NOT LIKE '%Only a submitted%' THEN RAISE; END IF;
-  END;
-  UPDATE public.application_reports SET status = 'interview' WHERE listing_id = t.id('direct');
-  PERFORM t.out();
-  ASSERT (SELECT array_agg(stage ORDER BY stage) FROM public.application_outcomes WHERE application_id = a) = ARRAY['applied', 'assessment', 'interview', 'response'];
-  ASSERT (SELECT source FROM public.application_outcomes WHERE application_id = a AND stage = 'interview') = 'tracker';
-  ASSERT t.events('pro', 'application_outcome_updated') = 2;
-END $$;
-
-\echo '15. learning says nothing until there is enough to say'
-DO $$
-DECLARE r jsonb;
-BEGIN
-  PERFORM t.as('pro');
-  BEGIN
-    PERFORM public.apply_learning();
-    RAISE EXCEPTION 'apply_learning was open to everyone';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
-  END;
-  PERFORM t.out();
-  PERFORM t.as('admin');
-  r := public.apply_learning();
-  ASSERT r->>'enough' = 'false' AND (r->>'needed')::int = 30, r::text;
-  r := public.apply_funnel(30);
-  ASSERT (r->'steps'->'application_submitted'->>'events')::int >= 9 AND (r->'steps'->'application_submitted'->>'people')::int >= 2, r::text;
-  PERFORM t.out();
-  -- With enough old applications the rates appear, and small groups are left out.
-  INSERT INTO t.ids SELECT 'old' || g, gen_random_uuid() FROM generate_series(1, 40) g;
-  INSERT INTO public.job_applications (id, user_id, job_id, title, company, score, status, submitted_at, cc, cover_letter, confirmation)
-  SELECT t.id('old' || g), t.id('other'), gen_random_uuid(), 'Old ' || g, 'Co', CASE WHEN g <= 25 THEN 88 ELSE 70 END, 'submitted', now() - interval '30 days', CASE WHEN g <= 34 THEN 'DE' ELSE 'NL' END, g % 2 = 0, '{"kind":"self"}'
-  FROM generate_series(1, 40) g;
-  INSERT INTO public.application_outcomes (application_id, user_id, stage, source) SELECT t.id('old' || g), t.id('other'), 'response', 'you' FROM generate_series(1, 10) g;
-  INSERT INTO public.application_outcomes (application_id, user_id, stage, source) SELECT t.id('old' || g), t.id('other'), 'interview', 'you' FROM generate_series(1, 5) g;
-  PERFORM t.as('admin');
-  r := public.apply_learning();
-  PERFORM t.out();
-  ASSERT (r->>'enough')::boolean AND (r->>'applications')::int = 40, r::text;
-  ASSERT (SELECT (x->>'response_rate')::int FROM jsonb_array_elements(r->'by'->'match_range') x WHERE x->>'value' = '85+') = 40, r::text;
-  ASSERT (SELECT (x->>'interview_rate')::int FROM jsonb_array_elements(r->'by'->'match_range') x WHERE x->>'value' = '85+') = 20;
-  ASSERT (SELECT (x->>'response_rate')::int FROM jsonb_array_elements(r->'by'->'match_range') x WHERE x->>'value' = '65-74') = 0;
-  ASSERT jsonb_array_length(r->'by'->'cc') = 1, 'a group of 6 applications must not get a rate';
-END $$;
-
-\echo '16. page events: only the known ones; settings are admin-only'
-DO $$
-DECLARE r jsonb;
-BEGIN
   PERFORM t.as('free');
-  PERFORM public.apply_event('auto_apply_opened', jsonb_build_object('auto', 3));
-  PERFORM public.apply_event('application_submitted', NULL);
+  r := public.apply_enqueue(t.items('j1', 'j2', 'j3', 'j4', 'j5', 'j6', 'j7'), NULL);
+  PERFORM t.out();
+  FOR g IN 1..7 LOOP r := t.prepare('free', 'j' || g); END LOOP;
+  r := t.confirm('free');
+  -- Other people's batches are older and come first; take them all.
+  FOR g IN 1..10 LOOP
+    r := t.claim('w1', 3);
+    EXIT WHEN jsonb_array_length(r) = 0;
+    FOR i IN 0..jsonb_array_length(r) - 1 LOOP
+      PERFORM t.report((r->i->>'id')::uuid, 'w1', 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'site')));
+    END LOOP;
+  END LOOP;
+  ASSERT t.used('free') = 5, t.used('free')::text;
+  ASSERT t.qstate('free') = 'paused' AND (SELECT pause_reason FROM public.application_queues WHERE id = t.queue('free')) = 'allowance';
+  ASSERT (SELECT count(*) FROM public.job_applications WHERE queue_id = t.queue('free') AND status = 'ready') = 2;
+  ASSERT NOT EXISTS (SELECT 1 FROM public.application_credits c JOIN public.job_applications a ON a.id = c.application_id WHERE a.queue_id = t.queue('free') AND a.status = 'ready' AND c.state <> 'released');
+  -- An admin gives 2 more this month; the person continues.
+  PERFORM t.as('free');
   BEGIN
-    PERFORM public.apply_configure(NULL, 9999);
-    RAISE EXCEPTION 'a non-admin changed the allowance';
+    PERFORM public.apply_grant(t.id('free'), 100);
+    RAISE EXCEPTION 'a person granted themselves applications';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+  PERFORM t.out();
+  PERFORM t.as('admin'); r := public.apply_grant(t.id('free'), 2, 'Goodwill'); PERFORM t.out();
+  ASSERT (r->>'limit')::int = 7, r::text;
+  PERFORM t.as('free'); r := public.apply_queue_set(t.queue('free'), 'running'); PERFORM t.out();
+  r := t.claim('w1', 5);
+  ASSERT jsonb_array_length(r) = 2, r::text;
+END $$;
+
+\echo '12. the daily limit holds the rest until tomorrow, without stopping the batch'
+DO $$
+DECLARE r jsonb;
+BEGIN
+  PERFORM t.reset_day();
+  PERFORM t.as('other');
+  INSERT INTO public.application_preferences (prefs) VALUES (jsonb_build_object('maxPerDay', 2));
+  r := public.apply_enqueue(t.items('j8', 'j9', 'j10'), NULL);
+  PERFORM t.out();
+  r := t.prepare('other', 'j8'); r := t.prepare('other', 'j9'); r := t.prepare('other', 'j10');
+  r := t.confirm('other');
+  -- Clear what other batches still have waiting.
+  UPDATE public.application_queues SET state = 'paused' WHERE user_id <> t.id('other') AND state = 'running';
+  r := t.claim('w1', 5);
+  ASSERT jsonb_array_length(r) = 2, r::text;
+  ASSERT t.qstate('other') = 'running';
+  ASSERT (SELECT next_try_at > now() FROM public.job_applications WHERE id = t.app('other', 'j10'));
+  ASSERT t.credit('other', 'j10') IS NULL;
+END $$;
+
+\echo '13. pause stops the worker taking more; stop skips what wasn''t submitted'
+DO $$
+DECLARE r jsonb;
+BEGIN
+  PERFORM t.as('pro');
+  r := public.apply_enqueue(t.items('j8', 'j9', 'j10', 'j11'), NULL);
+  PERFORM t.out();
+  r := t.prepare('pro', 'j8'); r := t.prepare('pro', 'j9');
+  r := t.confirm('pro');
+  PERFORM t.as('pro'); r := public.apply_queue_set(t.queue('pro'), 'paused'); PERFORM t.out();
+  ASSERT r->>'state' = 'paused' AND r->>'reason' = 'you';
+  ASSERT jsonb_array_length(t.claim('w1', 5)) = 0;
+  PERFORM t.as('pro'); r := public.apply_queue_set(t.queue('pro'), 'stopped'); PERFORM t.out();
+  ASSERT t.status('pro', 'j8') = 'skipped' AND t.status('pro', 'j10') = 'skipped' AND (SELECT reason_code FROM public.job_applications WHERE id = t.app('pro', 'j8')) = 'stopped';
+  -- A stopped job can join a later batch.
+  PERFORM t.as('pro'); r := public.apply_enqueue(t.items('j8'), NULL); PERFORM t.out();
+  ASSERT t.status('pro', 'j8') = 'queued' AND (SELECT queue_id FROM public.job_applications WHERE id = t.app('pro', 'j8')) = t.queue('pro');
+END $$;
+
+\echo '14. dry-run mode is passed to the worker'
+DO $$
+DECLARE r jsonb;
+BEGIN
+  PERFORM t.as('admin'); r := public.apply_configure(p_auto_submit => false); PERFORM t.out();
+  ASSERT NOT (r->>'auto_submit')::boolean;
+  UPDATE public.application_queues SET state = 'paused' WHERE state = 'running';
+  r := t.prepare('pro', 'j8'); r := t.confirm('pro');
+  r := t.claim('w1', 1);
+  ASSERT NOT (r->0->>'autoSubmit')::boolean, r::text;
+  PERFORM t.as('admin'); r := public.apply_configure(p_auto_submit => true); PERFORM t.out();
+  BEGIN
+    PERFORM t.as('free');
+    PERFORM public.apply_configure(p_charge_self_sent => true);
+    RAISE EXCEPTION 'a non-admin changed billing';
+  EXCEPTION WHEN insufficient_privilege THEN PERFORM t.out();
+  END;
+END $$;
+
+\echo '15. outcomes and learning still work on submitted applications'
+DO $$
+DECLARE r jsonb; a uuid := t.app('pro', 'j1');
+BEGIN
+  PERFORM t.as('pro');
+  r := public.apply_outcome(a, 'interview');
+  ASSERT jsonb_array_length(r) = 2;
+  PERFORM t.out();
+  PERFORM t.as('admin');
+  r := public.apply_funnel(30);
+  ASSERT (r->'steps'->'application_submitted'->>'people')::int >= 2, r::text;
+  PERFORM t.out();
+END $$;
+
+\echo '16. verified can never be set without a confirmation; nobody writes directly'
+DO $$
+BEGIN
+  BEGIN
+    UPDATE public.job_applications SET verified = true WHERE id = t.app('pro', 'twinA') AND status <> 'submitted';
+    IF FOUND THEN RAISE EXCEPTION 'verified was set on an unsubmitted application'; END IF;
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  PERFORM t.as('free');
   BEGIN
     UPDATE public.job_applications SET status = 'submitted', verified = true;
     RAISE EXCEPTION 'a person wrote to job_applications directly';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   BEGIN
-    INSERT INTO public.application_credits (application_id, user_id, state, period) VALUES (gen_random_uuid(), t.id('free'), 'released', '2026-10');
-    RAISE EXCEPTION 'a person wrote to application_credits directly';
+    INSERT INTO public.application_forms (application_id, user_id, status) VALUES (t.app('free', 'j1'), t.id('free'), 'ok');
+    RAISE EXCEPTION 'a person wrote to application_forms directly';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    PERFORM count(*) FROM public.apply_workers;
+    RAISE EXCEPTION 'a person read the workers';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   PERFORM t.out();
-  ASSERT t.events('free', 'auto_apply_opened') = 1;
-  ASSERT (SELECT count(*) FROM public.application_events WHERE user_id = t.id('free') AND name = 'application_submitted') = 6, 'a page must not be able to log a submission';
-  ASSERT (SELECT count(*) FROM public.application_events WHERE user_id = t.id('free') AND name = 'application_credit_used') = 6, 'one count per application, however many steps it took';
-  PERFORM t.as('admin');
-  r := public.apply_configure(false);
-  PERFORM t.out();
-  PERFORM t.as('free');
-  ASSERT (public.apply_status()->>'monthly')::int = 0 AND NOT (public.apply_status()->>'enabled')::boolean;
-  BEGIN
-    PERFORM public.apply_enqueue(t.items('j11'), NULL);
-    RAISE EXCEPTION 'queued while switched off';
-  EXCEPTION WHEN raise_exception THEN
-    IF SQLERRM NOT LIKE '%switched off%' THEN RAISE; END IF;
-  END;
-  PERFORM t.out();
-END $$;
-
-\echo '17. verified can never be set without a confirmation'
-DO $$
-BEGIN
-  BEGIN
-    UPDATE public.job_applications SET verified = true WHERE id = t.app('pro', 'twinA');
-    RAISE EXCEPTION 'verified was set on a self-confirmed application';
-  EXCEPTION WHEN check_violation THEN NULL;
-  END;
-  ASSERT public.apply_norm_title('Senior Data Analyst (m/f/d) – Berlin') = 'senior data analyst';
-  ASSERT public.apply_norm_title('Senior Engineer') = public.apply_norm_title('Senior Engineer (m/f/d) – Berlin');
 END $$;
 
 \echo 'ALL AUTO APPLY DATABASE TESTS PASSED'

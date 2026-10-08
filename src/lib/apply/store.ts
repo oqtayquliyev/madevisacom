@@ -1,10 +1,17 @@
 // Auto Apply in the page: what the database knows (allowance, the batch in
 // progress, every application), the person's preferences and saved answers,
-// and the queue as it runs.
+// and a batch from "Apply to 16 jobs" to "Your applications are out".
+//
+//   startBatch     queue the jobs, read all their forms, work out the few
+//                  answers MadeVisa still needs              → phase 'ready-to-confirm'
+//   confirmBatch   save those answers once, prepare every application (CV,
+//                  letter, answers) → ready; the application worker submits
+//                  them on the employers' sites, in the background
+//   (watch)        the page follows the batch from the database until it is done
 //
 // One store for the whole page, like the CV and the matches. The rules live
-// in the database (migration 20261204090000); this file asks, shows and
-// runs — it never decides that an application was submitted.
+// in the database (migrations 20261204090000 and 20261205090000); this file
+// asks, shows and prepares — it never decides that an application was submitted.
 
 import { useEffect, useSyncExternalStore } from 'react';
 import { track } from '@vercel/analytics';
@@ -12,13 +19,27 @@ import { supabase } from '@/lib/supabase';
 import { useAuth, type Profile } from '@/lib/auth';
 import type { StoredCv } from '@/lib/cv/store';
 import type { Planned } from '@/lib/apply/decision';
-import { prepareApplication, type Kept } from '@/lib/apply/prepare';
-import { mergeProfile, remember, suggestProfile } from '@/lib/apply/profile';
-import { runQueue, type MoveDetail, type MoveResult, type RunEnd, type Step } from '@/lib/apply/runner';
-import type { SubmitResult } from '@/lib/apply/channels';
+import { answersFor, conceptAnswers, planBatch, rememberBatch, type BatchContext, type BatchJob, type BatchPlan, type FormInfo } from '@/lib/apply/batch';
+import { classifyQuestion, questionId } from '@/lib/apply/concepts';
+import { prepareDocs } from '@/lib/apply/prepare';
+import { mergeProfile, suggestProfile } from '@/lib/apply/profile';
+import { prepareBatch, type Answer, type MoveDetail, type MoveResult } from '@/lib/apply/runner';
 import { DEFAULT_PREFS, EMPTY_PROFILE, type AppStatus, type Application, type ApplyPrefs, type ApplyProfile, type Needed, type PauseReason, type QueueState, type ServerFacts } from '@/lib/apply/types';
 
-export type QueueInfo = { id: string; state: QueueState; reason: PauseReason; cvAt: string | null; createdAt: string };
+export type QueueInfo = {
+  id: string;
+  state: QueueState;
+  reason: PauseReason;
+  cvAt: string | null;
+  createdAt: string;
+  plan?: StoredPlan | null;
+  email?: string | null;
+  confirmedAt?: string | null;
+  finishedAt?: string | null;
+};
+/** What is kept with the batch: the plan the person saw, and their answers (so a refresh loses nothing). */
+export type StoredPlan = Pick<BatchPlan, 'ask' | 'extra' | 'coverage' | 'reused' | 'ready'> & { jobs: Pick<BatchPlan['jobs'][number], 'id' | 'outcome' | 'reasonCode'>[]; given?: Record<string, string> };
+
 export type ApplyStatus = {
   signedIn: boolean;
   enabled: boolean;
@@ -34,27 +55,34 @@ export type ApplyStatus = {
   dailyMax: number;
   today: number;
   resetsAt: string | null;
+  chargeSelfSent?: boolean;
+  /** The application worker: online = checked in within 3 minutes (only then can the person leave the page). */
+  worker?: { online: boolean; autoSubmit?: boolean };
   queue: QueueInfo | null;
 };
+
+/** Where the batch is, as the page shows it. */
+export type Phase =
+  | { kind: 'idle' }
+  | { kind: 'analyzing'; total: number; read: number }
+  | { kind: 'confirm'; plan: BatchPlan; jobs: BatchJob[] }
+  | { kind: 'preparing'; done: number; total: number };
 
 type State = {
   /** null = not asked yet · false = the database part isn't installed (the page shows nothing new). */
   available: boolean | null;
   status: ApplyStatus | null;
   prefs: ApplyPrefs;
-  /** The person has saved preferences before (so the first-time setup isn't shown again). */
+  /** The person has saved preferences before. */
   prefsSaved: boolean;
   profile: ApplyProfile;
-  /** What only the database knows about each matched job. */
+  /** The account's email: what applications use unless the person saved another. */
+  accountEmail: string | null;
   server: Map<string, ServerFacts>;
   serverFor: string | null;
   queue: QueueInfo | null;
   apps: App[];
-  running: boolean;
-  /** The application being worked on, and where it is. */
-  current: { id: string; step: Step } | null;
-  /** Seconds one application takes at the moment — for "time remaining". */
-  pace: number;
+  phase: Phase;
   error: string | null;
   loadedFor: string | null;
 };
@@ -65,13 +93,12 @@ let state: State = {
   prefs: DEFAULT_PREFS,
   prefsSaved: false,
   profile: EMPTY_PROFILE,
+  accountEmail: null,
   server: new Map(),
   serverFor: null,
   queue: null,
   apps: [],
-  running: false,
-  current: null,
-  pace: 3,
+  phase: { kind: 'idle' },
   error: null,
   loadedFor: null,
 };
@@ -90,7 +117,8 @@ const missing = (message: string) => /function|schema cache|does not exist|not f
 
 // --- Events ----------------------------------------------------------------------
 
-type PageEvent = 'cv_uploaded' | 'matches_loaded' | 'auto_apply_opened' | 'auto_apply_preferences_saved' | 'auto_apply_review_opened';
+type PageEvent = 'cv_uploaded' | 'matches_loaded' | 'auto_apply_opened' | 'auto_apply_preferences_saved' | 'auto_apply_review_opened' | 'auto_apply_analyzed' | 'auto_apply_answers_saved';
+const DB_EVENTS = new Set<string>(['cv_uploaded', 'matches_loaded', 'auto_apply_opened', 'auto_apply_preferences_saved', 'auto_apply_review_opened', 'auto_apply_analyzed', 'auto_apply_answers_saved']);
 /** A product event from the page. Everything about an application itself is logged by the database where it happens. */
 export function logEvent(name: PageEvent | 'auto_apply_started' | 'auto_apply_paused' | 'auto_apply_completed', props?: Record<string, string | number | boolean | null>): void {
   try {
@@ -98,7 +126,7 @@ export function logEvent(name: PageEvent | 'auto_apply_started' | 'auto_apply_pa
   } catch {
     /* analytics blocked: fine */
   }
-  if (state.available && state.status?.signedIn && (name === 'cv_uploaded' || name === 'matches_loaded' || name === 'auto_apply_opened' || name === 'auto_apply_preferences_saved' || name === 'auto_apply_review_opened')) {
+  if (state.available && state.status?.signedIn && DB_EVENTS.has(name)) {
     void supabase.rpc('apply_event', { p_name: name, p_props: props ?? null, p_queue: state.queue?.id ?? null });
   }
 }
@@ -133,12 +161,9 @@ async function readStatus(): Promise<ApplyStatus | null> {
   return s;
 }
 
+const COLS = 'id, job_id, queue_id, title, company, cc, country, score, status, priority, rank, channel, sponsorship, url, reason, reason_code, needs, verified, confirmation, cv_name, cover_letter, submitted_at, updated_at, created_at, platform, email_used, progress, evidence';
 async function readApps(): Promise<void> {
-  const { data, error } = await supabase
-    .from('job_applications')
-    .select('id, job_id, queue_id, title, company, cc, country, score, status, priority, rank, channel, sponsorship, url, reason, reason_code, needs, verified, confirmation, cv_name, cover_letter, submitted_at, updated_at, created_at')
-    .order('created_at', { ascending: false })
-    .limit(300);
+  const { data, error } = await supabase.from('job_applications').select(COLS).order('created_at', { ascending: false }).limit(300);
   if (error) return;
   set({ apps: ((data ?? []) as Row[]).map(fromRow) });
 }
@@ -147,36 +172,42 @@ type Row = {
   id: string; job_id: string; queue_id: string | null; title: string; company: string; cc: string | null; country: string | null; score: number; status: AppStatus;
   priority: Application['priority']; rank: number; channel: Application['channel']; sponsorship: Application['sponsorship']; url: string | null; reason: string | null; reason_code: string | null;
   needs: Needed[] | null; verified: boolean; confirmation: Application['confirmation']; cv_name: string | null; cover_letter: boolean; submitted_at: string | null; updated_at: string; created_at: string;
+  platform: string | null; email_used: string | null; progress: string | null; evidence: Application['evidence'];
 };
 export type App = Application & { queueId: string | null; createdAt: string };
 const fromRow = (r: Row): App => ({
   id: r.id, jobId: r.job_id, queueId: r.queue_id, title: r.title, company: r.company, cc: r.cc, country: r.country, score: r.score, status: r.status, priority: r.priority, rank: r.rank,
   channel: r.channel, sponsorship: r.sponsorship, url: r.url, reason: r.reason, reasonCode: r.reason_code, needs: r.needs ?? [], verified: r.verified, confirmation: r.confirmation,
   cvName: r.cv_name, coverLetter: r.cover_letter, submittedAt: r.submitted_at, updatedAt: r.updated_at, createdAt: r.created_at,
+  platform: r.platform, emailUsed: r.email_used, progress: r.progress, evidence: r.evidence,
 });
 
 async function load(userId: string, account: Profile | null, email: string | null, cvText: string | null): Promise<void> {
   if (state.loadedFor === userId) return;
-  set({ loadedFor: userId });
+  set({ loadedFor: userId, accountEmail: account?.email ?? email });
   const s = await readStatus();
   if (!s) return;
   const [prefs, profile] = await Promise.all([
     supabase.from('application_preferences').select('prefs').eq('user_id', userId).maybeSingle(),
-    supabase.from('application_profiles').select('answers, custom').eq('user_id', userId).maybeSingle(),
+    supabase.from('application_profiles').select('answers, custom, by_country').eq('user_id', userId).maybeSingle(),
   ]);
-  const saved: ApplyProfile = profile.data ? { answers: (profile.data as ApplyProfile).answers ?? {}, custom: (profile.data as ApplyProfile).custom ?? {} } : EMPTY_PROFILE;
+  const row = profile.data as { answers?: ApplyProfile['answers']; custom?: ApplyProfile['custom']; by_country?: ApplyProfile['byCountry'] } | null;
+  const saved: ApplyProfile = row ? { answers: row.answers ?? {}, custom: row.custom ?? {}, byCountry: row.by_country ?? {} } : EMPTY_PROFILE;
+  const merged = mergeProfile(saved, suggestProfile({ fullName: account?.full_name, email: account?.email ?? email, phone: account?.phone, linkedin: account?.linkedin_url }, cvText));
   set({
     prefs: cleanPrefs((prefs.data as { prefs?: unknown } | null)?.prefs),
     prefsSaved: Boolean(prefs.data),
-    profile: mergeProfile(saved, suggestProfile({ fullName: account?.full_name, email: account?.email ?? email, phone: account?.phone, linkedin: account?.linkedin_url }, cvText)),
+    profile: { ...merged, byCountry: saved.byCountry ?? {} },
   });
   await readApps();
+  if (s.queue && (s.queue.state === 'running' || s.queue.state === 'paused')) watch();
 }
 
 function reset(): void {
   if (!state.loadedFor && !state.apps.length) return;
   control = 'stop';
-  set({ loadedFor: null, status: state.status ? { ...state.status, signedIn: false } : null, apps: [], queue: null, server: new Map(), serverFor: null, profile: EMPTY_PROFILE, prefs: DEFAULT_PREFS, prefsSaved: false, running: false, current: null });
+  unwatch();
+  set({ loadedFor: null, status: state.status ? { ...state.status, signedIn: false } : null, apps: [], queue: null, server: new Map(), serverFor: null, profile: EMPTY_PROFILE, prefs: DEFAULT_PREFS, prefsSaved: false, phase: { kind: 'idle' } });
 }
 
 /** For a list of matched jobs: how each can be sent, and which must be left out. One request per result. */
@@ -211,32 +242,15 @@ export async function saveProfile(profile: ApplyProfile): Promise<{ ok: boolean;
   if (!userId) return { ok: false, error: 'Sign in first.' };
   // Empty answers aren't kept.
   const answers = Object.fromEntries(Object.entries(profile.answers).filter(([, a]) => a && (a.value.trim() || a.askEachTime)));
-  const next: ApplyProfile = { answers, custom: profile.custom };
-  const { error } = await supabase.from('application_profiles').upsert({ user_id: userId, answers: next.answers, custom: next.custom }, { onConflict: 'user_id' });
+  const next: ApplyProfile = { answers, custom: profile.custom, byCountry: profile.byCountry ?? {} };
+  const { error } = await supabase.from('application_profiles').upsert({ user_id: userId, answers: next.answers, custom: next.custom, by_country: next.byCountry }, { onConflict: 'user_id' });
   if (error) return { ok: false, error: error.message };
   set({ profile: next });
   return { ok: true };
 }
 
-// --- Answers given for one application only ("just this once") ------------------------
-
-const GIVEN_KEY = 'mv:applyGiven';
-function readGiven(): Record<string, Record<string, string>> {
-  try {
-    return JSON.parse(window.sessionStorage.getItem(GIVEN_KEY) ?? '{}') as Record<string, Record<string, string>>;
-  } catch {
-    return {};
-  }
-}
-function writeGiven(appId: string, answers: Record<string, string>) {
-  try {
-    const all = readGiven();
-    all[appId] = { ...(all[appId] ?? {}), ...answers };
-    window.sessionStorage.setItem(GIVEN_KEY, JSON.stringify(all));
-  } catch {
-    /* ignore */
-  }
-}
+/** The email the applications go out with: the one saved in the application profile, else the account's. */
+export const applyEmail = (s: Pick<State, 'profile' | 'accountEmail'> = state): string | null => s.profile.answers.email?.value?.trim() || s.accountEmail || null;
 
 // --- Moving applications --------------------------------------------------------------
 
@@ -253,208 +267,328 @@ async function move(id: string, to: AppStatus, detail?: MoveDetail): Promise<Mov
   return { ok: false, code: (r.code as Exclude<MoveResult, { ok: true }>['code']) ?? 'error', message: r.message ?? 'That didn’t work.', app };
 }
 
-/** Send through MadeVisa: the server does it, and records the outcome itself. */
-async function sendViaMadeVisa(pack: { applicationId: string; cv: { name: string; base64: string }; letter: string | null; answers: { label: string; value: string }[] }): Promise<SubmitResult> {
-  const { data, error } = await supabase.functions.invoke('apply', { body: { action: 'submit', application_id: pack.applicationId, cv: pack.cv, letter: pack.letter, answers: pack.answers } });
-  let body = data as { ok?: boolean; handover?: boolean; reason?: string; code?: string; confirmation?: { kind: 'email'; id: string } } | null;
-  // A refusal arrives as an HTTP error with the reason in its body.
-  if (error && !body) {
-    try {
-      body = (await (error as { context?: Response }).context?.json()) ?? null;
-    } catch {
-      body = null;
-    }
-  }
-  if (body?.ok && body.confirmation?.id) return { ok: true, confirmation: body.confirmation };
-  if (body?.handover) return { ok: false, handover: true, reason: body.reason ?? 'Your application is ready to send on the employer’s site.', code: body.code ?? 'handover' };
-  return { ok: false, handover: false, reason: body?.reason ?? 'MadeVisa couldn’t reach its sending service. Nothing was sent; you can try again.', code: body?.code ?? 'unreachable' };
+async function setQueue(s: Exclude<QueueState, 'analyzing' | 'done'>, opts: { reason?: PauseReason; plan?: StoredPlan; email?: string } = {}): Promise<{ ok: boolean; error?: string }> {
+  if (!state.queue) return { ok: false, error: 'No batch.' };
+  const { data, error } = await supabase.rpc('apply_queue_set', { p_queue: state.queue.id, p_state: s, p_reason: opts.reason ?? null, p_plan: opts.plan ?? null, p_email: opts.email ?? null });
+  if (error) return { ok: false, error: error.message };
+  set({ queue: data as QueueInfo });
+  return { ok: true };
 }
 
-// --- The run -------------------------------------------------------------------------
+// --- Reading the forms ---------------------------------------------------------------------
+
+type FormRow = { application_id: string; platform: string | null; status: FormInfo['status']; questions: FormInfo['questions'] };
+
+/** Read every application's form through the apply function; anything it couldn't read is read live by the worker. */
+async function readForms(apps: App[]): Promise<Map<string, FormInfo>> {
+  const out = new Map<string, FormInfo>();
+  const ids = apps.map((a) => a.id);
+  for (let i = 0; i < ids.length; i += 20) {
+    const chunk = ids.slice(i, i + 20);
+    const { data, error } = await supabase.functions.invoke('apply', { body: { action: 'analyze', application_ids: chunk } });
+    const forms = (data as { forms?: Record<string, FormInfo> } | null)?.forms;
+    if (!error && forms) for (const [id, f] of Object.entries(forms)) out.set(id, f);
+    set({ phase: { kind: 'analyzing', total: ids.length, read: Math.min(ids.length, i + chunk.length) } });
+  }
+  // The function not deployed yet, or offline: every form is read when the worker opens it.
+  for (const a of apps) if (!out.has(a.id)) out.set(a.id, { platform: a.channel === 'madevisa' ? 'email' : null, status: a.url || a.channel === 'madevisa' ? 'live' : 'none', questions: null });
+  return out;
+}
+
+/** What was read of each form, from the database (after a refresh). */
+async function storedForms(apps: App[]): Promise<Map<string, FormInfo>> {
+  const { data } = await supabase.from('application_forms').select('application_id, platform, status, questions').in('application_id', apps.map((a) => a.id));
+  const out = new Map<string, FormInfo>();
+  for (const r of (data ?? []) as FormRow[]) out.set(r.application_id, { platform: r.platform as FormInfo['platform'], status: r.status, questions: r.questions });
+  return out;
+}
+
+const batchJob = (a: App, form: FormInfo): BatchJob => ({ id: a.id, title: a.title, company: a.company, cc: a.cc, country: a.country, sponsorship: a.sponsorship, letter: a.coverLetter, form });
+
+let runCv: StoredCv | null = null;
+const ctxFor = (cv: StoredCv, given: Record<string, string>): BatchContext => ({ profile: state.profile, prefs: state.prefs, prefsSaved: state.prefsSaved, cv: cv.profile, cvText: cv.text, given });
+
+const storedPlan = (plan: BatchPlan, given?: Record<string, string>): StoredPlan => ({
+  ask: plan.ask, extra: plan.extra, coverage: plan.coverage, reused: plan.reused.slice(0, 30), ready: plan.ready,
+  jobs: plan.jobs.map((j) => ({ id: j.id, outcome: j.outcome, reasonCode: j.reasonCode })),
+  ...(given ? { given } : {}),
+});
+
+const batchApps = () => (state.queue ? state.apps.filter((a) => a.queueId === state.queue!.id) : []);
+
+/** Read the forms of a batch being set up, and work out what MadeVisa still needs. */
+async function analyze(cv: StoredCv, fresh: boolean): Promise<{ ok: boolean; error?: string }> {
+  const apps = batchApps().filter((a) => a.status === 'queued' || a.status === 'analyzing');
+  set({ phase: { kind: 'analyzing', total: apps.length, read: 0 } });
+  const forms = fresh ? await readForms(apps) : await storedForms(apps).then(async (m) => (m.size >= apps.length ? m : readForms(apps)));
+  const jobs = apps.map((a) => batchJob(a, forms.get(a.id)!));
+  const plan = planBatch(jobs, ctxFor(cv, {}));
+  logEvent('auto_apply_analyzed', { jobs: jobs.length, asked: plan.ask.length, extra: plan.extra.length, coverage: plan.coverage.pct, blocked: plan.jobs.filter((j) => j.outcome === 'blocked').length });
+  const saved = await setQueue('awaiting_answers', { plan: storedPlan(plan) });
+  if (!saved.ok) {
+    set({ phase: { kind: 'idle' }, error: saved.error ?? null });
+    return saved;
+  }
+  set({ phase: { kind: 'confirm', plan, jobs } });
+  return { ok: true };
+}
+
+// --- The batch -----------------------------------------------------------------------------
 
 let control: 'run' | 'pause' | 'stop' = 'run';
-let runCv: StoredCv | null = null;
-/** Each step stays on screen at least this long, so the person can read what is happening. */
-const PACE_MS = 420;
-const wait = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+let preparing = false;
 
-async function setQueue(s: QueueState, reason?: PauseReason): Promise<void> {
-  if (!state.queue) return;
-  const { data, error } = await supabase.rpc('apply_queue_set', { p_queue: state.queue.id, p_state: s, p_reason: reason ?? null });
-  if (!error && data) set({ queue: data as QueueInfo });
-}
-
-async function run(): Promise<void> {
-  if (state.running || !state.queue || !runCv) return;
-  const cv = runCv;
-  control = 'run';
-  set({ running: true, error: null });
-  const kept = new Map<string, Kept>();
-  const queueId = state.queue.id;
-  let started = performance.now();
-  let end: RunEnd;
-  try {
-    // Start from what the database says, not what this page last saw: after a pause, a closed tab or
-    // another device, an application may have moved (one left "preparing" is back in the queue).
-    await readApps();
-    // Left "submitting" by a page that closed mid-send: there is no confirmation, so it is not submitted.
-    // It is tried again — the sending function never mails the same application twice.
-    for (const a of state.apps.filter((x) => x.queueId === queueId && x.status === 'submitting')) {
-      const failed = await move(a.id, 'failed', { reason: 'Sending was interrupted before MadeVisa got a confirmation.', code: 'interrupted' });
-      if (failed.ok) await move(a.id, 'queued');
-    }
-    end = await runQueue(
-      state.apps.filter((a) => a.queueId === queueId),
-      {
-        move: async (id, to, detail) => {
-          // "Checking required questions" is on screen: let it be read before the outcome replaces it.
-          if (to === 'needs_answer' || to === 'review_required' || to === 'submitting') await wait(PACE_MS);
-          const r = await move(id, to, detail);
-          // One finished: note how long it took, for "time remaining".
-          if (to !== 'preparing' && to !== 'submitting') {
-            set({ pace: Math.min(20, Math.max(1.5, 0.6 * state.pace + 0.4 * ((performance.now() - started) / 1000))), current: null });
-            started = performance.now();
-          }
-          return r;
-        },
-        prepare: async (app, onStep) => {
-          const t0 = performance.now();
-          // The runner announces each step as it reaches it; inside preparing, only the first is shown.
-          const res = await prepareApplication(app, { cv, profile: state.profile, prefs: state.prefs, given: readGiven()[app.id] ?? {} }, (s) => {
-            if (s === 'cv') onStep(s);
-          });
-          if (res.ok && res.kept) kept.set(app.id, res.kept);
-          await wait(Math.max(0, PACE_MS * 1.5 - (performance.now() - t0)));
-          return res;
-        },
-        save: async (app) => {
-          const k = kept.get(app.id);
-          if (k) await supabase.rpc('apply_save', { p_id: app.id, p_cv: k.cv, p_letter: k.letter, p_answers: k.answers });
-          await wait(PACE_MS);
-        },
-        submit: { madevisa: (pack) => sendViaMadeVisa(pack) },
-        control: () => control,
-        onUpdate: (app, step) => {
-          put(app as App);
-          set({ current: step ? { id: app.id, step } : null });
-        },
-      },
-    );
-  } catch (e) {
-    end = { state: 'paused', reason: 'offline', processed: 0 };
-    set({ error: e instanceof Error ? e.message : 'Something interrupted the applications. Nothing was lost.' });
-  }
-  set({ running: false, current: null });
-  if (end.state === 'paused') await setQueue('paused', end.reason ?? 'you');
-  else if (end.state === 'stopped') await setQueue('stopped');
-  else {
-    await readStatus();
-    logEvent('auto_apply_completed', { processed: end.processed });
-  }
-  await Promise.all([readStatus(), readApps()]);
-}
-
-/** "Apply to N jobs": queue them and start. */
+/** "Apply to N jobs": queue them, read every form, and work out the few answers still needed. */
 export async function startBatch(planned: Planned[], cv: StoredCv): Promise<{ ok: boolean; error?: string }> {
   if (!planned.length) return { ok: false, error: 'Nothing to apply to.' };
+  set({ error: null, phase: { kind: 'analyzing', total: planned.length, read: 0 } });
   const items = planned.map((p) => ({ jobId: p.job.id, score: p.job.score, quality: p.a.quality, decision: p.a.decision, priority: p.a.priority, rank: Math.round(p.a.rank), sponsorship: p.a.sponsorship.state }));
   const { data, error } = await supabase.rpc('apply_enqueue', { p_items: items, p_cv_at: cv.at });
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    set({ phase: { kind: 'idle' } });
+    return { ok: false, error: error.message };
+  }
   const r = data as { queue: QueueInfo; applications: (Omit<App, 'needs'> & { needs: Needed[] | null })[] };
   const fresh = r.applications.map((a) => ({ ...a, needs: a.needs ?? [] }) as App);
   const ids = new Set(fresh.map((a) => a.id));
   set({ queue: r.queue, apps: [...fresh, ...state.apps.filter((a) => !ids.has(a.id))], serverFor: null });
   logEvent('auto_apply_started', { asked: planned.length });
   runCv = cv;
-  void run();
+  return analyze(cv, true);
+}
+
+/** A batch the person left while it was being set up: pick it up where it was. */
+export async function reopenBatch(cv: StoredCv): Promise<void> {
+  if (!state.queue || !['analyzing', 'awaiting_answers'].includes(state.queue.state) || state.phase.kind !== 'idle') return;
+  runCv = cv;
+  await analyze(cv, state.queue.state === 'analyzing');
+}
+
+/** Back out of the questions without applying: the batch is dropped, nothing was sent. */
+export async function cancelBatch(): Promise<void> {
+  set({ phase: { kind: 'idle' } });
+  await setQueue('stopped');
+  await readApps();
+}
+
+/**
+ * "Save answers & apply to 16 jobs". The answers are saved to the application profile (so the
+ * same thing is never asked again), every application is prepared, and the worker takes them
+ * from there — whether or not this page stays open.
+ */
+export async function confirmBatch(given: Record<string, string>, email: string, cv: StoredCv): Promise<{ ok: boolean; error?: string }> {
+  if (state.phase.kind !== 'confirm') return { ok: false, error: 'Nothing to confirm.' };
+  const { plan, jobs } = state.phase;
+  const clean = Object.fromEntries(Object.entries(given).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v));
+  // The email is part of the profile: employers reply there.
+  let profile = rememberBatch(state.profile, [...plan.ask, ...plan.extra], clean);
+  if (email.trim() && email.trim() !== state.profile.answers.email?.value) profile = { ...profile, answers: { ...profile.answers, email: { value: email.trim(), askEachTime: false, source: 'you', updatedAt: new Date().toISOString() } } };
+  const saved = await saveProfile(profile);
+  if (!saved.ok) return saved;
+  const started = await setQueue('running', { email: email.trim(), plan: storedPlan(plan, clean) });
+  if (!started.ok) return started;
+  logEvent('auto_apply_answers_saved', { answers: Object.keys(clean).length, jobs: jobs.length });
+  runCv = cv;
+  void prepare(jobs, clean, cv);
+  watch();
   return { ok: true };
 }
 
-export function pause(): void {
+/** Prepare the batch's applications that aren't ready yet. */
+async function prepare(jobs: BatchJob[] | null, given: Record<string, string>, cv: StoredCv): Promise<void> {
+  if (preparing) return;
+  preparing = true;
+  control = 'run';
+  try {
+    const todo = batchApps().filter((a) => a.status === 'queued' || a.status === 'analyzing' || a.status === 'preparing');
+    if (!todo.length) return;
+    const forms = jobs ? new Map(jobs.map((j) => [j.id, j.form])) : await storedForms(todo);
+    const items = todo.map((app) => ({ app, job: batchJob(app, forms.get(app.id) ?? { platform: null, status: app.url ? 'live' : 'none', questions: null }) }));
+    let done = 0;
+    set({ phase: { kind: 'preparing', done, total: items.length } });
+    await prepareBatch(items, ctxFor(cv, given), {
+      move,
+      docs: (app) => prepareDocs(app, { cv, profile: state.profile }),
+      save: async (app, kept, answers, concepts) => {
+        await supabase.rpc('apply_save', { p_id: app.id, p_cv: kept.cv, p_letter: kept.letter, p_answers: answers, p_concepts: concepts });
+      },
+      control: () => control,
+      onUpdate: (app) => {
+        put(app as App);
+        if (['ready', 'needs_attention', 'blocked', 'expired', 'failed', 'already_applied'].includes(app.status)) set({ phase: { kind: 'preparing', done: ++done, total: items.length } });
+      },
+    });
+  } catch (e) {
+    set({ error: e instanceof Error ? e.message : 'Something interrupted the preparation. Nothing was lost.' });
+  } finally {
+    preparing = false;
+    set({ phase: { kind: 'idle' } });
+    void refresh();
+  }
+}
+
+// --- Following the batch ------------------------------------------------------------------
+
+let timer: number | null = null;
+let ticks = 0;
+async function refresh(): Promise<void> {
+  await Promise.all([readApps(), ticks % 4 === 0 ? readStatus() : Promise.resolve(null)]);
+  ticks += 1;
+}
+/** While a batch runs, follow it from the database: the worker moves the applications, not this page. */
+function watch(): void {
+  if (timer != null) return;
+  const tick = async () => {
+    await refresh();
+    const q = state.queue;
+    const busy = batchApps().some((a) => ['queued', 'analyzing', 'preparing', 'ready', 'submitting'].includes(a.status));
+    if (!q || q.state === 'done' || q.state === 'stopped' || (!busy && !preparing)) {
+      await readStatus();
+      unwatch();
+      if (q?.state === 'done') logEvent('auto_apply_completed', {});
+      return;
+    }
+    // Somebody left it half prepared (a closed tab): carry on preparing here.
+    if (!preparing && runCv && q.state === 'running' && batchApps().some((a) => a.status === 'queued' || a.status === 'analyzing' || a.status === 'preparing')) {
+      void prepare(null, q.plan?.given ?? {}, runCv);
+    }
+    timer = window.setTimeout(tick, document.visibilityState === 'hidden' ? 15000 : 3500);
+  };
+  timer = window.setTimeout(tick, 1500);
+}
+function unwatch(): void {
+  if (timer != null) window.clearTimeout(timer);
+  timer = null;
+}
+
+export async function pause(): Promise<void> {
   control = 'pause';
   logEvent('auto_apply_paused');
-  // Nothing in hand: the batch can be marked paused straight away.
-  if (!state.running) void setQueue('paused', 'you');
-  else set({});
+  await setQueue('paused', { reason: 'you' });
 }
 export async function resume(cv: StoredCv): Promise<void> {
   runCv = cv;
+  control = 'run';
   await setQueue('running');
-  void run();
+  watch();
 }
 export async function stop(): Promise<void> {
   control = 'stop';
-  if (!state.running) await setQueue('stopped');
+  await setQueue('stopped');
+  await readApps();
 }
-export const isHalting = () => state.running && control !== 'run';
+
+// --- One application that needs the person ----------------------------------------------------
 
 /**
- * The person answered what was asked. Saved for next time unless they chose
- * "just this once"; either way the application goes back in the queue.
+ * The person answered what one application was waiting on. Saved to the profile for next time,
+ * the application's answers are worked out again, and it goes back to the worker.
  */
-export async function answer(app: App, answers: { need: Needed; value: string; keep: 'save' | 'ask' | 'once' }[], cv: StoredCv | null): Promise<{ ok: boolean; error?: string }> {
-  let profile = state.profile;
-  const once: Record<string, string> = {};
-  for (const a of answers) {
-    if (!a.value.trim()) continue;
-    // "Ask me each time" still needs this answer for this application.
-    once[a.need.id] = a.value.trim();
-    if (a.keep !== 'once') profile = remember(profile, a.need, a.value, a.keep === 'ask');
+export async function answerAttention(app: App, values: Record<string, string>, cv: StoredCv | null): Promise<{ ok: boolean; error?: string }> {
+  const filled = Object.entries(values).filter(([, v]) => v.trim());
+  if (!filled.length) return { ok: false, error: 'Answer the question first.' };
+  // Save: a concept to the profile, a country concept for its country, an employer's own question by its words.
+  const profile: ApplyProfile = { answers: { ...state.profile.answers }, custom: { ...state.profile.custom }, byCountry: { ...(state.profile.byCountry ?? {}) } };
+  const now = new Date().toISOString();
+  const extra: Answer[] = [];
+  for (const [id, raw] of filled) {
+    const value = raw.trim();
+    const need = app.needs.find((n) => n.id === id);
+    if (!need) continue;
+    const key = need.key ?? classifyQuestion(need.label);
+    const ans = { value, askEachTime: false, source: 'you' as const, question: need.label, updatedAt: now };
+    const [base, scope] = id.split('@');
+    if ((key === 'sponsorship' || key === 'work_authorization') && (scope || app.cc)) {
+      const cc = (scope?.split('#')[0] || app.cc || '').toUpperCase();
+      profile.byCountry![cc] = { ...(profile.byCountry![cc] ?? {}), [key]: ans };
+    } else if (key && key !== 'demographic' && key !== 'consent' && key !== 'previously_employed' && !id.includes('#')) {
+      profile.answers[key] = { ...ans, askEachTime: Boolean(state.profile.answers[key]?.askEachTime) };
+    } else if (!key) {
+      profile.custom[base.startsWith('custom:') ? base.slice(7) : questionId(need.label)] = ans;
+    }
+    // Exactly this question on this form, as the person answered it.
+    extra.push({ id, label: need.label, value, source: 'you', key });
   }
-  writeGiven(app.id, once);
-  if (profile !== state.profile) {
-    const saved = await saveProfile(profile);
-    if (!saved.ok) return saved;
+  const saved = await saveProfile(profile);
+  if (!saved.ok) return saved;
+
+  // Answer once: every other application in this batch waiting on the same question goes too.
+  const sameQuestion = (n: Needed, m: Needed) => (n.key && n.key === m.key && !n.id.includes('#')) || questionId(n.label) === questionId(m.label);
+  const answered = app.needs.filter((n) => values[n.id]?.trim());
+  const others = state.apps.filter((a) => a.id !== app.id && a.queueId === app.queueId && a.status === 'needs_attention' && a.needs.length > 0 && a.needs.every((m) => answered.some((n) => sameQuestion(n, m))));
+  const given: Record<string, string> = { ...(state.queue?.plan?.given ?? {}), ...Object.fromEntries(filled.map(([k, v]) => [k, v.trim()])) };
+  for (const target of [app, ...others]) {
+    const mine = target === app ? extra : target.needs.map((m) => ({ id: m.id, label: m.label, value: values[answered.find((n) => sameQuestion(n, m))!.id].trim(), source: 'you', key: m.key ?? classifyQuestion(m.label) }));
+    if (cv) await reanswer(target, given, mine, cv);
+    const r = await move(target.id, 'ready');
+    if (!r.ok && target === app) return { ok: false, error: r.message };
   }
-  const r = await move(app.id, 'queued');
-  if (!r.ok) return { ok: false, error: r.message };
-  if (cv && state.queue && (state.queue.state === 'running' || state.queue.state === 'done')) {
-    runCv = cv;
-    if (state.queue.state === 'done') await setQueue('running');
-    void run();
-  }
+  if (state.queue && state.queue.state !== 'running') await setQueue('running');
+  watch();
   return { ok: true };
 }
 
-/** "I've sent it" — on the employer's site, by the person. Submitted, never verified. */
+/** Work an application's answers out again (after the person answered something), and keep them with it. */
+async function reanswer(app: App, given: Record<string, string>, extra: Answer[], cv: StoredCv): Promise<void> {
+  const forms = await storedForms([app]);
+  const job = batchJob(app, forms.get(app.id) ?? { platform: app.platform ?? null, status: 'live', questions: null });
+  const ctx = ctxFor(cv, given);
+  const answers = [...answersFor(job, ctx)];
+  for (const e of extra) if (!answers.some((a) => a.id === e.id || a.label === e.label)) answers.push(e);
+  await supabase.rpc('apply_save', { p_id: app.id, p_cv: null, p_letter: null, p_answers: answers, p_concepts: conceptAnswers(job, ctx) });
+}
+
+/** "Let MadeVisa try again" — one that failed, was blocked, or stopped at a CAPTCHA. */
+export async function retry(app: App): Promise<{ ok: boolean; error?: string }> {
+  const r = await move(app.id, 'ready');
+  if (!r.ok) return { ok: false, error: r.message };
+  if (state.queue && state.queue.id === app.queueId && state.queue.state !== 'running') await setQueue('running');
+  watch();
+  return { ok: true };
+}
+
+/** "I submitted it myself" — on the employer's site, by the person. Submitted, never verified. */
 export async function markSent(app: App): Promise<MoveResult> {
   const r = await move(app.id, 'submitted', { confirmation: { kind: 'self' } });
   void readStatus();
   return r;
 }
 export const skip = (app: App) => move(app.id, 'skipped', { reason: 'You chose to skip this one.', code: 'you' });
-export async function retry(app: App, cv: StoredCv | null): Promise<void> {
-  const r = await move(app.id, 'queued');
-  if (r.ok && cv && state.queue) {
-    runCv = cv;
-    if (state.queue.state !== 'running') await setQueue('running');
-    void run();
-  }
-}
 
 // --- What was used (the receipt) ----------------------------------------------------------
 
 export type Receipt = {
-  cv: { name: string; content: string; lines: Kept['cv']['meta']['lines']; changes: string[] } | null;
+  cv: { name: string; content: string; lines: { kind: 'name' | 'contact' | 'headline' | 'heading' | 'text' | 'bullet'; text: string }[]; changes: string[] } | null;
   letter: { name: string; content: string } | null;
   answers: { label: string; value: string; source: string }[];
   outcomes: { stage: string; at: string; source: string }[];
+  /** The exact file the worker attached, and its fingerprint. */
+  file: { path: string; sha256: string | null } | null;
 };
 export async function fetchReceipt(appId: string): Promise<Receipt> {
-  const [docs, answers, outcomes] = await Promise.all([
+  const [docs, answers, outcomes, file] = await Promise.all([
     supabase.from('application_documents').select('kind, name, content, meta').eq('application_id', appId),
     supabase.from('application_answers').select('label, value, source').eq('application_id', appId).order('id'),
     supabase.from('application_outcomes').select('stage, at, source').eq('application_id', appId).order('at'),
+    supabase.from('job_applications').select('cv_path, cv_sha256').eq('id', appId).maybeSingle(),
   ]);
-  const rows = (docs.data ?? []) as { kind: string; name: string; content: string; meta: Partial<Kept['cv']['meta']> | null }[];
+  const rows = (docs.data ?? []) as { kind: string; name: string; content: string; meta: { lines?: Receipt['cv'] extends null ? never : NonNullable<Receipt['cv']>['lines']; changes?: string[] } | null }[];
   const cv = rows.find((d) => d.kind === 'cv');
   const letter = rows.find((d) => d.kind === 'cover_letter');
+  const f = file.data as { cv_path: string | null; cv_sha256: string | null } | null;
   return {
     cv: cv ? { name: cv.name, content: cv.content, lines: cv.meta?.lines ?? [], changes: cv.meta?.changes ?? [] } : null,
     letter: letter ? { name: letter.name, content: letter.content } : null,
     answers: (answers.data ?? []) as Receipt['answers'],
     outcomes: (outcomes.data ?? []) as Receipt['outcomes'],
+    file: f?.cv_path ? { path: f.cv_path, sha256: f.cv_sha256 } : null,
   };
+}
+
+/** A short-lived link to a file the worker kept (the CV it attached, the confirmation screenshot). */
+export async function fileLink(path: string): Promise<string | null> {
+  const { data } = await supabase.storage.from('application-files').createSignedUrl(path, 600);
+  return data?.signedUrl ?? null;
 }
 
 export const STAGES = ['viewed', 'response', 'interview', 'assessment', 'final_round', 'offer', 'rejected', 'withdrawn'] as const;
@@ -487,6 +621,8 @@ export function useAutoApply(cv: StoredCv | null): State & { refresh: () => Prom
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, loading]);
-  // A batch left unfinished stays where it was: the person presses Continue (nothing restarts by itself).
+  useEffect(() => {
+    if (cv) runCv = cv;
+  }, [cv]);
   return { ...s, refresh: async () => void (await Promise.all([readStatus(), readApps()])) };
 }

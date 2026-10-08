@@ -60,12 +60,8 @@ export function ApplicationSummary({ plan, total, status, minScore, onApply, onR
       </div>
 
       <p className="mt-3 text-[13px] leading-5 text-ink-700">
-        <strong className="font-semibold text-ink-950">MadeVisa tailors each application and never invents information.</strong>{' '}
-        {status.signedIn && n > 0
-          ? plan.bySend.madevisa > 0
-            ? `It sends ${plan.bySend.madevisa} itself and prepares ${plan.bySend.you} for you to send on the employer’s own site.`
-            : 'These employers take applications on their own sites: each one is prepared for you, ready to send there.'
-          : 'It sends the ones it can itself; the rest are prepared for you to send on the employer’s own site.'}
+        <strong className="font-semibold text-ink-950">MadeVisa checks every application and only asks you once when something is genuinely missing.</strong>{' '}
+        It tailors your CV for each job, fills in the employer’s form on their careers site and submits it — and never invents information.
       </p>
       <ApplicationCredits status={status} asking={n} className="mt-1.5" />
     </section>

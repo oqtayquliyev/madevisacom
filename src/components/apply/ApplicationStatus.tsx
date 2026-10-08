@@ -1,4 +1,4 @@
-import { AlertCircle, BadgeCheck, Check, CircleSlash, Clock, HelpCircle, Send } from 'lucide-react';
+import { AlertCircle, BadgeCheck, Check, CircleSlash, Clock, HelpCircle, Lock, Send } from 'lucide-react';
 import { DECISION_LABEL, PRIORITY_LABEL, SPONSOR_LABEL } from '@/lib/apply/decision';
 import { STATUS_TONE, statusText } from '@/lib/apply/machine';
 import type { AppStatus, Application, Decision, Priority, SponsorState } from '@/lib/apply/types';
@@ -12,12 +12,12 @@ const TONE: Record<'ink' | 'brand' | 'amber' | 'emerald' | 'rose', string> = {
 };
 const CHIP = 'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11.5px] font-bold';
 
-const ICON: Partial<Record<AppStatus, typeof Check>> = { submitted: Check, failed: AlertCircle, needs_answer: HelpCircle, review_required: Send, queued: Clock, skipped: CircleSlash, already_applied: CircleSlash, expired: CircleSlash };
+const ICON: Partial<Record<AppStatus, typeof Check>> = { submitted: Check, failed: AlertCircle, needs_attention: HelpCircle, blocked: Lock, ready: Send, queued: Clock, skipped: CircleSlash, already_applied: CircleSlash, expired: CircleSlash };
 
 /** One application's state, as a chip. */
 export function ApplicationStatus({ app, className = '' }: { app: Pick<Application, 'status' | 'verified' | 'reasonCode'>; className?: string }) {
   const Icon = ICON[app.status];
-  const busy = app.status === 'preparing' || app.status === 'submitting';
+  const busy = app.status === 'analyzing' || app.status === 'preparing' || app.status === 'submitting';
   return (
     <span className={`${CHIP} ${TONE[STATUS_TONE[app.status]]} ${className}`}>
       {busy ? <span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-brand-200 border-t-brand-700 motion-reduce:animate-none" aria-hidden /> : Icon ? <Icon className="h-3 w-3" strokeWidth={2.5} aria-hidden /> : null}
@@ -26,11 +26,11 @@ export function ApplicationStatus({ app, className = '' }: { app: Pick<Applicati
   );
 }
 
-/** "Verified submission" — only ever shown with a delivery confirmation behind it. */
+/** "Verified submission" — only ever shown with the employer's (or the mail service's) confirmation behind it. */
 export function VerifiedBadge({ app }: { app: Pick<Application, 'verified' | 'confirmation'> }) {
-  if (!app.verified || !app.confirmation?.id) return null;
+  if (!app.verified || !app.confirmation) return null;
   return (
-    <span className={`${CHIP} bg-emerald-50 text-emerald-800`} title={`Delivery confirmation ${app.confirmation.id}`}>
+    <span className={`${CHIP} bg-emerald-50 text-emerald-800`} title={app.confirmation.kind === 'site' ? 'Confirmed by the employer’s careers site' : `Delivery confirmation ${app.confirmation.id ?? ''}`}>
       <BadgeCheck className="h-3 w-3" aria-hidden /> Verified submission
     </span>
   );

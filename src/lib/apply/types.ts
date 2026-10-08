@@ -1,29 +1,39 @@
 // Auto Apply — the words every part of it shares.
 //
 // What Auto Apply is: MadeVisa looks at the jobs your CV matches, decides
-// which are worth applying to, prepares each application (a CV tailored to
-// that ad, a cover letter when one is useful, your saved answers), and
-// either sends it — where the employer takes applications through MadeVisa —
-// or hands it to you ready to send on the employer's own site.
+// which are worth applying to, reads every selected employer's form, asks
+// you once for whatever is genuinely missing, prepares each application (a
+// CV tailored to that ad, a cover letter when one is useful, your answers)
+// and submits it on the employer's careers site — or by email, where the
+// employer takes applications through MadeVisa.
 //
 // Two rules hold everywhere:
 //   1. Nothing is invented. Every line of a tailored CV and every answer
 //      comes from the CV or from what the person has saved.
 //   2. "Submitted" means submitted. An application is only called that once
-//      MadeVisa has a delivery confirmation, or the person says they sent it.
+//      the employer's site (or the mail service) confirmed it, or the person
+//      says they sent it themselves.
 
-/** Where one application stands. */
+/**
+ * Where one application stands.
+ *   queued → analyzing → preparing → ready → submitting → submitted
+ * The page takes an application as far as `ready` (form read, CV tailored,
+ * answers known); the application worker submits it. Anything that needs the
+ * person is `needs_attention` (a question, a CAPTCHA) or `blocked` (a sign-in).
+ */
 export type AppStatus =
   | 'queued'
+  | 'analyzing'
   | 'preparing'
-  | 'needs_answer'
+  | 'ready'
   | 'submitting'
   | 'submitted'
+  | 'needs_attention'
   | 'failed'
   | 'skipped'
+  | 'blocked'
   | 'already_applied'
-  | 'expired'
-  | 'review_required';
+  | 'expired';
 
 /** What MadeVisa recommends doing with a matched job. */
 export type Decision = 'auto' | 'review' | 'skip';
@@ -120,7 +130,14 @@ export type QuestionKey =
   | 'current_title'
   | 'source'
   | 'consent'
-  | 'demographic';
+  | 'demographic'
+  // Added with batch applications (20261205090000): more concepts employers ask about.
+  | 'current_company'
+  | 'remote_preference'
+  | 'onsite_ok'
+  | 'travel'
+  | 'over_18'
+  | 'previously_employed';
 
 /** How Auto Apply should choose and pace applications. */
 export type ApplyPrefs = {
@@ -162,16 +179,26 @@ export type ApplyProfile = {
   answers: Partial<Record<QuestionKey, SavedAnswer>>;
   /** Other questions, keyed by `questionId(label)`. */
   custom: Record<string, SavedAnswer>;
+  /**
+   * Answers that depend on the country of the job — "Are you allowed to work
+   * in Germany?" is a different question from the same one about Canada.
+   * Country code (upper case) → key → answer.
+   */
+  byCountry?: Record<string, Partial<Record<CountryKey, SavedAnswer>>>;
 };
-export const EMPTY_PROFILE: ApplyProfile = { answers: {}, custom: {} };
+/** The concepts whose answer depends on the job's country. */
+export type CountryKey = 'work_authorization' | 'sponsorship';
+export const EMPTY_PROFILE: ApplyProfile = { answers: {}, custom: {}, byCountry: {} };
 
 export type Question = {
   /** Stable id within one application form. */
   id: string;
   label: string;
   required: boolean;
-  kind: 'text' | 'long' | 'select' | 'multi' | 'file' | 'yesno';
+  kind: 'text' | 'long' | 'select' | 'multi' | 'file' | 'yesno' | 'checkbox' | 'number' | 'date';
   options?: string[];
+  /** For a file field: what the employer wants in it. */
+  file?: 'cv' | 'cover_letter' | 'other';
 };
 
 export type Answered = { id: string; label: string; value: string; source: SavedAnswer['source'] | 'madevisa'; key: QuestionKey | null };
@@ -246,7 +273,15 @@ export type Application = {
   coverLetter: boolean;
   submittedAt: string | null;
   updatedAt: string;
+  /** greenhouse | lever | ashby | workday | … | other | email */
+  platform?: string | null;
+  /** The email address the application was submitted with. */
+  emailUsed?: string | null;
+  /** Where the worker is with it: opening | filling | uploading | submitting. */
+  progress?: string | null;
+  /** What the worker saw: the confirmation page, its text, a screenshot. */
+  evidence?: { url?: string; text?: string | null; screenshot?: string | null; at?: string } | null;
 };
 
-export type QueueState = 'running' | 'paused' | 'stopped' | 'done';
+export type QueueState = 'analyzing' | 'awaiting_answers' | 'running' | 'paused' | 'stopped' | 'done';
 export type PauseReason = 'you' | 'daily_limit' | 'allowance' | 'offline' | null;

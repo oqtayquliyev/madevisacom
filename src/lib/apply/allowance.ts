@@ -1,17 +1,18 @@
-// Applications a month — the fair-use allowance that comes with the plan.
+// Application credits — the allowance that comes with the plan (plus any
+// extra granted for the month: application_credit_grants).
 //
-// There is nothing to buy here: the number comes with the existing Free and
-// Pro plans (apply_settings, migration 20261204090000), and can be changed
-// there without touching this code.
+// The numbers live in the database (apply_settings, migrations 20261204090000
+// and 20261205090000) and can be changed there without touching this code.
 //
-// The rules, the same ones the database applies (apply_move):
-//   • an application is counted only when MadeVisa has finished its part:
-//     sent with a confirmation, or prepared and handed to the person ready
-//     to send;
-//   • while MadeVisa is sending it, one is held, so two at once can't both
-//     take the last one;
-//   • if the send fails, the held one is given back;
-//   • one that is skipped, expired or waiting for an answer never counted;
+// The rules, the same ones the database applies (apply_transition):
+//   • a submitted application uses one;
+//   • while MadeVisa is submitting it, one is held, so two at once can't
+//     both take the last one;
+//   • if it isn't submitted after all (it failed, it needs the person, the
+//     employer wants a login), the held one is given back;
+//   • one that is skipped, a duplicate, blocked or needs attention never
+//     counted — until it is actually submitted;
+//   • "I submitted it myself" counts only when apply_settings.charge_self_sent is on;
 //   • one application can never be counted twice.
 
 export type CreditState = 'held' | 'used' | 'released';
@@ -37,7 +38,7 @@ export function hold(ledger: Ledger, appId: string, period: string, limit: numbe
   return { ok: true, changed: true };
 }
 
-/** Finished — sent, or ready to send: the held one is used. Without a hold (the employer's own site) one is taken now. */
+/** Submitted: the held one is used. Without a hold (submitted by the person, when that is charged) one is taken now. */
 export function use(ledger: Ledger, appId: string, period: string, limit: number): CreditResult {
   const c = ledger.get(appId);
   if (c?.state === 'used') return { ok: true, changed: false };

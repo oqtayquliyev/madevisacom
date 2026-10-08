@@ -7,22 +7,24 @@ import { plan, twinsIn } from '@/lib/apply/decision';
 import { factsOf } from '@/lib/apply/facts';
 import { isPending } from '@/lib/apply/machine';
 import { completeness, confidence } from '@/lib/apply/profile';
-import { isHalting, loadServerFacts, logEvent, pause, resume, startBatch, stop, useAutoApply, type App } from '@/lib/apply/store';
+import { applyEmail, cancelBatch, confirmBatch, loadServerFacts, logEvent, pause, reopenBatch, resume, startBatch, stop, useAutoApply, type App } from '@/lib/apply/store';
 import type { PlaceKind } from '@/lib/apply/types';
 import { ApplicationPreferences } from '@/components/apply/ApplicationPreferences';
-import { ApplicationDone, ApplicationProgress } from '@/components/apply/ApplicationProgress';
+import { ApplicationAnalyzing, ApplicationDone, ApplicationProgress } from '@/components/apply/ApplicationProgress';
+import { ApplicationReady } from '@/components/apply/ApplicationReady';
 import { ApplicationReceipt } from '@/components/apply/ApplicationReceipt';
-import { ApplicationConfirm, ApplicationReview } from '@/components/apply/ApplicationReview';
+import { ApplicationReview } from '@/components/apply/ApplicationReview';
 import { ApplicationSummary } from '@/components/apply/ApplicationSummary';
 import { ApplicationTracker } from '@/components/apply/ApplicationTracker';
 
 // Auto Apply on /cv-match.
-//   AutoApply         under the headline: the summary and "Apply to N jobs", then the batch as it runs, then what came of it
+//   AutoApply         under the headline: the summary and "Apply to N jobs" → every form is read → one
+//                     "Ready to apply" form for what's missing → the batch as it runs → "Your applications are out"
 //   AutoApplyTracker  further down: every application made through MadeVisa
 // Both show nothing until the database part is installed (migration 20261204090000), so the page is unchanged before it.
 
 type OnAuth = (page: 'login' | 'register') => void;
-type Sheet = 'prefs' | 'prefs-first' | 'review' | 'confirm' | null;
+type Sheet = 'prefs' | 'review' | null;
 
 const DISMISS_KEY = 'mv:applyDone';
 const dismissed = () => {
@@ -50,17 +52,18 @@ type Props = {
   onAuth?: OnAuth;
   /** Search again for fresh matches. */
   onAgain?: () => void;
-  /** The page shows how the CV could score higher (the roadmap under this block). */
-  canImprove: boolean;
+  /** The page shows how the CV could score higher (the roadmap under this block). Not used by the batch screens. */
+  canImprove?: boolean;
 };
 
-export function AutoApply({ result, places, onAuth, onAgain, canImprove }: Props) {
+export function AutoApply({ result, places, onAuth, onAgain }: Props) {
   const { cv } = useCv();
   const auto = useAutoApply(cv);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
   const [hidden, setHidden] = useState<string | null>(dismissed);
+  const [error, setError] = useState<string | null>(null);
 
   const signedIn = Boolean(auto.status?.signedIn);
   const now = useMemo(() => Date.now(), [result.at]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -106,21 +109,36 @@ export function AutoApply({ result, places, onAuth, onAgain, canImprove }: Props
   const closeSheet = useCallback(() => setSheet(null), []);
   const closeOpen = useCallback(() => setOpenId(null), []);
 
+  // A batch left half set up (the page was closed before the questions were answered): show the questions again.
+  const queueState = auto.queue?.state;
+  useEffect(() => {
+    if (cv && (queueState === 'analyzing' || queueState === 'awaiting_answers')) void reopenBatch(cv);
+  }, [cv, queueState]);
+
   if (auto.available !== true || !auto.status?.enabled || !cv || !result.items.length) return null;
   const status = auto.status;
 
-  const active = auto.running || Boolean(auto.queue && ['running', 'paused'].includes(auto.queue.state) && batch.some((a) => isPending(a.status)));
+  const pending = batch.some((a) => isPending(a.status));
+  const settingUp = auto.queue && ['analyzing', 'awaiting_answers'].includes(auto.queue.state);
+  const active = auto.phase.kind === 'preparing' || Boolean(auto.queue && ['running', 'paused'].includes(auto.queue.state) && pending);
   const recent = auto.queue ? Date.now() - Date.parse(auto.queue.createdAt) < 3 * 86_400_000 : false;
-  const finished = !active && Boolean(auto.queue) && batch.length > 0 && recent && hidden !== auto.queue!.id;
+  const finished = !active && !settingUp && Boolean(auto.queue?.confirmedAt) && ['done', 'stopped', 'running', 'paused'].includes(auto.queue!.state) && batch.some((a) => a.status !== 'skipped') && recent && hidden !== auto.queue!.id;
 
-  const begin = (next: 'confirm' | 'review') => {
+  const apply = async (list: typeof selected) => {
+    setError(null);
+    const r = await startBatch(list, cv);
+    if (!r.ok) setError(r.error ?? 'That didn’t start. Try again.');
+    else window.setTimeout(() => scrollTo('top-title'), 50);
+  };
+  const begin = (next: 'apply' | 'review') => {
     logEvent(next === 'review' ? 'auto_apply_review_opened' : 'auto_apply_opened', { recommended: planned.auto.length });
     if (!signedIn) {
       rememberAuthIntent({ reason: 'match', next: '/cv-match' });
       return onAuth?.('register');
     }
-    // The first time: a look at the preferences, already filled in.
-    setSheet(next === 'confirm' && !auto.prefsSaved ? 'prefs-first' : next);
+    // Recommended defaults are already set: nothing to configure before applying.
+    if (next === 'review') setSheet('review');
+    else void apply(selected);
   };
   const dismiss = () => {
     if (!auto.queue) return;
@@ -131,22 +149,19 @@ export function AutoApply({ result, places, onAuth, onAgain, canImprove }: Props
     }
     setHidden(auto.queue.id);
   };
-  const ready = batch.filter((a) => a.status === 'review_required');
-  const nextReady = (after?: string) => ready.find((a) => a.id !== after) ?? null;
 
   return (
     <>
-      {active && auto.queue ? (
+      {auto.phase.kind === 'analyzing' ? (
+        <ApplicationAnalyzing phase={auto.phase} />
+      ) : active && auto.queue ? (
         <ApplicationProgress
           apps={batch}
           queue={auto.queue}
           status={status}
-          running={auto.running}
-          halting={isHalting()}
-          current={auto.current}
-          pace={auto.pace}
+          phase={auto.phase}
           error={auto.error}
-          onPause={pause}
+          onPause={() => void pause()}
           onResume={() => void resume(cv)}
           onStop={() => void stop()}
           onOpen={(a) => setOpenId(a.id)}
@@ -155,46 +170,58 @@ export function AutoApply({ result, places, onAuth, onAgain, canImprove }: Props
       ) : finished ? (
         <ApplicationDone
           apps={batch}
-          stopped={auto.queue!.state === 'stopped' && batch.some((a) => isPending(a.status))}
+          stopped={auto.queue!.state === 'stopped'}
+          email={auto.queue!.email ?? applyEmail(auto)}
           onOpen={(a) => setOpenId(a.id)}
-          onSendNext={() => setOpenId(nextReady()?.id ?? null)}
-          onTracker={() => scrollTo('applications')}
+          onView={() => scrollTo('applications')}
           onMore={() => {
             dismiss();
             if (onAgain) onAgain();
             else scrollTo('top-title');
           }}
-          onImprove={canImprove ? () => scrollTo('best-match') : null}
           onDismiss={dismiss}
         />
       ) : (
-        <ApplicationSummary plan={planned} total={result.items.length} status={status} minScore={auto.prefs.minScore} onApply={() => begin('confirm')} onReview={() => begin('review')} onPrefs={() => (signedIn ? setSheet('prefs') : begin('confirm'))} />
+        <ApplicationSummary plan={planned} total={result.items.length} status={status} minScore={auto.prefs.minScore} onApply={() => begin('apply')} onReview={() => begin('review')} onPrefs={() => (signedIn ? setSheet('prefs') : begin('apply'))} />
       )}
+      {error && !active && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-800">{error}</p>}
 
-      {(sheet === 'prefs' || sheet === 'prefs-first') && (
+      {sheet === 'prefs' && (
         <ApplicationPreferences
           prefs={auto.prefs}
           profile={auto.profile}
           status={status}
           roles={[...new Set(jobs.map((j) => j.role).filter((r): r is string => Boolean(r)))]}
           countries={[...new Set(jobs.map((j) => (j.cc ?? '').toUpperCase()).filter(Boolean))]}
-          first={sheet === 'prefs-first'}
+          first={false}
           onClose={closeSheet}
-          onSaved={() => setSheet(sheet === 'prefs-first' ? 'confirm' : null)}
+          onSaved={() => setSheet(null)}
         />
       )}
-      {sheet === 'review' && <ApplicationReview plan={planned} picked={picked} setPicked={setPicked} onClose={closeSheet} onApply={() => setSheet(auto.prefsSaved ? 'confirm' : 'prefs-first')} />}
-      {sheet === 'confirm' && (
-        <ApplicationConfirm
-          selected={selected}
-          status={status}
-          profile={auto.profile}
+      {sheet === 'review' && (
+        <ApplicationReview
+          plan={planned}
+          picked={picked}
+          setPicked={setPicked}
           onClose={closeSheet}
+          onApply={() => {
+            setSheet(null);
+            if (auto.phase.kind === 'confirm') void cancelBatch().then(() => apply(selected));
+            else void apply(selected);
+          }}
+        />
+      )}
+      {auto.phase.kind === 'confirm' && sheet !== 'review' && (
+        <ApplicationReady
+          plan={auto.phase.plan}
+          jobs={auto.phase.jobs}
+          status={status}
+          email={applyEmail(auto)}
+          onClose={() => void cancelBatch()}
           onReview={() => setSheet('review')}
-          onStart={async () => {
-            const r = await startBatch(selected, cv);
+          onConfirm={async (given, email) => {
+            const r = await confirmBatch(given, email, cv);
             if (r.ok) {
-              setSheet(null);
               setHidden(null);
               window.setTimeout(() => scrollTo('top-title'), 50);
             }
@@ -202,21 +229,7 @@ export function AutoApply({ result, places, onAuth, onAgain, canImprove }: Props
           }}
         />
       )}
-      {open && (
-        <ApplicationReceipt
-          app={open}
-          cv={cv}
-          onClose={closeOpen}
-          onNext={
-            open.status === 'review_required'
-              ? () => {
-                  const next = nextReady(open.id);
-                  setOpenId(next ? next.id : null);
-                }
-              : undefined
-          }
-        />
-      )}
+      {open && <ApplicationReceipt app={open} cv={cv} onClose={closeOpen} />}
     </>
   );
 }

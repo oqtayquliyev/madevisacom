@@ -1,16 +1,13 @@
-// How an application can reach an employer, and what we can learn about
-// the employer's form without touching it.
+// How an application reaches an employer, and which hiring system a link is on.
 //
-// MadeVisa never fills in or submits a form on an employer's site: those
-// forms sit behind a human check or a login, and getting round either is
-// not something MadeVisa does. So there are two channels:
+// Two channels:
 //   madevisa       the employer switched on "receive applications through
-//                  MadeVisa" for the job — MadeVisa sends it (by email, with
-//                  the tailored CV attached) and keeps the confirmation;
-//   employer_site  everything else — MadeVisa prepares the application and
-//                  the person sends it on the employer's site.
-// `SUBMITTERS` is where a further channel would be added (an employer's
-// own API with the employer's key, a browser helper the person runs).
+//                  MadeVisa" for the job — the application worker emails it,
+//                  with the tailored CV attached, and keeps the confirmation;
+//   employer_site  everything else — the application worker (worker/) fills
+//                  in the employer's own form on their careers site and
+//                  submits it. A sign-in or a CAPTCHA is never got round:
+//                  that application is left for the person to finish.
 
 import type { Channel, Question } from '@/lib/apply/types';
 
@@ -54,7 +51,7 @@ export const ATS_NAME: Record<Ats, string> = {
   greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workday: 'Workday', smartrecruiters: 'SmartRecruiters', personio: 'Personio', recruitee: 'Recruitee', teamtailor: 'Teamtailor', workable: 'Workable', icims: 'iCIMS', successfactors: 'SuccessFactors', oracle: 'Oracle', eightfold: 'Eightfold', phenom: 'Phenom', other: 'the employer’s site',
 };
 
-/** Why MadeVisa hands this one to the person instead of sending it. Plain words, no jargon. */
+/** Why the person has to finish one application themselves. Plain words, no jargon. */
 export function handoverReason(url: string | null): string {
   const ats = atsOf(url);
   if (!url) return 'This employer has no application link on MadeVisa. Your application is prepared — send it the way the ad describes.';
@@ -123,5 +120,5 @@ export type Submitter = (pack: Pack, url: string | null) => Promise<SubmitResult
 
 export const channelLabel: Record<Channel, string> = {
   madevisa: 'Sent by MadeVisa',
-  employer_site: 'You send it on the employer’s site',
+  employer_site: 'Submitted by MadeVisa on the employer’s site',
 };

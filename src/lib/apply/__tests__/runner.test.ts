@@ -1,338 +1,164 @@
 import { describe, expect, it } from 'vitest';
-import type { SubmitResult } from '@/lib/apply/channels';
-import { runQueue, tally, type PrepareResult, type RunDeps, type Step } from '@/lib/apply/runner';
-import type { Application, Needed } from '@/lib/apply/types';
+import type { BatchContext, BatchJob, FormInfo } from '@/lib/apply/batch';
+import type { DocsResult, Kept } from '@/lib/apply/prepare';
+import { prepareBatch, tally, type Answer, type PrepDeps } from '@/lib/apply/runner';
+import type { Application, Question } from '@/lib/apply/types';
+import { CV_TEXT, cv, prefs, profile } from './fixtures';
 import { MemoryBackend } from './memoryBackend';
 
-const JOBS = [
-  { jobId: 'j1', title: 'Data Analyst', company: 'Alpha', score: 90, rank: 100, channel: 'madevisa' as const },
-  { jobId: 'j2', title: 'BI Analyst', company: 'Beta', score: 84, rank: 90, channel: 'madevisa' as const },
-  { jobId: 'j3', title: 'Reporting Analyst', company: 'Gamma', score: 80, rank: 80, channel: 'madevisa' as const },
-];
+const q = (label: string, over: Partial<Question> = {}): Question => ({ id: `gh:${label}`, label, required: true, kind: 'text', ...over });
+const BASIC = [q('First Name'), q('Last Name'), q('Email'), q('Resume/CV', { kind: 'file' }), q('Will you require sponsorship?', { kind: 'yesno' })];
+const greenhouse = (extra: Question[] = []): FormInfo => ({ platform: 'greenhouse', status: 'ok', questions: [...BASIC, ...extra] });
 
-const prepared = (needs: Needed[] = []): PrepareResult => ({
-  ok: true,
-  prepared: { cv: { name: 'Leyla Data Analyst CV.docx', base64: 'AAAA' }, cvChanged: true, letter: null, answers: { answered: [{ id: 'basic:email', label: 'Email', value: 'l@example.com', source: 'cv', key: 'email' }], needs, left: [] } },
-});
+const KEPT: Kept = { cv: { name: 'Leyla — Data Analyst CV', content: 'Leyla…', meta: { lines: [{ kind: 'name', text: 'Leyla' }], changes: ['Moved SQL first'], headline: null } }, letter: null };
+const ctx = (given: Record<string, string> = { 'sponsorship@DE': 'Yes' }): BatchContext => ({ profile: profile(), prefs: prefs({ alwaysAsk: [] }), prefsSaved: false, cv, cvText: CV_TEXT, given });
 
-type Opts = {
-  be: MemoryBackend;
-  send?: (jobId: string) => SubmitResult | Promise<SubmitResult>;
-  prepare?: (app: Application) => PrepareResult | Promise<PrepareResult>;
-  control?: () => 'run' | 'pause' | 'stop';
-  log?: string[];
-};
-const deps = (o: Opts): RunDeps => ({
-  move: o.be.move,
-  prepare: async (app, onStep) => {
-    onStep('cv');
-    return o.prepare ? o.prepare(app) : prepared();
+function batch(n: number, be = new MemoryBackend(), form: (i: number) => FormInfo = () => greenhouse()) {
+  be.enqueue(Array.from({ length: n }, (_, i) => ({ jobId: `j${i + 1}`, title: `Analyst ${i + 1}`, company: `Co ${i + 1}`, score: 90 - i, rank: 100 - i })));
+  const items = be.list().filter((a) => a.status === 'queued').map((app, i) => ({ app, job: { id: app.id, title: app.title, company: app.company, cc: app.cc, country: app.country, sponsorship: app.sponsorship, letter: false, form: form(i) } as BatchJob }));
+  return { be, items };
+}
+
+type Saved = { app: string; answers: Answer[]; concepts: Record<string, string> };
+const deps = (be: MemoryBackend, o: { docs?: (a: Application) => DocsResult; control?: () => 'run' | 'pause' | 'stop'; saved?: Saved[]; order?: string[] } = {}): PrepDeps => ({
+  move: be.move,
+  docs: async (a) => (o.docs ? o.docs(a) : { ok: true, kept: KEPT }),
+  save: async (app, _kept, answers, concepts) => {
+    be.docs.add(app.id);
+    o.saved?.push({ app: app.jobId, answers, concepts });
   },
-  save: async () => {},
-  submit: { madevisa: async (pack) => (o.send ? o.send(pack.jobId) : { ok: true, confirmation: { kind: 'email', id: `msg-${pack.jobId}` } }) },
   control: o.control ?? (() => 'run'),
-  onUpdate: (app: Application, step: Step | null) => o.log?.push(`${app.jobId}:${step ?? app.status}`),
+  onUpdate: (a) => (a.status === 'ready' ? o.order?.push(a.jobId) : undefined),
 });
 
-describe('successful applications', () => {
-  it('prepares, sends and records each one — highest priority first', async () => {
-    const be = new MemoryBackend();
-    be.enqueue([JOBS[2], JOBS[0], JOBS[1]]);
-    const log: string[] = [];
-    const end = await runQueue(be.list(), deps({ be, log }));
-    expect(end).toEqual({ state: 'done', reason: null, processed: 3 });
-    expect(be.list().every((a) => a.status === 'submitted')).toBe(true);
-    // Order of work follows rank, not the order they were added.
-    expect(log.filter((l) => l.endsWith(':submitted'))).toEqual(['j1:submitted', 'j2:submitted', 'j3:submitted']);
-    // Each one went through every step.
-    expect(log.filter((l) => l.startsWith('j1:'))).toEqual(['j1:cv', 'j1:cv', 'j1:application', 'j1:questions', 'j1:submit', 'j1:submitted']);
+describe('preparing a batch', () => {
+  it('takes every application to ready — best match first — with the exact answers it will be sent with', async () => {
+    const { be, items } = batch(3);
+    const saved: Saved[] = [];
+    const order: string[] = [];
+    const end = await prepareBatch([...items].reverse(), ctx(), deps(be, { saved, order }));
+    expect(end).toEqual({ state: 'done', ready: 3, attention: 0, blocked: 0 });
+    expect(order).toEqual(['j1', 'j2', 'j3']);
+    expect(be.list().every((a) => a.status === 'ready' && a.cvName === 'Leyla — Data Analyst CV')).toBe(true);
+    const s = saved[0];
+    expect(s.answers.map((a) => [a.label, a.value])).toEqual([['First Name', 'Leyla'], ['Last Name', 'Mammadova'], ['Email', 'leyla.mammadova@example.com'], ['Will you require sponsorship?', 'Yes']]);
+    expect(s.concepts).toMatchObject({ sponsorship: 'Yes', first_name: 'Leyla' });
   });
 
-  it('is “verified” only with the channel’s own confirmation', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS.slice(0, 1));
-    await runQueue(be.list(), deps({ be }));
-    const app = be.list()[0];
-    expect(app.verified).toBe(true);
-    expect(app.confirmation).toMatchObject({ kind: 'email', id: 'msg-j1' });
-    expect(app.cvName).toBe('Leyla Data Analyst CV.docx');
-    expect(app.submittedAt).toBeTruthy();
+  it('one application’s own question stops only that one; a login-only employer is blocked, but still prepared', async () => {
+    const forms = [greenhouse([q('Why do you want to join Co 1?', { kind: 'long' })]), greenhouse(), { platform: 'workday', status: 'login', questions: null } as FormInfo, greenhouse()];
+    const { be, items } = batch(4, undefined, (i) => forms[i]);
+    const end = await prepareBatch(items, ctx(), deps(be));
+    expect(end).toEqual({ state: 'done', ready: 2, attention: 1, blocked: 1 });
+    const one = be.list().find((a) => a.jobId === 'j1')!;
+    expect(one.status).toBe('needs_attention');
+    expect(one.needs.map((n) => n.label)).toEqual(['Why do you want to join Co 1?']);
+    const three = be.list().find((a) => a.jobId === 'j3')!;
+    expect(three).toMatchObject({ status: 'blocked', reasonCode: 'login_required', cvName: 'Leyla — Data Analyst CV' });
+    expect(be.docs.has(three.id)).toBe(true);
   });
 
-  it('uses one from the allowance per submitted application', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS);
-    await runQueue(be.list(), deps({ be }));
-    expect(be.used()).toBe(3);
-    expect(be.count('application_credit_used')).toBe(3);
-    expect(be.count('application_submitted')).toBe(3);
-    expect(be.count('application_credit_refunded')).toBe(0);
+  it('a job that closed is expired; a failure to prepare is reported, and the rest carry on', async () => {
+    const { be, items } = batch(3, undefined, (i) => (i === 0 ? { platform: 'greenhouse', status: 'closed', questions: null } : greenhouse()));
+    await prepareBatch(items, ctx(), deps(be, { docs: (a) => (a.jobId === 'j2' ? { ok: false, gone: false, reason: 'The job ad could not be read.' } : { ok: true, kept: KEPT }) }));
+    expect(be.list().map((a) => a.status)).toEqual(['expired', 'failed', 'ready']);
   });
 
-  it('running the same queue again sends nothing twice', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS);
-    let sends = 0;
-    const d = deps({ be, send: () => ((sends += 1), { ok: true, confirmation: { kind: 'email', id: 'm' } }) });
-    await runQueue(be.list(), d);
-    await runQueue(be.list(), d);
-    expect(sends).toBe(3);
-    expect(be.used()).toBe(3);
-  });
-});
-
-describe('failed applications', () => {
-  it('a failed send is shown as failed, with the reason, and gives the allowance back', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS.slice(0, 2));
-    const end = await runQueue(be.list(), deps({ be, send: (id) => (id === 'j1' ? { ok: false, handover: false, reason: 'The employer’s mailbox refused the message.', code: 'bounced' } : { ok: true, confirmation: { kind: 'email', id: 'm2' } }) }));
-    const [a, b] = be.list();
-    expect(a.status).toBe('failed');
-    expect(a.reason).toBe('The employer’s mailbox refused the message.');
-    expect(a.verified).toBe(false);
-    // The queue carries on to the next one.
-    expect(b.status).toBe('submitted');
-    expect(end.processed).toBe(2);
-    expect(be.used()).toBe(1);
-    expect(be.count('application_credit_refunded')).toBe(1);
-    expect(be.count('application_failed')).toBe(1);
-  });
-
-  it('an error thrown while sending is a failure, not a crash — and never “submitted”', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS.slice(0, 1));
-    await runQueue(be.list(), deps({ be, send: () => Promise.reject(new Error('Network down')) }));
-    expect(be.list()[0]).toMatchObject({ status: 'failed', reason: 'Network down' });
-    expect(be.used()).toBe(0);
-  });
-
-  it('a CV that cannot be prepared fails before anything is counted', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS.slice(0, 1));
-    await runQueue(be.list(), deps({ be, prepare: () => ({ ok: false, gone: false, reason: 'The job ad could not be read.' }) }));
-    expect(be.list()[0]).toMatchObject({ status: 'failed', reason: 'The job ad could not be read.' });
-    expect(be.count('application_credit_refunded')).toBe(0);
-    expect(be.used()).toBe(0);
-  });
-
-  it('a failed application can be retried, and is then counted once', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS.slice(0, 1));
-    let ok = false;
-    const d = deps({ be, send: () => (ok ? { ok: true, confirmation: { kind: 'email', id: 'm' } } : { ok: false, handover: false, reason: 'Timed out.', code: 'timeout' }) });
-    await runQueue(be.list(), d);
-    expect(be.list()[0].status).toBe('failed');
-    ok = true;
-    await be.move(be.list()[0].id, 'queued');
-    await runQueue(be.list(), d);
-    expect(be.list()[0].status).toBe('submitted');
-    expect(be.used()).toBe(1);
-  });
-
-  it('a job that closed since the search becomes “no longer open”', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS.slice(0, 2));
-    be.closed.add('j1');
-    await runQueue(be.list(), deps({ be }));
-    expect(be.list().map((a) => a.status)).toEqual(['expired', 'submitted']);
-  });
-});
-
-describe('questions MadeVisa cannot answer', () => {
-  const need: Needed = { id: 'q1', label: 'Describe a project you are proud of', key: null, kind: 'long', why: 'This is a question MadeVisa can’t safely answer for you.' };
-
-  it('stops that application, asks, and carries on with the rest', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS);
-    let sends = 0;
-    await runQueue(be.list(), deps({ be, prepare: (app) => prepared(app.jobId === 'j1' ? [need] : []), send: () => ((sends += 1), { ok: true, confirmation: { kind: 'email', id: 'm' } }) }));
-    const [a, b, c] = be.list();
-    expect(a.status).toBe('needs_answer');
-    expect(a.needs).toEqual([need]);
-    expect(a.reason).toBe('The employer asked a question that MadeVisa cannot safely answer automatically.');
-    expect([b.status, c.status]).toEqual(['submitted', 'submitted']);
-    // Nothing was sent, and nothing counted, for the one that is waiting.
-    expect(sends).toBe(2);
-    expect(be.used()).toBe(2);
-  });
-
-  it('continues once the person has answered', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS.slice(0, 1));
-    let answered = false;
-    const d = deps({ be, prepare: () => prepared(answered ? [] : [need]) });
-    await runQueue(be.list(), d);
-    expect(be.list()[0].status).toBe('needs_answer');
-    answered = true;
-    await be.move(be.list()[0].id, 'queued');
-    await runQueue(be.list(), d);
-    expect(be.list()[0].status).toBe('submitted');
-    expect(be.list()[0].needs).toEqual([]);
-  });
-});
-
-describe('the employer’s own site', () => {
-  it('is prepared and handed over — never “submitting”, never “submitted” by itself', async () => {
-    const be = new MemoryBackend();
-    be.enqueue([{ ...JOBS[0], channel: 'employer_site', url: 'https://boards.greenhouse.io/alpha/jobs/123' }]);
-    const log: string[] = [];
-    let sends = 0;
-    const end = await runQueue(be.list(), deps({ be, log, send: () => ((sends += 1), { ok: true, confirmation: { kind: 'email', id: 'm' } }) }));
-    const app = be.list()[0];
-    expect(app.status).toBe('review_required');
-    expect(app.reasonCode).toBe('employer_site');
-    expect(app.reason).toMatch(/ready to send/);
-    expect(log).not.toContain('j1:submit');
-    expect(sends).toBe(0);
-    // MadeVisa's part is done, so it counts — once.
-    expect(be.used()).toBe(1);
-    expect(be.count('application_submitted')).toBe(0);
-    expect(end.state).toBe('done');
-  });
-
-  it('becomes submitted — not verified — when the person says they sent it, and is not counted a second time', async () => {
-    const be = new MemoryBackend();
-    be.enqueue([{ ...JOBS[0], channel: 'employer_site' }]);
-    await runQueue(be.list(), deps({ be }));
-    const r = await be.move(be.list()[0].id, 'submitted', { confirmation: { kind: 'self' } });
-    expect(r.ok).toBe(true);
-    expect(be.list()[0]).toMatchObject({ status: 'submitted', verified: false });
-    expect(be.list()[0].confirmation?.kind).toBe('self');
-    expect(be.used()).toBe(1);
-  });
-});
-
-describe('pause and resume', () => {
-  it('pause stops before the next application and loses nothing', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS);
-    let sent = 0;
-    const d = deps({ be, control: () => (sent >= 1 ? 'pause' : 'run'), send: () => ((sent += 1), { ok: true, confirmation: { kind: 'email', id: 'm' } }) });
-    const end = await runQueue(be.list(), d);
-    expect(end).toEqual({ state: 'paused', reason: 'you', processed: 1 });
-    expect(be.list().map((a) => a.status)).toEqual(['submitted', 'queued', 'queued']);
-  });
-
-  it('pausing while one is being prepared puts it back in the queue', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS.slice(0, 2));
-    let paused = false;
-    const d = deps({
-      be,
-      control: () => (paused ? 'pause' : 'run'),
-      prepare: () => {
-        paused = true;
-        return prepared();
-      },
-    });
-    const end = await runQueue(be.list(), d);
+  it('pausing stops between applications; carrying on (or a refreshed page) picks up where it was', async () => {
+    const { be, items } = batch(4);
+    let n = 0;
+    const end = await prepareBatch(items, ctx(), deps(be, { control: () => (n++ < 2 ? 'run' : 'pause') }));
     expect(end.state).toBe('paused');
-    expect(be.list().map((a) => a.status)).toEqual(['queued', 'queued']);
+    expect(be.list().map((a) => a.status)).toEqual(['ready', 'ready', 'queued', 'queued']);
+    // A page left mid-way: one was left analyzing. The next run takes them all from where they are.
+    be.move(items[2].app.id, 'analyzing');
+    const rest = be.list().filter((a) => a.status !== 'ready').map((app) => ({ app, job: items.find((i) => i.app.id === app.id)!.job }));
+    const again = await prepareBatch(rest, ctx(), deps(be));
+    expect(again).toMatchObject({ state: 'done', ready: 2 });
+    expect(be.list().every((a) => a.status === 'ready')).toBe(true);
+  });
+});
+
+describe('the batch with the worker', () => {
+  it('partial success: 14 submitted, 2 need attention — the 14 stay submitted, credits only for them', async () => {
+    const { be, items } = batch(16);
+    await prepareBatch(items, ctx(), deps(be));
+    be.queue = 'running';
+    be.drain((a) => (a.jobId === 'j4' || a.jobId === 'j9' ? { to: 'needs_attention', code: 'captcha' } : { to: 'submitted' }));
+    const t = tally(be.list());
+    expect(t).toMatchObject({ total: 16, sent: 14, attention: 2, pending: 0 });
+    expect(be.used()).toBe(14);
+    expect(be.count('application_credit_refunded')).toBe(2);
+    expect(be.queue).toBe('done');
+    expect(be.list().filter((a) => a.status === 'submitted').every((a) => a.verified)).toBe(true);
+  });
+
+  it('a failure before submission gives the credit back; a retry is counted once', async () => {
+    const { be, items } = batch(1);
+    await prepareBatch(items, ctx(), deps(be));
+    be.queue = 'running';
+    const [a] = be.claim();
+    expect(be.used()).toBe(1);
+    be.report(a.id, 'ready', { code: 'timeout' });
     expect(be.used()).toBe(0);
+    const [again] = be.claim();
+    be.report(again.id, 'submitted', { confirmation: { kind: 'site' } });
+    expect(be.used()).toBe(1);
+    expect(be.count('application_credit_used')).toBe(1);
   });
 
-  it('resume carries on where it stopped, without repeating what was sent', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS);
-    const sentJobs: string[] = [];
-    let go = true;
-    const d = deps({ be, control: () => (go ? 'run' : 'pause'), send: (id) => (sentJobs.push(id), (go = false), { ok: true, confirmation: { kind: 'email', id: `m-${id}` } }) });
-    await runQueue(be.list(), d);
-    expect(sentJobs).toEqual(['j1']);
-    go = true;
-    const d2 = deps({ be, send: (id) => (sentJobs.push(id), { ok: true, confirmation: { kind: 'email', id: `m-${id}` } }) });
-    const end = await runQueue(be.list(), d2);
-    expect(end.state).toBe('done');
-    expect(sentJobs).toEqual(['j1', 'j2', 'j3']);
-    expect(be.used()).toBe(3);
-  });
-
-  it('stop leaves the rest queued', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS);
-    const end = await runQueue(be.list(), deps({ be, control: () => 'stop' }));
-    expect(end).toEqual({ state: 'stopped', reason: 'you', processed: 0 });
-    expect(be.list().every((a) => a.status === 'queued')).toBe(true);
-  });
-
-  it('pauses by itself at the daily limit and continues the next day', async () => {
-    const be = new MemoryBackend({ monthly: 150, daily: 2 });
-    be.enqueue(JOBS);
-    const end = await runQueue(be.list(), deps({ be }));
-    expect(end).toEqual({ state: 'paused', reason: 'daily_limit', processed: 2 });
-    expect(be.list().map((a) => a.status)).toEqual(['submitted', 'submitted', 'queued']);
-    be.now += 86_400_000;
-    expect((await runQueue(be.list(), deps({ be }))).state).toBe('done');
-    expect(be.list()[2].status).toBe('submitted');
-  });
-
-  it('pauses when the month is used up, before handing over one more than the plan includes', async () => {
-    const be = new MemoryBackend({ monthly: 2, daily: 20 });
-    be.enqueue(JOBS.map((j) => ({ ...j, channel: 'employer_site' as const })));
-    const end = await runQueue(be.list(), deps({ be }));
-    expect(end).toEqual({ state: 'paused', reason: 'allowance', processed: 2 });
-    expect(be.list().map((a) => a.status)).toEqual(['review_required', 'review_required', 'queued']);
-    expect(be.used()).toBe(2);
-  });
-
-  it('pauses when the month’s allowance is used — before sending, with nothing lost', async () => {
-    const be = new MemoryBackend({ monthly: 1, daily: 20 });
-    be.enqueue(JOBS);
-    let sends = 0;
-    const end = await runQueue(be.list(), deps({ be, send: () => ((sends += 1), { ok: true, confirmation: { kind: 'email', id: 'm' } }) }));
-    expect(end).toEqual({ state: 'paused', reason: 'allowance', processed: 1 });
-    expect(sends).toBe(1);
-    expect(be.list().map((a) => a.status)).toEqual(['submitted', 'queued', 'queued']);
+  it('only the worker can call an application submitted and verified; the person’s own word is never verified, and free by default', async () => {
+    const { be, items } = batch(2);
+    await prepareBatch(items, ctx(), deps(be));
+    const [a, b] = be.list();
+    expect((await be.move(a.id, 'submitted', { confirmation: { kind: 'site', id: 'x' } })).ok).toBe(false);
+    be.queue = 'running';
+    const [c] = be.claim(1);
+    expect((await be.move(c.id, 'submitted')).ok).toBe(false);
+    be.report(c.id, 'blocked', { code: 'login_required' });
+    const self = await be.move(c.id, 'submitted', { confirmation: { kind: 'site', id: 'forged' } });
+    expect(self.ok && self.app).toMatchObject({ status: 'submitted', verified: false, confirmation: { kind: 'self' } });
+    expect(be.used()).toBe(0);
+    be.chargeSelfSent = true;
+    be.claim(1);
+    be.report(b.id, 'needs_attention', { code: 'captcha' });
+    await be.move(b.id, 'submitted');
     expect(be.used()).toBe(1);
   });
-});
 
-describe('duplicate protection (in the queue)', () => {
-  it('never queues the same job twice', () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS.slice(0, 1));
-    expect(be.enqueue(JOBS.slice(0, 1))).toEqual([]);
-    expect(be.list()).toHaveLength(1);
-    expect(be.count('application_duplicate')).toBe(1);
+  it('the month’s allowance pauses the batch before submitting — nothing is lost', async () => {
+    const be = new MemoryBackend({ monthly: 5, daily: 30 });
+    const { items } = batch(7, be);
+    await prepareBatch(items, ctx(), deps(be));
+    be.queue = 'running';
+    be.drain(() => ({ to: 'submitted' }));
+    expect(be.used()).toBe(5);
+    expect(be.queue).toBe('paused');
+    expect(be.list().filter((a) => a.status === 'ready')).toHaveLength(2);
   });
 
-  it('marks a job already applied to as such, and never sends it', async () => {
-    const be = new MemoryBackend();
-    be.tracked.add('j2');
-    be.enqueue(JOBS);
-    let sends = 0;
-    await runQueue(be.list(), deps({ be, send: () => ((sends += 1), { ok: true, confirmation: { kind: 'email', id: 'm' } }) }));
-    expect(be.list().map((a) => a.status)).toEqual(['submitted', 'already_applied', 'submitted']);
-    expect(sends).toBe(2);
+  it('the daily limit holds the rest until tomorrow', async () => {
+    const be = new MemoryBackend({ monthly: 150, daily: 3 });
+    const { items } = batch(5, be);
+    await prepareBatch(items, ctx(), deps(be));
+    be.queue = 'running';
+    be.drain(() => ({ to: 'submitted' }));
+    expect(tally(be.list())).toMatchObject({ sent: 3, pending: 2 });
+    be.now += 86_400_000;
+    be.drain(() => ({ to: 'submitted' }));
+    expect(tally(be.list())).toMatchObject({ sent: 5, pending: 0 });
   });
 
-  it('the same role at the same company is one application', () => {
+  it('never the same job twice, nor the same role at the same company', () => {
     const be = new MemoryBackend();
-    be.enqueue([JOBS[0], { ...JOBS[0], jobId: 'j1-munich' }]);
-    expect(be.list().map((a) => a.status)).toEqual(['queued', 'already_applied']);
-  });
-
-  it('catches an application made elsewhere between queueing and sending', async () => {
-    const be = new MemoryBackend();
-    be.enqueue(JOBS.slice(0, 1));
-    be.tracked.add('j1');
-    await runQueue(be.list(), deps({ be }));
-    expect(be.list()[0].status).toBe('already_applied');
-    expect(be.used()).toBe(0);
-  });
-});
-
-describe('the tally', () => {
-  it('keeps “sent by MadeVisa”, “sent by you” and “ready to send” apart', () => {
-    const t = tally([
-      { status: 'submitted', verified: true },
-      { status: 'submitted', verified: false },
-      { status: 'review_required', verified: false },
-      { status: 'needs_answer', verified: false },
-      { status: 'failed', verified: false },
-      { status: 'already_applied', verified: false },
-      { status: 'queued', verified: false },
+    be.tracked.add('j9');
+    be.enqueue([
+      { jobId: 'j1', title: 'Analyst', company: 'Acme', score: 90, rank: 100 },
+      { jobId: 'j2', title: 'Analyst', company: 'Acme', score: 88, rank: 99 },
+      { jobId: 'j9', title: 'Engineer', company: 'Beta', score: 80, rank: 90 },
     ]);
-    expect(t).toEqual({ total: 7, sent: 1, sentByYou: 1, ready: 1, needsAnswer: 1, failed: 1, skipped: 1, queued: 1 });
+    be.enqueue([{ jobId: 'j1', title: 'Analyst', company: 'Acme', score: 90, rank: 100 }]);
+    expect(be.list().map((a) => a.status)).toEqual(['queued', 'already_applied', 'already_applied']);
+    expect(be.list()).toHaveLength(3);
   });
 });
