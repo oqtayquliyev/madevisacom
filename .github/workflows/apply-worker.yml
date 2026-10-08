@@ -1,0 +1,85 @@
+# Submits MadeVisa applications (the application worker, worker/) — free, on GitHub Actions.
+#
+# Runs the moment someone confirms a batch (repository_dispatch "apply", sent by the
+# apply function — needs GITHUB_DISPATCH_TOKEN and GITHUB_REPO in Supabase's function
+# secrets, the same two the reels already use), every hour as a safety net,
+# and by hand (Actions → Apply worker → Run workflow).
+#
+# Each run processes every application that is ready, then stops. Nothing runs
+# (and almost no minutes are used) when there is nothing to submit.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL                 https://<project>.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY    Supabase → Project settings → API → service_role
+name: Apply worker
+
+on:
+  repository_dispatch:
+    types: [apply]
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: apply-worker
+  cancel-in-progress: false
+
+jobs:
+  # One job, no container: GitHub's runner already has Google Chrome, so a run
+  # starts submitting in about 20 seconds instead of 2–3 minutes.
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Anything ready to submit?
+        id: queue
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Add the repository secrets SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          auth=(-H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")
+          # Check in, so the site knows applications will be picked up (this runs at least every hour).
+          curl -sf -X POST "$SUPABASE_URL/rest/v1/rpc/apply_worker_beat" "${auth[@]}" -H "Content-Type: application/json" \
+            -d '{"p_worker":"github-actions","p_version":"1.0.0","p_info":{"mode":"scheduled","everyMinutes":60}}' > /dev/null \
+            || echo "::warning::Could not check in — has the migration 20261206090000_apply_worker_schedule.sql been run?"
+          n=$(curl -sf "$SUPABASE_URL/rest/v1/job_applications?status=in.(ready,submitting)&select=id&limit=1" "${auth[@]}" | grep -c '"id"' || true)
+          # Pro members with auto-apply on whose new jobs are due to be checked.
+          due=$(curl -sf -X POST "$SUPABASE_URL/rest/v1/rpc/apply_auto_due_count" "${auth[@]}" -H "Content-Type: application/json" -d '{}' || echo 0)
+          if [ "$n" = "0" ] && [ "${due:-0}" != "0" ]; then n=1; fi
+          echo "count=$n" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        if: steps.queue.outputs.count != '0'
+        with:
+          sparse-checkout: |
+            worker
+            src/lib/apply
+            src/lib/cv
+            src/lib/jobTaxonomy.ts
+            supabase/functions/apply
+      - uses: actions/setup-node@v5
+        if: steps.queue.outputs.count != '0'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - name: Install
+        if: steps.queue.outputs.count != '0'
+        run: |
+          cd worker && npm ci --no-audit --no-fund && node build.mjs
+          # The runner's own Chrome; only if it is missing, download Chromium (slower).
+          if [ -x /usr/bin/google-chrome ]; then echo "CHROMIUM_PATH=/usr/bin/google-chrome" >> "$GITHUB_ENV"
+          else npx playwright-core install --with-deps chromium; fi
+      - name: Submit what is ready
+        if: steps.queue.outputs.count != '0'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          WORKER_ID: github-actions
+          WORKER_EVERY_MINUTES: '60'
+          ONCE: '1'
+        run: node worker/dist/worker.mjs
