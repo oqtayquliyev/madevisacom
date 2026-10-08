@@ -7,7 +7,8 @@ import { rememberAuthIntent } from '@/lib/authIntent';
 import type { JobMatch } from '@/lib/cv/checks';
 import type { Part } from '@/lib/cv/match';
 import { CvReplaceButton, CvUpload } from '@/components/cv/CvUpload';
-import { MatchLabel, MatchRing, PartBar, ProPrice, Row, SponsorDocRow, toneFor } from '@/components/cv/MatchBits';
+import { MatchLabel, MatchRing, PartBar, ProPrice, Row, toneFor } from '@/components/cv/MatchBits';
+import { SponsorDocRow } from '@/components/cv/SponsorDocRow';
 
 type Props = {
   match: JobMatch;

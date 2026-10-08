@@ -3,7 +3,8 @@ import { ScanSearch, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { fetchMyBriefForJob } from '@/lib/briefs';
 import type { JobMatch } from '@/lib/cv/checks';
-import { Row, SponsorDocRow } from '@/components/cv/MatchBits';
+import { Row } from '@/components/cv/MatchBits';
+import { SponsorDocRow } from '@/components/cv/SponsorDocRow';
 
 // ---------------------------------------------------------------------------
 // "Your application to Acme" — shown once the person has pressed Apply:

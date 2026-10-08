@@ -3,26 +3,26 @@ import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { LoginPage } from '@/pages/auth/LoginPage';
 import { AddNameStep, FinishAuth, goToNextAfterAuth, nameSkipped } from '@/components/auth/AfterSignIn';
 import { AddCvStep, useCvRequirement } from '@/components/cv/CvGate';
 import { readAuthIntent } from '@/lib/authIntent';
 import { useReferralCapture } from '@/lib/referrals';
 import { useAlertWishAfterSignIn } from '@/lib/jobAlerts';
-import { RegisterPage } from '@/pages/auth/RegisterPage';
-import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { LandingPage } from '@/pages/landing/LandingPage';
-import { JobsPage } from '@/pages/landing/jobs/JobsPage';
-import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
-import { legalPageOrder } from '@/data/legalContent';
-import { VerifyEmailPage } from '@/pages/auth/VerifyEmailPage';
-import { NotFoundPage } from '@/pages/NotFoundPage';
-import { PendingConfirmationPage } from '@/pages/auth/PendingConfirmationPage';
+import { legalPageOrder } from '@/data/legalOrder';
 import type { PendingSignup } from '@/pages/auth/RegisterPage';
 import type { View } from '@/types';
 
 // Pages load their code only when opened, so a visitor to /jobs doesn't
 // download the admin panel, the blog, profiles… (Suspense is in main.tsx).
+const LoginPage = lazyPage(() => import('@/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
+const RegisterPage = lazyPage(() => import('@/pages/auth/RegisterPage').then((m) => ({ default: m.RegisterPage })));
+const ResetPasswordPage = lazyPage(() => import('@/pages/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
+const VerifyEmailPage = lazyPage(() => import('@/pages/auth/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })));
+const PendingConfirmationPage = lazyPage(() => import('@/pages/auth/PendingConfirmationPage').then((m) => ({ default: m.PendingConfirmationPage })));
+const NotFoundPage = lazyPage(() => import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
+const JobsPage = lazyPage(() => import('@/pages/landing/jobs/JobsPage').then((m) => ({ default: m.JobsPage })));
+const JobDetailPage = lazyPage(() => import('@/pages/jobs/JobDetailPage').then((m) => ({ default: m.JobDetailPage })));
 const CompaniesPage = lazyPage(() => import('@/pages/companies/CompaniesPage').then((m) => ({ default: m.CompaniesPage })));
 const CompanyProfilePage = lazyPage(() => import('@/pages/companies/CompanyProfilePage').then((m) => ({ default: m.CompanyProfilePage })));
 const FeedbackPage = lazyPage(() => import('@/pages/feedback/FeedbackPage').then((m) => ({ default: m.FeedbackPage })));

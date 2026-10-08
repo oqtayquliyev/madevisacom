@@ -607,16 +607,4 @@ export const legalPages: Record<string, LegalPageContent> = {
   },
 };
 
-export const legalPageOrder = [
-  'contact',
-  'privacy',
-  'terms',
-  'cookies',
-  'disclaimer',
-  'advertising-policy',
-  'sponsored-listing-terms',
-  'sponsorship-document-terms',
-  'editorial-policy',
-  'corrections',
-  'verification-policy',
-];
+export { legalPageOrder } from './legalOrder';

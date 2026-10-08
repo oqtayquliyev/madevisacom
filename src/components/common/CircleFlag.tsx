@@ -34,6 +34,9 @@ export function CircleFlag({ countryCode, label, size = 24, className = '' }: Ci
       src={`https://hatscripts.github.io/circle-flags/flags/${code}.svg`}
       alt={label ? `${label} flag` : ''}
       title={label}
+      width={size}
+      height={size}
+      decoding="async"
       style={{ width: size, height: size }}
       className={`shrink-0 rounded-full border border-ink-100 object-cover ${className}`}
       onError={(event) => {

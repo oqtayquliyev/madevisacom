@@ -23,7 +23,7 @@ import { estimateJourneyCostBreakdown, type JourneyCostBreakdown } from '@/lib/c
 import { countJobsPublishedSince, fetchCurrentRelease, fetchLandingJobs, peekJobRelease, fetchPublishedSponsoredJobs, isClosedJob, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
 import { fetchSponsoredPrograms } from '@/lib/programs';
 import { formatCost } from '@/lib/listingCategories';
-import { stripHtml } from '@/lib/atsImport';
+import { stripHtml } from '@/lib/htmlText';
 import type { Job } from '@/data/jobs';
 import { CircleFlag } from '@/components/common/CircleFlag';
 
