@@ -569,25 +569,25 @@ export type Receipt = {
   answers: { label: string; value: string; source: string }[];
   outcomes: { stage: string; at: string; source: string }[];
   /** The exact file the worker attached, and its fingerprint. */
-  file: { path: string; sha256: string | null } | null;
+  file: { path: string; sha256: string | null; kind: 'original' | 'tailored' | null } | null;
 };
 export async function fetchReceipt(appId: string): Promise<Receipt> {
   const [docs, answers, outcomes, file] = await Promise.all([
     supabase.from('application_documents').select('kind, name, content, meta').eq('application_id', appId),
     supabase.from('application_answers').select('label, value, source').eq('application_id', appId).order('id'),
     supabase.from('application_outcomes').select('stage, at, source').eq('application_id', appId).order('at'),
-    supabase.from('job_applications').select('cv_path, cv_sha256').eq('id', appId).maybeSingle(),
+    supabase.from('job_applications').select('cv_path, cv_sha256, cv_file').eq('id', appId).maybeSingle(),
   ]);
   const rows = (docs.data ?? []) as { kind: string; name: string; content: string; meta: { lines?: Receipt['cv'] extends null ? never : NonNullable<Receipt['cv']>['lines']; changes?: string[] } | null }[];
   const cv = rows.find((d) => d.kind === 'cv');
   const letter = rows.find((d) => d.kind === 'cover_letter');
-  const f = file.data as { cv_path: string | null; cv_sha256: string | null } | null;
+  const f = file.data as { cv_path: string | null; cv_sha256: string | null; cv_file?: 'original' | 'tailored' | null } | null;
   return {
     cv: cv ? { name: cv.name, content: cv.content, lines: cv.meta?.lines ?? [], changes: cv.meta?.changes ?? [] } : null,
     letter: letter ? { name: letter.name, content: letter.content } : null,
     answers: (answers.data ?? []) as Receipt['answers'],
     outcomes: (outcomes.data ?? []) as Receipt['outcomes'],
-    file: f?.cv_path ? { path: f.cv_path, sha256: f.cv_sha256 } : null,
+    file: f?.cv_path ? { path: f.cv_path, sha256: f.cv_sha256, kind: f.cv_file ?? null } : null,
   };
 }
 

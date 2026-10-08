@@ -74,6 +74,16 @@ async function handle(job: Job): Promise<void> {
   try {
     report = await processJob(job, {
       browser: getBrowser,
+      originalCv: async () => {
+        const o = await rpc<{ use: boolean; path: string | null; name: string | null } | null>('apply_worker_original_cv', { p_user: job.userId });
+        if (!o?.use || !o.path) return null;
+        const { data, error } = await db.storage.from('cvs').download(o.path);
+        if (error || !data) return null;
+        const ext = o.path.split('.').pop()?.toLowerCase() ?? 'pdf';
+        const type = { pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', odt: 'application/vnd.oasis.opendocument.text', rtf: 'application/rtf', txt: 'text/plain' }[ext] ?? 'application/octet-stream';
+        const base = (o.name ?? 'CV').replace(/\.[a-z0-9]{2,4}$/i, '');
+        return { bytes: new Uint8Array(await data.arrayBuffer()), fileName: `${base}.${ext}`, type };
+      },
       progress: async (stage) => void (await rpc('apply_worker_progress', { p_id: job.id, p_worker: WORKER, p_stage: stage })),
       upload: async (name, bytes, type) => {
         const path = `${job.userId}/${job.id}/${name}`;

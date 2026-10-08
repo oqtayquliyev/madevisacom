@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowUpRight, Check, Copy, Download, FileText, HelpCircle, Image as ImageIcon, Lock } from 'lucide-react';
 import { docxBytes, downloadBytes, letterLines } from '@/lib/apply/docx';
 import { STAGES, STAGE_LABEL, answerAttention, fetchReceipt, fileLink, markSent, recordOutcome, retry, skip, type App, type Receipt, type Stage } from '@/lib/apply/store';
-import type { StoredCv } from '@/lib/cv/store';
+import { cvDownloadUrl, type StoredCv } from '@/lib/cv/store';
 import type { Needed } from '@/lib/apply/types';
 import { ApplicationStatus, VerifiedBadge } from '@/components/apply/ApplicationStatus';
 import { Sheet } from '@/components/apply/Sheet';
@@ -50,7 +50,22 @@ function Documents({ r, app }: { r: Receipt; app: App }) {
               <Download className="h-3.5 w-3.5" /> Word file
             </button>
           </div>
-          <p className="mt-1 text-[12.5px] font-semibold text-ink-700">{r.cv.changes.length ? 'CV tailored for this role' : 'Your CV as it is — it already leads with what this ad asks for'}</p>
+          <p className="mt-1 text-[12.5px] leading-5 text-ink-600">
+            {r.file?.kind === 'tailored' ? 'This Word version was attached to the application.' : 'MadeVisa attaches the CV file you uploaded, exactly as it is. This tailored Word version is kept for you, if you want to use it yourself.'}{' '}
+            {r.file?.kind !== 'tailored' && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const url = await cvDownloadUrl();
+                  if (url) window.open(url, '_blank', 'noopener');
+                }}
+                className="font-semibold text-brand-700 hover:underline"
+              >
+                Download your original CV
+              </button>
+            )}
+          </p>
+          <p className="mt-1 text-[12.5px] font-semibold text-ink-700">{r.cv.changes.length ? 'Tailored for this role' : 'Your CV as it is — it already leads with what this ad asks for'}</p>
           {r.cv.changes.length > 0 && (
             <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[12.5px] leading-5 text-ink-600 marker:text-ink-300">
               {r.cv.changes.map((c) => (
@@ -336,7 +351,8 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
       )}
       {app.status === 'submitted' && r?.file && (
         <p className="mb-4 flex flex-wrap items-center gap-2 text-[12px] text-ink-500">
-          Exact CV file sent{r.file.sha256 ? <span className="font-mono">· {r.file.sha256.slice(0, 12)}</span> : null}
+          {r.file.kind === 'tailored' ? 'CV sent: the tailored Word version' : 'CV sent: your own uploaded file'}
+          {r.file.sha256 ? <span className="font-mono">· {r.file.sha256.slice(0, 12)}</span> : null}
           <button type="button" onClick={() => void open(r.file!.path)} className={BTN.link}>
             Download it
           </button>
