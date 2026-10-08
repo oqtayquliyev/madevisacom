@@ -21,6 +21,7 @@
 //     blindly.
 //   • "submitted" is reported only when the employer's page confirms it.
 
+import { needsLogin } from '../../src/lib/apply/login';
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -173,9 +174,11 @@ async function settle(p: Page, ms = 6000) {
 const usable = (fs: LiveField[]) => fs.filter((f) => f.kind !== 'checkbox' && f.label).length;
 
 /** Find the application form: on the page itself, in an embedded frame, or behind an "Apply" button. */
-async function findForm(page: Page, ctx: BrowserContext, deps: Deps): Promise<{ where: Page | Frame; page: Page; fields: LiveField[] }> {
+async function findForm(page: Page, ctx: BrowserContext, deps: Deps): Promise<{ where: Page | Frame; page: Page; fields: LiveField[]; login?: boolean }> {
   let current = page;
   for (let hop = 0; hop < 3; hop += 1) {
+    // A sign-in careers site (Workday, iCIMS…): no need to look further.
+    if (needsLogin(current.url())) return { where: current, page: current, fields: [], login: true };
     let fields = await readFields(current).catch(() => [] as LiveField[]);
     if (usable(fields) >= 2) return { where: current, page: current, fields };
     // A careers page that shows the hiring system's form in a frame: read the frame.
@@ -194,6 +197,7 @@ async function findForm(page: Page, ctx: BrowserContext, deps: Deps): Promise<{ 
     const href = await findApply(current).catch(() => null);
     if (href == null) return { where: current, page: current, fields };
     deps.log('apply button', href);
+    if (needsLogin(href)) return { where: current, page: current, fields: [], login: true };
     const popup = ctx.waitForEvent('page', { timeout: 6000 }).catch(() => null);
     await clickApply(current).catch(() => {});
     const opened = await popup;
@@ -222,6 +226,8 @@ async function applyOnSite(job: Job, file: CvFile, deps: Deps): Promise<Report> 
       await writeFile(letterPath, docxBytes(letterLines(job.letter.content), job.letter.name || 'Cover letter'));
     }
 
+    // Known sign-in careers sites: say so at once instead of opening them.
+    if (needsLogin(job.url)) return { to: 'blocked', detail: { code: 'login_required', reason: 'This employer’s careers site needs your own account. MadeVisa never signs in as you.' } };
     await deps.progress('opening');
     const page = await ctx.newPage();
     page.setDefaultTimeout(20000);
@@ -236,7 +242,8 @@ async function applyOnSite(job: Job, file: CvFile, deps: Deps): Promise<Report> 
     if (res && res.status() >= 500) return { to: 'ready', detail: { code: `http_${res.status()}`, reason: 'The employer’s site had an error.', retryInSeconds: 900 } };
     await settle(page);
 
-    const { where, page: top, fields } = await findForm(page, ctx, deps);
+    const { where, page: top, fields, login } = await findForm(page, ctx, deps);
+    if (login) return { to: 'blocked', detail: { code: 'login_required', reason: 'This employer’s careers site needs your own account. MadeVisa never signs in as you.', evidence: { url: top.url() } } };
     const before = await readState(where).catch(() => ({ captcha: false, password: false, errors: [], missing: [], text: '' }) as PageState);
     if (before.password || (usable(fields) < 2 && asksLogin(before.text))) {
       return { to: 'blocked', detail: { code: 'login_required', reason: 'This employer requires an account login that MadeVisa cannot complete automatically.' } };

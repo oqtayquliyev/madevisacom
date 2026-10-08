@@ -60,6 +60,19 @@ const GENERIC_FORM = page('Apply — Data Analyst', `
   <label>Last name * <input name="lname" required></label>
   <label>E-mail address * <input type="email" name="mail" required></label>
   <label>Mobile phone <input type="tel" name="tel"></label>
+  <label id="cc-l" for="cc">Country *</label>
+  <div class="combo" role="combobox" aria-expanded="false" aria-labelledby="cc-l"><input id="cc" aria-required="true" autocomplete="off"><input type="hidden" name="country" required></div>
+  <div role="listbox" id="cc-list" hidden></div>
+  <script>
+  (function(){
+    // Like Greenhouse's phone-country picker: options carry the dialling code ("Azerbaijan +994").
+    var all=['Austria +43','Azerbaijan +994','Germany +49','United Kingdom +44'];
+    var box=document.getElementById('cc'), list=document.getElementById('cc-list'), hid=document.querySelector('input[name=country]');
+    function show(){ var q=box.value.toLowerCase(); list.innerHTML=''; all.filter(function(o){return o.toLowerCase().indexOf(q)>=0}).forEach(function(o){
+      var d=document.createElement('div'); d.setAttribute('role','option'); d.textContent=o; d.onclick=function(){ box.value=o; hid.value=o.split(' +')[0]; list.hidden=true; }; list.appendChild(d); }); list.hidden=false; }
+    box.addEventListener('focus', show); box.addEventListener('input', show);
+  })();
+  </script>
   </fieldset>
   <fieldset><legend>Are you legally authorized to work in Germany? *</legend>
     <label><input type="radio" name="auth" value="y" required> Yes</label>

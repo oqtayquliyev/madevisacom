@@ -250,9 +250,23 @@ export async function act(p: Page | Frame, a: Action, files: { cv: string; cover
       await loc.click({ timeout: 8000 });
       const box = (await loc.evaluate((el) => el.tagName === 'INPUT').catch(() => false)) ? loc : loc.locator('input').first();
       await box.fill(a.value, { timeout: 8000 });
-      const opt = p.locator('[role=option]').filter({ hasText: new RegExp(`^\\s*${a.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i') }).first();
-      await opt.click({ timeout: 6000 });
-      return;
+      const esc = a.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const options = p.locator('[role=option]');
+      await options.first().waitFor({ state: 'visible', timeout: 4000 }).catch(() => {});
+      // Exactly the answer; else an option that starts with it ("Azerbaijan +994"); else the only one containing it.
+      for (const [re, onlyOne] of [
+        [new RegExp(`^\\s*${esc}\\s*$`, 'i'), false],
+        [new RegExp(`^\\W*${esc}\\b`, 'i'), false],
+        [new RegExp(`\\b${esc}\\b`, 'i'), true],
+      ] as [RegExp, boolean][]) {
+        const hit = options.filter({ hasText: re });
+        const n = await hit.count();
+        if (n === 1 || (n > 1 && !onlyOne)) {
+          await hit.first().click({ timeout: 6000 });
+          return;
+        }
+      }
+      throw new Error(`no choice matching “${a.value}”`);
     }
     case 'file': {
       const path = a.file === 'cv' ? files.cv : files.cover_letter;

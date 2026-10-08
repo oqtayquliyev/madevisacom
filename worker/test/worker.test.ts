@@ -123,6 +123,8 @@ describe('the application worker', () => {
     expect(field(body, 'auth')).toBe('n');
     expect(field(body, 'years')).toBe('6-9 years');
     expect(field(body, 'privacy')).toBe('on');
+    // A country picker whose choices carry the dialling code ("Azerbaijan +994").
+    expect(field(body, 'country')).toBe('Azerbaijan');
   });
 
   it('never gets round a CAPTCHA: the application is handed to the person, nothing is sent', async () => {
