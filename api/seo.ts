@@ -18,6 +18,7 @@ import { infoPages } from '../src/data/infoContent';
 import { visaGuides } from '../src/data/visa';
 import { PLAN_RANGE, PRO_MONTHLY_DOCS } from '../src/lib/planPrice';
 import { legalPageOrder, legalPages } from '../src/data/legalContent';
+import { PRO_TESTIMONIALS } from '../src/data/testimonials';
 import {
   COMING_SOON_NOINDEX,
   SEO_META,
@@ -581,6 +582,7 @@ async function staticPage(slug: string): Promise<Page | null> {
       availability: 'https://schema.org/InStock',
       priceSpecification: { '@type': 'UnitPriceSpecification', price, priceCurrency: 'USD', billingDuration: 1, unitCode: unit },
     });
+    const reviews = PRO_TESTIMONIALS;
     return {
       title: SEO_META.pricing.title,
       description: desc,
@@ -595,6 +597,19 @@ async function staticPage(slug: string): Promise<Page | null> {
           brand: { '@type': 'Brand', name: 'MadeVisa' },
           // Google requires an image on anything marked as a Product. The site's own share picture.
           image: `${SITE}/api/og/page?p=home`,
+          // The Pro members' feedback shown on this page (and on /cv-match), each rated 5 of 5 by the member.
+          ...(reviews.length
+            ? {
+                aggregateRating: { '@type': 'AggregateRating', ratingValue: 5, bestRating: 5, worstRating: 1, reviewCount: reviews.length },
+                review: reviews.map((t) => ({
+                  '@type': 'Review',
+                  name: t.headline,
+                  reviewBody: t.text,
+                  author: { '@type': 'Person', name: t.name },
+                  reviewRating: { '@type': 'Rating', ratingValue: 5, bestRating: 5, worstRating: 1 },
+                })),
+              }
+            : {}),
           offers: [offer('MadeVisa Pro, monthly', R.monthly.high, 'MON'), offer('MadeVisa Pro, yearly', R.yearly.high, 'ANN')],
         },
       ],
@@ -604,6 +619,11 @@ async function staticPage(slug: string): Promise<Page | null> {
         `<p>Pro is one plan, billed monthly or yearly: $${R.monthly.high} a month, or $${R.yearly.high} a year. It includes the full CV match report on every job, ${PRO_MONTHLY_DOCS} sponsorship documents a month, instant job alerts, full company response data and the companies that sponsor visas.</p>` +
         '<p>Prices are set in US dollars. In countries where incomes are lower, a regional price applies; it follows the country you live in and pay from. The price for your country is shown on this page, in your currency where we can, before you create an account, and again before you pay.</p>' +
         '<p>You can cancel any time, and Pro then stops at the end of the month or year you paid for.</p>' +
+        (reviews.length
+          ? `<h2>What Pro members say</h2><p>${reviews.length} Pro members, all 5 stars.</p>` +
+            reviews.map((t) => `<blockquote><p><strong>${esc(t.headline)}</strong> ${esc(t.text)}</p><p>${esc([t.name, t.role, `${t.from.name} → ${t.to.name}`].filter(Boolean).join(' · '))}</p></blockquote>`).join('') +
+            '<p>Shared by MadeVisa Pro members with their permission. Names shortened; results vary.</p>'
+          : '') +
         '<h2>For employers</h2><p>Sponsored jobs ($149 for 30 days), featured placement in social posts, employer plans and Hiring Briefs.</p>' +
         footerLinks(),
       maxAge: 3600,

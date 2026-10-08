@@ -16,6 +16,8 @@ import { PlanRequestDialog } from '@/components/pro/PlanRequestDialog';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { AppLink, Faq } from '@/pages/info/InfoPage';
+import { TestimonialsSection } from '@/components/common/Testimonials';
+import { PRO_TESTIMONIALS } from '@/data/testimonials';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
@@ -220,6 +222,17 @@ export function PricingPage({ go, onAuth }: Props) {
             </AppLink>
           </div>
         </section>
+
+        {/* The same Pro members' feedback as /cv-match. Keep it here: Google reads the ratings in this page's data and wants them visible on it. */}
+        <TestimonialsSection
+          id="pricing-feedback"
+          eyebrow="From MadeVisa Pro members"
+          items={PRO_TESTIMONIALS}
+          title="What Pro did for them."
+          sub={`${PRO_TESTIMONIALS.length} Pro members, all 5 stars`}
+          initial={3}
+          className="mt-16"
+        />
 
         <section className="mt-16">
           <h2 className="text-2xl font-bold tracking-tight text-ink-950">For employers and companies</h2>
