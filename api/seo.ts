@@ -578,6 +578,7 @@ async function staticPage(slug: string): Promise<Page | null> {
       price,
       priceCurrency: 'USD',
       url: `${SITE}/pricing`,
+      availability: 'https://schema.org/InStock',
       priceSpecification: { '@type': 'UnitPriceSpecification', price, priceCurrency: 'USD', billingDuration: 1, unitCode: unit },
     });
     return {
@@ -592,6 +593,8 @@ async function staticPage(slug: string): Promise<Page | null> {
           name: 'MadeVisa Pro',
           description: `Subscription for job seekers: the full CV match report on every job and ${PRO_MONTHLY_DOCS} sponsorship documents a month. Billed monthly or yearly.`,
           brand: { '@type': 'Brand', name: 'MadeVisa' },
+          // Google requires an image on anything marked as a Product. The site's own share picture.
+          image: `${SITE}/api/og/page?p=home`,
           offers: [offer('MadeVisa Pro, monthly', R.monthly.high, 'MON'), offer('MadeVisa Pro, yearly', R.yearly.high, 'ANN')],
         },
       ],
