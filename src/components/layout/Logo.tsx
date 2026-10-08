@@ -26,11 +26,16 @@ type LogoProps = {
 export function Logo({ variant = 'header', className = '', style }: LogoProps) {
   const src = variant === 'footer' ? LOGO_FOOTER : LOGO_MAIN;
   const sizeClass = variant === 'footer' ? 'h-8' : 'h-6';
+  // Size hints so the browser reserves the space before the file arrives. The CSS height still
+  // decides the size and width stays auto, so once loaded the file's own proportions apply.
+  const box = variant === 'footer' ? { width: 32, height: 32 } : { width: 110, height: 24 };
 
   return (
     <img
       src={src}
       alt="MadeVisa"
+      width={box.width}
+      height={box.height}
       className={`${sizeClass} w-auto object-contain ${className}`}
       style={style}
       onError={(event) => {

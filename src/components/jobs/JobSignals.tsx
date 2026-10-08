@@ -71,7 +71,8 @@ function InfoTip({ children, label, variant }: { children: React.ReactNode; labe
         aria-expanded={open}
         onClick={toggle}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggle(e)}
-        className={`inline-grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded-full transition ${
+        // 24 px: the smallest tap target Google accepts. The negative margin keeps the line where it was at 20 px.
+        className={`-m-0.5 inline-grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-full transition ${
           variant === 'hero' ? 'text-white/70 hover:bg-white/15 hover:text-white' : 'text-ink-400 hover:bg-ink-100 hover:text-ink-700'
         }`}
       >

@@ -825,8 +825,11 @@ export default async function handler(req: Request): Promise<Response> {
       headers: {
         'content-type': 'text/html; charset=utf-8',
         // Browsers always revalidate (the app itself updates live); the edge keeps a copy.
-        // Short stale window: after a deploy, old copies must disappear within minutes.
-        'cache-control': `public, max-age=0, s-maxage=${Math.min(maxAge, 900)}, stale-while-revalidate=120`,
+        // After s-maxage the edge still answers at once with its copy and refreshes it in the
+        // background, so a visitor (or Google) never waits for a cold function and the database:
+        // that wait was about 2 s on the homepage. Vercel empties this cache on every deploy, so a
+        // long stale window never serves pages that point at an old build's files.
+        'cache-control': `public, max-age=0, s-maxage=${Math.min(maxAge, 900)}, stale-while-revalidate=86400`,
       },
     });
   } catch {
