@@ -640,6 +640,9 @@ export async function fetchOutcomes(): Promise<{ application_id: string; stage: 
 
 // --- The hook -------------------------------------------------------------------------
 
+/** The store as it is, for screens that only read it (an opened application's progress). */
+export const useApplyState = (): State => useSyncExternalStore(subscribe, snapshot, snapshot);
+
 export function useAutoApply(cv: StoredCv | null): State & { refresh: () => Promise<void> } {
   const { user, profile, loading } = useAuth();
   const s = useSyncExternalStore(subscribe, snapshot, snapshot);

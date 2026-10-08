@@ -12,7 +12,8 @@ export function ApplicationQueue({ apps, onOpen, currentId, max }: { apps: App[]
     <ul className="divide-y divide-ink-100 overflow-hidden rounded-2xl bg-white ring-1 ring-ink-200">
       {shown.map((a) => {
         const action = ACTION[a.status];
-        const open = !['queued', 'analyzing', 'preparing', 'submitting'].includes(a.status);
+        // Every application opens: the ones still in progress show where they are.
+        const open = true;
         return (
           <li key={a.id}>
             <button type="button" disabled={!open} onClick={() => onOpen(a)} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left sm:px-4 ${open ? 'hover:bg-ink-50' : ''} ${currentId === a.id ? 'bg-brand-50/50' : ''}`}>

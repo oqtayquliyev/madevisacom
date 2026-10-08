@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, Check, Copy, Download, FileText, HelpCircle, Image as ImageIcon, Lock } from 'lucide-react';
 import { docxBytes, downloadBytes, letterLines } from '@/lib/apply/docx';
-import { STAGES, STAGE_LABEL, answerAttention, fetchReceipt, fileLink, markSent, recordOutcome, retry, skip, type App, type Receipt, type Stage } from '@/lib/apply/store';
+import { STAGES, STAGE_LABEL, useApplyState, answerAttention, fetchReceipt, fileLink, markSent, recordOutcome, retry, skip, type App, type Receipt, type Stage } from '@/lib/apply/store';
 import { cvDownloadUrl, type StoredCv } from '@/lib/cv/store';
 import type { Needed } from '@/lib/apply/types';
 import { ApplicationStatus, VerifiedBadge } from '@/components/apply/ApplicationStatus';
@@ -235,6 +235,54 @@ function FinishYourself({ app, onDone }: { app: App; onDone: () => void }) {
   );
 }
 
+/** Where one application is, step by step — and, while it waits, what it is waiting for. */
+function Timeline({ app }: { app: App }) {
+  const st = useApplyState();
+  const steps = ['Queued', 'Employer’s form checked', 'CV and answers ready', 'Submitting on the employer’s site', 'Submitted'];
+  const at = { queued: 0, analyzing: 1, preparing: 2, ready: 3, submitting: 3, submitted: 4 }[app.status as string] ?? -1;
+  if (at < 0) return null;
+  const q = st.queue && st.queue.id === app.queueId ? st.queue : null;
+  const online = Boolean(st.status?.worker?.online);
+  const wait =
+    app.status === 'submitted'
+      ? null
+      : q?.state === 'paused' && q.reason === 'allowance'
+        ? 'Waiting: this month’s applications are used. It goes as soon as there are more.'
+        : q?.state === 'paused'
+          ? 'Paused. Press Continue to carry on.'
+          : app.status === 'ready' && !online
+            ? 'Ready, and waiting for MadeVisa’s application service to pick it up.'
+            : app.status === 'ready' && (st.status?.worker?.waitMinutes ?? 0) > 0
+              ? `Ready. MadeVisa submits it within ${st.status!.worker!.waitMinutes} minutes.`
+              : app.status === 'submitting'
+                ? { opening: 'Opening the employer’s careers page…', uploading: 'Attaching your CV…', filling: 'Filling in the form…', submitting: 'Pressing Submit and waiting for the employer’s confirmation…' }[app.progress ?? 'opening'] ?? 'Submitting…'
+                : app.status === 'queued'
+                  ? 'Waiting its turn in this batch.'
+                  : 'Being prepared…';
+  return (
+    <div className="mb-4 rounded-2xl bg-ink-50 p-4">
+      <ol className="space-y-2">
+        {steps.map((label, i) => {
+          const state = i < at || (i === at && app.status === 'submitted') ? 'done' : i === at ? 'now' : 'todo';
+          return (
+            <li key={label} className={`flex items-center gap-2.5 text-[13.5px] ${state === 'todo' ? 'text-ink-400' : state === 'now' ? 'font-semibold text-ink-950' : 'text-ink-700'}`}>
+              {state === 'done' ? (
+                <Check className="h-4 w-4 text-emerald-600" strokeWidth={3} />
+              ) : state === 'now' ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-100 border-t-brand-600 motion-reduce:animate-none" aria-hidden />
+              ) : (
+                <span className="h-4 w-4 rounded-full border-2 border-ink-200" aria-hidden />
+              )}
+              {label}
+            </li>
+          );
+        })}
+      </ol>
+      {wait && <p className="mt-3 text-[13px] leading-5 text-ink-600">{wait}</p>}
+    </div>
+  );
+}
+
 /** Which "needs attention" reasons another try can fix. */
 const RETRYABLE = new Set(['captcha', 'fill_failed', 'form_refused', 'handover', 'dry_run', 'no_submit', 'unreachable', 'error', 'retries', 'timeout', 'worker_error', 'mail_not_set_up', 'channel_off', 'unconfirmed', 'prepare']);
 
@@ -262,7 +310,7 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
     if (url) window.open(url, '_blank', 'noopener');
   };
   const attention = app.status === 'needs_attention' || app.status === 'blocked' || app.status === 'failed';
-  const title = app.status === 'submitted' ? 'Application submitted' : attention ? 'Review application' : app.status === 'ready' || app.status === 'submitting' ? 'MadeVisa is on it' : 'Your application';
+  const title = app.status === 'submitted' ? 'Application submitted' : attention ? 'Review application' : ['queued', 'analyzing', 'preparing', 'ready', 'submitting'].includes(app.status) ? 'Application in progress' : 'Your application';
 
   return (
     <Sheet
@@ -283,6 +331,8 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
         <VerifiedBadge app={app} />
         {app.status === 'submitted' && <span className="text-[12.5px] text-ink-500">Submitted {ago(app.submittedAt)}</span>}
       </div>
+
+      <Timeline app={app} />
 
       {attention && (
         <div className="mb-4 rounded-2xl bg-amber-50 p-3.5 ring-1 ring-amber-200">
