@@ -57,7 +57,7 @@ export type ApplyStatus = {
   resetsAt: string | null;
   chargeSelfSent?: boolean;
   /** The application worker: online = checked in within 3 minutes (only then can the person leave the page). */
-  worker?: { online: boolean; autoSubmit?: boolean };
+  worker?: { online: boolean; autoSubmit?: boolean; waitMinutes?: number | null };
   queue: QueueInfo | null;
 };
 
@@ -335,6 +335,9 @@ async function analyze(cv: StoredCv, fresh: boolean): Promise<{ ok: boolean; err
 
 // --- The batch -----------------------------------------------------------------------------
 
+/** Wake the application worker (when it runs on GitHub Actions). Harmless when it runs all the time. */
+const kick = () => void supabase.functions.invoke('apply', { body: { action: 'kick' } }).catch(() => {});
+
 let control: 'run' | 'pause' | 'stop' = 'run';
 let preparing = false;
 
@@ -389,7 +392,7 @@ export async function confirmBatch(given: Record<string, string>, email: string,
   if (!started.ok) return started;
   logEvent('auto_apply_answers_saved', { answers: Object.keys(clean).length, jobs: jobs.length });
   runCv = cv;
-  void prepare(jobs, clean, cv);
+  void prepare(jobs, clean, cv).then(kick);
   watch();
   return { ok: true };
 }
@@ -470,6 +473,7 @@ export async function resume(cv: StoredCv): Promise<void> {
   runCv = cv;
   control = 'run';
   await setQueue('running');
+  kick();
   watch();
 }
 export async function stop(): Promise<void> {
@@ -524,6 +528,7 @@ export async function answerAttention(app: App, values: Record<string, string>, 
     if (!r.ok && target === app) return { ok: false, error: r.message };
   }
   if (state.queue && state.queue.state !== 'running') await setQueue('running');
+  kick();
   watch();
   return { ok: true };
 }
@@ -543,6 +548,7 @@ export async function retry(app: App): Promise<{ ok: boolean; error?: string }> 
   const r = await move(app.id, 'ready');
   if (!r.ok) return { ok: false, error: r.message };
   if (state.queue && state.queue.id === app.queueId && state.queue.state !== 'running') await setQueue('running');
+  kick();
   watch();
   return { ok: true };
 }

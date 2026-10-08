@@ -167,6 +167,7 @@ export function ApplicationProgress({ apps, queue, status, phase, error, onPause
       {running && online && t.pending > 0 && (
         <p className="mx-4 mt-3 text-[13px] leading-5 text-ink-600 sm:mx-6">
           <strong className="font-semibold text-ink-900">You can leave this page.</strong> MadeVisa will continue processing your applications.
+          {!current && (status.worker?.waitMinutes ?? 0) > 0 && ` They start within ${status.worker!.waitMinutes} ${status.worker!.waitMinutes === 1 ? 'minute' : 'minutes'}.`}
         </p>
       )}
 

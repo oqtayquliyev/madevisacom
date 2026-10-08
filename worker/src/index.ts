@@ -12,7 +12,8 @@
 //   CHROMIUM_PATH      a Chromium binary, when not using the Playwright image
 //   POLL_SECONDS       how often to look for work when idle (default 5)
 //   HOST_GAP_SECONDS   least time between two applications on the same site (default 20)
-//   ONCE=1             process what is ready now, then exit (for a cron runner)
+//   ONCE=1             process what is ready now, then exit (for a scheduled runner)
+//   WORKER_EVERY_MINUTES  with ONCE: how often the scheduled runner starts (GitHub Actions: 60)
 
 import { hostname } from 'node:os';
 import { createClient } from '@supabase/supabase-js';
@@ -30,6 +31,8 @@ const WORKER = (process.env.WORKER_ID || hostname()).slice(0, 60);
 const POLL = Math.max(2, Number(process.env.POLL_SECONDS) || 5) * 1000;
 const HOST_GAP = Math.max(0, Number(process.env.HOST_GAP_SECONDS) || 20) * 1000;
 const ONCE = process.env.ONCE === '1';
+/** Set when the worker runs on a schedule (GitHub Actions): how often it runs, so the site knows when it will be back. */
+const EVERY = Number(process.env.WORKER_EVERY_MINUTES) || 0;
 
 const db = createClient(url, key, { auth: { persistSession: false } });
 const log = (...a: unknown[]) => console.log(new Date().toISOString(), WORKER, ...a);
@@ -102,7 +105,7 @@ async function main() {
   let beatAt = 0;
   while (!stopping) {
     if (Date.now() - beatAt > 30_000) {
-      settings = (await rpc<typeof settings>('apply_worker_beat', { p_worker: WORKER, p_version: VERSION, p_info: { host: hostname(), node: process.version } })) ?? settings;
+      settings = (await rpc<typeof settings>('apply_worker_beat', { p_worker: WORKER, p_version: VERSION, p_info: { host: hostname(), node: process.version, ...(EVERY ? { mode: 'scheduled', everyMinutes: EVERY } : {}) } })) ?? settings;
       beatAt = Date.now();
     }
     const jobs = settings.enabled ? ((await rpc<Job[]>('apply_worker_claim', { p_worker: WORKER, p_limit: settings.concurrency })) ?? []) : [];

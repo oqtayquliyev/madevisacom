@@ -35,6 +35,25 @@ the batch carries on.
 
 ## Deploy (pick one)
 
+**GitHub Actions — free, nothing to host** (recommended to start):
+1. Run `supabase/migrations/20261206090000_apply_worker_schedule.sql` in the SQL Editor.
+2. GitHub → your repository → Settings → Secrets and variables → Actions → add
+   `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (the reels workflow uses the same two).
+3. Push. The workflow `.github/workflows/apply-worker.yml` runs every hour,
+   and right away when someone confirms a batch — if Supabase has the function
+   secrets `GITHUB_DISPATCH_TOKEN` and `GITHUB_REPO` (the reels already use them;
+   otherwise: GitHub → Settings → Developer settings → Fine-grained token with
+   *Contents: read and write* on this repository, then
+   `supabase secrets set GITHUB_DISPATCH_TOKEN=… GITHUB_REPO=owner/madevisacom`).
+4. Try it now: Actions → **Apply worker** → **Run workflow**.
+
+Each run takes the ready applications, submits them, and stops. When there is
+nothing to submit it uses about one minute. Public repositories get Actions
+minutes free; private ones get 2,000 a month on the free plan — plenty at the
+start (about 720 a month for the hourly checks, plus roughly a minute per application).
+GitHub's terms expect Actions to be used for the repository's own project;
+when MadeVisa grows, move to one of the options below (same code, nothing else changes).
+
 **Railway** (simplest): New project → Deploy from GitHub repo → Settings →
 Dockerfile path `worker/Dockerfile`, root directory `/` → Variables: add the
 two secrets → Deploy. About $5–10 a month.
