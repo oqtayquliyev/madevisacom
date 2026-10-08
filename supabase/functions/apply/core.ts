@@ -17,7 +17,7 @@ export type Deps = {
   kick?: () => Promise<boolean | 'started' | 'recent' | 'not_set_up' | 'failed'>;
 };
 
-import { readForms, type FormRead } from './forms.ts';
+import { probeRoute, readForms, type FormRead, type RouteRead } from './forms.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -222,6 +222,31 @@ async function analyze(deps: Deps, user: { id: string }, body: Json): Promise<Re
   return json({ ok: true, forms });
 }
 
+/**
+ * Follow the links of the jobs someone is looking at (at most 40, about 9 s) and keep where
+ * each application really goes. Jobs already followed are not followed again.
+ */
+export async function routes(deps: Deps, body: Json, budgetMs = 9000): Promise<Response> {
+  const ids: string[] = Array.isArray(body?.jobs) ? body.jobs.filter((x: unknown) => typeof x === 'string' && UUID.test(x)).slice(0, 40) : [];
+  if (!ids.length) return json({ ok: true, routes: {} });
+  const t = await deps.rpc('apply_routes_todo', { p_jobs: ids, p_limit: 40 });
+  if (t.error) return json({ ok: false, reason: 'The jobs could not be read.' }, 500);
+  const todo = (Array.isArray(t.data) ? t.data : []) as { id: string; url: string | null; email: boolean }[];
+  const found: Record<string, RouteRead> = {};
+  const start = Date.now();
+  let i = 0;
+  const work = async () => {
+    while (i < todo.length && Date.now() - start < budgetMs) {
+      const x = todo[i++];
+      found[x.id] = await probeRoute(deps.fetch, x.url, { email: x.email }).catch(() => ({ route: 'site', url: x.url, platform: null, questions: null }) as RouteRead);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(8, todo.length) }, work));
+  const items = Object.entries(found).map(([jobId, r]) => ({ jobId, route: r.route, url: r.url, platform: r.platform, questions: r.questions }));
+  if (items.length) await deps.rpc('apply_routes_store', { p_items: items });
+  return json({ ok: true, routes: Object.fromEntries(items.map((x) => [x.jobId, x.route])) });
+}
+
 export function makeHandler(deps: Deps) {
   return async (req: Request): Promise<Response> => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -233,6 +258,7 @@ export function makeHandler(deps: Deps) {
       if (body?.action === 'submit') return await submit(deps, user, body);
       if (body?.action === 'questions') return await questions(deps, body);
       if (body?.action === 'analyze') return await analyze(deps, user, body);
+      if (body?.action === 'routes') return await routes(deps, body);
       if (body?.action === 'kick') {
         const r = deps.kick ? await deps.kick().catch(() => 'failed' as const) : 'not_set_up';
         const reason = r === true ? 'started' : r === false ? 'failed' : r;

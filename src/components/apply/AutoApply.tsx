@@ -88,7 +88,7 @@ export function AutoApply({ result, places, onAuth, onAgain }: Props) {
   }, [jobs, places, auto.prefs, auto.profile, auto.server, now, signedIn]);
 
   // The quick 3: ones MadeVisa can submit by itself come first; sites that need the person's own login go last.
-  const top3 = useMemo(() => quickPicks(planned.auto, (p) => auto.server.get(p.job.id)?.url), [planned.auto, auto.server]);
+  const top3 = useMemo(() => quickPicks(planned.auto, (p) => auto.server.get(p.job.id)), [planned.auto, auto.server]);
 
   // The recommended ones are ticked to begin with; the person's own ticks are kept until the list itself changes.
   const autoKey = planned.auto.map((p) => p.job.id).join(',');
@@ -191,6 +191,7 @@ export function AutoApply({ result, places, onAuth, onAgain }: Props) {
       ) : (
         <ApplicationSummary
           top={top3}
+          routeOf={(id) => auto.server.get(id)?.route}
           status={status}
           auto={auto.auto}
           onApply={() => begin('apply')}

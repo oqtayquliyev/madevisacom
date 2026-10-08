@@ -267,8 +267,20 @@ export async function loadServerFacts(key: string, jobIds: string[]): Promise<vo
   const { data, error } = await supabase.rpc('apply_preview', { p_jobs: jobIds.slice(0, 80) });
   if (error) return set({ serverFor: null });
   const m = new Map<string, ServerFacts>();
-  for (const x of (data ?? []) as (ServerFacts & { id: string })[]) m.set(x.id, { channel: x.channel, applied: x.applied, twin: x.twin, closed: x.closed, url: x.url, knownSponsor: x.knownSponsor });
+  for (const x of (data ?? []) as (ServerFacts & { id: string })[]) m.set(x.id, { channel: x.channel, applied: x.applied, twin: x.twin, closed: x.closed, url: x.url, knownSponsor: x.knownSponsor, route: x.route ?? null });
   set({ server: m });
+  // Jobs whose link nobody has followed yet: follow them now (a few seconds), so the send-able ones come first.
+  const unknown = [...m.entries()].filter(([, f]) => !f.route && !f.closed && !f.applied).map(([id]) => id).slice(0, 40);
+  if (!unknown.length) return;
+  const r = await supabase.functions.invoke('apply', { body: { action: 'routes', jobs: unknown } }).catch(() => null);
+  const found = ((r?.data as { routes?: Record<string, ServerFacts['route']> } | null)?.routes ?? {}) as Record<string, ServerFacts['route']>;
+  if (!Object.keys(found).length || state.serverFor !== key) return;
+  const next = new Map(state.server);
+  for (const [id, route] of Object.entries(found)) {
+    const f = next.get(id);
+    if (f) next.set(id, { ...f, route });
+  }
+  set({ server: next });
 }
 
 // --- Preferences and saved answers ---------------------------------------------------

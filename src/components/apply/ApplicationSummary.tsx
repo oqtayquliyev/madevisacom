@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Send, Zap } from 'lucide-react';
 import type { Planned } from '@/lib/apply/decision';
 import type { ApplyStatus, AutoStatus } from '@/lib/apply/store';
+import type { ApplyRoute } from '@/lib/apply/types';
 import { usePrices } from '@/lib/pricing';
 import { nav } from '@/lib/pageLayout';
 import { MatchRing } from '@/components/cv/MatchBits';
@@ -11,6 +12,8 @@ import { BTN } from '@/components/apply/ui';
 type Props = {
   /** The best recommended jobs, at most 3. */
   top: Planned[];
+  /** Where each job's application goes (to say which send by themselves). */
+  routeOf?: (jobId: string) => ApplyRoute | null | undefined;
   status: ApplyStatus;
   auto: AutoStatus | null;
   onApply: () => void;
@@ -20,7 +23,7 @@ type Props = {
 };
 
 /** Under the headline: apply to your top 3 now — and, with Pro, let MadeVisa apply to every new match. */
-export function ApplicationSummary({ top, status, auto, onApply, onChoose, onAuto, onAuth }: Props) {
+export function ApplicationSummary({ top, routeOf, status, auto, onApply, onChoose, onAuto, onAuth }: Props) {
   const prices = usePrices();
   const [pay, setPay] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -46,10 +49,16 @@ export function ApplicationSummary({ top, status, auto, onApply, onChoose, onAut
             {top.map((p) => (
               <li key={p.job.id} className="flex items-center gap-3 py-2.5">
                 <MatchRing score={p.job.score} size={38} />
-                <span className="min-w-0">
+                <span className="min-w-0 flex-1">
                   <span className="block truncate text-[14px] font-semibold text-ink-950">{p.job.title}</span>
                   <span className="block truncate text-[12.5px] text-ink-500">{p.job.company}</span>
                 </span>
+                {(() => {
+                  const r = routeOf?.(p.job.id);
+                  if (r === 'auto' || r === 'email') return <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[11.5px] font-bold text-emerald-800">Sends automatically</span>;
+                  if (r === 'login') return <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-[11.5px] font-bold text-amber-800">Needs your login</span>;
+                  return null;
+                })()}
               </li>
             ))}
           </ul>

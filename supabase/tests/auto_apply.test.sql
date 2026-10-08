@@ -638,5 +638,49 @@ BEGIN
   ASSERT (SELECT state FROM public.application_queues WHERE id = q) = 'running';
 END $$;
 
+\echo '19. routes: a job is followed once; send-able ones say so, and applications go to the real form'
+DO $$
+DECLARE r jsonb; a uuid;
+BEGIN
+  -- Seeing a job in the matches notes it to be followed.
+  PERFORM t.as('admin');
+  r := public.apply_preview(ARRAY[t.id('twinB')]);
+  PERFORM t.out();
+  ASSERT (r->0->>'route') IS NULL, r::text;
+  ASSERT (SELECT route FROM public.job_apply_routes WHERE job_id = t.id('twinB')) = 'pending';
+  PERFORM t.as('service');
+  r := public.apply_routes_todo(NULL, 50);
+  ASSERT EXISTS (SELECT 1 FROM jsonb_array_elements(r) x WHERE (x->>'id')::uuid = t.id('twinB') AND x->>'url' = 'https://acme.example/b'), r::text;
+  -- Followed: the company page leads to a Greenhouse form.
+  ASSERT public.apply_routes_store(jsonb_build_array(jsonb_build_object('jobId', t.id('twinB'), 'route', 'auto', 'url', 'https://boards.greenhouse.io/acme/jobs/77', 'platform', 'greenhouse', 'questions', 9))) = 1;
+  ASSERT NOT EXISTS (SELECT 1 FROM jsonb_array_elements(public.apply_routes_todo(NULL, 50)) x WHERE (x->>'id')::uuid = t.id('twinB')), 'followed jobs are not followed again';
+  ASSERT public.apply_routes_store('[{"jobId": "not-a-uuid", "route": "auto"}, {"jobId": "00000000-0000-0000-0000-000000000000", "route": "wrong"}]') = 0;
+  PERFORM t.out();
+  PERFORM t.as('admin');
+  r := public.apply_preview(ARRAY[t.id('twinB')]);
+  ASSERT r->0->>'route' = 'auto', r::text;
+  -- The application goes to the form, not the company page in front of it.
+  r := public.apply_enqueue(t.items('twinB'), NULL);
+  PERFORM t.out();
+  a := t.app('admin', 'twinB');
+  ASSERT (SELECT url FROM public.job_applications WHERE id = a) = 'https://boards.greenhouse.io/acme/jobs/77', (SELECT url FROM public.job_applications WHERE id = a);
+  -- What the worker meets on the real site corrects it for everyone.
+  UPDATE public.job_applications SET status = 'blocked', reason_code = 'login_required' WHERE id = a;
+  ASSERT (SELECT route || '/' || source FROM public.job_apply_routes WHERE job_id = t.id('twinB')) = 'login/worker';
+  -- …and a quick look doesn't overrule it for a week.
+  PERFORM t.as('service');
+  PERFORM public.apply_routes_store(jsonb_build_array(jsonb_build_object('jobId', t.id('twinB'), 'route', 'auto', 'url', 'https://boards.greenhouse.io/acme/jobs/77')));
+  PERFORM t.out();
+  ASSERT (SELECT route FROM public.job_apply_routes WHERE job_id = t.id('twinB')) = 'login';
+  -- Nobody but the service reads the table directly or stores routes.
+  PERFORM t.as('free');
+  BEGIN
+    PERFORM public.apply_routes_store('[]');
+    RAISE EXCEPTION 'a person stored routes';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  PERFORM t.out();
+END $$;
+
 \echo 'ALL AUTO APPLY DATABASE TESTS PASSED'
 ROLLBACK;

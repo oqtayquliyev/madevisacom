@@ -11,15 +11,15 @@
 
 import type { BatchContext, BatchJob } from '../../src/lib/apply/batch';
 import { coverLetter, letterReason } from '../../src/lib/apply/coverLetter';
-import { needsLogin } from '../../src/lib/apply/login';
+import { sendRank } from '../../src/lib/apply/login';
 import { prepareBatch, type MoveResult } from '../../src/lib/apply/runner';
 import { tailorCv, tailoredName, untouchedCv, verifyTailored } from '../../src/lib/apply/tailor';
-import { DEFAULT_PREFS, type Application, type ApplyPrefs, type ApplyProfile } from '../../src/lib/apply/types';
+import { DEFAULT_PREFS, type Application, type ApplyPrefs, type ApplyProfile, type ApplyRoute } from '../../src/lib/apply/types';
 import { parseCv } from '../../src/lib/cv/cvProfile';
 import { parseJob } from '../../src/lib/cv/jobProfile';
 import { matchCv } from '../../src/lib/cv/match';
 import { stripHtml } from '../../src/lib/cv/text';
-import { readForms, type FormRead } from '../../supabase/functions/apply/forms';
+import { probeRoute, readForms, type FormRead } from '../../supabase/functions/apply/forms';
 
 type Rpc = <T>(name: string, args: Record<string, unknown>) => Promise<T | null>;
 
@@ -34,10 +34,12 @@ type Due = {
   since: string;
   left: number;
 };
-type NewJob = { url?: string | null; id: string; title: string; company: string | null; publisherId: string | null; cc: string | null; country: string | null; html: string; jobFunction: string | null; experience: string | null; at: string };
+type NewJob = { url?: string | null; route?: ApplyRoute | null; id: string; title: string; company: string | null; publisherId: string | null; cc: string | null; country: string | null; html: string; jobFunction: string | null; experience: string | null; at: string };
 
 /** At most this many applications per person per check. */
 const PER_RUN = 15;
+/** Each day, at least this many that MadeVisa can send by itself (when there are matches). */
+const MIN_DAILY = 3;
 
 export async function autoApply(rpc: Rpc, fetcher: typeof fetch, log: (...a: unknown[]) => void): Promise<number> {
   const due = (await rpc<Due[]>('apply_auto_due', { p_limit: 10 })) ?? [];
@@ -56,27 +58,63 @@ export async function autoApply(rpc: Rpc, fetcher: typeof fetch, log: (...a: unk
 async function forPerson(d: Due, rpc: Rpc, fetcher: typeof fetch, log: (...a: unknown[]) => void): Promise<number> {
   const prefs: ApplyPrefs = { ...DEFAULT_PREFS, ...d.prefs, alwaysAsk: [] };
   const cv = parseCv(d.cvText);
-  const jobs = (await rpc<NewJob[]>('apply_auto_jobs', { p_user: d.userId, p_since: d.since })) ?? [];
+  // New jobs since the last check; when they hold fewer than 3 MadeVisa can send, the last 14 days too.
+  const pick = async (since: string) => {
+    const jobs = (await rpc<NewJob[]>('apply_auto_jobs', { p_user: d.userId, p_since: since })) ?? [];
+    // Score every job against the CV — the same rules as /cv-match.
+    const scored = jobs
+      .filter((j) => (!prefs.countries.length || (j.cc && prefs.countries.includes(j.cc.toUpperCase()))) && stripHtml(j.html).length > 80)
+      .map((j) => {
+        const job = parseJob({ title: j.title, description: j.html, department: j.jobFunction, experienceHint: j.experience });
+        return { j, job, score: matchCv(cv, d.cvText, job).score };
+      })
+      .filter((x) => x.score >= prefs.minScore)
+      .sort((a, b) => b.score - a.score);
+    // Follow the links not followed yet (the best 30), so only send-able ones are picked.
+    const todo = scored.filter((x) => !x.j.route).slice(0, 30);
+    const found: { jobId: string; route: string; url: string | null; platform: string | null; questions: number | null }[] = [];
+    let i = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(6, todo.length) }, async () => {
+        while (i < todo.length) {
+          const x = todo[i++];
+          const r = await probeRoute(fetcher as never, x.j.url ?? null).catch(() => null);
+          if (!r) continue;
+          x.j.route = r.route;
+          if (r.url) x.j.url = r.url;
+          found.push({ jobId: x.j.id, route: r.route, url: r.url, platform: r.platform, questions: r.questions });
+        }
+      }),
+    );
+    if (found.length) await rpc('apply_routes_store', { p_items: found });
+    // Only ones MadeVisa can send (or try): never sign-in sites or dead ends. Send-able first, then by score.
+    const seen = new Set<string>();
+    const picked = scored
+      .filter((x) => sendRank(x.j.route, x.j.url) <= 1)
+      .sort((a, b) => sendRank(a.j.route, a.j.url) - sendRank(b.j.route, b.j.url) || b.score - a.score)
+      .filter((x) => {
+        const k = `${x.j.publisherId}:${x.j.title.toLowerCase()}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .slice(0, Math.min(PER_RUN, d.left));
+    return { jobs, scored, picked };
+  };
+  let { jobs, scored, picked } = await pick(d.since);
   const newest = jobs[0]?.at ?? new Date().toISOString();
-
-  // Score every new job against the CV — the same rules as /cv-match.
-  const scored = jobs
-    .filter((j) => (!prefs.countries.length || (j.cc && prefs.countries.includes(j.cc.toUpperCase()))) && stripHtml(j.html).length > 80)
-    .map((j) => {
-      const job = parseJob({ title: j.title, description: j.html, department: j.jobFunction, experienceHint: j.experience });
-      return { j, job, score: matchCv(cv, d.cvText, job).score };
-    })
-    .filter((x) => x.score >= prefs.minScore)
-    // Sites MadeVisa can submit on by itself first; ones needing the person's own login last.
-    .sort((a, b) => Number(needsLogin(a.j.url)) - Number(needsLogin(b.j.url)) || b.score - a.score);
-  // One per company and role.
-  const seen = new Set<string>();
-  const picked = scored.filter((x) => {
-    const k = `${x.j.publisherId}:${x.j.title.toLowerCase()}`;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  }).slice(0, Math.min(PER_RUN, d.left));
+  const sendable = picked.filter((x) => sendRank(x.j.route, x.j.url) === 0).length;
+  if (sendable < MIN_DAILY && d.left > picked.length) {
+    const back = new Date(Date.now() - 14 * 86_400_000).toISOString();
+    if (back < d.since) {
+      const more = await pick(back);
+      const have = new Set(picked.map((x) => x.j.id));
+      picked = [...picked, ...more.picked.filter((x) => !have.has(x.j.id))]
+        .sort((a, b) => sendRank(a.j.route, a.j.url) - sendRank(b.j.route, b.j.url) || b.score - a.score)
+        .slice(0, Math.min(PER_RUN, d.left));
+      scored = more.scored;
+    }
+  }
 
   if (!picked.length) {
     await rpc('apply_auto_mark', { p_user: d.userId, p_seen_until: newest, p_applied: 0 });

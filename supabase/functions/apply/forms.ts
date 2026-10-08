@@ -310,3 +310,77 @@ export async function readForms(fetcher: Fetch, items: { id: string; url: string
   await Promise.all(Array.from({ length: Math.min(parallel, items.length) }, work));
   return out;
 }
+
+// --- Where a job's application really goes ----------------------------------------------------
+//
+// A job link is often a company's own careers page; the form itself sits on a
+// hiring system behind it (or the page only says "sign in to apply"). Before
+// anyone applies, MadeVisa follows the link once and keeps the answer:
+//   auto    a Greenhouse, Lever or Ashby form MadeVisa can fill and send
+//   email   MadeVisa emails the application (the employer takes applications by email)
+//   site    another careers site; MadeVisa's browser tries, the person may need to finish
+//   login   the employer's site needs the person's own account (Workday, iCIMS…)
+//   none    no application form to be found
+//   closed  the job is gone
+
+export type Route = 'auto' | 'email' | 'site' | 'login' | 'none' | 'closed';
+export type RouteRead = { route: Route; url: string | null; platform: Platform | 'email' | null; questions: number | null };
+
+const ATS_LINK = /https?:\/\/(?:[a-z0-9-]+\.)*(?:greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|smartrecruiters\.com|myworkdayjobs\.com|myworkdaysite\.com|icims\.com|successfactors\.(?:com|eu)|jobs\.sap\.com|oraclecloud\.com|taleo\.net|amazon\.jobs)\/[^\s"'<>\\)]*/gi;
+const RANK: Partial<Record<Platform, number>> = { greenhouse: 0, lever: 0, ashby: 0, workable: 1, smartrecruiters: 1 };
+
+/** Links to hiring systems in a careers page's HTML, best first (Greenhouse, Lever, Ashby, then the rest). */
+export function findAtsLinks(html: string, pageUrl: string): string[] {
+  const out = new Set<string>();
+  const text = html.replace(/&amp;/g, '&').replace(/\\\//g, '/');
+  for (const m of text.match(ATS_LINK) ?? []) out.add(m.replace(/[.,;]+$/, ''));
+  // A careers page embedding a Greenhouse board: the job is ?gh_jid=… on the page itself.
+  const gh = (() => {
+    try {
+      return new URL(pageUrl).searchParams.get('gh_jid');
+    } catch {
+      return null;
+    }
+  })();
+  const board = text.match(/greenhouse\.io\/(?:embed\/job_board\/js\?for=|embed\/job_app\?for=)([A-Za-z0-9_-]+)/i)?.[1];
+  if (gh && /^\d+$/.test(gh) && board) out.add(`https://boards.greenhouse.io/${board}/jobs/${gh}`);
+  const useful = [...out].filter((u) => {
+    const p = platformOf(u);
+    if (!p || p === 'other') return false;
+    if (p === 'greenhouse') return Boolean(greenhouseRef(u));
+    if (p === 'lever') return Boolean(leverRef(u));
+    if (p === 'ashby') return Boolean(ashbyRef(u));
+    return true;
+  });
+  return useful.sort((a, b) => (RANK[platformOf(a)!] ?? 2) - (RANK[platformOf(b)!] ?? 2));
+}
+
+function fromForm(f: FormRead, url: string): RouteRead {
+  const platform = f.platform;
+  const questions = f.questions?.length ?? null;
+  if (f.status === 'closed') return { route: 'closed', url, platform, questions };
+  if (f.status === 'login') return { route: 'login', url, platform, questions };
+  if (f.status === 'none') return { route: 'none', url, platform, questions };
+  if (platform === 'greenhouse' || platform === 'lever' || platform === 'ashby') return { route: 'auto', url, platform, questions };
+  return { route: 'site', url, platform, questions };
+}
+
+/** Follow one job's link (once) and say where its application goes. */
+export async function probeRoute(fetcher: Fetch, url: string | null, opts: { email?: boolean } = {}): Promise<RouteRead> {
+  if (opts.email) return { route: 'email', url, platform: 'email', questions: null };
+  if (!url) return { route: 'none', url: null, platform: null, questions: null };
+  const platform = platformOf(url);
+  if (platform && platform !== 'other') return fromForm(await readForm(fetcher, url), url);
+  // A company's own page: look for the hiring system behind it.
+  const res = await timed(fetcher, url, { headers: { Accept: 'text/html' }, redirect: 'follow' }, 10000);
+  if (!res) return { route: 'site', url, platform: 'other', questions: null };
+  if (res.status === 404 || res.status === 410) return { route: 'closed', url, platform: 'other', questions: null };
+  const landed = res.url || url;
+  const landedOn = platformOf(landed);
+  if (landedOn && landedOn !== 'other') return fromForm(await readForm(fetcher, landed), landed);
+  if (!res.ok) return { route: 'site', url, platform: 'other', questions: null };
+  const html = (await res.text().catch(() => '')).slice(0, 1_500_000);
+  const links = findAtsLinks(html, landed);
+  if (links.length) return fromForm(await readForm(fetcher, links[0]), links[0]);
+  return { route: 'site', url: landed, platform: 'other', questions: null };
+}

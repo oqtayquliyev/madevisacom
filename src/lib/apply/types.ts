@@ -106,7 +106,12 @@ export type ServerFacts = {
   url: string | null;
   /** The company is on a public register of visa sponsors. */
   knownSponsor: boolean;
+  /** Where the application really goes, once the job's link was followed (null = not yet). */
+  route?: ApplyRoute | null;
 };
+
+/** auto: a form MadeVisa fills and sends · email: MadeVisa emails it · site: another careers site · login: needs the person's account · none · closed */
+export type ApplyRoute = 'auto' | 'email' | 'site' | 'login' | 'none' | 'closed';
 
 export type QuestionKey =
   | 'full_name'
