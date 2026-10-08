@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ChevronDown } from 'lucide-react';
 import { nav } from '@/lib/pageLayout';
 import { STAGE_LABEL, fetchOutcomes, type App } from '@/lib/apply/store';
 import { ApplicationQueue } from '@/components/apply/ApplicationQueue';
+
+/** Needs the person on the employer's own site: a login, or a form with many questions only they can answer. */
+const yourself = (a: App) => a.status === 'blocked' || (a.status === 'needs_attention' && a.needs.length >= 3);
+/** What to look at first: a quick answer, then what is moving, then what is done. */
+const ORDER: Partial<Record<App['status'], number>> = { needs_attention: 0, submitting: 1, ready: 2, preparing: 3, analyzing: 3, queued: 3, submitted: 4, failed: 5 };
+const RANK = (a: App) => ORDER[a.status] ?? 6;
 
 const FUNNEL = ['applied', 'viewed', 'response', 'interview', 'assessment', 'final_round', 'offer'] as const;
 type Filter = 'all' | 'todo' | 'submitted';
@@ -15,6 +21,7 @@ type Filter = 'all' | 'todo' | 'submitted';
 export function ApplicationTracker({ apps, onOpen, refreshKey }: { apps: App[]; onOpen: (app: App) => void; refreshKey: string }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [all, setAll] = useState(false);
+  const [openLater, setOpenLater] = useState(false);
   const [outcomes, setOutcomes] = useState<{ application_id: string; stage: string }[]>([]);
   useEffect(() => {
     let alive = true;
@@ -41,8 +48,11 @@ export function ApplicationTracker({ apps, onOpen, refreshKey }: { apps: App[]; 
   }, [outcomes, submitted.length]);
 
   if (!apps.length) return null;
-  const list = filter === 'todo' ? todo : filter === 'submitted' ? submitted : apps;
-  const shown = all ? list : list.slice(0, 8);
+  const list = (filter === 'todo' ? todo : filter === 'submitted' ? submitted : apps).slice().sort((a, b) => RANK(a) - RANK(b));
+  // MadeVisa's own work first; the ones that need the person on the employer's own site (a login, a long form) after.
+  const main = list.filter((a) => !yourself(a));
+  const later = list.filter(yourself);
+  const shown = all ? main : main.slice(0, 8);
 
   return (
     <section id="applications" aria-labelledby="tracker-title" className="mx-auto max-w-3xl scroll-mt-24">
@@ -91,15 +101,34 @@ export function ApplicationTracker({ apps, onOpen, refreshKey }: { apps: App[]; 
       </div>
 
       <div className="mt-3">
-        {shown.length ? <ApplicationQueue apps={shown} onOpen={onOpen} /> : <p className="rounded-2xl bg-white px-4 py-6 text-center text-[13px] text-ink-500 ring-1 ring-ink-200">Nothing here.</p>}
-        {list.length > shown.length && (
+        {shown.length ? <ApplicationQueue apps={shown} onOpen={onOpen} /> : !later.length && <p className="rounded-2xl bg-white px-4 py-6 text-center text-[13px] text-ink-500 ring-1 ring-ink-200">Nothing here.</p>}
+        {main.length > shown.length && (
           <p className="mt-3 text-center">
             <button onClick={() => setAll(true)} className="rounded-full px-4 py-2 text-[13px] font-bold text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50">
-              Show all {list.length}
+              Show all {main.length}
             </button>
           </p>
         )}
       </div>
+
+      {later.length > 0 && (
+        <div className="mt-5">
+          <button type="button" onClick={() => setOpenLater(!openLater)} aria-expanded={openLater} className="flex w-full items-center justify-between gap-3 rounded-2xl bg-ink-50 px-4 py-3 text-left">
+            <span>
+              <span className="block text-[14px] font-bold text-ink-900">
+                Apply on their site yourself <span className="tabular-nums text-ink-400">{later.length}</span>
+              </span>
+              <span className="block text-[12.5px] text-ink-500">These need your own login or a long form. Your CV and answers are ready to paste.</span>
+            </span>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-ink-500 transition ${openLater ? 'rotate-180' : ''}`} />
+          </button>
+          {openLater && (
+            <div className="mt-2 opacity-90">
+              <ApplicationQueue apps={later} onOpen={onOpen} />
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }

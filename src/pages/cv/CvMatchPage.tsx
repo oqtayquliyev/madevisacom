@@ -148,7 +148,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
         )}
 
         {/* Every application prepared or sent through MadeVisa (shown once there is one). */}
-        {cv && !searching && <AutoApplyTracker />}
+        {cv && !searching && !result?.items.length && <AutoApplyTracker />}
 
         <div className="mx-auto max-w-3xl space-y-3">
           {p && (

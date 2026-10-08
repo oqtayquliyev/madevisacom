@@ -244,13 +244,13 @@ export function AutoApply({ result, places, onAuth, onAgain }: Props) {
           }}
         />
       )}
-      {open && <ApplicationReceipt app={open} cv={cv} onClose={closeOpen} />}
+      {open && <ApplicationReceipt app={open} cv={cv} logo={result.items.find((m) => m.id === open.jobId)?.logo ?? null} onClose={closeOpen} />}
     </>
   );
 }
 
 /** "Your applications" — the history and the funnel, lower on the page. */
-export function AutoApplyTracker() {
+export function AutoApplyTracker({ logos }: { logos?: Map<string, string | null> } = {}) {
   const { cv } = useCv();
   const auto = useAutoApply(cv);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -260,7 +260,7 @@ export function AutoApplyTracker() {
   return (
     <>
       <ApplicationTracker apps={auto.apps} onOpen={(a) => setOpenId(a.id)} refreshKey={`${auto.apps.filter((a) => a.status === 'submitted').length}:${openId ?? ''}`} />
-      {open && <ApplicationReceipt app={open} cv={cv} onClose={close} />}
+      {open && <ApplicationReceipt app={open} cv={cv} logo={logos?.get(open.jobId) ?? null} onClose={close} />}
     </>
   );
 }

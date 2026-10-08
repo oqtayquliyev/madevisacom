@@ -146,3 +146,11 @@ describe('unknown application questions', () => {
     expect(set).toEqual({ answered: [], needs: [], left: [] });
   });
 });
+
+describe('employer wording of everyday questions', () => {
+  it('reads "current or most recent" title and company, and "where have you heard about us"', () => {
+    expect(classifyQuestion('Current or Most Recent Job Title')).toBe('current_title');
+    expect(classifyQuestion('Current or Most Recent Company')).toBe('current_company');
+    expect(classifyQuestion('Where have you seen or heard about GetYourGuide? Select as many as you’d like.')).toBe('source');
+  });
+});

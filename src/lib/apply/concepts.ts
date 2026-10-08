@@ -146,15 +146,15 @@ export const CONCEPTS: Concept[] = [
   { key: 'full_name', canonical: 'full_name', category: 'verified', scope: 'person', input: 'text', ask: 'Full name', patterns: [/^(?:your )?(?:full |legal )?name\b|\bfull name\b|\blegal name\b|^name$/i] },
   { key: 'email', canonical: 'email', category: 'verified', scope: 'person', input: 'text', ask: 'Email', patterns: [/\be-?mail\b/i] },
   { key: 'phone', canonical: 'phone', category: 'verified', scope: 'person', input: 'text', ask: 'Phone', patterns: [/\b(phone|mobile|telephone|telefon|téléphone|cell)\b/i] },
-  { key: 'current_company', canonical: 'current_company', category: 'derived', scope: 'person', input: 'text', ask: 'Current company', patterns: [/\bcurrent (company|employer|organi[sz]ation)\b|^(company|organi[sz]ation|employer)$/i] },
-  { key: 'current_title', canonical: 'current_title', category: 'derived', scope: 'person', input: 'text', ask: 'Current job title', patterns: [/\bcurrent (job )?title\b|\bcurrent (role|position)\b|^(job )?title$/i] },
+  { key: 'current_company', canonical: 'current_company', category: 'derived', scope: 'person', input: 'text', ask: 'Current company', patterns: [/\b(current|most recent|latest)( or (most recent|latest|previous))? (company|employer|organi[sz]ation)\b|^(company|organi[sz]ation|employer)$/i] },
+  { key: 'current_title', canonical: 'current_title', category: 'derived', scope: 'person', input: 'text', ask: 'Current job title', patterns: [/\b(current|most recent|latest)( or (most recent|latest|previous))? (job )?(title|role|position)\b|^(job )?title$/i] },
   { key: 'city', canonical: 'city', category: 'verified', scope: 'person', input: 'text', ask: 'City you live in', patterns: [/\b(city|town|current location|where are you (currently )?(based|located)|location \(city\)|wohnort|ville)\b|^location$/i] },
   { key: 'country', canonical: 'country_of_residence', category: 'verified', scope: 'person', input: 'text', ask: 'Country you live in', patterns: [/\b(country of residence|which country|country)\b|\bland\b|\bpays\b/i] },
   { key: 'education', canonical: 'highest_education', category: 'derived', scope: 'person', input: 'text', ask: 'Highest education', patterns: [/\b(highest (level of )?(education|degree)|degree|education level|level of education|abschluss|diplôme)\b/i] },
   { key: 'languages', canonical: 'languages', category: 'derived', scope: 'person', input: 'text', ask: 'Languages you speak', patterns: [/\b(which )?languages?\b.*\b(speak|fluent|proficien)|\blanguage skills\b|sprachkenntnisse/i] },
   {
     key: 'source', canonical: 'application_source', category: 'verified', scope: 'person', input: 'text', ask: 'How you heard about the job',
-    patterns: [/\b(how did you (hear|find|learn)|where did you (hear|find|see)|referral source|source of application|how did you come across)\b/i],
+    patterns: [/\b(how did you (hear|find|learn)|where did you (hear|find|see)|referral source|source of application|how did you come across|where have you (seen|heard)|heard about us)\b/i],
   },
 ];
 

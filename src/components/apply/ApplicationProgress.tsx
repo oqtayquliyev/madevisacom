@@ -2,7 +2,6 @@ import { ArrowRight, Check, Mail, Pause, Play, Square } from 'lucide-react';
 import { tally } from '@/lib/apply/runner';
 import type { App, ApplyStatus, Phase, QueueInfo } from '@/lib/apply/store';
 import { nav } from '@/lib/pageLayout';
-import { TestimonialTicker } from '@/components/common/Testimonials';
 import { MatchRing } from '@/components/cv/MatchBits';
 import { ApplicationQueue } from '@/components/apply/ApplicationQueue';
 import { BTN } from '@/components/apply/ui';
@@ -54,7 +53,7 @@ type Props = {
 };
 
 /** One screen for the whole batch while it runs: which job, how many are done, what needs the person. */
-export function ApplicationProgress({ apps, queue, status, phase, error, onPause, onResume, onStop, onOpen, onPrefs }: Props) {
+export function ApplicationProgress({ apps, queue, status, phase, error, onPause, onResume, onStop, onPrefs }: Props) {
   const t = tally(apps);
   const submitted = t.sent + t.sentByYou;
   const done = t.total - t.pending;
@@ -172,15 +171,17 @@ export function ApplicationProgress({ apps, queue, status, phase, error, onPause
       )}
 
       {attention.length > 0 && (
-        <div className="mx-4 mt-4 sm:mx-6">
-          <p className="mb-1.5 text-[13px] font-bold text-ink-950">Needs your attention — the rest carry on</p>
-          <ApplicationQueue apps={attention} onOpen={onOpen} />
-        </div>
+        <p className="mx-4 mt-4 pb-5 sm:mx-6">
+          <button
+            type="button"
+            onClick={() => document.getElementById('applications')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            className="text-[13.5px] font-bold text-amber-800 hover:underline"
+          >
+            {attention.length} {attention.length === 1 ? 'needs' : 'need'} you — see below ↓
+          </button>
+        </p>
       )}
-
-      <div className="mt-5 border-t border-ink-100 px-4 py-4 sm:px-6">
-        <TestimonialTicker every={4200} />
-      </div>
+      {attention.length === 0 && <div className="pb-5" />}
     </section>
   );
 }

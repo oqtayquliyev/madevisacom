@@ -7,6 +7,7 @@ import { cvDownloadUrl, type StoredCv } from '@/lib/cv/store';
 import type { Needed } from '@/lib/apply/types';
 import { ApplicationStatus, VerifiedBadge } from '@/components/apply/ApplicationStatus';
 import { Sheet } from '@/components/apply/Sheet';
+import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { BTN, FIELD } from '@/components/apply/ui';
 
 const ago = (iso: string | null) => {
@@ -155,6 +156,16 @@ function Answers({ app, cv, onDone }: { app: App; cv: StoredCv | null; onDone: (
   const input = (n: Needed) => {
     const v = values[n.id] ?? '';
     const set = (x: string) => setValues((s) => ({ ...s, [n.id]: x }));
+    if ((n.options?.length ?? 0) > 6) {
+      return (
+        <select value={v} onChange={(e) => set(e.target.value)} aria-label={n.label} className={FIELD}>
+          <option value="">Choose…</option>
+          {n.options!.map((o) => (
+            <option key={o}>{o}</option>
+          ))}
+        </select>
+      );
+    }
     if (n.options?.length || n.kind === 'yesno' || n.kind === 'checkbox') {
       const opts = n.options?.length ? n.options : ['Yes', 'No'];
       return (
@@ -178,17 +189,17 @@ function Answers({ app, cv, onDone }: { app: App; cv: StoredCv | null; onDone: (
     onDone();
   };
   return (
-    <div className="mb-4">
-      <ul className="space-y-4">
+    <div className="mb-4 rounded-2xl p-4 ring-2 ring-brand-200">
+      <p className="text-[12px] font-bold uppercase tracking-wide text-brand-700">Your input needed · {app.needs.length}</p>
+      <ul className="mt-3 space-y-4">
         {app.needs.map((n) => (
           <li key={n.id}>
-            <p className="text-[14px] font-bold leading-snug text-ink-950">{n.label}</p>
-            <p className="mb-2 text-[12px] text-ink-500">{n.why}</p>
+            <p className="mb-2 text-[14px] font-bold leading-snug text-ink-950">{n.label}</p>
             {input(n)}
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[12px] text-ink-500">Saved to your application profile, so MadeVisa won’t ask again.</p>
+      <p className="mt-3 text-[12px] text-ink-500">Saved, so you’re asked once.</p>
       {error && <p className="mt-2 text-[13px] text-rose-700">{error}</p>}
       <button onClick={send} disabled={!ready || busy} className={`${BTN.primary} mt-3 w-full`}>
         {busy ? 'Saving…' : 'Save answer & let MadeVisa apply'}
@@ -270,7 +281,8 @@ function Consent({ app, cv, onDone }: { app: App; cv: StoredCv | null; onDone: (
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
-    <div className="mb-4 rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200">
+    <div className="mb-4 rounded-2xl p-4 ring-2 ring-brand-200">
+      <p className="mb-3 text-[12px] font-bold uppercase tracking-wide text-brand-700">Your input needed</p>
       <label className="flex cursor-pointer items-start gap-3 text-[14px] font-semibold leading-5 text-ink-950">
         <input type="checkbox" checked={yes} onChange={(e) => setYes(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" />
         <span>I agree to {app.company}’s privacy notice</span>
@@ -290,6 +302,16 @@ function Consent({ app, cv, onDone }: { app: App; cv: StoredCv | null; onDone: (
         {busy ? 'Starting…' : 'Submit it for me'}
       </button>
     </div>
+  );
+}
+
+/** The employer's logo, or its initials. */
+function Logo({ src, name }: { src: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-ink-200 bg-white">
+      {src && !failed ? <img src={src} alt="" width={44} height={44} onError={() => setFailed(true)} className="h-full w-full object-contain p-1" /> : <CompanyLogo name={name} size={36} />}
+    </span>
   );
 }
 
@@ -380,13 +402,13 @@ function tip(app: App): string | null {
 
 const RETRYABLE = new Set(['captcha', 'fill_failed', 'form_refused', 'handover', 'dry_run', 'no_submit', 'unreachable', 'error', 'retries', 'timeout', 'worker_error', 'mail_not_set_up', 'channel_off', 'unconfirmed', 'prepare']);
 
-type Props = { app: App; cv: StoredCv | null; onClose: () => void };
+type Props = { app: App; cv: StoredCv | null; logo?: string | null; onClose: () => void };
 
 /**
  * One application, opened: what it is waiting on, or — once submitted — the
  * receipt of exactly what was sent, with which email, and the employer's confirmation.
  */
-export function ApplicationReceipt({ app, cv, onClose }: Props) {
+export function ApplicationReceipt({ app, cv, logo = null, onClose }: Props) {
   const [r, setR] = useState<Receipt | null>(null);
   const [busy, setBusy] = useState(false);
   const [details, setDetails] = useState(false);
@@ -404,8 +426,16 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
     if (url) window.open(url, '_blank', 'noopener');
   };
   const attention = app.status === 'needs_attention' || app.status === 'blocked' || app.status === 'failed';
+  const asking = app.status === 'needs_attention' && app.needs.length > 0 && !(isConsentStop(app.reason) && app.needs.every((n) => n.key === 'consent' || /privacy/i.test(n.label)));
   const consent = app.status === 'needs_attention' && isConsentStop(app.reason) && app.needs.every((n) => n.key === 'consent' || /privacy/i.test(n.label));
-  const title = app.status === 'submitted' ? 'Application submitted' : attention ? 'Review application' : ['queued', 'analyzing', 'preparing', 'ready', 'submitting'].includes(app.status) ? 'Application in progress' : 'Your application';
+  const title =
+    app.status === 'submitted'
+      ? `${app.company}: application submitted`
+      : attention
+        ? `Review your ${app.company} application`
+        : ['queued', 'analyzing', 'preparing', 'ready', 'submitting'].includes(app.status)
+          ? `${app.company}: application in progress`
+          : `Your ${app.company} application`;
 
   return (
     <Sheet
@@ -414,10 +444,12 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
       onClose={onClose}
       wide
       sub={
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="font-semibold text-ink-900">{app.title}</span>
-          <span>{app.company}</span>
-          <span className="tabular-nums">{app.score}% match</span>
+        <span className="mt-1 flex items-center gap-3">
+          <Logo src={logo} name={app.company} />
+          <span className="min-w-0">
+            <span className="block truncate font-semibold text-ink-900">{app.title}</span>
+            <span className="block text-[12.5px] tabular-nums text-ink-500">{app.score}% match</span>
+          </span>
         </span>
       }
     >
@@ -430,7 +462,7 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
       <Timeline app={app} />
 
       {attention && consent && <Consent app={app} cv={cv} onDone={onClose} />}
-      {attention && !consent && (
+      {attention && !consent && !asking && (
         <div className="mb-4 rounded-2xl bg-amber-50 p-3.5 ring-1 ring-amber-200">
           <p className="flex items-start gap-2 text-[13.5px] font-semibold leading-5 text-amber-950">
             {app.status === 'blocked' ? <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /> : <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />}
@@ -453,7 +485,7 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
           )}
         </div>
       )}
-      {app.status === 'needs_attention' && app.needs.length > 0 && !consent && <Answers app={app} cv={cv} onDone={onClose} />}
+      {asking && <Answers app={app} cv={cv} onDone={onClose} />}
       {attention && (
         <div className="mb-4">
           {(consent || app.needs.length > 0 || RETRYABLE.has(app.reasonCode ?? '')) && <p className="text-[12.5px] font-semibold text-ink-500">Or apply yourself</p>}

@@ -15,7 +15,8 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
 import { MatchRing, toneFor } from '@/components/cv/MatchBits';
-import { AutoApply } from '@/components/apply/AutoApply';
+import { AutoApply, AutoApplyTracker } from '@/components/apply/AutoApply';
+import { useApplyState } from '@/lib/apply/store';
 
 // The pieces that show "the jobs you match most":
 //   SearchProgress     while the search runs (with a few true, encouraging lines)
@@ -509,6 +510,10 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
   const [all, setAll] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const items = result.items;
+  // Once there are applications, they come first; the full list of matches stays one tap away.
+  const applied = useApplyState().apps.length > 0 && Boolean(session);
+  const [browse, setBrowse] = useState(false);
+  const logos = useMemo(() => new Map(items.map((m) => [m.id, m.logo])), [items]);
   const t = tiers(items);
   const guest = !session;
   // A result that has just been worked out builds up step by step; a saved one is simply there.
@@ -609,7 +614,7 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
         </h2>
         <p className="mx-auto mt-2 max-w-xl text-[14px] leading-6 text-ink-600">
           {items.length} {items.length === 1 ? 'job matches' : 'jobs match'} your CV
-          {facts.countries > 1 ? `, in ${facts.countries} countries` : ''}. Start with this one.
+          {facts.countries > 1 ? `, in ${facts.countries} countries` : ''}.{applied ? '' : ' Start with this one.'}
         </p>
       </div>
 
@@ -622,6 +627,21 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
         <AutoApply result={result} places={facts.kinds} onAuth={onAuth} onAgain={guest ? undefined : onAgain} canImprove={canReach || tips.length > 0} />
       </div>
 
+      {applied && (
+        <div className="mt-8">
+          <AutoApplyTracker logos={logos} />
+        </div>
+      )}
+      {applied && !browse && (
+        <p className="mt-6 text-center">
+          <button onClick={() => setBrowse(true)} className="rounded-full px-4 py-2 text-[13px] font-bold text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50">
+            See all {items.length} matches
+          </button>
+        </p>
+      )}
+
+      {(!applied || browse) && (
+      <>
       <Roadmap lead={lead} place={leadPlace} doc={doc} from={visitor.currentLocation} step={step} fresh={fresh} />
 
       {tips.length > 0 && <CvFixes tips={tips} className={shown(step >= 4)} />}
@@ -681,6 +701,8 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
           </button>
         )}
       </p>
+      </>
+      )}
     </section>
   );
 }
