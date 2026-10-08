@@ -38,7 +38,7 @@ export type QueueInfo = {
   finishedAt?: string | null;
 };
 /** What is kept with the batch: the plan the person saw, and their answers (so a refresh loses nothing). */
-export type StoredPlan = Pick<BatchPlan, 'ask' | 'extra' | 'coverage' | 'reused' | 'ready'> & { jobs: Pick<BatchPlan['jobs'][number], 'id' | 'outcome' | 'reasonCode'>[]; given?: Record<string, string> };
+export type StoredPlan = Pick<BatchPlan, 'ask' | 'extra' | 'coverage' | 'reused' | 'ready'> & { jobs: Pick<BatchPlan['jobs'][number], 'id' | 'outcome' | 'reasonCode'>[]; given?: Record<string, string>; auto?: boolean };
 
 export type ApplyStatus = {
   signedIn: boolean;
@@ -60,6 +60,9 @@ export type ApplyStatus = {
   worker?: { online: boolean; autoSubmit?: boolean; waitMinutes?: number | null };
   queue: QueueInfo | null;
 };
+
+/** Pro auto-apply to new jobs. */
+export type AutoStatus = { on: boolean; checkedAt: string | null; thisMonth: number };
 
 /** Where the batch is, as the page shows it. */
 export type Phase =
@@ -83,6 +86,7 @@ type State = {
   queue: QueueInfo | null;
   apps: App[];
   phase: Phase;
+  auto: AutoStatus | null;
   error: string | null;
   loadedFor: string | null;
 };
@@ -99,6 +103,7 @@ let state: State = {
   queue: null,
   apps: [],
   phase: { kind: 'idle' },
+  auto: null,
   error: null,
   loadedFor: null,
 };
@@ -147,6 +152,8 @@ const cleanPrefs = (raw: unknown): ApplyPrefs => {
     relocate: p.relocate !== false,
     maxPerDay: Math.min(40, Math.max(1, Number(p.maxPerDay) || DEFAULT_PREFS.maxPerDay)),
     alwaysAsk: Array.isArray(p.alwaysAsk) ? list(p.alwaysAsk) : DEFAULT_PREFS.alwaysAsk,
+    autoNew: p.autoNew === true,
+    autoConsent: p.autoConsent === true,
   };
 };
 
@@ -200,7 +207,26 @@ async function load(userId: string, account: Profile | null, email: string | nul
     profile: { ...merged, byCountry: saved.byCountry ?? {} },
   });
   await readApps();
+  void readAuto();
   if (s.queue && (s.queue.state === 'running' || s.queue.state === 'paused')) watch();
+}
+
+async function readAuto(): Promise<void> {
+  const { data, error } = await supabase.rpc('apply_auto_status');
+  if (!error && data) set({ auto: data as AutoStatus });
+}
+
+/**
+ * Pro: switch "auto-apply to new jobs" on or off. Switching it on also lets MadeVisa accept employers'
+ * required privacy notices for the person (the page says so next to the switch).
+ */
+export async function setAutoApply(on: boolean): Promise<{ ok: boolean; error?: string }> {
+  const r = await savePrefs({ ...state.prefs, autoNew: on, autoConsent: on });
+  if (r.ok) {
+    set({ auto: { ...(state.auto ?? { checkedAt: null, thisMonth: 0 }), on } });
+    if (on) kick();
+  }
+  return r;
 }
 
 function reset(): void {

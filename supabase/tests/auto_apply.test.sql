@@ -151,6 +151,8 @@ END $$;
 CREATE FUNCTION t.reset_day() RETURNS void LANGUAGE sql SECURITY DEFINER AS $$ UPDATE public.job_applications SET day_started = day_started - 1 WHERE day_started IS NOT NULL $$;
 
 \echo '2. allowance comes with the plan; the worker is reported offline until one checks in'
+-- Since 20261209090000 a free account has 3 a month; these tests were written for 5.
+UPDATE public.apply_settings SET free_monthly = 5;
 DO $$
 DECLARE s jsonb;
 BEGIN
@@ -342,12 +344,18 @@ BEGIN
   ASSERT t.used('pro') = 2 AND t.events('pro', 'application_credit_refunded') = 2, t.used('pro')::text;
   -- Told once: the bell and one email.
   ASSERT (SELECT title FROM public.notifications WHERE user_id = t.id('pro') AND kind = 'auto_apply_done') = '2 applications submitted';
-  SELECT count(*) INTO n FROM net.calls WHERE body->'to'->>0 = 'leyla@example.com';
+  SELECT count(*) INTO n FROM net.calls WHERE headers->>'Idempotency-Key' LIKE 'madevisa-batch-%';
   ASSERT n = 1, n::text;
-  ASSERT (SELECT headers->>'Idempotency-Key' FROM net.calls WHERE body->'to'->>0 = 'leyla@example.com') = 'madevisa-batch-' || t.queue('pro');
-  ASSERT (SELECT body->>'text' FROM net.calls WHERE body->'to'->>0 = 'leyla@example.com') LIKE '%2 applications were submitted%using leyla@example.com%';
+  ASSERT (SELECT headers->>'Idempotency-Key' FROM net.calls WHERE headers->>'Idempotency-Key' LIKE 'madevisa-batch-%') = 'madevisa-batch-' || t.queue('pro');
+  ASSERT (SELECT body->>'text' FROM net.calls WHERE headers->>'Idempotency-Key' LIKE 'madevisa-batch-%') LIKE '%2 applications were submitted%using leyla@example.com%';
   PERFORM public.apply_queue_settle(t.queue('pro'));
-  ASSERT (SELECT count(*) FROM net.calls WHERE body->'to'->>0 = 'leyla@example.com') = 1, 'never told twice';
+  ASSERT (SELECT count(*) FROM net.calls WHERE headers->>'Idempotency-Key' LIKE 'madevisa-batch-%') = 1, 'never told twice';
+  -- And one "You applied" email for each application MadeVisa submitted, to the email it used.
+  ASSERT (SELECT count(*) FROM net.calls WHERE headers->>'Idempotency-Key' LIKE 'madevisa-applied-%') = 2;
+  ASSERT (SELECT body->>'subject' FROM net.calls WHERE headers->>'Idempotency-Key' = 'madevisa-applied-' || t.app('pro', 'j1')) = 'You applied: Role number 1 at Beta BV';
+  ASSERT (SELECT body->'to'->>0 FROM net.calls WHERE headers->>'Idempotency-Key' = 'madevisa-applied-' || t.app('pro', 'j1')) = 'leyla@example.com';
+  ASSERT (SELECT body->>'text' FROM net.calls WHERE headers->>'Idempotency-Key' = 'madevisa-applied-' || t.app('pro', 'j1')) LIKE 'Hey there,%You applied for Role number 1 at Beta BV.%';
+  ASSERT (SELECT count(*) FROM public.notifications WHERE user_id = t.id('pro') AND kind = 'application_submitted') = 2;
 END $$;
 
 \echo '8. needs attention: the person submits it themselves (not verified, no credit) or lets MadeVisa try again'
@@ -360,6 +368,9 @@ BEGIN
   r := public.apply_move(b, 'submitted', jsonb_build_object('confirmation', jsonb_build_object('kind', 'site', 'id', 'forged')));
   ASSERT (r->>'ok')::boolean AND NOT (r->'app'->>'verified')::boolean AND r->'app'->'confirmation'->>'kind' = 'self', r::text;
   ASSERT (public.apply_status()->>'used')::int = 2, 'self-submitted uses nothing by default';
+  PERFORM t.out();
+  ASSERT NOT EXISTS (SELECT 1 FROM net.calls WHERE headers->>'Idempotency-Key' = 'madevisa-applied-' || b), 'no "you applied" email for one the person sent themselves';
+  PERFORM t.as('pro');
   -- Try again: back to ready, and the batch runs again.
   r := public.apply_move(a, 'ready'); ASSERT (r->>'ok')::boolean;
   r := public.apply_queue_set(t.queue('pro'), 'running');
@@ -557,6 +568,52 @@ BEGIN
     RAISE EXCEPTION 'a person read the workers';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+  PERFORM t.out();
+END $$;
+
+\echo '17. auto-apply with Pro: who is due, new jobs, and acting for the person with the same rules'
+DO $$
+DECLARE r jsonb; d jsonb; q jsonb; a uuid;
+BEGIN
+  UPDATE public.apply_settings SET daily_max = 40;
+  -- Only Pro members with it switched on and a CV.
+  INSERT INTO public.user_cvs (user_id, file_name, text) VALUES (t.id('pro'), 'cv.pdf', 'Leyla CV'), (t.id('free'), 'cv.pdf', 'CV');
+  INSERT INTO public.application_preferences (user_id, prefs) VALUES (t.id('pro'), '{"autoNew": true, "autoConsent": true, "minScore": 80}')
+  ON CONFLICT (user_id) DO UPDATE SET prefs = application_preferences.prefs || excluded.prefs;
+  INSERT INTO public.application_preferences (user_id, prefs) VALUES (t.id('free'), '{"autoNew": true}') ON CONFLICT (user_id) DO UPDATE SET prefs = excluded.prefs;
+  UPDATE public.application_queues SET state = 'stopped' WHERE user_id = t.id('pro') AND state IN ('analyzing', 'awaiting_answers');
+  PERFORM t.as('service'); d := public.apply_auto_due(10); PERFORM t.out();
+  ASSERT jsonb_array_length(d) = 1 AND d->0->>'userId' = t.id('pro')::text, d::text || (SELECT jsonb_build_object('prefs', (SELECT prefs FROM application_preferences WHERE user_id = t.id('pro')), 'cv', (SELECT count(*) FROM user_cvs WHERE user_id = t.id('pro')), 'pro', public.is_pro(t.id('pro')), 'used', public.apply_used(t.id('pro')), 'lim', public.apply_limit(t.id('pro')), 'enabled', (SELECT enabled FROM apply_settings))::text);
+  ASSERT (d->0->'prefs'->>'autoConsent')::boolean;
+  -- New jobs: published, not applied to.
+  PERFORM t.as('service'); r := public.apply_auto_jobs(t.id('pro'), now() - interval '1 day'); PERFORM t.out();
+  ASSERT NOT EXISTS (SELECT 1 FROM jsonb_array_elements(r) x WHERE (x->>'id')::uuid IN (SELECT job_id FROM public.job_applications WHERE user_id = t.id('pro'))), 'a job applied to before came back';
+  ASSERT EXISTS (SELECT 1 FROM jsonb_array_elements(r) x WHERE (x->>'id')::uuid = t.id('j12')), r::text;
+  -- The worker queues and prepares for the person: the batch runs straight away, with the email given.
+  PERFORM t.as('service');
+  q := public.apply_auto_enqueue(t.id('pro'), t.items('j12'), 'pro-auto@example.com', '{"consent": "Yes"}');
+  a := (q->'applications'->0->>'id')::uuid;
+  ASSERT q->'queue'->>'state' = 'running' AND q->'queue'->>'email' = 'pro-auto@example.com' AND (q->'queue'->'plan'->>'auto')::boolean, q::text;
+  r := public.apply_auto_move(t.id('pro'), a, 'analyzing'); ASSERT (r->>'ok')::boolean, r::text;
+  r := public.apply_auto_move(t.id('pro'), a, 'preparing'); ASSERT (r->>'ok')::boolean, r::text;
+  PERFORM public.apply_auto_save(t.id('pro'), a, jsonb_build_object('name', 'CV', 'content', 'Leyla…', 'meta', '{}'::jsonb), NULL, NULL, '{"consent": "Yes"}');
+  r := public.apply_auto_move(t.id('pro'), a, 'ready'); ASSERT (r->>'ok')::boolean, r::text;
+  -- The same rules as the page: it can't call it submitted.
+  r := public.apply_auto_move(t.id('pro'), a, 'submitted');
+  ASSERT r->>'code' = 'invalid', r::text;
+  PERFORM public.apply_auto_mark(t.id('pro'), now(), 1);
+  d := public.apply_auto_due(10);
+  PERFORM t.out();
+  ASSERT jsonb_array_length(d) = 0, 'checked just now: not due again';
+  ASSERT (SELECT applied FROM public.apply_auto_state WHERE user_id = t.id('pro')) = 1;
+  -- Nobody but the worker.
+  PERFORM t.as('pro');
+  BEGIN
+    PERFORM public.apply_auto_enqueue(t.id('free'), t.items('j11'), 'x@example.com');
+    RAISE EXCEPTION 'a person queued applications for someone else';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  ASSERT (public.apply_auto_status()->>'on')::boolean;
   PERFORM t.out();
 END $$;
 

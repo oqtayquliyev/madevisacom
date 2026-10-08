@@ -7,7 +7,7 @@ import { plan, twinsIn } from '@/lib/apply/decision';
 import { factsOf } from '@/lib/apply/facts';
 import { isPending } from '@/lib/apply/machine';
 import { completeness, confidence } from '@/lib/apply/profile';
-import { applyEmail, cancelBatch, confirmBatch, loadServerFacts, logEvent, pause, reopenBatch, resume, startBatch, stop, useAutoApply, type App } from '@/lib/apply/store';
+import { applyEmail, setAutoApply, cancelBatch, confirmBatch, loadServerFacts, logEvent, pause, reopenBatch, resume, startBatch, stop, useAutoApply, type App } from '@/lib/apply/store';
 import type { PlaceKind } from '@/lib/apply/types';
 import { ApplicationPreferences } from '@/components/apply/ApplicationPreferences';
 import { ApplicationAnalyzing, ApplicationDone, ApplicationProgress } from '@/components/apply/ApplicationProgress';
@@ -120,9 +120,11 @@ export function AutoApply({ result, places, onAuth, onAgain }: Props) {
 
   const pending = batch.some((a) => isPending(a.status));
   const settingUp = auto.queue && ['analyzing', 'awaiting_answers'].includes(auto.queue.state);
-  const active = auto.phase.kind === 'preparing' || Boolean(auto.queue && ['running', 'paused'].includes(auto.queue.state) && pending);
+  // Batches MadeVisa started by itself (Pro auto-apply) run quietly: they show in "Your applications", not here.
+  const mine = !auto.queue?.plan?.auto;
+  const active = auto.phase.kind === 'preparing' || Boolean(mine && auto.queue && ['running', 'paused'].includes(auto.queue.state) && pending);
   const recent = auto.queue ? Date.now() - Date.parse(auto.queue.createdAt) < 3 * 86_400_000 : false;
-  const finished = !active && !settingUp && Boolean(auto.queue?.confirmedAt) && ['done', 'stopped', 'running', 'paused'].includes(auto.queue!.state) && batch.some((a) => a.status !== 'skipped') && recent && hidden !== auto.queue!.id;
+  const finished = mine && !active && !settingUp && Boolean(auto.queue?.confirmedAt) && ['done', 'stopped', 'running', 'paused'].includes(auto.queue!.state) && batch.some((a) => a.status !== 'skipped') && recent && hidden !== auto.queue!.id;
 
   const apply = async (list: typeof selected) => {
     setError(null);
@@ -138,7 +140,8 @@ export function AutoApply({ result, places, onAuth, onAgain }: Props) {
     }
     // Recommended defaults are already set: nothing to configure before applying.
     if (next === 'review') setSheet('review');
-    else void apply(selected);
+    // Quick apply: the top 3.
+    else void apply(planned.auto.slice(0, 3));
   };
   const dismiss = () => {
     if (!auto.queue) return;
@@ -182,7 +185,15 @@ export function AutoApply({ result, places, onAuth, onAgain }: Props) {
           onDismiss={dismiss}
         />
       ) : (
-        <ApplicationSummary plan={planned} total={result.items.length} status={status} minScore={auto.prefs.minScore} onApply={() => begin('apply')} onReview={() => begin('review')} onPrefs={() => (signedIn ? setSheet('prefs') : begin('apply'))} />
+        <ApplicationSummary
+          top={planned.auto.slice(0, 3)}
+          status={status}
+          auto={auto.auto}
+          onApply={() => begin('apply')}
+          onChoose={() => begin('review')}
+          onAuto={async (on) => void (await setAutoApply(on))}
+          onAuth={onAuth}
+        />
       )}
       {error && !active && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-800">{error}</p>}
 

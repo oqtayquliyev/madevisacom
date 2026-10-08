@@ -158,6 +158,10 @@ export type ApplyPrefs = {
   maxPerDay: number;
   /** Questions MadeVisa must never answer without asking. */
   alwaysAsk: QuestionKey[];
+  /** Pro: MadeVisa applies to new matching jobs by itself (worker/src/auto.ts). */
+  autoNew?: boolean;
+  /** Turned on together with autoNew: required privacy notices may be accepted for the person. */
+  autoConsent?: boolean;
 };
 
 export const DEFAULT_PREFS: ApplyPrefs = {

@@ -18,6 +18,7 @@
 import { hostname } from 'node:os';
 import { createClient } from '@supabase/supabase-js';
 import { chromium, type Browser } from 'playwright-core';
+import { autoApply } from './auto';
 import { processJob, type Job, type Report } from './run';
 
 const VERSION = '1.0.0';
@@ -113,7 +114,14 @@ async function main() {
   log('starting', VERSION);
   let settings = { enabled: true, autoSubmit: true, concurrency: 2 };
   let beatAt = 0;
+  let autoAt = 0;
   while (!stopping) {
+    // Pro members with auto-apply on: new matching jobs become ready applications (at most every 10 minutes).
+    if (settings.enabled && Date.now() - autoAt > 10 * 60_000) {
+      autoAt = Date.now();
+      const n = await autoApply(rpc, fetch, log).catch((e) => (log('auto', String(e)), 0));
+      if (n) log('auto: prepared', n);
+    }
     if (Date.now() - beatAt > 30_000) {
       settings = (await rpc<typeof settings>('apply_worker_beat', { p_worker: WORKER, p_version: VERSION, p_info: { host: hostname(), node: process.version, ...(EVERY ? { mode: 'scheduled', everyMinutes: EVERY } : {}) } })) ?? settings;
       beatAt = Date.now();

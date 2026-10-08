@@ -247,6 +247,7 @@ type Props = { app: App; cv: StoredCv | null; onClose: () => void };
 export function ApplicationReceipt({ app, cv, onClose }: Props) {
   const [r, setR] = useState<Receipt | null>(null);
   const [busy, setBusy] = useState(false);
+  const [details, setDetails] = useState(false);
   useEffect(() => {
     let alive = true;
     setR(null);
@@ -287,7 +288,7 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
         <div className="mb-4 rounded-2xl bg-amber-50 p-3.5 ring-1 ring-amber-200">
           <p className="flex items-start gap-2 text-[13.5px] leading-5 text-amber-950">
             {app.status === 'blocked' ? <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /> : <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />}
-            <span>{app.reason ?? 'MadeVisa couldn’t finish this application by itself.'}</span>
+            <span>{app.reasonCode === 'handover' ? 'This application was prepared but not sent yet.' : app.reason ?? 'MadeVisa couldn’t finish this application by itself.'}</span>
           </p>
           {app.reasonCode === 'unconfirmed' && <p className="mt-1.5 text-[12.5px] leading-5 text-amber-900">Check {app.emailUsed ?? 'your inbox'} for a confirmation from {app.company} before trying again.</p>}
           {app.status !== 'blocked' && app.needs.length === 0 && RETRYABLE.has(app.reasonCode ?? '') && (
@@ -299,9 +300,9 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
                 setBusy(false);
                 onClose();
               }}
-              className={`${BTN.small} mt-3`}
+              className={`${app.reasonCode === 'handover' ? BTN.primary : BTN.small} mt-3`}
             >
-              {busy ? 'Starting…' : 'Let MadeVisa try again'}
+              {busy ? 'Starting…' : app.reasonCode === 'handover' ? 'Let MadeVisa submit it' : 'Let MadeVisa try again'}
             </button>
           )}
         </div>
@@ -309,7 +310,7 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
       {app.status === 'needs_attention' && app.needs.length > 0 && <Answers app={app} cv={cv} onDone={onClose} />}
       {attention && (
         <div className="mb-4">
-          <p className="text-[13px] font-semibold text-ink-800">{app.needs.length > 0 ? 'Or finish it yourself' : 'Finish it yourself'} — everything below is prepared for it.</p>
+          <p className="text-[13px] font-semibold text-ink-800">{app.needs.length > 0 || RETRYABLE.has(app.reasonCode ?? '') ? 'Or do it yourself' : 'Finish it yourself'}</p>
           <FinishYourself app={app} onDone={onClose} />
         </div>
       )}
@@ -361,7 +362,18 @@ export function ApplicationReceipt({ app, cv, onClose }: Props) {
 
       {['skipped', 'already_applied', 'expired'].includes(app.status) && app.reason && <p className="mb-4 rounded-2xl bg-ink-50 p-3.5 text-[13px] leading-5 text-ink-700">{app.reason}</p>}
 
-      {r ? (r.cv || r.letter || r.answers.length > 0) && <Documents r={r} app={app} /> : <p className="py-6 text-center text-[13px] text-ink-500">Loading what was prepared…</p>}
+      {r && (r.cv || r.letter || r.answers.length > 0) && (
+        <div className="mt-2">
+          <button type="button" onClick={() => setDetails(!details)} aria-expanded={details} className={BTN.link}>
+            {details ? 'Hide details' : 'Show CV, cover letter and answers'}
+          </button>
+          {details && (
+            <div className="mt-3">
+              <Documents r={r} app={app} />
+            </div>
+          )}
+        </div>
+      )}
       {app.status === 'submitted' && r && <Outcomes app={app} r={r} onChange={(o) => setR({ ...r, outcomes: o })} />}
     </Sheet>
   );
