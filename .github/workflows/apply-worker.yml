@@ -52,7 +52,7 @@ jobs:
           if [ "$n" = "0" ] && [ "${due:-0}" != "0" ]; then n=1; fi
           echo "count=$n" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         if: steps.queue.outputs.count != '0'
         with:
           sparse-checkout: |
@@ -61,10 +61,10 @@ jobs:
             src/lib/cv
             src/lib/jobTaxonomy.ts
             supabase/functions/apply
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: steps.queue.outputs.count != '0'
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: worker/package-lock.json
       - name: Install
