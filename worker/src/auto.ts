@@ -11,6 +11,7 @@
 
 import type { BatchContext, BatchJob } from '../../src/lib/apply/batch';
 import { coverLetter, letterReason } from '../../src/lib/apply/coverLetter';
+import { needsLogin } from '../../src/lib/apply/login';
 import { prepareBatch, type MoveResult } from '../../src/lib/apply/runner';
 import { tailorCv, tailoredName, untouchedCv, verifyTailored } from '../../src/lib/apply/tailor';
 import { DEFAULT_PREFS, type Application, type ApplyPrefs, type ApplyProfile } from '../../src/lib/apply/types';
@@ -33,7 +34,7 @@ type Due = {
   since: string;
   left: number;
 };
-type NewJob = { id: string; title: string; company: string | null; publisherId: string | null; cc: string | null; country: string | null; html: string; jobFunction: string | null; experience: string | null; at: string };
+type NewJob = { url?: string | null; id: string; title: string; company: string | null; publisherId: string | null; cc: string | null; country: string | null; html: string; jobFunction: string | null; experience: string | null; at: string };
 
 /** At most this many applications per person per check. */
 const PER_RUN = 15;
@@ -66,7 +67,8 @@ async function forPerson(d: Due, rpc: Rpc, fetcher: typeof fetch, log: (...a: un
       return { j, job, score: matchCv(cv, d.cvText, job).score };
     })
     .filter((x) => x.score >= prefs.minScore)
-    .sort((a, b) => b.score - a.score);
+    // Sites MadeVisa can submit on by itself first; ones needing the person's own login last.
+    .sort((a, b) => Number(needsLogin(a.j.url)) - Number(needsLogin(b.j.url)) || b.score - a.score);
   // One per company and role.
   const seen = new Set<string>();
   const picked = scored.filter((x) => {

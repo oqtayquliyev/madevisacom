@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, Check, Copy, Download, FileText, HelpCircle, Image as ImageIcon, Lock } from 'lucide-react';
+import { ArrowUpRight, Check, Copy, Download, FileText, HelpCircle, Image as ImageIcon, Lock, Zap } from 'lucide-react';
 import { docxBytes, downloadBytes, letterLines } from '@/lib/apply/docx';
 import { isConsentStop } from '@/lib/apply/login';
-import { STAGES, STAGE_LABEL, useApplyState, acceptConsent, answerAttention, fetchReceipt, fileLink, markSent, recordOutcome, retry, skip, type App, type Receipt, type Stage } from '@/lib/apply/store';
+import { STAGES, STAGE_LABEL, useApplyState, sendNow, acceptConsent, answerAttention, fetchReceipt, fileLink, markSent, recordOutcome, retry, skip, type App, type Receipt, type Stage } from '@/lib/apply/store';
 import { cvDownloadUrl, type StoredCv } from '@/lib/cv/store';
 import type { Needed } from '@/lib/apply/types';
 import { ApplicationStatus, VerifiedBadge } from '@/components/apply/ApplicationStatus';
 import { Sheet } from '@/components/apply/Sheet';
+import { SendingBar } from '@/components/apply/SendingBar';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { BTN, FIELD } from '@/components/apply/ui';
 
@@ -331,7 +332,7 @@ function Timeline({ app }: { app: App }) {
         : q?.state === 'paused'
           ? 'Paused. Press Continue to carry on.'
           : app.status === 'ready' && !online
-            ? 'Ready, and waiting for MadeVisa’s application service to pick it up.'
+            ? 'Ready to send.'
             : app.status === 'ready' && (st.status?.worker?.waitMinutes ?? 0) > 0
               ? `Ready. MadeVisa submits it within ${st.status!.worker!.waitMinutes} minutes.`
               : app.status === 'submitting'
@@ -358,7 +359,16 @@ function Timeline({ app }: { app: App }) {
           );
         })}
       </ol>
-      {wait && <p className="mt-3 text-[13px] leading-5 text-ink-600">{wait}</p>}
+      {app.status === 'ready' && st.sending && (!st.sending.ids || st.sending.ids.includes(app.id)) ? (
+        <SendingBar className="mt-3" />
+      ) : (
+        wait && <p className="mt-3 text-[13px] leading-5 text-ink-600">{wait}</p>
+      )}
+      {app.status === 'ready' && !st.sending && (
+        <button type="button" onClick={() => void sendNow([app.id])} className={`${BTN.primary} mt-3 w-full`}>
+          <Zap className="h-4 w-4" /> Apply now
+        </button>
+      )}
     </div>
   );
 }

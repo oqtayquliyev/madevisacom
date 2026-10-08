@@ -64,16 +64,18 @@ Deno.serve(
     kick: async () => {
       const token = Deno.env.get('GITHUB_DISPATCH_TOKEN') ?? '';
       const repo = Deno.env.get('GITHUB_REPO') ?? '';
-      if (!token || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return false;
+      if (!token || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return 'not_set_up';
       const due = await service.rpc('apply_kick_due');
-      if (due.error || !due.data) return false;
+      // Started less than a minute ago: it is on its way already.
+      if (due.error) return 'failed';
+      if (!due.data) return 'recent';
       const res = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'madevisa-apply', 'Content-Type': 'application/json' },
         body: JSON.stringify({ event_type: 'apply' }),
         signal: AbortSignal.timeout(15_000),
       });
-      return res.ok;
+      return res.ok ? 'started' : 'failed';
     },
   }),
 );

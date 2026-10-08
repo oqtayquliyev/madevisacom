@@ -617,5 +617,26 @@ BEGIN
   PERFORM t.out();
 END $$;
 
+-- 18. "Apply now": a ready application in a stopped batch, waiting for a retry, goes straight away.
+DO $$
+DECLARE a uuid; q uuid; r jsonb;
+BEGIN
+  SELECT id, queue_id INTO a, q FROM public.job_applications WHERE user_id = t.id('pro') AND status = 'ready' LIMIT 1;
+  ASSERT a IS NOT NULL, 'a ready application to send';
+  UPDATE public.job_applications SET next_try_at = now() + interval '1 hour' WHERE id = a;
+  UPDATE public.application_queues SET state = 'stopped', finished_at = now() WHERE id = q;
+  PERFORM t.as('free');
+  r := public.apply_send_now(ARRAY[a]);
+  PERFORM t.out();
+  ASSERT coalesce((r->>'ready')::int, 0) = 0, 'someone else''s application was touched: ' || r::text;
+  ASSERT (SELECT state FROM public.application_queues WHERE id = q) = 'stopped';
+  PERFORM t.as('pro');
+  r := public.apply_send_now(ARRAY[a]);
+  PERFORM t.out();
+  ASSERT (r->>'ok')::boolean AND (r->>'ready')::int = 1, r::text;
+  ASSERT (SELECT next_try_at FROM public.job_applications WHERE id = a) IS NULL;
+  ASSERT (SELECT state FROM public.application_queues WHERE id = q) = 'running';
+END $$;
+
 \echo 'ALL AUTO APPLY DATABASE TESTS PASSED'
 ROLLBACK;

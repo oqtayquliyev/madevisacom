@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, ChevronDown } from 'lucide-react';
 import { nav } from '@/lib/pageLayout';
-import { STAGE_LABEL, fetchOutcomes, type App } from '@/lib/apply/store';
+import { STAGE_LABEL, fetchOutcomes, sendNow, useApplyState, type App } from '@/lib/apply/store';
+import { SendingBar } from '@/components/apply/SendingBar';
+import { Zap } from 'lucide-react';
 import { ApplicationQueue } from '@/components/apply/ApplicationQueue';
 
 /** Needs the person on the employer's own site: a login, or a form with many questions only they can answer. */
@@ -22,6 +24,16 @@ export function ApplicationTracker({ apps, onOpen, refreshKey }: { apps: App[]; 
   const [filter, setFilter] = useState<Filter>('all');
   const [all, setAll] = useState(false);
   const [openLater, setOpenLater] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const st = useApplyState();
+  const sending = st.sending;
+  // The batch card above already shows the live bar for its own applications.
+  const inCard = Boolean(st.queue && st.queue.state === 'running' && !st.queue.plan?.auto && apps.every((a) => a.status !== 'ready' && a.status !== 'submitting' ? true : a.queueId === st.queue!.id));
+  const send = async (ids?: string[]) => {
+    setSendError(null);
+    const r = await sendNow(ids);
+    if (!r.ok) setSendError(r.error ?? 'That didn’t start.');
+  };
   const [outcomes, setOutcomes] = useState<{ application_id: string; stage: string }[]>([]);
   useEffect(() => {
     let alive = true;
@@ -53,6 +65,7 @@ export function ApplicationTracker({ apps, onOpen, refreshKey }: { apps: App[]; 
   const main = list.filter((a) => !yourself(a));
   const later = list.filter(yourself);
   const shown = all ? main : main.slice(0, 8);
+  const ready = apps.filter((a) => a.status === 'ready');
 
   return (
     <section id="applications" aria-labelledby="tracker-title" className="mx-auto max-w-3xl scroll-mt-24">
@@ -86,6 +99,19 @@ export function ApplicationTracker({ apps, onOpen, refreshKey }: { apps: App[]; 
         </ol>
       )}
 
+      {ready.length > 0 && !sending && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-3.5 ring-1 ring-ink-200">
+          <p className="text-[14px] font-semibold text-ink-900">
+            <span className="tabular-nums">{ready.length}</span> {ready.length === 1 ? 'application is' : 'applications are'} ready to send
+          </p>
+          <button type="button" onClick={() => void send()} className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-4 py-2 text-[13.5px] font-bold text-white hover:bg-brand-700">
+            <Zap className="h-4 w-4" /> {ready.length === 1 ? 'Apply now' : `Apply to all ${ready.length}`}
+          </button>
+        </div>
+      )}
+      {sendError && <p className="mt-2 text-[13px] text-rose-700">{sendError}</p>}
+      {!inCard && <SendingBar className="mt-3" />}
+
       <div className="mt-4 flex flex-wrap gap-1 rounded-full bg-ink-100 p-1 text-[12.5px] font-semibold sm:w-fit" role="tablist" aria-label="Show">
         {(
           [
@@ -101,7 +127,7 @@ export function ApplicationTracker({ apps, onOpen, refreshKey }: { apps: App[]; 
       </div>
 
       <div className="mt-3">
-        {shown.length ? <ApplicationQueue apps={shown} onOpen={onOpen} /> : !later.length && <p className="rounded-2xl bg-white px-4 py-6 text-center text-[13px] text-ink-500 ring-1 ring-ink-200">Nothing here.</p>}
+        {shown.length ? <ApplicationQueue apps={shown} onOpen={onOpen} onSend={(a) => void send([a.id])} /> : !later.length && <p className="rounded-2xl bg-white px-4 py-6 text-center text-[13px] text-ink-500 ring-1 ring-ink-200">Nothing here.</p>}
         {main.length > shown.length && (
           <p className="mt-3 text-center">
             <button onClick={() => setAll(true)} className="rounded-full px-4 py-2 text-[13px] font-bold text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50">

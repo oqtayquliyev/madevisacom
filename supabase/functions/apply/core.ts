@@ -13,7 +13,8 @@ export type Deps = {
   getUser: (authorization: string) => Promise<{ id: string; email: string | null } | null>;
   fetch: typeof fetch;
   /** Ask GitHub to start the application worker now (GitHub Actions). Optional: without it, the scheduled run picks applications up. */
-  kick?: () => Promise<boolean>;
+  /** Start the application service now: 'started', 'recent' (on its way), 'not_set_up' or 'failed'. */
+  kick?: () => Promise<boolean | 'started' | 'recent' | 'not_set_up' | 'failed'>;
 };
 
 import { readForms, type FormRead } from './forms.ts';
@@ -232,7 +233,11 @@ export function makeHandler(deps: Deps) {
       if (body?.action === 'submit') return await submit(deps, user, body);
       if (body?.action === 'questions') return await questions(deps, body);
       if (body?.action === 'analyze') return await analyze(deps, user, body);
-      if (body?.action === 'kick') return json({ ok: true, started: deps.kick ? await deps.kick().catch(() => false) : false });
+      if (body?.action === 'kick') {
+        const r = deps.kick ? await deps.kick().catch(() => 'failed' as const) : 'not_set_up';
+        const reason = r === true ? 'started' : r === false ? 'failed' : r;
+        return json({ ok: true, started: reason === 'started' || reason === 'recent', reason });
+      }
       return json({ ok: false, reason: 'Unknown action.' }, 400);
     } catch (e) {
       console.error('apply', e);

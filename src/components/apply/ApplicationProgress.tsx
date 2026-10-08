@@ -1,6 +1,7 @@
-import { ArrowRight, Check, Mail, Pause, Play, Square } from 'lucide-react';
+import { ArrowRight, Check, Mail, Pause, Play, Square, Zap } from 'lucide-react';
 import { tally } from '@/lib/apply/runner';
-import type { App, ApplyStatus, Phase, QueueInfo } from '@/lib/apply/store';
+import { sendNow, useApplyState, type App, type ApplyStatus, type Phase, type QueueInfo } from '@/lib/apply/store';
+import { SendingBar } from '@/components/apply/SendingBar';
 import { nav } from '@/lib/pageLayout';
 import { MatchRing } from '@/components/cv/MatchBits';
 import { ApplicationQueue } from '@/components/apply/ApplicationQueue';
@@ -55,6 +56,7 @@ type Props = {
 /** One screen for the whole batch while it runs: which job, how many are done, what needs the person. */
 export function ApplicationProgress({ apps, queue, status, phase, error, onPause, onResume, onStop, onPrefs }: Props) {
   const t = tally(apps);
+  const sending = useApplyState().sending;
   const submitted = t.sent + t.sentByYou;
   const done = t.total - t.pending;
   const current = apps.find((a) => a.status === 'submitting') ?? null;
@@ -159,8 +161,15 @@ export function ApplicationProgress({ apps, queue, status, phase, error, onPause
         <p className="mx-4 mt-4 flex items-center gap-2 rounded-2xl bg-ink-50 px-4 py-3 text-[13.5px] text-ink-700 sm:mx-6">
           <Spinner small /> Tailoring your CV for each job ({phase.done} of {phase.total})…
         </p>
-      ) : running && t.pending > 0 && !online ? (
-        <p className="mx-4 mt-4 rounded-2xl bg-ink-50 px-4 py-3 text-[13.5px] leading-5 text-ink-700 sm:mx-6">Your applications are prepared and waiting. MadeVisa’s application service is offline right now — they will be submitted as soon as it is back. You don’t need to do anything.</p>
+      ) : sending || apps.some((a) => a.status === 'submitting') ? (
+        <SendingBar className="mx-4 mt-4 sm:mx-6" />
+      ) : running && apps.some((a) => a.status === 'ready') ? (
+        <div className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-ink-50 px-4 py-3 sm:mx-6">
+          <p className="text-[13.5px] font-semibold text-ink-800">Prepared and ready to send.</p>
+          <button type="button" onClick={() => void sendNow(apps.filter((a) => a.status === 'ready').map((a) => a.id))} className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-4 py-2 text-[13.5px] font-bold text-white hover:bg-brand-700">
+            <Zap className="h-4 w-4" /> Apply now
+          </button>
+        </div>
       ) : null}
 
       {running && online && t.pending > 0 && (

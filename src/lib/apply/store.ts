@@ -90,7 +90,11 @@ type State = {
   auto: AutoStatus | null;
   error: string | null;
   loadedFor: string | null;
+  /** "Apply now" / "Apply all" was pressed: when, for which (null = every ready one), and how the service answered. */
+  sending: Sending | null;
 };
+
+export type Sending = { at: number; ids: string[] | null; reason: 'started' | 'recent' | 'not_set_up' | 'failed' | null; submittedBefore: number };
 
 let state: State = {
   available: null,
@@ -107,6 +111,7 @@ let state: State = {
   auto: null,
   error: null,
   loadedFor: null,
+  sending: null,
 };
 const listeners = new Set<() => void>();
 const set = (next: Partial<State>) => {
@@ -126,7 +131,7 @@ const missing = (message: string) => /function|schema cache|does not exist|not f
 type PageEvent = 'cv_uploaded' | 'matches_loaded' | 'auto_apply_opened' | 'auto_apply_preferences_saved' | 'auto_apply_review_opened' | 'auto_apply_analyzed' | 'auto_apply_answers_saved';
 const DB_EVENTS = new Set<string>(['cv_uploaded', 'matches_loaded', 'auto_apply_opened', 'auto_apply_preferences_saved', 'auto_apply_review_opened', 'auto_apply_analyzed', 'auto_apply_answers_saved']);
 /** A product event from the page. Everything about an application itself is logged by the database where it happens. */
-export function logEvent(name: PageEvent | 'auto_apply_started' | 'auto_apply_paused' | 'auto_apply_completed', props?: Record<string, string | number | boolean | null>): void {
+export function logEvent(name: PageEvent | 'auto_apply_started' | 'auto_apply_paused' | 'auto_apply_completed' | 'auto_apply_send_now', props?: Record<string, string | number | boolean | null>): void {
   try {
     track(name, props);
   } catch {
@@ -472,6 +477,14 @@ function watch(): void {
     await refresh();
     const q = state.queue;
     const busy = batchApps().some((a) => ['queued', 'analyzing', 'preparing', 'ready', 'submitting'].includes(a.status));
+    // "Apply now" was pressed: follow those until each is sent or needs the person.
+    const sent = state.sending;
+    const moving = sent ? state.apps.some((a) => (sent.ids ? sent.ids.includes(a.id) : true) && (a.status === 'ready' || a.status === 'submitting')) : false;
+    if (sent && !moving && Date.now() - sent.at > 5000) set({ sending: null });
+    if (moving) {
+      timer = window.setTimeout(tick, document.visibilityState === 'hidden' || Date.now() - sent!.at > 300_000 ? 15000 : 3000);
+      return;
+    }
     if (!q || q.state === 'done' || q.state === 'stopped' || (!busy && !preparing)) {
       await readStatus();
       unwatch();
@@ -585,6 +598,33 @@ export async function acceptConsent(app: App, cv: StoredCv | null): Promise<{ ok
   }
   if (state.queue && state.queue.id === app.queueId && state.queue.state !== 'running') await setQueue('running');
   kick();
+  watch();
+  return { ok: true };
+}
+
+/**
+ * "Apply now" (one) or "Apply all" (every ready one): MadeVisa's application
+ * service is started straight away instead of waiting for its next run.
+ */
+export async function sendNow(ids?: string[]): Promise<{ ok: boolean; error?: string }> {
+  const submittedBefore = state.apps.filter((a) => a.status === 'submitted').length;
+  set({ sending: { at: Date.now(), ids: ids ?? null, reason: null, submittedBefore } });
+  const { data, error } = await supabase.rpc('apply_send_now', { p_ids: ids ?? null });
+  if (error) {
+    set({ sending: null });
+    return { ok: false, error: missing(error.message) ? 'Run the newest SQL update (20261212090000_apply_send_now.sql) first.' : 'That didn’t start. Try again.' };
+  }
+  const r = data as { ok: boolean; code?: string };
+  if (!r.ok) {
+    set({ sending: null });
+    return { ok: false, error: r.code === 'allowance' ? 'This month’s applications are used.' : 'That didn’t start. Try again.' };
+  }
+  logEvent('auto_apply_send_now', { count: ids?.length ?? 0 });
+  const k = await supabase.functions.invoke('apply', { body: { action: 'kick' } }).catch(() => null);
+  const reason = ((k?.data as { reason?: Sending['reason'] } | null)?.reason ?? 'failed') as Sending['reason'];
+  if (state.sending) set({ sending: { ...state.sending, reason } });
+  await readApps();
+  void readStatus();
   watch();
   return { ok: true };
 }
