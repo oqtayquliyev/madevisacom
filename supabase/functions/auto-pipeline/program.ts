@@ -31,7 +31,7 @@
 
 // deno-lint-ignore-file no-explicit-any
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { DEFAULT_GAP, DEFAULT_SETTINGS, FORMATS, FORMAT_BY_KEY, JOB_FORMATS, isFormatOn, perDayFor, reelLayers, type Pillar, type Platform, type ProgramSettings, type ReelRecipe } from './programCatalog.ts';
+import { ALWAYS_ON, DEFAULT_GAP, DEFAULT_SETTINGS, FORMATS, FORMAT_BY_KEY, JOB_FORMATS, JOB_STYLE, ONLY_FORMATS, PLAIN_FORMATS, formatAllowed, isFormatOn, perDayFor, reelLayers, type Pillar, type Platform, type ProgramSettings, type ReelRecipe } from './programCatalog.ts';
 import { hash, localTime, planRange, rankFormats, type Past } from './programSchedule.ts';
 import { BUILDERS, type ArticleRow, type CountryReport, type Ctx, type Data, type Draft, type Feedback, type Library, type NewsItem, type ProgramRow, type Snapshot } from './programFormats.ts';
 import { SITE, opening, setHost } from './programVoice.ts';
@@ -165,6 +165,15 @@ function dataFor(service: Service): Data {
         .filter((p) => p.title && (!p.applications_close_at || p.applications_close_at >= today))
         .map((p): ProgramRow => ({ id: p.id, title: p.title, description: p.description, category: p.category, funding_text: p.funding_text, official_url: p.official_url, applications_close_at: p.applications_close_at, publisher: p.program_publishers?.name ?? null, country: p.countries?.name ?? null, iso: p.countries?.iso_code ?? null }));
     }),
+    contacts: async (ids) => {
+      // Recruiter emails written in the ads themselves (migration 20261214090000). Before it runs: none.
+      const out = new Map<string, { email: string; name: string | null }>();
+      if (!ids.length) return out;
+      const { data, error } = await service.from('job_contacts').select('job_id, email, name').in('job_id', ids).limit(50);
+      if (error) return out;
+      for (const r of (data ?? []) as any[]) if (!out.has(r.job_id)) out.set(r.job_id, { email: r.email, name: r.name ?? null });
+      return out;
+    },
     news: once(async () => {
       const now = new Date().toISOString();
       const { data } = await service.from('social_news').select('id, headline, summary, points, country_code, source_name, source_url, link_path, kicker, use_after, expires_at').eq('status', 'ready').order('created_at', { ascending: false }).limit(30);
@@ -212,8 +221,10 @@ export async function runProgram(service: Service, platforms: Map<Platform, Plat
 
   // Stopped: nothing is planned and campaigns run as usual — but a "Try it" post
   // from the admin panel (a slot marked test) is still written, for approval.
-  const active = running ? [...platforms.values()].filter((p) => p.enabled && perDayFor(p.platform, settings, false) > 0).map((p) => p.platform) : [];
+  // Telegram (ALWAYS_ON) runs either way: its channel gets job links all day, on autopilot.
+  const active = [...platforms.values()].filter((p) => p.enabled && perDayFor(p.platform, settings, false) > 0 && (running || ALWAYS_ON.includes(p.platform))).map((p) => p.platform);
   for (const p of active) covered.add(p);
+  const live = active.length > 0;
   if (running && !active.length) {
     log.push('Program: no network is switched on');
     return covered;
@@ -236,7 +247,7 @@ export async function runProgram(service: Service, platforms: Map<Platform, Plat
     const due = (dueRows ?? []) as PostRow[];
     // Planning is repeated hourly (and on Start / Run now); writing happens whenever a slot is due.
     const plannedAt = (row as ProgramRowDb).planned_at;
-    const needPlan = running && (force || !plannedAt || now - Date.parse(plannedAt) > 55 * 60_000);
+    const needPlan = live && (force || !plannedAt || now - Date.parse(plannedAt) > 55 * 60_000);
     if (!needPlan && !due.length) {
       await replyToComments(service, log);
       await service.from('social_program').update({ lock_until: null, last_run_at: new Date().toISOString() }).eq('id', true);
@@ -267,7 +278,27 @@ export async function runProgram(service: Service, platforms: Map<Platform, Plat
 
     // 1. PLAN
     if (needPlan) {
-      const slots = planRange({ platforms: active, settings, now, days: HORIZON_DAYS, existing, unavailable: off });
+      // Slots planned before a network got its own job style (Telegram: links only) take that style now.
+      for (const p of posts) {
+        if (p.status !== 'planned' || !p.kind || formatAllowed(p.platform, p.kind)) continue;
+        const style = ONLY_FORMATS[p.platform]?.[0] ?? JOB_STYLE[p.platform];
+        if (!style) continue;
+        const at = Date.parse(p.scheduled_at);
+        await service.from('social_posts').update({ kind: style, pillar: FORMAT_BY_KEY[style].pillar, write_at: new Date(at - leadFor(style) * 60_000).toISOString() }).eq('id', p.id).eq('status', 'planned');
+        p.kind = style;
+        p.pillar = FORMAT_BY_KEY[style].pillar;
+        const e = existing.find((x) => x.platform === p.platform && x.at === at);
+        if (e) {
+          e.kind = style;
+          e.pillar = p.pillar;
+        }
+        const writeNow = at - leadFor(style) * 60_000 <= now;
+        const i = due.findIndex((d) => d.id === p.id);
+        if (writeNow && i < 0) due.push(p);
+        // A job post is written close to its time, so its jobs are fresh: not now if it is hours away.
+        if (!writeNow && i >= 0) due.splice(i, 1);
+      }
+      const slots = planRange({ platforms: active, settings: { ...settings, reels: settings.reels && running }, now, days: HORIZON_DAYS, existing, unavailable: off });
       let planned = 0;
       for (const s of slots) {
         const at = new Date(s.at).toISOString();
@@ -379,7 +410,9 @@ async function writeSlot(
   const tried = new Set<string>(off);
   // A slot someone asked for by name ("Try it", "Change") is written as that format or not at all.
   const exact = slot.meta?.force === true;
-  const order = exact ? [slot.kind!] : [...(pendingNews && !newsToday ? ['news'] : []), ...(pendingReport && !articleToday ? ['article'] : []), slot.kind!, ...rankFormats({ platform: p, at, part: (slot.meta?.part as any) ?? lt.part ?? 'morning', weekday: lt.weekday, dayKey: lt.key }, past.filter((x) => x.at !== at), settings, off, tz).map((f) => f.key)].filter((k, i, a) => k && a.indexOf(k) === i);
+  // A network with fixed formats (Telegram) posts only those — news and reports don't jump the queue there.
+  const only = ONLY_FORMATS[p];
+  const order = only ? [...(formatAllowed(p, slot.kind!) ? [slot.kind!] : []), ...only].filter((k, i, a) => a.indexOf(k) === i) : exact ? [slot.kind!] : [...(pendingNews && !newsToday ? ['news'] : []), ...(pendingReport && !articleToday ? ['article'] : []), slot.kind!, ...rankFormats({ platform: p, at, part: (slot.meta?.part as any) ?? lt.part ?? 'morning', weekday: lt.weekday, dayKey: lt.key }, past.filter((x) => x.at !== at), settings, off, tz).map((f) => f.key)].filter((k, i, a) => k && a.indexOf(k) === i);
   const [w, h] = DIMS[pr.size];
   const jobCache = new Map<string, Promise<Job[]>>();
 
@@ -389,7 +422,7 @@ async function writeSlot(
     tried.add(kind);
     const build = BUILDERS[kind];
     const def = FORMAT_BY_KEY[kind];
-    if (!build || !def || !def.platforms.includes(p)) continue;
+    if (!build || !def || !def.platforms.includes(p) || !formatAllowed(p, kind)) continue;
     const seed = hash(`${slot.id}:${kind}`);
     const ctx = (wseed: number): Ctx => ({
       p,
@@ -420,10 +453,11 @@ async function writeSlot(
       draft = null;
       console.error(`builder ${kind} failed`, e);
     }
-    if (!draft || !draft.caption.trim() || (!draft.images.length && !draft.reel)) continue;
+    // A text post (job links) has no image by design; every other post needs one.
+    if (!draft || !draft.caption.trim() || (!draft.images.length && !draft.reel && draft.format !== 'text')) continue;
 
-    // A "Try it" post never goes out by itself.
-    const ready = settings.autopilot && !slot.meta?.test ? 'approved' : 'awaiting_approval';
+    // A "Try it" post never goes out by itself. Always-on networks (Telegram) run on autopilot.
+    const ready = (settings.autopilot || ALWAYS_ON.includes(p)) && !slot.meta?.test ? 'approved' : 'awaiting_approval';
     let images: { url: string; width: number; height: number }[] = [];
     let issues: string[] = [];
     let reel: ReelRecipe | null = null;
@@ -465,7 +499,7 @@ async function writeSlot(
       images = draft.images.slice(0, 6).map((url) => ({ url, width: w, height: h }));
       // Photo first: a real photo with the post's one line opens it, the card follows. Posts that already
       // carry a photo keep theirs; on Telegram (one image) a list of jobs stays a list of jobs.
-      if (settings.look !== 'graphic' && !images.some((im) => /[?&]img=/.test(im.url)) && !(p === 'telegram' && JOB_FORMATS.has(kind))) {
+      if (images.length && !PLAIN_FORMATS.has(kind) && settings.look !== 'graphic' && !images.some((im) => /[?&]img=/.test(im.url)) && !(p === 'telegram' && JOB_FORMATS.has(kind))) {
         const cc = typeof draft.meta?.cc === 'string' ? draft.meta.cc : /^[A-Za-z]{2}$/.test(draft.topic) ? draft.topic : null;
         const shot = photos.photo(cc, seed);
         if (shot) {

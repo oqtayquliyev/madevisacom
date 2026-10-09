@@ -88,7 +88,7 @@ export function useCvRequirement(): CvRequirement {
   };
 }
 
-const POINTS = ['Your match score on every job, free', 'The skills each ad asks for that your CV doesn’t show', 'Sent to an employer only when you ask MadeVisa to apply for you'];
+const POINTS = ['Your match score on every job, free', 'The skills each ad asks for that your CV doesn’t show', 'New jobs that fit you, by email — never the same job twice'];
 
 function Body({ req, onDone }: { req: CvRequirement; onDone?: () => void }) {
   return (

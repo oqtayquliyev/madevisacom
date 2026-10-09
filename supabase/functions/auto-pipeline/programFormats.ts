@@ -106,6 +106,8 @@ export type Data = {
   articles(): Promise<ArticleRow[]>;
   programs(): Promise<ProgramRow[]>;
   news(): Promise<NewsItem[]>;
+  /** Recruiter emails written in these jobs' ads (job id → first one found). */
+  contacts(jobIds: string[]): Promise<Map<string, { email: string; name: string | null }>>;
 };
 
 export type SizeKey = 'portrait' | 'square' | 'story';
@@ -131,7 +133,7 @@ export type Ctx = {
   /** A photo for a country, when one was added in the admin panel. */
   photo(code: string | null | undefined): { url: string; credit: string | null } | null;
   /** Fresh jobs not yet posted on this network (reserved when the post is queued). */
-  jobs(o: { kind: 'fresh' | 'student' | 'sponsor' | 'visa' | 'remote' | 'offer'; countries?: string[]; salaryOnly?: boolean; want: number; min: number }): Promise<Job[]>;
+  jobs(o: { kind: 'fresh' | 'student' | 'sponsor' | 'visa' | 'remote' | 'offer'; countries?: string[]; salaryOnly?: boolean; want: number; min: number; newCompanies?: boolean }): Promise<Job[]>;
 };
 
 export type Draft = {
@@ -1903,8 +1905,71 @@ const reel_cvfix: Builder = async (c) => {
   };
 };
 
+// --- Channel-style job links (Telegram, Facebook) ---------------------------------
+// The way job channels post: no intro, no image, one line per role.
+//   💼 Senior Backend Engineer (Blockchain/Crypto): Link
+// On Telegram "Link" is the tappable word (HTML); Facebook can't hide a URL behind a
+// word, so the link is written out. One company per line, never a job posted here before.
+
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const jobs_links: Builder = async (c) => {
+  const jobs = await c.jobs({ kind: 'fresh', want: c.p === 'telegram' ? 5 : 4, min: 2 });
+  if (jobs.length < 2) return null;
+  const lines = jobs.map((j) => {
+    const title = cleanTitle(j.title).replace(/\s+/g, ' ').slice(0, 110);
+    return c.p === 'telegram' ? `💼 ${esc(title)}: <a href="${esc(jobLink(j, c.p))}">Link</a>` : `💼 ${title}: ${jobLink(j, c.p)}`;
+  });
+  return {
+    topic: jobs.map((j) => j.id.slice(0, 8)).join(','),
+    headline: `${jobs.length} job links`,
+    format: 'text',
+    images: [],
+    caption: lines.join('\n'),
+    links: jobs.map((j) => ({ job_id: j.id, title: cleanTitle(j.title), company: j.company, url: jobLink(j, c.p) })),
+    jobs,
+    meta: { parse_mode: c.p === 'telegram' ? 'HTML' : null },
+  };
+};
+
+// --- "We are hiring" card (Instagram) -----------------------------------------------
+// One role from a company that has never been on the account, drawn as a clean hiring
+// poster by /api/og/social?layout=hiring. "Send your CV to" only when the ad itself
+// gives an email; otherwise the job's short link.
+
+const hiring_card: Builder = async (c) => {
+  const pool = await c.jobs({ kind: 'fresh', want: 6, min: 1, newCompanies: true });
+  if (!pool.length) return null;
+  // A logo makes the card; a job without one goes only when nothing else is there.
+  const j = pool.find((x) => x.logo) ?? pool[0];
+  const contact = (await c.data.contacts([j.id])).get(j.id) ?? null;
+  const title = cleanTitle(j.title);
+  const where = place(j);
+  const mode = j.work_arrangement === 'hybrid' ? 'Hybrid' : isRemote(j) ? 'Remote' : 'Onsite';
+  const q = new URLSearchParams({ layout: 'hiring', size: c.size, ids: j.id.slice(0, 8), s: 'ig', v: '1' });
+  if (contact?.email) q.set('em', contact.email);
+  const short = `madevisa.com/j/${j.id.slice(0, 8)}`;
+  const caption = write(c.p, [
+    `📢 JOB VACANCY – ${j.company.toUpperCase()}`,
+    `💼 Position: ${title}`,
+    [where ? `📍 Location: ${where}` : null, `🏢 Work: ${mode}`, j.employment_type ? `🕒 Type: ${j.employment_type}` : null, j.salary ? `💰 Salary: ${j.salary}` : null, j.visa ? '🛂 Visa sponsorship: stated in the ad' : null].filter(Boolean).join('\n'),
+    contact?.email ? `📩 Send your CV to ${contact.email}\nor apply on ${short}. Link in bio.` : `📩 Apply: ${short}. Link in bio.`,
+    jobTags(c, [j], ['wearehiring', 'jobvacancy', j.job_function ?? '']),
+  ]);
+  return {
+    topic: j.id.slice(0, 8),
+    headline: `We are hiring: ${title} — ${j.company}`,
+    format: 'image',
+    images: [`${SITE}/api/og/social?${q.toString()}`],
+    caption,
+    links: [{ job_id: j.id, title, company: j.company, url: jobLink(j, c.p) }],
+    jobs: [j],
+    meta: { company: j.company, contact: contact?.email ?? null },
+  };
+};
+
 export const BUILDERS: Record<string, Builder> = {
-  jobs_fresh, jobs_country, jobs_visa, jobs_remote, jobs_student, jobs_uk_sponsors, jobs_salary, job_spotlight, jobs_plan,
+  jobs_fresh, jobs_country, jobs_visa, jobs_remote, jobs_student, jobs_uk_sponsors, jobs_salary, job_spotlight, jobs_plan, jobs_links, hiring_card,
   country_hiring, country_ranking, sponsor_ranking, top_companies, roles_in_demand, market_pulse, remote_share, milestone,
   visa_route, visa_jobsearch, visa_nomad, visa_pr, visa_salary, visa_compare, visa_myth, visa_checklist,
   match_check, match_parts, match_missing, cv_fix, match_free,

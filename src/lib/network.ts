@@ -106,3 +106,33 @@ export async function fetchRecruitmentOrgs(): Promise<RecruitmentOrg[]> {
   }
   return (data ?? []) as unknown as RecruitmentOrg[];
 }
+
+// --- Recruiter contacts from job ads (migration 20261214090000) ----------------
+// The emails written in live job ads ("Send your CV to …"), with a contact name
+// when the ad gives one. Replaces the people directory: MadeVisa users are not listed.
+
+export type RecruiterContact = {
+  email: string;
+  name: string | null;
+  jobs: number;
+  companies: number;
+  last_at: string;
+  company_id: string;
+  company: string;
+  logo: string | null;
+  country: string | null;
+  iso: string | null;
+  job_id: string;
+  job_title: string;
+};
+export type RecruiterContacts = { total: number; companies: number; items: RecruiterContact[] };
+
+/** `null` means the migration hasn't run yet. */
+export async function fetchRecruiterContacts(opts: { search?: string; limit?: number; offset?: number } = {}): Promise<RecruiterContacts | null> {
+  const { data, error } = await supabase.rpc('recruiter_contacts', { p_search: opts.search?.trim() || null, p_limit: opts.limit ?? 60, p_offset: opts.offset ?? 0 });
+  if (error || !data) {
+    if (error) console.warn('recruiter_contacts unavailable (run migration 20261214090000)', error.message);
+    return null;
+  }
+  return data as RecruiterContacts;
+}

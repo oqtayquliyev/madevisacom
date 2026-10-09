@@ -84,6 +84,8 @@ export type FormatDef = {
   off?: boolean;
   /** Something the admin should know before turning it on. */
   needs?: string;
+  /** How many times it may run on one network in one day (default 1). */
+  perDay?: number;
 };
 
 const FEED: Platform[] = ['instagram', 'facebook', 'linkedin', 'tiktok', 'telegram'];
@@ -140,6 +142,20 @@ export const FORMATS: FormatDef[] = [
     example: 'Roles that tell you the salary before you apply.',
     source: 'Jobs with a disclosed salary', link: '/jobs?salary=1', visual: 'Job cards with the salary on the right',
     platforms: FEED, parts: ['lunch', 'afternoon', 'evening'], weight: 2, cooldown: 12, fresh: true,
+  },
+  {
+    key: 'jobs_links', pillar: 'jobs', name: 'Job links (channel style)',
+    idea: 'A plain list of 2–5 fresh roles, one line each: “💼 Role: Link”, one company per line. No image, no intro — the way job channels post.',
+    example: '💼 Senior Backend Engineer (Go): Link',
+    source: 'Jobs published on MadeVisa in the last 24 hours, never posted on this network', link: 'Each job page', visual: 'Text only (Telegram: “Link” is the tappable word)',
+    platforms: ['telegram', 'facebook'], parts: ['early', 'morning', 'lunch', 'afternoon', 'evening', 'night'], weight: 3, cooldown: 1.5, fresh: true, perDay: 12,
+  },
+  {
+    key: 'hiring_card', pillar: 'jobs', name: '“We are hiring” card',
+    idea: 'One role, one company, as a clean hiring poster: company logo, “We are Hiring”, the role in big letters, three chips (skill, experience, where), and how to apply. Every card is a company that has never been on the account before.',
+    example: 'We are Hiring · Software Developer · Flutter · 1+ Year · Onsite',
+    source: 'The newest role from a company never posted on Instagram', link: 'The job page (link in bio)', visual: 'Hiring poster (light gradient)',
+    platforms: ['instagram'], parts: ['morning', 'lunch', 'evening', 'afternoon'], weight: 3, cooldown: 3, fresh: true, perDay: 2,
   },
   {
     key: 'job_spotlight', pillar: 'jobs', name: 'Role of the day',
@@ -431,7 +447,8 @@ export const FORMATS: FormatDef[] = [
     idea: 'An invitation to hiring managers and recruiters who hire across borders to list themselves.',
     example: 'Hiring across borders? Be found by people who can move.',
     source: 'Recruiters directory', link: '/network', visual: 'Call-to-action card',
-    platforms: PRO, parts: ['morning', 'lunch'], weight: 1, cooldown: 240, days: [1, 2, 3, 4],
+    platforms: PRO, parts: ['morning', 'lunch'], weight: 1, cooldown: 240, days: [1, 2, 3, 4], off: true,
+    needs: 'Off: the people directory on /network is hidden; that page now lists recruiter contacts taken from job ads.',
   },
   {
     key: 'employer_inbox', pillar: 'community', name: 'Employer inbox',
@@ -542,6 +559,26 @@ export const FORMAT_BY_KEY: Record<string, FormatDef> = Object.fromEntries(FORMA
 
 /** Formats that pick live jobs (and so reserve them). */
 export const JOB_FORMATS = new Set(FORMATS.filter((f) => f.fresh).map((f) => f.key));
+
+// --- How each network posts jobs ------------------------------------------------
+// Telegram posts nothing but job links. Facebook and Instagram keep the rest of the
+// mix, but every job post there is in their own style (Facebook: the same link
+// list; Instagram: the hiring card), and each day has at least one.
+/** Networks that post only these formats. */
+export const ONLY_FORMATS: Partial<Record<Platform, string[]>> = { telegram: ['jobs_links'] };
+/** The one job format a network uses; its other job formats are left out. */
+export const JOB_STYLE: Partial<Record<Platform, string>> = { telegram: 'jobs_links', facebook: 'jobs_links', instagram: 'hiring_card' };
+/** Networks the program runs on even before Start is pressed (always on autopilot). */
+export const ALWAYS_ON: Platform[] = ['telegram'];
+/** Formats that go out exactly as written: no photo is put in front of them. */
+export const PLAIN_FORMATS = new Set(['jobs_links', 'hiring_card']);
+/** May this network post this format at all? */
+export const formatAllowed = (p: Platform, key: string): boolean => {
+  const only = ONLY_FORMATS[p];
+  if (only) return only.includes(key);
+  const style = JOB_STYLE[p];
+  return !(style && JOB_FORMATS.has(key) && key !== style);
+};
 
 /** Program settings, as stored in social_program. */
 export type ProgramSettings = {

@@ -409,10 +409,131 @@ async function draw(layout: 'list' | 'single' | 'company' | 'cards', sizeKey: Si
   return { tree, issues, width: S.w, height: S.h };
 }
 
+// --- layout=hiring: one role as a clean "We are Hiring" poster ----------------------
+// Light background with soft colour blobs, the company's logo and name, a "We are
+// Hiring" pill, the role in big letters, three chips (skill · experience · where)
+// and how to apply: "Send your CV to <email>" when the ad gives one (em=…),
+// otherwise the job's short link. Used for Instagram by the content program.
+//   c   chips, "Flutter~1+ Year~Onsite" (empty = hidden; absent = from the job)
+//   em  email from the ad (only drawn if it looks like an email)
+
+const TECH: [RegExp, string][] = [
+  [/flutter/i, 'Flutter'], [/react native/i, 'React Native'], [/\breact\b|react\.js/i, 'React'], [/next\.?js/i, 'Next.js'], [/node\.?js|\bnode\b/i, 'Node.js'],
+  [/angular/i, 'Angular'], [/vue/i, 'Vue.js'], [/typescript/i, 'TypeScript'], [/javascript/i, 'JavaScript'], [/python|django|fastapi/i, 'Python'], [/\bgolang\b|\bgo\b(?! to)/i, 'Go'],
+  [/\.net|c#/i, '.NET'], [/\bjava\b|spring/i, 'Java'], [/kotlin/i, 'Kotlin'], [/swift|\bios\b/i, 'iOS'], [/android/i, 'Android'], [/php|laravel/i, 'PHP'], [/ruby|rails/i, 'Ruby'],
+  [/c\+\+/i, 'C++'], [/rust\b/i, 'Rust'], [/scala/i, 'Scala'], [/\bsap\b/i, 'SAP'], [/salesforce/i, 'Salesforce'], [/devops|kubernetes|terraform/i, 'DevOps'], [/\baws\b|azure|gcp|cloud/i, 'Cloud'],
+  [/data (engineer|scien|analy)|machine learning|\bml\b|\bai\b/i, 'Data & AI'], [/\bsql\b|database/i, 'SQL'], [/blockchain|crypto|web3/i, 'Blockchain'], [/shopify/i, 'Shopify'], [/wordpress/i, 'WordPress'],
+  [/figma|ux|ui\b|product design/i, 'UI/UX'], [/qa\b|test(ing|er)|quality assurance/i, 'QA'], [/seo/i, 'SEO'], [/marketing|growth/i, 'Marketing'], [/sales|business development|account executive/i, 'Sales'],
+  [/financ|accountant|accounting|audit/i, 'Finance'], [/\bhr\b|recruit|talent/i, 'HR'], [/nurs|medical|clinic|health/i, 'Healthcare'], [/teacher|tutor|education/i, 'Education'],
+  [/logistic|warehouse|supply chain/i, 'Logistics'], [/customer (service|support|success)/i, 'Customer Support'], [/engineer/i, 'Engineering'], [/design/i, 'Design'],
+];
+const CODE = ['m16 18 6-6-6-6', 'm8 6-6 6 6 6'];
+const CLOCK = ['M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20', 'M12 6v6l4 2'];
+const PIN = ['M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0', 'M12 7a3 3 0 1 0 0 6 3 3 0 1 0 0-6'];
+const EMAIL_RE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,120}\.[A-Za-z]{2,24}$/;
+
+export function hiringChips(j: Job): string[] {
+  const t = `${j.title}`;
+  const skill = TECH.find(([re]) => re.test(t))?.[1] ?? (j.employment_type && j.employment_type !== 'Full time' ? j.employment_type : null);
+  const exp = (j.experience ?? '').replace(/\s*level$/i, '').replace(/^mid-senior$/i, 'Mid-Senior').trim() || (j.employment_type && skill !== j.employment_type ? j.employment_type : '');
+  const mode = j.work_arrangement === 'hybrid' ? 'Hybrid' : j.work_arrangement === 'remote' || (j.remote && !j.work_arrangement) ? 'Remote' : 'Onsite';
+  return [skill ?? '', exp, j.city && mode !== 'Remote' ? `${mode} · ${j.city}` : mode];
+}
+
+function blob(x: number, y: number, r: number, color: string): El {
+  return h('div', { position: 'absolute', left: Math.round(x - r), top: Math.round(y - r), width: r * 2, height: r * 2, borderRadius: 9999, backgroundImage: `radial-gradient(circle, ${color} 0%, rgba(255,255,255,0) 68%)` });
+}
+
+export async function drawHiring(sizeKey: SizeKey, j: Job, chipsIn: string[] | null, email: string | null) {
+  const S = SIZES[sizeKey];
+  const u = sizeKey === 'square' ? 0.84 : sizeKey === 'story' ? 1.08 : 1;
+  const U = (n: number) => Math.round(n * u);
+  const issues: Issue[] = [];
+  const side = U(84);
+  const inner = S.w - side * 2;
+  const logo = await logoDataUrl(j.logo);
+  if (j.logo && !logo) issues.push({ level: 'warning', message: `${j.company}: logo couldn’t be drawn — the name is shown alone` });
+
+  // Top: logo + company name, the MadeVisa mark on the right.
+  const logoSize = U(76);
+  const nameFit = fit(j.company, [U(46), U(40), U(34)], inner - (logo ? logoSize + U(18) : 0) - U(230), 1, 800);
+  const top = h(
+    'div',
+    { alignItems: 'center', justifyContent: 'space-between', width: inner, height: U(90), flexShrink: 0 },
+    h(
+      'div',
+      { alignItems: 'center' },
+      logo ? img(logo, { width: logoSize, height: logoSize, objectFit: 'contain', borderRadius: U(16), backgroundColor: 'white', padding: U(6), marginRight: U(18) }) : null,
+      h('div', { fontSize: nameFit.size, fontWeight: 800, color: '#1E1B4B', letterSpacing: -1, fontFamily: SANS, whiteSpace: 'nowrap' }, nameFit.text)
+    ),
+    brand('#6B7280', U(26))
+  );
+
+  // The role.
+  const title = cleanTitle(j.title);
+  const tf = fit(title, [U(108), U(96), U(84), U(72), U(62)], inner, 3, 800);
+  if (tf.cut) issues.push({ level: 'warning', message: 'Job title shortened to fit' });
+  const lineH = Math.round(tf.size * 1.08);
+
+  // Chips: as many as fit on two rows.
+  const chipSize = U(30);
+  const chips = (chipsIn ?? hiringChips(j)).map((x) => x.trim()).filter(Boolean).slice(0, 3);
+  const icons = [CODE, CLOCK, PIN];
+  const chipEls = chips.map((text, i) => {
+    const c = cut(text, chipSize, inner - U(110), 600);
+    return h(
+      'div',
+      { alignItems: 'center', height: U(64), padding: `0 ${U(26)}px`, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.62)', border: '2px solid rgba(255,255,255,0.95)', marginRight: U(14), marginBottom: U(14), flexShrink: 0 },
+      svg(U(30), icons[chipsIn ? i % 3 : i], { stroke: '#4B5563', width: 2.2 }),
+      h('div', { marginLeft: U(12), fontSize: chipSize, fontWeight: 600, color: '#374151', fontFamily: SANS, whiteSpace: 'nowrap' }, c.text)
+    );
+  });
+
+  // How to apply.
+  const em = email && EMAIL_RE.test(email) && email.length <= 64 ? email : null;
+  const short = `madevisa.com/j/${j.id.slice(0, 8)}`;
+  const target = fit(em ?? short, [U(50), U(44), U(38), U(32)], inner, 1, 800);
+  if (target.cut) issues.push({ level: 'warning', message: 'The email had to be shortened — check it' });
+
+  const middle = h(
+    'div',
+    { flexDirection: 'column', width: inner, flexShrink: 0 },
+    h('div', { alignSelf: 'flex-start', alignItems: 'center', height: U(76), padding: `0 ${U(38)}px`, borderRadius: 999, backgroundColor: 'rgba(168,85,247,0.80)', color: 'white', fontSize: U(38), fontWeight: 600, fontFamily: SANS, marginBottom: U(34) }, 'We are Hiring'),
+    h('div', { flexDirection: 'column', width: inner, height: lineH * Math.min(4, tf.lines + 1), overflow: 'hidden', fontSize: tf.size, fontWeight: 800, color: '#0B0B14', letterSpacing: -2.5, lineHeight: 1.08, fontFamily: SANS }, tf.text),
+    chipEls.length ? h('div', { flexWrap: 'wrap', width: inner, marginTop: U(36), maxHeight: U(64 * 2 + 28), overflow: 'hidden' }, ...chipEls) : null
+  );
+
+  const bottom = h(
+    'div',
+    { flexDirection: 'column', width: inner, flexShrink: 0 },
+    h('div', { fontSize: U(34), fontWeight: 400, color: '#4B5563', fontFamily: SANS }, em ? 'Send your CV to' : 'Apply on'),
+    h('div', { marginTop: U(6), fontSize: target.size, fontWeight: 800, color: '#111827', letterSpacing: -0.5, fontFamily: SANS, whiteSpace: 'nowrap' }, target.text),
+    j.visa ? h('div', { marginTop: U(18), fontSize: U(24), fontWeight: 700, color: '#047857', fontFamily: SANS }, 'Visa sponsorship stated in the ad') : null
+  );
+
+  const tree = h(
+    'div',
+    { width: S.w, height: S.h, backgroundColor: '#FAF9FC', position: 'relative', overflow: 'hidden', fontFamily: SANS },
+    blob(S.w * 0.8, S.h * 0.6, S.w * 0.66, 'rgba(192,132,252,1)'),
+    blob(S.w * 0.55, S.h * 0.5, S.w * 0.46, 'rgba(253,224,71,0.95)'),
+    blob(S.w * 0.98, S.h * 0.18, S.w * 0.4, 'rgba(244,114,182,0.45)'),
+    blob(S.w * 0.06, S.h * 0.92, S.w * 0.38, 'rgba(216,180,254,0.55)'),
+    h(
+      'div',
+      { position: 'absolute', left: 0, top: 0, width: S.w, height: S.h, flexDirection: 'column', justifyContent: 'space-between', padding: `${Math.max(S.top, U(70))}px ${side}px ${Math.max(S.bottom, U(70))}px` },
+      top,
+      middle,
+      bottom
+    )
+  );
+  return { tree, issues, width: S.w, height: S.h };
+}
+
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const q = url.searchParams;
   const lq = q.get('layout');
+  if (lq === 'hiring') return hiringHandler(q);
   const layout = lq === 'single' ? 'single' : lq === 'company' ? 'company' : lq === 'cards' ? 'cards' : 'list';
   const sizeKey = (['portrait', 'square', 'story'].includes(q.get('size') ?? '') ? q.get('size') : 'portrait') as SizeKey;
   const prefixes = (q.get('ids') ?? '').split(',').map((x) => x.trim().toLowerCase()).filter((x) => /^[0-9a-f]{8}$/.test(x)).slice(0, 5);
@@ -450,6 +571,31 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   const glyphs = `${textOf(tree)} 0123456789→…·#`;
+  const fonts = (await Promise.all([googleFont('Inter', 400, glyphs), googleFont('Inter', 600, glyphs), googleFont('Inter', 700, glyphs), googleFont('Inter', 800, glyphs)])).filter((f): f is Font => f !== null);
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const png = await new ImageResponse(tree as any, { width, height, fonts }).arrayBuffer();
+    return new Response(png, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600, s-maxage=604800, immutable' } });
+  } catch (e) {
+    return new Response(`Render failed: ${e instanceof Error ? e.message : e}`, { status: 500, headers: { 'Cache-Control': 'no-store' } });
+  }
+}
+
+async function hiringHandler(q: URLSearchParams): Promise<Response> {
+  const sizeKey = (['portrait', 'square', 'story'].includes(q.get('size') ?? '') ? q.get('size') : 'portrait') as SizeKey;
+  const prefix = (q.get('ids') ?? '').split(',')[0].trim().toLowerCase();
+  const check = q.get('check') === '1';
+  const jobs = /^[0-9a-f]{8}$/.test(prefix) ? (await rpc<Job[]>('social_image_jobs', { p_prefixes: [prefix] })) ?? [] : [];
+  const j = jobs[0];
+  if (!j) {
+    if (check) return Response.json({ ok: false, issues: [{ level: 'error', message: 'This job is no longer live' }] }, { headers: { 'Cache-Control': 'no-store' } });
+    return new Response('No live job', { status: 404 });
+  }
+  const chips = q.has('c') ? (q.get('c') ?? '').split('~').map((x) => x.slice(0, 40)) : null;
+  const email = (q.get('em') ?? '').trim().slice(0, 80) || null;
+  const { tree, issues, width, height } = await drawHiring(sizeKey, j, chips, email);
+  if (check) return Response.json({ ok: !issues.some((i) => i.level === 'error'), width, height, jobs: 1, issues }, { headers: { 'Cache-Control': 'no-store' } });
+  const glyphs = `${textOf(tree)} 0123456789→…·#@.`;
   const fonts = (await Promise.all([googleFont('Inter', 400, glyphs), googleFont('Inter', 600, glyphs), googleFont('Inter', 700, glyphs), googleFont('Inter', 800, glyphs)])).filter((f): f is Font => f !== null);
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

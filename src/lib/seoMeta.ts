@@ -54,9 +54,9 @@ export const SEO_META = {
     description: '', // built from live numbers
   },
   network: {
-    title: 'Recruiters Hiring Across Borders & Employers That Sponsor Visas',
+    title: 'Recruiter Emails & Hiring Contacts From Live Job Ads',
     description:
-      'Hiring managers, recruiters and visa experts who hire internationally, and the employers that sponsor visas — with live sponsorship rates. Contact details are never shown.',
+      'Recruiter emails and contact people taken from live job ads, with the company and the role they hire for — plus the employers that sponsor visas, with live sponsorship rates.',
   },
   feedback: {
     title: 'Hiring Feedback — How Companies Really Respond to Applicants',

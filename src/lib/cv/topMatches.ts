@@ -29,8 +29,6 @@ import { skillName } from '@/lib/cv/skills';
 import { TITLE_NOISE } from '@/lib/cv/text';
 import { useCv, type StoredCv } from '@/lib/cv/store';
 import { cvInEnglish, jobsInEnglish, type EnglishCv } from '@/lib/cv/translate';
-import { matchQ } from '@/lib/apply/facts';
-import type { MatchQ } from '@/lib/apply/types';
 
 export type TopMatch = {
   /** Job uuid — also the key "Check your match" uses for this job. */
@@ -61,8 +59,7 @@ export type TopMatch = {
   missing: string[];
   /** The score this job would get if the CV mentioned every skill the ad names. Never below `score`. */
   potential: number;
-  /** For Auto Apply (src/lib/apply): the parts of the score a decision looks at, the kind of role, who posted it, where the work is done. */
-  q?: MatchQ;
+  /** The kind of role, who posted it, where the work is done. */
   role?: string | null;
   publisherId?: string | null;
   arrangement?: 'onsite' | 'hybrid' | 'remote' | null;
@@ -319,7 +316,7 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
         asked: m.skills.asked, covered: m.skills.covered,
         missing: m.skills.missing.slice(0, 8).map((k) => k.name),
         potential: Math.max(m.score, full),
-        q: matchQ(m, job, me.profile), role: job.category?.label ?? null, publisherId: r.publisher_id, arrangement: x?.work_arrangement ?? null,
+        role: job.category?.label ?? null, publisherId: r.publisher_id, arrangement: x?.work_arrangement ?? null,
       });
     }
     items.sort((a, b) => b.score - a.score);

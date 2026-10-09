@@ -18,7 +18,10 @@ import {
   DEFAULT_GAP,
   FORMATS,
   FORMAT_BY_KEY,
+  JOB_STYLE,
+  ONLY_FORMATS,
   PILLAR_ORDER,
+  formatAllowed,
   REEL_ON,
   RHYTHM,
   gapFloor,
@@ -175,6 +178,7 @@ export function planDay(platform: Platform, key: string, count: number, prev: Da
 /** Networks lean on different pillars: a Telegram channel is a job feed, LinkedIn likes numbers. */
 const BIAS: Partial<Record<Platform, Partial<Record<Pillar, number>>>> = {
   telegram: { jobs: 1.6, community: 0.6, news: 1.3 },
+  facebook: { jobs: 1.3 },
   linkedin: { market: 1.3, proof: 1.3, plan: 1.2, community: 0.7 },
   instagram: { visa: 1.2, community: 1.2 },
   tiktok: { visa: 1.2, community: 1.2, market: 0.8 },
@@ -191,20 +195,30 @@ export type Pick = { platform: Platform; at: number; part: DayPart; weekday: num
 export function rankFormats(slot: Pick, history: Past[], settings: ProgramSettings, unavailable: Set<string> = new Set(), tz = settings.timezone, others: Past[] = []): FormatDef[] {
   const before = history.filter((h) => h.at < slot.at).sort((a, b) => b.at - a.at);
   const last = before[0];
-  const sameDay = new Set(history.filter((h) => localTime(h.at, tz).key === slot.dayKey).map((h) => h.kind));
+  // How often each format already runs on this slot's day (most formats: once a day at most).
+  const sameDay = new Map<string, number>();
+  for (const h of history) if (localTime(h.at, tz).key === slot.dayKey) sameDay.set(h.kind, (sameDay.get(h.kind) ?? 0) + 1);
   const lastOf = new Map<string, number>();
   for (const h of before) if (!lastOf.has(h.kind)) lastOf.set(h.kind, h.at);
   // Posts planned later the same day also count for the cooldown (they sit close in time).
   for (const h of history) if (h.at >= slot.at && h.at - slot.at < 6 * 3_600_000 && !lastOf.has(h.kind)) lastOf.set(h.kind, slot.at - (h.at - slot.at));
 
+  // A network with its own fixed formats (Telegram: job links only) may repeat them back to back.
+  const only = ONLY_FORMATS[slot.platform];
   const eligible = FORMATS.filter((f) => {
     if (!isFormatOn(f, settings) || !f.platforms.includes(slot.platform) || unavailable.has(f.key)) return false;
+    if (!formatAllowed(slot.platform, f.key)) return false;
     if (f.days && !f.days.includes(slot.weekday)) return false;
-    if (last?.kind === f.key || sameDay.has(f.key)) return false;
+    if (!only && last?.kind === f.key) return false;
+    if ((sameDay.get(f.key) ?? 0) >= (f.perDay ?? 1)) return false;
     const t = lastOf.get(f.key);
-    return t === undefined || slot.at - t >= f.cooldown * 3_600_000;
+    return t === undefined || Math.abs(slot.at - t) >= f.cooldown * 3_600_000;
   });
   if (!eligible.length) return [];
+  if (only) return eligible;
+  // Every day has at least one job post in this network's own style (Facebook: link list; Instagram: hiring card).
+  const style = JOB_STYLE[slot.platform];
+  const styleDue = style && !sameDay.has(style) ? eligible.find((f) => f.key === style) : undefined;
 
   // The pillar furthest behind its share goes first.
   const mix = mixFor(settings);
@@ -244,7 +258,8 @@ export function rankFormats(slot: Pick, history: Past[], settings: ProgramSettin
   };
   const turn = (f: FormatDef) => (Boolean(f.video) === wantVideo ? 1 : 0);
   const scored = eligible.map((f) => ({ f, pillar: deficit(f.pillar), s: score(f) }));
-  return scored.sort((a, b) => turn(b.f) - turn(a.f) || b.pillar - a.pillar || b.s - a.s).map((x) => x.f);
+  const ranked = scored.sort((a, b) => turn(b.f) - turn(a.f) || b.pillar - a.pillar || b.s - a.s).map((x) => x.f);
+  return styleDue ? [styleDue, ...ranked.filter((f) => f !== styleDue)] : ranked;
 }
 
 export type Slot = { platform: Platform; at: number; part: DayPart; kind: string; pillar: Pillar };

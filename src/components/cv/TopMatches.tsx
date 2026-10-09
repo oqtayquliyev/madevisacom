@@ -15,8 +15,7 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
 import { MatchRing, toneFor } from '@/components/cv/MatchBits';
-import { AutoApply, AutoApplyTracker } from '@/components/apply/AutoApply';
-import { useApplyState } from '@/lib/apply/store';
+import { FREE_DAILY_CHECKS } from '@/lib/pricing';
 
 // The pieces that show "the jobs you match most":
 //   SearchProgress     while the search runs (with a few true, encouraging lines)
@@ -30,6 +29,15 @@ type OnAuth = (page: 'login' | 'register') => void;
 
 /** Guests see this many matches; the rest wait behind a free account. */
 export const GUEST_VISIBLE = 2;
+/** A free account sees this many matches; the rest are in Pro. */
+export const FREE_VISIBLE = 10;
+/** A free account sees the missing skills on this many of them (the best ones). */
+export const FREE_MISSING = FREE_DAILY_CHECKS;
+
+/** What this visitor may see: how many matches, and on how many of them the missing skills. */
+export type Access = { guest: boolean; pro: boolean; jobs: number; missing: number };
+export const accessFor = (guest: boolean, pro: boolean): Access =>
+  guest ? { guest, pro, jobs: GUEST_VISIBLE, missing: 0 } : pro ? { guest, pro, jobs: Infinity, missing: Infinity } : { guest, pro, jobs: FREE_VISIBLE, missing: FREE_MISSING };
 
 const hrefOf = (m: Pick<TopMatch, 'id' | 'title' | 'company'>) => `${jobPath({ id: `sponsored-${m.id}`, title: m.title, company: m.company })}#cv-match`;
 const go = (href: string) => (e: MouseEvent) => {
@@ -185,8 +193,59 @@ function PlaceChip({ place, country }: { place: Place; country: string | null })
   return null;
 }
 
-/** One match: logo, title, place, pay, score — and one line for the document when the job is abroad. */
-function MatchCard({ m, place, doc }: { m: TopMatch; place: Place; doc: DocAction }) {
+/** "Missing from your CV: …" — visible, or locked behind an account / Pro. */
+function MissingLine({ m, open, guest, onAuth }: { m: TopMatch; open: boolean; guest: boolean; onAuth?: OnAuth }) {
+  const missing = m.missing ?? [];
+  if (!missing.length) {
+    return (
+      <p className="flex items-center gap-1.5 border-t border-ink-100 px-4 py-2.5 text-[13px] text-emerald-800 sm:px-5">
+        <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={3} /> Your CV names every skill this ad asks for.
+      </p>
+    );
+  }
+  if (open) {
+    return (
+      <div className="border-t border-ink-100 px-4 py-2.5 sm:px-5">
+        <p className="text-[12px] font-semibold text-ink-500">Missing from your CV</p>
+        <ul className="mt-1 flex flex-wrap gap-1.5">
+          {missing.slice(0, 6).map((s) => (
+            <li key={s} className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[12.5px] font-semibold text-amber-900 ring-1 ring-amber-200">
+              {s}
+            </li>
+          ))}
+          {missing.length > 6 && <li className="px-1 py-0.5 text-[12.5px] text-ink-500">+{missing.length - 6} more</li>}
+        </ul>
+      </div>
+    );
+  }
+  const n = missing.length;
+  const label = `${n} ${n === 1 ? 'skill' : 'skills'} missing from your CV`;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-ink-100 px-4 py-2.5 sm:px-5">
+      <p className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] font-semibold text-ink-700">
+        <Lock className="h-3.5 w-3.5 shrink-0 text-ink-400" /> {label}
+      </p>
+      {guest ? (
+        <button
+          onClick={() => {
+            rememberAuthIntent({ reason: 'match', next: '/cv-match' });
+            onAuth?.('register');
+          }}
+          className="shrink-0 text-[12.5px] font-bold text-brand-700 hover:underline"
+        >
+          See them with a free account
+        </button>
+      ) : (
+        <a href="/pricing#pro" onClick={go('/pricing#pro')} className="shrink-0 text-[12.5px] font-bold text-brand-700 hover:underline">
+          See them with Pro
+        </a>
+      )}
+    </div>
+  );
+}
+
+/** One match: logo, title, place, pay, score, the skills the CV is missing — and one line for the document when the job is abroad. */
+function MatchCard({ m, place, doc, missingOpen, guest, onAuth }: { m: TopMatch; place: Place; doc: DocAction; missingOpen: boolean; guest: boolean; onAuth?: OnAuth }) {
   const href = hrefOf(m);
   const tone = toneFor(m.score);
   return (
@@ -224,6 +283,8 @@ function MatchCard({ m, place, doc }: { m: TopMatch; place: Place; doc: DocActio
         </div>
       </a>
 
+      <MissingLine m={m} open={missingOpen} guest={guest} onAuth={onAuth} />
+
       {place.doc && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-ink-100 bg-brand-50/50 px-4 py-2.5 sm:px-5">
           <p className="min-w-0 flex-1 basis-44 text-[13px] font-semibold leading-5 text-ink-900">
@@ -240,7 +301,7 @@ function MatchCard({ m, place, doc }: { m: TopMatch; place: Place; doc: DocActio
 }
 
 /** Matches a guest can't read yet: their real scores, with shapes where the titles would be (no titles in the page). */
-function LockedRows({ scores, onAuth, next }: { scores: number[]; onAuth?: OnAuth; next: string }) {
+function LockedRows({ scores, onAuth, next, pro = false }: { scores: number[]; onAuth?: OnAuth; next: string; pro?: boolean }) {
   const count = scores.length;
   const signUp = (page: 'login' | 'register') => {
     rememberAuthIntent({ reason: 'match', next });
@@ -271,14 +332,26 @@ function LockedRows({ scores, onAuth, next }: { scores: number[]; onAuth?: OnAut
         <div className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-lg ring-1 ring-ink-200">
           <p className="flex items-center justify-center gap-2 text-[16px] font-bold leading-snug text-ink-950">
             <Lock className="h-4 w-4 text-brand-700" />
-            {count} more {count === 1 ? 'match' : 'matches'}
+            {count} more {count === 1 ? 'job fits' : 'jobs fit'} you
           </p>
-          <button onClick={() => signUp('register')} className="mt-3.5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-[14px] font-bold text-white hover:bg-brand-700">
-            Create free account <ArrowRight className="h-4 w-4" />
-          </button>
-          <button onClick={() => signUp('login')} className="mt-2 text-[13px] font-semibold text-brand-700 hover:underline">
-            I already have one
-          </button>
+          {pro ? (
+            <>
+              <p className="mt-1 text-[13px] leading-5 text-ink-600">Every match, with the skills your CV is missing on each one, is in MadeVisa Pro.</p>
+              <a href="/pricing#pro" onClick={go('/pricing#pro')} className="mt-3.5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-[14px] font-bold text-white hover:bg-brand-700">
+                See them all with Pro <ArrowRight className="h-4 w-4" />
+              </a>
+            </>
+          ) : (
+            <>
+              <p className="mt-1 text-[13px] leading-5 text-ink-600">A free account shows {FREE_VISIBLE} matches, and the skills you’re missing on {FREE_MISSING} of them.</p>
+              <button onClick={() => signUp('register')} className="mt-3.5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-[14px] font-bold text-white hover:bg-brand-700">
+                Create free account <ArrowRight className="h-4 w-4" />
+              </button>
+              <button onClick={() => signUp('login')} className="mt-2 text-[13px] font-semibold text-brand-700 hover:underline">
+                I already have one
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -340,7 +413,7 @@ function useCount(to: number, run: boolean, from = 0, ms = 650): number {
  * send. Step 2's number is the same score engine run again with the ad's
  * skills in the CV — a match score, never a chance of being hired.
  */
-function Roadmap({ lead, place, doc, from, step, fresh }: { lead: TopMatch; place: Place; doc: DocAction; from: string | null; step: number; fresh: boolean }) {
+function Roadmap({ lead, place, doc, from, step, fresh, missingOpen, onAuth }: { lead: TopMatch; place: Place; doc: DocAction; from: string | null; step: number; fresh: boolean; missingOpen: boolean; onAuth?: OnAuth }) {
   const outcomes = useOutcomes();
   const href = hrefOf(lead);
   const gain = lead.potential - lead.score;
@@ -394,14 +467,35 @@ function Roadmap({ lead, place, doc, from, step, fresh }: { lead: TopMatch; plac
                 <span className="text-[15px] font-semibold text-ink-600">up to </span>
                 {reach}%
               </p>
-              <ul className="mt-2.5 list-disc space-y-1 pl-5 text-[14px] font-semibold leading-5 text-ink-900 marker:text-brand-500">
-                {missing.slice(0, 4).map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ul>
-              {missing.length > 4 && <p className="mt-1 pl-5 text-[12.5px] text-ink-500">and {missing.length - 4} more</p>}
-              <p className="mt-2 text-[12px] leading-4 text-ink-500">Only the ones you really have.</p>
-              {!doc.pro && (
+              {missingOpen ? (
+                <>
+                  <ul className="mt-2.5 list-disc space-y-1 pl-5 text-[14px] font-semibold leading-5 text-ink-900 marker:text-brand-500">
+                    {missing.slice(0, 4).map((s) => (
+                      <li key={s}>{s}</li>
+                    ))}
+                  </ul>
+                  {missing.length > 4 && <p className="mt-1 pl-5 text-[12.5px] text-ink-500">and {missing.length - 4} more</p>}
+                  <p className="mt-2 text-[12px] leading-4 text-ink-500">Only the ones you really have.</p>
+                </>
+              ) : (
+                <div className="mt-2.5">
+                  <ul aria-hidden className="pointer-events-none select-none space-y-1.5 blur-[5px]">
+                    {missing.slice(0, 3).map((s, i) => (
+                      <li key={i} className="h-3.5 rounded bg-ink-300" style={{ width: `${55 + ((s.length * 7) % 35)}%` }} />
+                    ))}
+                  </ul>
+                  <button
+                    onClick={() => {
+                      rememberAuthIntent({ reason: 'match', next: '/cv-match' });
+                      onAuth?.('register');
+                    }}
+                    className="mt-2.5 inline-flex items-start gap-1.5 text-left text-[13px] font-bold text-brand-700 hover:underline"
+                  >
+                    <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {missing.length} {missing.length === 1 ? 'skill' : 'skills'} to add — free account
+                  </button>
+                </div>
+              )}
+              {missingOpen && !doc.pro && (
                 <a href="/pricing#pro" onClick={go('/pricing#pro')} className="mt-2.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-brand-700 hover:underline">
                   Every requirement, line by line, with Pro <ArrowRight className="h-3.5 w-3.5" />
                 </a>
@@ -510,12 +604,10 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
   const [all, setAll] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const items = result.items;
-  // Once there are applications, they come first; the full list of matches stays one tap away.
-  const applied = useApplyState().apps.length > 0 && Boolean(session);
-  const [browse, setBrowse] = useState(false);
-  const logos = useMemo(() => new Map(items.map((m) => [m.id, m.logo])), [items]);
   const t = tiers(items);
   const guest = !session;
+  // Guests: 2 matches, no missing skills. Free: 10 matches, missing skills on the best 3. Pro: everything.
+  const access = accessFor(guest, isPro);
   // A result that has just been worked out builds up step by step; a saved one is simply there.
   const fresh = useMemo(() => Date.now() - result.at < 20_000, [result.at]);
   const step = useReveal(9, fresh);
@@ -524,7 +616,6 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
     const places = new Map(items.map((m) => [m.id, placeOf(m, visitor)]));
     return {
       places,
-      kinds: new Map([...places].map(([id, p]) => [id, p.kind])),
       here: items.filter((m) => ['here', 'free'].includes(places.get(m.id)!.kind)).length,
       sponsor: items.filter((m) => m.visa === 'offered').length,
       countries: new Set(items.map((m) => m.cc).filter(Boolean)).size,
@@ -586,10 +677,14 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
 
   const pool = filter === 'here' ? items.filter((m) => ['here', 'free'].includes(facts.places.get(m.id)!.kind)) : filter === 'sponsor' ? items.filter((m) => m.visa === 'offered') : items;
   const rest = pool.filter((m) => m.id !== lead.id || filter !== 'all');
-  // Guests see the starting job and one more; the count behind the lock is the real one.
-  const visible = guest ? rest.slice(0, GUEST_VISIBLE - 1) : all ? rest : rest.slice(0, 11);
-  const hiddenRows = rest.slice(visible.length);
-  const hidden = hiddenRows.length;
+  // Guests see the starting job and one more, a free account 10 in all; the count behind the lock is the real one.
+  const cap = Number.isFinite(access.jobs) ? access.jobs - (filter === 'all' ? 1 : 0) : Infinity;
+  const allowed = rest.slice(0, cap);
+  const visible = access.pro && !all ? allowed.slice(0, 11) : allowed;
+  const lockedRows = rest.slice(allowed.length);
+  const hidden = allowed.length - visible.length;
+  // The best jobs get their missing skills first: the starting job, then the list in order.
+  const missingOpen = (i: number) => i + (filter === 'all' ? 1 : 0) < access.missing;
   const tips = t.best < WEAK_BELOW ? result.tips ?? [] : [];
 
   return (
@@ -613,8 +708,8 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
           )}
         </h2>
         <p className="mx-auto mt-2 max-w-xl text-[14px] leading-6 text-ink-600">
-          {items.length} {items.length === 1 ? 'job matches' : 'jobs match'} your CV
-          {facts.countries > 1 ? `, in ${facts.countries} countries` : ''}.{applied ? '' : ' Start with this one.'}
+          {items.length} {items.length === 1 ? 'job fits' : 'jobs fit'} your CV
+          {facts.countries > 1 ? `, in ${facts.countries} countries` : ''}. Start with this one — and add the skills it asks for that your CV doesn’t show yet.
         </p>
       </div>
 
@@ -622,27 +717,7 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
         <p className="mx-auto mt-4 max-w-xl rounded-lg bg-amber-50 px-3 py-2 text-center text-[13px] leading-5 text-amber-900">Your CV isn’t in English, so it was compared as it is. A free account translates it for a closer match.</p>
       )}
 
-      {/* Auto Apply: what MadeVisa would apply to, the batch as it runs, and what came of it. */}
-      <div className={shown(step >= 1)}>
-        <AutoApply result={result} places={facts.kinds} onAuth={onAuth} onAgain={guest ? undefined : onAgain} canImprove={canReach || tips.length > 0} />
-      </div>
-
-      {applied && (
-        <div className="mt-8">
-          <AutoApplyTracker logos={logos} />
-        </div>
-      )}
-      {applied && !browse && (
-        <p className="mt-6 text-center">
-          <button onClick={() => setBrowse(true)} className="rounded-full px-4 py-2 text-[13px] font-bold text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50">
-            See all {items.length} matches
-          </button>
-        </p>
-      )}
-
-      {(!applied || browse) && (
-      <>
-      <Roadmap lead={lead} place={leadPlace} doc={doc} from={visitor.currentLocation} step={step} fresh={fresh} />
+      <Roadmap lead={lead} place={leadPlace} doc={doc} from={visitor.currentLocation} step={step} fresh={fresh} missingOpen={access.missing > 0} onAuth={onAuth} />
 
       {tips.length > 0 && <CvFixes tips={tips} className={shown(step >= 4)} />}
 
@@ -673,22 +748,22 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
           <div className="mt-3 space-y-3">
             {visible.map((m, i) => (
               <div key={m.id} className={shown(step >= 5 + Math.min(i, 3))}>
-                <MatchCard m={m} place={facts.places.get(m.id)!} doc={doc} />
+                <MatchCard m={m} place={facts.places.get(m.id)!} doc={doc} missingOpen={missingOpen(i)} guest={guest} onAuth={onAuth} />
               </div>
             ))}
-            {guest && hidden > 0 && (
+            {lockedRows.length > 0 && (
               <div className={shown(step >= 6)}>
-                <LockedRows scores={hiddenRows.map((m) => m.score)} onAuth={onAuth} next="/cv-match" />
+                <LockedRows scores={lockedRows.map((m) => m.score)} onAuth={onAuth} next="/cv-match" pro={!guest} />
               </div>
             )}
           </div>
         </>
       )}
 
-      {!guest && hidden > 0 && (
+      {hidden > 0 && (
         <div className="mt-3 text-center">
           <button onClick={() => setAll(true)} className="rounded-full px-4 py-2 text-[13px] font-bold text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50">
-            Show all {rest.length}
+            Show all {allowed.length}
           </button>
         </div>
       )}
@@ -701,8 +776,6 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
           </button>
         )}
       </p>
-      </>
-      )}
     </section>
   );
 }

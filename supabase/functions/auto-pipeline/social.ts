@@ -402,6 +402,18 @@ const opening = (caption: string | null | undefined) => (caption ?? '').split('\
 /** Same role at the same company = same post to a follower, even when the ATS lists it 3 times. */
 export const fingerprint = (j: Job) => `${j.company.trim().toLowerCase()}|${cleanTitle(j.title).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`;
 
+/** Every company ever posted on this network (from the job fingerprints "company|title"). */
+async function companiesEverPosted(service: Service, p: Platform): Promise<Set<string>> {
+  const out = new Set<string>();
+  for (let from = 0; from < 20_000; from += 1000) {
+    const { data } = await service.from('social_post_jobs').select('fingerprint').eq('platform', p).not('fingerprint', 'is', null).order('created_at', { ascending: false }).range(from, from + 999);
+    const rows = (data ?? []) as { fingerprint: string }[];
+    for (const r of rows) out.add(r.fingerprint.split('|')[0]);
+    if (rows.length < 1000) break;
+  }
+  return out;
+}
+
 /** Roles at the same company with the same title posted on this network in the last 30 days. */
 async function recentFingerprints(service: Service, p: Platform): Promise<Set<string>> {
   const { data } = await service
@@ -422,23 +434,19 @@ async function recentFingerprints(service: Service, p: Platform): Promise<Set<st
 export async function pickFreshJobs(
   service: Service,
   p: Platform,
-  o: { kind: 'fresh' | 'student' | 'sponsor' | 'visa' | 'remote' | 'offer'; countries?: string[]; salaryOnly?: boolean; want: number; min: number }
+  o: { kind: 'fresh' | 'student' | 'sponsor' | 'visa' | 'remote' | 'offer'; countries?: string[]; salaryOnly?: boolean; want: number; min: number; newCompanies?: boolean }
 ): Promise<Job[]> {
-  const { data, error } = await service.rpc('social_pick_jobs', {
-    p_platform: p,
-    p_count: Math.min(o.want * 4, 20),
-    p_kind: o.kind,
-    p_categories: [],
-    p_countries: o.countries ?? [],
-    p_salary_only: o.salaryOnly ?? false,
-  });
+  const args = { p_platform: p, p_count: o.newCompanies ? 20 : Math.min(o.want * 4, 20), p_kind: o.kind, p_categories: [], p_countries: o.countries ?? [], p_salary_only: o.salaryOnly ?? false };
+  // Companies never posted on this network (migration 20261214090000); before it runs, the usual pick, filtered below.
+  let { data, error } = o.newCompanies ? await service.rpc('social_pick_new_company_jobs', { p_platform: p, p_count: 20 }) : await service.rpc('social_pick_jobs', args);
+  if (error && o.newCompanies) ({ data, error } = await service.rpc('social_pick_jobs', args));
   if (error) return [];
-  const [recent, seenFp] = await Promise.all([recentOnPlatform(service, p, 3), recentFingerprints(service, p)]);
+  const [recent, seenFp, ever] = await Promise.all([recentOnPlatform(service, p, 3), recentFingerprints(service, p), o.newCompanies ? companiesEverPosted(service, p) : Promise.resolve(new Set<string>())]);
   const used = new Set<string>();
   const jobs = ((data ?? []) as Job[])
     .filter((j) => {
       const k = j.company.trim().toLowerCase();
-      if (recent.companies.has(k) || used.has(k) || seenFp.has(fingerprint(j))) return false;
+      if (recent.companies.has(k) || used.has(k) || ever.has(k) || seenFp.has(fingerprint(j))) return false;
       used.add(k);
       return true;
     })
@@ -927,7 +935,11 @@ async function publishTelegram(post: Post): Promise<Result> {
   if (!chat) throw new Error('No Telegram channel: set one on the campaign, or the TELEGRAM_CHAT_ID secret');
   const caption = post.caption.slice(0, 1024);
   let messageId: number;
-  if (post.images.length <= 1) {
+  if (post.format === 'text' && !post.images.length) {
+    // Job links: "Link" is the tappable word (HTML), no preview card under the message.
+    const r = await telegram('sendMessage', { chat_id: chat, text: post.caption.slice(0, 4096), parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+    messageId = Number(r.message_id);
+  } else if (post.images.length <= 1) {
     const r = post.images[0]
       ? await telegram('sendPhoto', { chat_id: chat, photo: post.images[0].url, caption })
       : await telegram('sendMessage', { chat_id: chat, text: caption });
