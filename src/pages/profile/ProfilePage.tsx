@@ -123,15 +123,13 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
   });
   // Phones: the profile card sits above the content, so switching section
   // scrolls to it — otherwise a tap looks like it did nothing.
-  const firstTabRender = useRef(true);
+  // Only when the person switches section (not on load), and only if the section's top is out of view.
+  const shownTab = useRef(tab);
   useEffect(() => {
-    if (firstTabRender.current) {
-      firstTabRender.current = false;
-      return;
-    }
-    if (window.innerWidth >= 1024) return;
+    if (shownTab.current === tab) return;
+    shownTab.current = tab;
     const el = document.getElementById('profile-section');
-    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 84, behavior: 'smooth' });
+    if (el && el.getBoundingClientRect().top < 72) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 140, behavior: 'smooth' });
   }, [tab]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
 
@@ -309,11 +307,21 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
       <LandingHeader go={go} onAuth={onAuth} active="home" />
 
       <div className="relative">
-      {/* Blue band behind the top of both columns */}
-      <div className="absolute inset-x-0 top-0 h-[200px] bg-brand-700 lg:h-[230px]" aria-hidden="true" />
-      <main className="relative mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 px-4 pb-12 pt-8 sm:px-8 sm:pt-10 lg:grid-cols-[320px_minmax(0,1fr)] lg:pt-12">
-        {/* LEFT — the person */}
-        <aside className="min-w-0 space-y-4">
+      {/* Blue band behind the menu and the top of both columns */}
+      <div className="absolute inset-x-0 top-0 h-[120px] bg-brand-700 lg:h-[150px]" aria-hidden="true" />
+
+      {/* Section menu — one row across the top, on every screen size */}
+      <div className="relative mx-auto w-full max-w-7xl px-4 pt-4 sm:px-8 sm:pt-6">
+        <nav className="flex w-full gap-1 overflow-x-auto rounded-xl bg-white/10 p-1 ring-1 ring-white/20 sm:w-fit" aria-label="Profile sections">
+          <TopTab active={tab === 'dashboard'} onClick={() => setTab('dashboard')} icon={Sparkles} label="Dashboard" />
+          <TopTab active={tab === 'partner'} onClick={() => setTab('partner')} icon={Award} label={publisher ? 'Organization' : 'For organizations'} short={publisher ? 'Organization' : 'Organizations'} />
+          <TopTab active={tab === 'settings'} onClick={() => setTab('settings')} icon={SettingsIcon} label="Settings" />
+        </nav>
+      </div>
+
+      <main className="relative mx-auto grid w-full max-w-7xl grid-cols-1 gap-5 px-4 pb-12 pt-4 sm:px-8 sm:pt-5 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-8">
+        {/* LEFT — the person. On phones it comes after the section, so the menu leads straight to it. */}
+        <aside className="order-2 min-w-0 space-y-4 lg:order-1">
           <div className="rounded-xl bg-white shadow-xl shadow-brand-900/10 ring-1 ring-ink-200">
             <div className="p-5">
               <div className="w-fit rounded-lg p-[3px] ring-[3px] ring-[#1D4ED8] transition-transform duration-300 hover:scale-[1.03]">
@@ -402,18 +410,11 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
           <CvCard />
 
           <PlanCard />
-
-          {/* Section nav — vertical on desktop, scrolling chips on mobile */}
-          <nav className="grid grid-cols-3 gap-1 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-ink-200 lg:flex lg:flex-col" aria-label="Profile sections">
-            <SideTab active={tab === 'dashboard'} onClick={() => setTab('dashboard')} icon={Sparkles} label="Dashboard" />
-            <SideTab active={tab === 'partner'} onClick={() => setTab('partner')} icon={Award} label={publisher ? 'Organization' : 'For organizations'} short={publisher ? 'Organization' : 'Organizations'} />
-            <SideTab active={tab === 'settings'} onClick={() => setTab('settings')} icon={SettingsIcon} label="Settings" />
-          </nav>
         </aside>
 
         {/* RIGHT — data & infographics */}
-        <div className="min-w-0">
-        <h2 id="profile-section" className="text-[26px] font-bold text-ink-950 lg:flex lg:h-[92px] lg:items-start lg:text-white">{tab === 'dashboard' ? 'Dashboard' : tab === 'partner' ? (publisher ? 'Organization' : 'For organizations') : 'Settings'}</h2>
+        <div id="profile-section" className="order-1 min-w-0 scroll-mt-24 lg:order-2 [&>div]:mt-0">
+        <h2 className="sr-only">{tab === 'dashboard' ? 'Dashboard' : tab === 'partner' ? (publisher ? 'Organization' : 'For organizations') : 'Settings'}</h2>
 
         {/* Email verification is only asked for where it matters: registering or managing a company (Organizations tab). */}
 
@@ -678,20 +679,19 @@ function SideInfo({ icon: Icon, label, value }: { icon: typeof Briefcase; label:
   );
 }
 
-function SideTab({ active, onClick, icon: Icon, label, short }: { active: boolean; onClick: () => void; icon: typeof Sparkles; label: string; short?: string }) {
-  // Mobile: three equal tiles (icon over label) that always fit the screen.
-  // Desktop: the vertical side menu.
+function TopTab({ active, onClick, icon: Icon, label, short }: { active: boolean; onClick: () => void; icon: typeof Sparkles; label: string; short?: string }) {
+  // One row on the blue band: equal-width on phones (shorter labels), sized to the label on wider screens.
   return (
     <button
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
-      className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1.5 py-2.5 text-center text-[13px] leading-tight transition-colors lg:w-full lg:flex-row lg:justify-start lg:gap-2.5 lg:px-3.5 lg:text-left lg:text-[15px] ${
-        active ? 'bg-[#1D4ED8]/10 font-semibold text-[#1D4ED8]' : 'font-medium text-ink-600 hover:bg-ink-50 hover:text-ink-900'
+      className={`flex min-w-0 flex-auto items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2 text-[13.5px] transition-colors sm:flex-none sm:px-4 sm:text-[14.5px] ${
+        active ? 'bg-white font-semibold text-[#1D4ED8] shadow-sm' : 'font-medium text-white/85 hover:bg-white/10 hover:text-white'
       }`}
     >
-      <Icon className="h-[18px] w-[18px] shrink-0" />
-      <span className="max-w-full truncate lg:hidden">{short ?? label}</span>
-      <span className="hidden lg:inline">{label}</span>
+      <Icon className="hidden h-4 w-4 shrink-0 min-[420px]:block" />
+      <span className="truncate sm:hidden">{short ?? label}</span>
+      <span className="hidden sm:inline">{label}</span>
     </button>
   );
 }

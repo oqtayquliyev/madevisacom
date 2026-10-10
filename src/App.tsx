@@ -37,6 +37,7 @@ const AdminPanelPage = lazyPage(() => import('@/pages/admin/AdminPanelPage').the
 const AdminJobEditorPage = lazyPage(() => import('@/pages/admin/AdminJobEditorPage').then((m) => ({ default: m.AdminJobEditorPage })));
 const CompanyManagerPage = lazyPage(() => import('@/pages/company/CompanyManagerPage').then((m) => ({ default: m.CompanyManagerPage })));
 const UnsubscribePage = lazyPage(() => import('@/pages/alerts/UnsubscribePage').then((m) => ({ default: m.UnsubscribePage })));
+const MyDashboardPage = lazyPage(() => import('@/pages/my/MyDashboardPage').then((m) => ({ default: m.MyDashboardPage })));
 const EmployerInboxPage = lazyPage(() => import('@/pages/employers/EmployerInboxPage').then((m) => ({ default: m.EmployerInboxPage })));
 const OfficialPartnersPage = lazyPage(() => import('@/pages/partners/OfficialPartnersPage').then((m) => ({ default: m.OfficialPartnersPage })));
 const PublicProfilePage = lazyPage(() => import('@/pages/u/PublicProfilePage').then((m) => ({ default: m.PublicProfilePage })));
@@ -308,6 +309,10 @@ export default function App() {
 
   if (path === '/alerts/unsubscribe') {
     return <UnsubscribePage />;
+  }
+
+  if (path === '/my') {
+    return <MyDashboardPage go={go} onAuth={goToAuth} />;
   }
 
   if (path === '/employers/inbox') {

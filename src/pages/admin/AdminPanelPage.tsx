@@ -10,6 +10,7 @@ import { ControlRoom } from '@/pages/admin/ControlRoom';
 import { CvsSection } from '@/pages/admin/CvsSection';
 import { EmailsSection } from '@/pages/admin/EmailsSection';
 import { AutoApplySection } from '@/pages/admin/AutoApplySection';
+import { OutreachSection } from '@/pages/admin/OutreachSection';
 import { ExperienceReportsSection } from '@/pages/admin/ExperienceReportsSection';
 import { JobReportsSection } from '@/pages/admin/JobReportsSection';
 import { countNewJobReports } from '@/lib/jobReports';
@@ -17,7 +18,7 @@ import { listTotpFactors } from '@/lib/mfa';
 import { UpdateAllJobsPanel } from '@/pages/admin/UpdateAllJobsPanel';
 import { FindCompaniesPanel } from '@/pages/admin/FindCompaniesPanel';
 import { PublisherFilterChips, RegisteredCompanyPanel, type PublisherFilter } from '@/pages/admin/RegisteredCompanyPanel';
-import { AtSign, Zap, CreditCard, FileSignature, FileText, Gauge, Bell, Briefcase, CheckCircle2, Loader2, XCircle, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ImageIcon, Inbox, Landmark, Mail, Newspaper, Pencil, RefreshCw, ScanSearch, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
+import { AtSign, Megaphone, Zap, CreditCard, FileSignature, FileText, Gauge, Bell, Briefcase, CheckCircle2, Loader2, XCircle, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ImageIcon, Inbox, Landmark, Mail, Newspaper, Pencil, RefreshCw, ScanSearch, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { ImportCenter } from '@/pages/admin/ImportCenter';
@@ -119,10 +120,11 @@ const orgIcon: Record<OrgType, typeof Building2> = {
   expert: UserRound,
 };
 
-type AdminTab = 'control' | 'emails' | 'autoapply' | 'inbox' | 'listings' | 'imports' | 'companies' | 'articles' | 'plans' | 'cvs' | 'offers' | 'images' | 'settings';
+type AdminTab = 'control' | 'emails' | 'outreach' | 'autoapply' | 'inbox' | 'listings' | 'imports' | 'companies' | 'articles' | 'plans' | 'cvs' | 'offers' | 'images' | 'settings';
 const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Inbox }[] = [
   { key: 'control', label: 'Control room', icon: Gauge },
   { key: 'emails', label: 'Emails', icon: AtSign },
+  { key: 'outreach', label: 'Outreach', icon: Megaphone },
   { key: 'autoapply', label: 'Auto Apply', icon: Zap },
   { key: 'inbox', label: 'Requests', icon: Inbox },
   { key: 'listings', label: 'Listings', icon: Briefcase },
@@ -448,9 +450,10 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
         {tab === 'control' && <ControlRoom onOpen={setTab} />}
         {tab === 'cvs' && <CvsSection />}
         {tab === 'emails' && <EmailsSection />}
+        {tab === 'outreach' && <OutreachSection />}
         {tab === 'autoapply' && <AutoApplySection />}
 
-        {tab === 'control' || tab === 'cvs' || tab === 'emails' || tab === 'autoapply' ? null : dataLoading ? (
+        {tab === 'control' || tab === 'cvs' || tab === 'emails' || tab === 'outreach' || tab === 'autoapply' ? null : dataLoading ? (
           <AdminLoadingPanel parts={loadParts} startedAt={loadStartedAt} onRetry={() => loadAll()} />
         ) : (
           <>

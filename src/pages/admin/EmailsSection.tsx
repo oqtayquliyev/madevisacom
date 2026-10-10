@@ -25,6 +25,9 @@ const KIND: Record<string, string> = {
   application: 'Applications sent',
   auto_apply: 'Auto Apply started',
   admin: 'To you (admin)',
+  campaign: 'Campaigns',
+  series: 'Auto Apply series',
+  test: 'Tests',
   news: 'News',
   account: 'Account',
 };
