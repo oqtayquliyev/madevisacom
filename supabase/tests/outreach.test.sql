@@ -96,7 +96,7 @@ SELECT t.ok(NOT EXISTS (SELECT 1 FROM public.nurture_state WHERE user_id IN (t.i
 SELECT t.ok(public.run_auto_apply_series() = 0, 'not again the same day');
 UPDATE public.nurture_state SET last_sent_at = now() - interval '13 days';
 SELECT t.ok(public.run_auto_apply_series() = (SELECT n FROM expect), 'second email after 12 days');
-SELECT t.ok((SELECT body->>'subject' FROM net.requests_log ORDER BY id DESC LIMIT 1) LIKE '📈%', 'nurture_2 subject');
+SELECT t.ok((SELECT body->>'subject' FROM net.requests_log ORDER BY id DESC LIMIT 1) LIKE 'More applications%', 'nurture_2 subject');
 UPDATE public.nurture_state SET last_sent_at = now() - interval '13 days';
 SELECT public.run_auto_apply_series();
 UPDATE public.nurture_state SET last_sent_at = now() - interval '13 days';
@@ -131,6 +131,18 @@ SELECT t.ok((public.admin_outreach_settings('{"per_minute": 30}')->>'per_minute'
 SELECT t.ok(public.admin_template_test('promo_cv', 'me@test.com', (SELECT (x->>'id')::uuid FROM jsonb_array_elements(public.admin_senders()) x WHERE x->>'from_email' = 'visa@news.madevisa.com')), 'test from a chosen sender');
 SELECT t.out();
 SELECT t.ok((SELECT body->>'from' FROM net.requests_log ORDER BY id DESC LIMIT 1) = 'MadeVisa Visa Guide <visa@news.madevisa.com>', 'chosen sender used');
+
+-- Email design: no emojis anywhere, real logo, icons
+SELECT t.ok(public.mv_no_emoji('Hi 👋 there ✈️ 1️⃣ ✓') = 'Hi there 1 ✓', 'emojis stripped, check mark kept');
+SELECT t.ok((SELECT bool_and(r->>'html' !~ '[\U0001F000-\U0001FAFF☀-✒✔-➿️]' AND r->>'subject' !~ '[\U0001F000-\U0001FAFF☀-➿]'
+                        AND r->>'text' !~ '[\U0001F000-\U0001FAFF☀-➿]')
+             FROM (SELECT public.mv_render_template(key, 'a@example.com', 'Ann', NULL, gen_random_uuid(), NULL) r FROM public.email_templates) x), 'no template renders an emoji');
+SELECT t.ok(public.mv_render_template('nurture_1', 'a@example.com', 'Ann', NULL, gen_random_uuid(), NULL)->>'html' LIKE '%https://madevisa.com/og-logo.png%', 'real logo in header');
+SELECT t.ok(public.mv_body_html('- [target] One' || E'\n' || '- 2. Two' || E'\n' || '- Three') LIKE '%icons/t-target.png%>One<%'
+        AND public.mv_body_html('- 2. Two') LIKE '%>2</div>%' AND public.mv_body_html('- Three') LIKE '%icons/t-check.png%'
+        AND public.mv_body_html('- [nope] X') LIKE '%t-check.png%', 'icon, number and check list items');
+UPDATE public.email_templates SET body = 'Hello 🚀 world' WHERE key = 'promo_cv';
+SELECT t.ok(public.mv_render_template('promo_cv', 'a@example.com', NULL, NULL, NULL, NULL)->>'html' LIKE '%Hello world%', 'emoji typed into a template is removed on send');
 
 \echo 'ALL PASSED'
 ROLLBACK;

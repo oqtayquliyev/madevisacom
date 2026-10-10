@@ -73,6 +73,9 @@ const STATUS: Record<Campaign['status'], string> = {
   cancelled: 'bg-ink-100 text-ink-500',
 };
 
+/** Icons in public/email/icons (t-*.png), usable in template list lines as “- [name] …”. */
+const EMAIL_ICONS = ['target', 'zap', 'globe', 'plane', 'mail', 'pause', 'file', 'bell', 'sparkles', 'chart', 'clock', 'check', 'trending', 'briefcase', 'dashboard', 'search', 'send', 'puzzle', 'user', 'rocket', 'badge', 'list', 'calendar', 'shield', 'new', 'star', 'heart', 'inbox', 'award', 'map'];
+
 export function OutreachSection() {
   const [sub, setSub] = useState<Sub>('campaigns');
   const [ov, setOv] = useState<Overview | null | undefined>(undefined);
@@ -1011,6 +1014,22 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
           <L label="Body">
             <textarea value={draft.body} onChange={(e) => set('body', e.target.value)} rows={12} className="w-full rounded-lg border border-ink-200 p-2.5 text-[13px] leading-5 outline-none focus:border-brand-500" />
           </L>
+          <div>
+            <p className="mb-1.5 text-[11.5px] font-semibold text-ink-600">Add a list line with an icon</p>
+            <div className="flex flex-wrap gap-1.5">
+              {EMAIL_ICONS.map((ic) => (
+                <button
+                  key={ic}
+                  type="button"
+                  title={`- [${ic}] …`}
+                  onClick={() => set('body', `${draft.body.replace(/\s+$/, '')}\n- [${ic}] `)}
+                  className="rounded-lg border border-ink-200 bg-white p-1 hover:border-brand-400"
+                >
+                  <img src={`/email/icons/t-${ic}.png`} alt={ic} width={24} height={24} className="h-6 w-6" />
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <L label="Button">
               <input value={draft.cta_label} onChange={(e) => set('cta_label', e.target.value)} className={input} />
@@ -1020,7 +1039,7 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
             </L>
           </div>
           <p className="rounded-lg bg-ink-50 p-2.5 text-[11.5px] leading-5 text-ink-600">
-            <b>Placeholders:</b> {'{{first_name}} {{jobs_live}} {{jobs_today}} {{jobs_visa}} {{matches}} {{cv_line}} {{country}}'}. <b>Body:</b> blank line = new paragraph, a line starting with “- ” = list item, **bold**. Emojis welcome ✨
+            <b>Placeholders:</b> {'{{first_name}} {{jobs_live}} {{jobs_today}} {{jobs_visa}} {{matches}} {{cv_line}} {{country}}'}. <b>Body:</b> blank line = new paragraph, a line starting with “- ” = list item, **bold**. List lines: “- [target] text” shows an icon, “- 1. text” a numbered step, “- text” a check. Emojis are removed when sending — use icons instead.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Btn onClick={() => void save()} busy={busy === 'save'} icon={Check} tone="green">Save</Btn>
