@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AtSign, Check, ChevronLeft, ChevronRight, Eye, FileUp, Loader2, Mail, Pause, Play, Plus, RefreshCw, Rocket, Search, Send, Settings2, Sparkles, Tag, Trash2, Upload, Users, X, Zap } from 'lucide-react';
+import { AtSign, Check, ChevronLeft, ChevronRight, Eye, FileUp, Globe, Loader2, Mail, Pause, Play, Plus, RefreshCw, Rocket, ScanSearch, Search, Send, Settings2, Sparkles, Square, Tag, Trash2, Upload, Users, X, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 // Admin → Outreach: emails to many people at once.
@@ -8,11 +8,14 @@ import { supabase } from '@/lib/supabase';
 //               Sent a few per minute, never above the daily cap (Sending & limits).
 //   Contacts    import addresses (paste or CSV; email alone is enough), tag them, unsubscribe,
 //               delete. Unsubscribed and bounced addresses are never emailed by a campaign.
+//   Find emails one button: business addresses that are already public — recruiter addresses in
+//               live job ads, company profile addresses, and those published on company websites
+//               (edge function email-finder). Added with tags found-online + employer.
 //   Templates   the six emails (3 CV Match / Auto Apply promos, 3 Auto Apply series) — edit,
 //               preview, test.
 //   Series      the Auto Apply emails free accounts get automatically, 12 days apart.
 //   Limits      daily cap, reserve for site emails, speed, sender.
-// Server side: migration 20261216090000_outreach_campaigns.sql.
+// Server side: migrations 20261216090000_outreach_campaigns.sql … 20261218090000_email_finder_and_names.sql.
 
 type Audience = { source: 'contacts' | 'accounts' | 'both'; accounts?: 'all' | 'no_cv' | 'cv' | 'free' | 'pro'; tags?: string[]; country?: string; skip_days?: number; limit?: number };
 type Settings = { enabled: boolean; daily_cap: number; reserve: number; per_minute: number; nurture_enabled: boolean; nurture_gap_days: number; nurture_per_day: number };
@@ -52,10 +55,11 @@ type Template = { key: string; name: string; audience: 'anyone' | 'accounts' | '
 type Contact = { id: string; email: string; name: string | null; country: string | null; tags: string[]; source: string; status: 'subscribed' | 'unsubscribed' | 'bounced' | 'complained'; account: boolean; sent_count: number; last_sent_at: string | null; created_at: string };
 type ContactList = { counts: { all: number; subscribed: number; unsubscribed: number; bounced: number; accounts: number }; tags: { tag: string; n: number }[]; total: number; rows: Contact[] };
 
-type Sub = 'campaigns' | 'contacts' | 'templates' | 'senders' | 'series' | 'limits';
+type Sub = 'campaigns' | 'contacts' | 'finder' | 'templates' | 'senders' | 'series' | 'limits';
 const SUBS: { key: Sub; label: string; icon: typeof Mail }[] = [
   { key: 'campaigns', label: 'Campaigns', icon: Rocket },
   { key: 'contacts', label: 'Contacts', icon: Users },
+  { key: 'finder', label: 'Find emails', icon: ScanSearch },
   { key: 'templates', label: 'Templates', icon: Mail },
   { key: 'senders', label: 'Senders', icon: AtSign },
   { key: 'series', label: 'Auto Apply series', icon: Zap },
@@ -143,7 +147,8 @@ export function OutreachSection() {
       </nav>
 
       {sub === 'campaigns' && <Campaigns ov={ov} templates={templates} senders={senders} onChange={load} />}
-      {sub === 'contacts' && <Contacts />}
+      {sub === 'contacts' && <Contacts onFind={() => setSub('finder')} />}
+      {sub === 'finder' && <EmailFinder onContacts={() => setSub('contacts')} />}
       {sub === 'templates' && <Templates templates={templates} senders={senders} onSaved={load} />}
       {sub === 'senders' && <Senders senders={senders} onChange={load} />}
       {sub === 'series' && <Series ov={ov} templates={templates} onChange={load} onEdit={() => setSub('templates')} />}
@@ -376,6 +381,7 @@ function NewCampaign({ templates, senders, ov, onClose, onDone }: { templates: T
           {aud.source !== 'accounts' && tags.length > 0 && (
             <div>
               <p className="mb-1.5 text-[12px] font-semibold text-ink-700">Only contacts with these tags (any)</p>
+              <p className="mb-1.5 text-[11.5px] text-ink-500">Addresses from Find emails are only included when you pick one of their tags (<b>employer</b>, <b>found-online</b>…).</p>
               <div className="flex flex-wrap gap-1.5">
                 {tags.map((t) => {
                   const on = aud.tags?.includes(t.tag);
@@ -391,6 +397,11 @@ function NewCampaign({ templates, senders, ov, onClose, onDone }: { templates: T
                 })}
               </div>
             </div>
+          )}
+          {aud.source !== 'accounts' && aud.tags?.some((x) => ['employer', 'found-online', 'job-ad', 'website', 'company-profile'].includes(x)) && tpl !== 'promo_employers' && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900">
+              These are company and recruiter addresses. The job-seeker emails will look odd to them — pick <b>For employers: hire from abroad</b> above.
+            </p>
           )}
           <div className="grid gap-3 sm:grid-cols-3">
             <L label="Country (optional)">
@@ -484,7 +495,7 @@ function parseContacts(text: string): { email: string; name?: string; country?: 
   return out;
 }
 
-function Contacts() {
+function Contacts({ onFind }: { onFind: () => void }) {
   const [data, setData] = useState<ContactList | null | undefined>(undefined);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
@@ -538,9 +549,14 @@ function Contacts() {
       {importing ? (
         <Import onClose={() => setImporting(false)} onDone={() => (setImporting(false), void load())} />
       ) : (
-        <button onClick={() => setImporting(true)} className="inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-bold text-ink-800 ring-1 ring-ink-200 hover:bg-ink-50">
-          <Upload className="h-4 w-4" /> Import many (paste or CSV)
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setImporting(true)} className="inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-bold text-ink-800 ring-1 ring-ink-200 hover:bg-ink-50">
+            <Upload className="h-4 w-4" /> Import many (paste or CSV)
+          </button>
+          <button onClick={onFind} className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-700">
+            <ScanSearch className="h-4 w-4" /> Find emails online
+          </button>
+        </div>
       )}
 
       <div className="rounded-xl bg-white ring-1 ring-ink-200">
@@ -786,6 +802,285 @@ function AddContact({ onAdded }: { onAdded: () => void }) {
   );
 }
 
+/* ------------------------------------------------------------- Find emails */
+
+type FinderSite = { domain: string; url: string; name: string | null; country: string | null; status: 'waiting' | 'scanning' | 'done' | 'failed' | 'blocked'; pages: number; found: number; added: number; error: string | null; scanned_at: string | null };
+type FinderOverview = { sites_total: number; sites_scanned: number; sites_left: number; from_ads: number; from_profiles: number; found_total: number; found_subscribed: number; found_named: number; recent: FinderSite[] };
+type ScanResult = { url: string; domain: string; pages: number; emails: { email: string; page: string }[]; error?: string; blocked?: boolean };
+type LogLine = { domain: string; text: string; tone: 'ok' | 'none' | 'bad' };
+
+/** The email-finder edge function: reads up to 10 websites per call. */
+async function scanWebsites(urls: string[]): Promise<ScanResult[]> {
+  const { data, error } = await supabase.functions.invoke('email-finder', { body: { action: 'scan', urls } });
+  if (error) {
+    if (/Failed to send a request/i.test(error.message)) throw new Error('The email-finder function isn’t deployed yet: run “supabase functions deploy email-finder”.');
+    const res = (error as { context?: Response }).context;
+    let detail: string | null = null;
+    try {
+      const j = res && typeof res.json === 'function' ? await res.clone().json() : null;
+      detail = j?.error ?? null;
+    } catch {
+      /* not JSON */
+    }
+    if (detail) throw new Error(detail);
+    if (res?.status === 404) throw new Error('The email-finder function isn’t deployed yet: run “supabase functions deploy email-finder”.');
+    throw new Error(res?.status ? `email-finder answered ${res.status}. Try again in a minute.` : error.message);
+  }
+  if (!data?.ok) throw new Error(data?.error ?? 'email-finder failed');
+  return data.sites as ScanResult[];
+}
+
+const SITE_STATUS: Record<FinderSite['status'], string> = {
+  done: 'bg-emerald-50 text-emerald-700',
+  failed: 'bg-ink-100 text-ink-600',
+  blocked: 'bg-amber-50 text-amber-700',
+  scanning: 'bg-brand-50 text-brand-700',
+  waiting: 'bg-ink-100 text-ink-600',
+};
+
+function EmailFinder({ onContacts }: { onContacts: () => void }) {
+  const [ov, setOv] = useState<FinderOverview | null | undefined>(undefined);
+  const [err, setErr] = useState<string | null>(null);
+  const [running, setRunning] = useState<'all' | 'paste' | null>(null);
+  const [perClick, setPerClick] = useState(40);
+  const [progress, setProgress] = useState<{ step: string; sites: number; found: number; added: number; fromAds: number; fromProfiles: number } | null>(null);
+  const [log, setLog] = useState<LogLine[]>([]);
+  const [paste, setPaste] = useState('');
+  const stop = useRef(false);
+
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.rpc('admin_finder_overview');
+    if (error) {
+      setErr(/admin_finder|schema cache|does not exist/i.test(error.message) ? 'Run migration 20261218090000_email_finder_and_names.sql first.' : error.message);
+      setOv(null);
+      return;
+    }
+    setOv(data as FinderOverview);
+  }, []);
+  useEffect(() => void load(), [load]);
+
+  const pushLog = (rows: ScanResult[], saved: boolean) =>
+    setLog((l) =>
+      [
+        ...rows.map((r): LogLine => ({
+          domain: r.domain || r.url,
+          text: r.emails.length ? `${r.emails.length} found · ${r.emails.slice(0, 3).map((e) => e.email).join(', ')}${r.emails.length > 3 ? '…' : ''}` : (r.error ?? 'nothing found'),
+          tone: r.emails.length ? 'ok' : r.blocked || !saved ? 'bad' : 'none',
+        })),
+        ...l,
+      ].slice(0, 60),
+    );
+
+  /** Read websites in batches of 8 and save what they publish. */
+  const readSites = async (batch: { url: string; domain?: string; name?: string | null; country?: string | null }[], acc: { sites: number; found: number; added: number }) => {
+    const res = await scanWebsites(batch.map((b) => b.url));
+    const merged = res.map((r, i) => ({ ...r, domain: batch[i].domain ?? r.domain, name: batch[i].name ?? null, country: batch[i].country ?? null }));
+    const { data, error } = await supabase.rpc('admin_finder_save', { p: merged });
+    if (error) throw new Error(error.message);
+    const d = data as { sites: number; found: number; added: number };
+    acc.sites += d.sites;
+    acc.found += d.found;
+    acc.added += d.added;
+    pushLog(merged, true);
+  };
+
+  const findAll = async () => {
+    stop.current = false;
+    setRunning('all');
+    setErr(null);
+    setLog([]);
+    const acc = { sites: 0, found: 0, added: 0 };
+    try {
+      setProgress({ step: 'Collecting addresses from job ads and company profiles…', ...acc, fromAds: 0, fromProfiles: 0 });
+      const { data, error } = await supabase.rpc('admin_finder_collect');
+      if (error) throw new Error(error.message);
+      const c = data as { from_ads: number; from_profiles: number };
+      let p = { ...acc, fromAds: c.from_ads, fromProfiles: c.from_profiles };
+      while (!stop.current && acc.sites < perClick) {
+        setProgress({ step: `Reading company websites… ${acc.sites} of up to ${perClick}`, ...p });
+        const q = await supabase.rpc('admin_finder_queue', { p_limit: Math.min(8, perClick - acc.sites) });
+        if (q.error) throw new Error(q.error.message);
+        const batch = (q.data ?? []) as { domain: string; url: string; name: string | null; country: string | null }[];
+        if (!batch.length) break;
+        await readSites(batch, acc);
+        p = { ...acc, fromAds: c.from_ads, fromProfiles: c.from_profiles };
+      }
+      setProgress({ step: stop.current ? 'Stopped.' : 'Done.', ...p });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      setProgress((x) => (x ? { ...x, step: 'Stopped by an error.' } : x));
+    }
+    setRunning(null);
+    void load();
+  };
+
+  const pasted = useMemo(
+    () => [...new Set(paste.split(/[\s,;]+/).map((x) => x.trim()).filter((x) => /^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(x)))].slice(0, 200),
+    [paste],
+  );
+  const readPasted = async () => {
+    stop.current = false;
+    setRunning('paste');
+    setErr(null);
+    setLog([]);
+    const acc = { sites: 0, found: 0, added: 0 };
+    try {
+      for (let i = 0; i < pasted.length && !stop.current; i += 8) {
+        setProgress({ step: `Reading ${Math.min(i + 8, pasted.length)} of ${pasted.length} websites…`, ...acc, fromAds: 0, fromProfiles: 0 });
+        await readSites(pasted.slice(i, i + 8).map((url) => ({ url })), acc);
+      }
+      setProgress({ step: stop.current ? 'Stopped.' : 'Done.', ...acc, fromAds: 0, fromProfiles: 0 });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+    setRunning(null);
+    void load();
+  };
+
+  if (ov === undefined) return <Spin />;
+  if (!ov) return <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{err}</p>;
+  const waiting = ov.from_ads + ov.from_profiles;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Found so far" value={nf(ov.found_total)} sub={`${nf(ov.found_named)} with a name · ${nf(ov.found_subscribed)} subscribed`} />
+        <Stat label="Ready to add now" value={nf(waiting)} sub={`${nf(ov.from_ads)} from job ads · ${nf(ov.from_profiles)} from profiles`} />
+        <Stat label="Company websites to read" value={nf(ov.sites_left)} sub={`of ${nf(ov.sites_total)} with a website`} />
+        <Stat label="Websites read" value={nf(ov.sites_scanned)} sub="Read again after 60 days" />
+      </div>
+
+      <div className="rounded-xl bg-white p-5 ring-1 ring-ink-200">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-xl">
+            <p className="text-base font-bold text-ink-950">Find emails</p>
+            <p className="mt-1 text-[13.5px] leading-6 text-ink-600">
+              One click collects business addresses that are already public: recruiter and HR addresses written in live job ads, the contact address on company profiles, and the addresses companies publish on their own website (contact, imprint, about and careers pages). New ones are added to Contacts with the tags <b>found-online</b> and <b>employer</b> and the page they came from.
+            </p>
+          </div>
+          <div className="flex flex-col items-stretch gap-2 sm:items-end">
+            {running ? (
+              <button onClick={() => (stop.current = true)} className="inline-flex items-center justify-center gap-2 rounded-full bg-ink-900 px-5 py-3 text-sm font-bold text-white hover:bg-ink-800">
+                <Square className="h-4 w-4" /> Stop
+              </button>
+            ) : (
+              <button onClick={() => void findAll()} className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-sm font-bold text-white hover:bg-brand-700">
+                <ScanSearch className="h-4 w-4" /> Find emails
+              </button>
+            )}
+            <label className="flex items-center gap-2 text-[12px] text-ink-600">
+              Websites per click
+              <select value={perClick} onChange={(e) => setPerClick(Number(e.target.value))} disabled={running !== null} className="h-8 rounded-lg border border-ink-200 bg-white px-2 text-[12px]">
+                {[16, 40, 100, 250, 1000].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        {progress && (
+          <div className="mt-4 rounded-xl bg-ink-50 p-4">
+            <p className="flex items-center gap-2 text-[13px] font-semibold text-ink-900">
+              {running && <Loader2 className="h-4 w-4 animate-spin text-brand-600" />} {progress.step}
+            </p>
+            <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-ink-600">
+              {running !== 'paste' && (
+                <>
+                  <span><b className="text-ink-900">{nf(progress.fromAds)}</b> added from job ads</span>
+                  <span><b className="text-ink-900">{nf(progress.fromProfiles)}</b> from company profiles</span>
+                </>
+              )}
+              <span><b className="text-ink-900">{nf(progress.sites)}</b> websites read</span>
+              <span><b className="text-ink-900">{nf(progress.found)}</b> addresses on them</span>
+              <span><b className="text-emerald-700">{nf(progress.added)}</b> new contacts</span>
+            </p>
+            {!running && (progress.added + progress.fromAds + progress.fromProfiles > 0) && (
+              <button onClick={onContacts} className="mt-2 text-[12.5px] font-semibold text-brand-700 hover:underline">
+                See them in Contacts →
+              </button>
+            )}
+          </div>
+        )}
+        {err && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-800">{err}</p>}
+        {log.length > 0 && (
+          <ul className="mt-3 max-h-64 divide-y divide-ink-100 overflow-y-auto rounded-lg ring-1 ring-ink-100">
+            {log.map((l, i) => (
+              <li key={i} className="flex gap-3 px-3 py-1.5 text-[12.5px]">
+                <span className="w-44 shrink-0 truncate font-semibold text-ink-800">{l.domain}</span>
+                <span className={`min-w-0 truncate ${l.tone === 'ok' ? 'text-emerald-700' : l.tone === 'bad' ? 'text-amber-700' : 'text-ink-500'}`}>{l.text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-xl bg-white p-5 ring-1 ring-ink-200">
+        <p className="flex items-center gap-2 text-sm font-bold text-ink-950">
+          <Globe className="h-4 w-4 text-ink-500" /> Read other websites
+        </p>
+        <p className="mt-1 text-[13px] text-ink-500">Paste company websites — one per line or separated by commas (e.g. a list of hospitals, agencies or employers you want to reach). Up to 200 at a time.</p>
+        <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={4} placeholder={'acme.de\nhttps://www.example-hospital.co.uk\nbeta-logistics.com'} className="mt-3 w-full rounded-lg border border-ink-200 p-3 font-mono text-[12.5px] outline-none focus:border-brand-500" />
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <button onClick={() => void readPasted()} disabled={!pasted.length || running !== null} className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-ink-800 ring-1 ring-ink-200 hover:bg-ink-50 disabled:opacity-50">
+            {running === 'paste' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanSearch className="h-4 w-4" />} Read {nf(pasted.length)} {pasted.length === 1 ? 'website' : 'websites'}
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-xl bg-amber-50 p-4 text-[13px] leading-6 text-amber-950">
+        <p className="font-bold">How these addresses are used</p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-5">
+          <li>They are company and recruiter inboxes, not job seekers. A campaign only includes them when you pick one of their tags, so the job-seeker emails never reach them by accident. Use the <b>For employers: hire from abroad</b> template.</li>
+          <li>Their emails say where the address was published and have a one-click unsubscribe; anyone who unsubscribed or bounced is never added back.</li>
+          <li>Only addresses that are published on purpose are collected — no-reply, privacy and legal inboxes are skipped, and sites that ask robots not to read them (robots.txt) are left alone.</li>
+          <li>Unsolicited business email is allowed in some countries and needs prior consent in others (e.g. Germany). Start small, send from a separate sender, and stop for any country where you’re unsure.</li>
+        </ul>
+      </div>
+
+      {ov.recent.length > 0 && (
+        <div className="overflow-x-auto rounded-xl bg-white ring-1 ring-ink-200">
+          <p className="border-b border-ink-100 px-4 py-2.5 text-[13px] font-bold text-ink-900">Recently read websites</p>
+          <table className="w-full min-w-[620px] text-left text-[13px]">
+            <thead className="text-[11px] uppercase tracking-wide text-ink-500">
+              <tr className="border-b border-ink-100">
+                <th className="px-4 py-2">Website</th>
+                <th className="px-2 py-2">Result</th>
+                <th className="px-2 py-2 text-right">Pages</th>
+                <th className="px-2 py-2 text-right">Found</th>
+                <th className="px-2 py-2 text-right">New</th>
+                <th className="px-4 py-2 text-right">When</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {ov.recent.map((r) => (
+                <tr key={r.domain}>
+                  <td className="px-4 py-2">
+                    <a href={r.url} target="_blank" rel="noreferrer" className="font-semibold text-ink-900 hover:underline">
+                      {r.domain}
+                    </a>
+                    {r.name && <span className="block text-[11.5px] text-ink-500">{[r.name, r.country].filter(Boolean).join(' · ')}</span>}
+                  </td>
+                  <td className="px-2 py-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${SITE_STATUS[r.status]}`}>{r.status === 'done' ? 'read' : r.status}</span>
+                    {r.error && r.status !== 'done' && <span className="ml-2 text-[11.5px] text-ink-500">{r.error}</span>}
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums text-ink-600">{r.pages}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-ink-600">{r.found}</td>
+                  <td className="px-2 py-2 text-right tabular-nums font-semibold text-emerald-700">{r.added || '—'}</td>
+                  <td className="px-4 py-2 text-right text-ink-500">{when(r.scanned_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ----------------------------------------------------------------- Senders */
 
 function Senders({ senders, onChange }: { senders: Sender[]; onChange: () => void }) {
@@ -948,18 +1243,22 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [testTo, setTestTo] = useState('');
+  const [as, setAs] = useState<'named' | 'unknown'>('named');
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => setTestTo(data.user?.email ?? ''));
   }, []);
   useEffect(() => {
     setDraft(templates.find((x) => x.key === key) ?? null);
     setMsg(null);
-    void supabase.rpc('admin_template_preview', { p_key: key }).then(({ data }) => {
+  }, [key, templates]);
+  useEffect(() => {
+    setHtml(null);
+    void supabase.rpc('admin_template_preview', { p_key: key, p_as: as }).then(({ data }) => {
       const d = data as { html: string; subject: string } | null;
       setHtml(d?.html ?? null);
       setSubject(d?.subject ?? '');
     });
-  }, [key, templates]);
+  }, [key, templates, as]);
   if (!draft) return <p className="text-sm text-ink-500">No templates.</p>;
   const set = <K extends keyof Template>(k: K, v: Template[K]) => setDraft({ ...draft, [k]: v });
   const dirty = JSON.stringify(draft) !== JSON.stringify(t);
@@ -1039,7 +1338,7 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
             </L>
           </div>
           <p className="rounded-lg bg-ink-50 p-2.5 text-[11.5px] leading-5 text-ink-600">
-            <b>Placeholders:</b> {'{{first_name}} {{jobs_live}} {{jobs_today}} {{jobs_visa}} {{matches}} {{cv_line}} {{country}}'}. <b>Body:</b> blank line = new paragraph, a line starting with “- ” = list item, **bold**. List lines: “- [target] text” shows an icon, “- 1. text” a numbered step, “- text” a check. Emojis are removed when sending — use icons instead.
+            <b>Placeholders:</b> {'{{first_name}} {{jobs_live}} {{jobs_today}} {{jobs_visa}} {{matches}} {{cv_line}} {{country}}'}. <b>When the name isn’t known</b> (or is “info”, “HR Team”, a company…), {'{{first_name}}'} is taken out of the sentence and the “Hi …,” line is left out — “{'{{first_name}}'}, 12 new jobs” becomes “12 new jobs”, “Thanks, {'{{first_name}}'}!” becomes “Thanks!”. Check both with the preview switch. <b>Body:</b> blank line = new paragraph, a line starting with “- ” = list item, **bold**. List lines: “- [target] text” shows an icon, “- 1. text” a numbered step, “- text” a check. Emojis are removed when sending — use icons instead.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Btn onClick={() => void save()} busy={busy === 'save'} icon={Check} tone="green">Save</Btn>
@@ -1062,9 +1361,12 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
           </div>
         </div>
         <div className="rounded-xl bg-white p-3 ring-1 ring-ink-200">
-          <p className="px-1 text-[12px] text-ink-500">
-            Preview for you {dirty && <b className="text-amber-700">· save to update</b>}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-1">
+            <p className="text-[12px] text-ink-500">
+              Preview {dirty && <b className="text-amber-700">· save to update</b>}
+            </p>
+            <Seg value={as} onChange={setAs} options={[{ v: 'named', t: 'Name known' }, { v: 'unknown', t: 'Name unknown' }]} />
+          </div>
           <p className="px-1 pb-2 text-[13px] font-semibold text-ink-900">{subject}</p>
           {html ? <iframe title="Email preview" srcDoc={html} sandbox="" className="h-[720px] w-full rounded-lg border border-ink-100 bg-[#f1f4f9]" /> : <Spin />}
         </div>
