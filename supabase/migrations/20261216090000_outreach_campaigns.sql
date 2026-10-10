@@ -399,6 +399,7 @@ BEGIN
       jobs_today = (SELECT count(*) FROM public.sponsored_jobs WHERE status = 'published' AND NOT awaiting_release AND coalesce(released_at, created_at) > now() - interval '24 hours'),
       jobs_visa = (SELECT count(*) FROM public.sponsored_jobs WHERE status = 'published' AND NOT awaiting_release AND (expires_at IS NULL OR expires_at > now()) AND (visa_status = 'offered' OR visa_sponsorship)),
       at = now()
+    WHERE id
     RETURNING * INTO r;
   END IF;
   RETURN r;
@@ -1051,6 +1052,7 @@ BEGIN
     nurture_gap_days = coalesce((p->>'nurture_gap_days')::integer, nurture_gap_days),
     nurture_per_day = coalesce((p->>'nurture_per_day')::integer, nurture_per_day),
     updated_at = now()
+  WHERE id
   RETURNING * INTO s;
   RETURN to_jsonb(s);
 END;

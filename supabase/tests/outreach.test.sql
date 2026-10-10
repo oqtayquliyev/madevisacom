@@ -113,5 +113,24 @@ SELECT t.ok(public.email_dashboard((SELECT token FROM tok WHERE email = 'free@ex
 SELECT t.ok(public.email_dashboard(gen_random_uuid()) IS NULL, 'bad token');
 RESET ROLE;
 
+\echo '8. senders: rotation and limits (20261217)'
+UPDATE public.email_senders SET active = false;
+UPDATE public.email_campaigns SET status = 'cancelled' WHERE status = 'sending';
+UPDATE public.email_senders SET active = true, daily_limit = 1 WHERE from_email IN ('jobs@news.madevisa.com', 'careers@news.madevisa.com');
+UPDATE public.outreach_settings SET daily_cap = 100000, reserve = 0, per_minute = 10, enabled = true;
+INSERT INTO public.email_contacts (email, tags) SELECT 'p' || g || '@example.org', ARRAY['rot'] FROM generate_series(1, 4) g;
+SELECT t.as('admin');
+SELECT public.admin_campaign_start((public.admin_campaign_save(NULL, 'Rotation', 'promo_cv', '{"source":"contacts","tags":["rot"]}')->>'id')::uuid);
+SELECT t.ok(jsonb_array_length(public.admin_senders()) = 10, 'ten senders');
+SELECT t.out();
+SELECT t.ok(public.run_campaign_sends() = 2, 'two senders × limit 1 = 2 sent, the rest wait');
+SELECT t.ok((SELECT count(DISTINCT body->>'from') FROM net.requests_log WHERE body->>'subject' NOT LIKE '[Test]%' AND id > (SELECT max(id) - 2 FROM net.requests_log)) = 2, 'rotated between both');
+SELECT t.ok((SELECT count(*) FROM public.email_campaign_recipients q JOIN public.email_campaigns c ON c.id = q.campaign_id WHERE c.name = 'Rotation' AND q.status = 'queued') = 2, 'two still queued for tomorrow');
+SELECT t.as('admin');
+SELECT t.ok((public.admin_outreach_settings('{"per_minute": 30}')->>'per_minute')::int = 30, 'limits save');
+SELECT t.ok(public.admin_template_test('promo_cv', 'me@test.com', (SELECT (x->>'id')::uuid FROM jsonb_array_elements(public.admin_senders()) x WHERE x->>'from_email' = 'visa@news.madevisa.com')), 'test from a chosen sender');
+SELECT t.out();
+SELECT t.ok((SELECT body->>'from' FROM net.requests_log ORDER BY id DESC LIMIT 1) = 'MadeVisa Visa Guide <visa@news.madevisa.com>', 'chosen sender used');
+
 \echo 'ALL PASSED'
 ROLLBACK;

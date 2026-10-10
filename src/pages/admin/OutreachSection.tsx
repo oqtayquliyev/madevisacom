@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Eye, FileUp, Loader2, Mail, Pause, Play, Plus, RefreshCw, Rocket, Search, Send, Settings2, Sparkles, Tag, Trash2, Upload, Users, X, Zap } from 'lucide-react';
+import { AtSign, Check, ChevronLeft, ChevronRight, Eye, FileUp, Loader2, Mail, Pause, Play, Plus, RefreshCw, Rocket, Search, Send, Settings2, Sparkles, Tag, Trash2, Upload, Users, X, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 // Admin → Outreach: emails to many people at once.
@@ -21,6 +21,8 @@ type Campaign = {
   name: string;
   template_key: string;
   template_name: string | null;
+  sender_id?: string | null;
+  sender_name?: string | null;
   audience: Audience;
   status: 'draft' | 'sending' | 'paused' | 'done' | 'cancelled';
   total: number;
@@ -34,8 +36,11 @@ type Campaign = {
   started_at: string | null;
   finished_at: string | null;
 };
+type Sender = { id: string; from_name: string; from_email: string; reply_to: string | null; daily_limit: number; active: boolean; for_campaigns: boolean; for_series: boolean; note: string | null; sent_today: number; sent_7d: number; failed_7d: number };
 type Overview = {
   settings: Settings;
+  resend?: boolean;
+  senders_on?: number;
   budget_today: number;
   sent_today: number;
   sender: string | null;
@@ -47,11 +52,12 @@ type Template = { key: string; name: string; audience: 'anyone' | 'accounts' | '
 type Contact = { id: string; email: string; name: string | null; country: string | null; tags: string[]; source: string; status: 'subscribed' | 'unsubscribed' | 'bounced' | 'complained'; account: boolean; sent_count: number; last_sent_at: string | null; created_at: string };
 type ContactList = { counts: { all: number; subscribed: number; unsubscribed: number; bounced: number; accounts: number }; tags: { tag: string; n: number }[]; total: number; rows: Contact[] };
 
-type Sub = 'campaigns' | 'contacts' | 'templates' | 'series' | 'limits';
+type Sub = 'campaigns' | 'contacts' | 'templates' | 'senders' | 'series' | 'limits';
 const SUBS: { key: Sub; label: string; icon: typeof Mail }[] = [
   { key: 'campaigns', label: 'Campaigns', icon: Rocket },
   { key: 'contacts', label: 'Contacts', icon: Users },
   { key: 'templates', label: 'Templates', icon: Mail },
+  { key: 'senders', label: 'Senders', icon: AtSign },
   { key: 'series', label: 'Auto Apply series', icon: Zap },
   { key: 'limits', label: 'Sending & limits', icon: Settings2 },
 ];
@@ -72,9 +78,11 @@ export function OutreachSection() {
   const [ov, setOv] = useState<Overview | null | undefined>(undefined);
   const [err, setErr] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [senders, setSenders] = useState<Sender[]>([]);
 
   const load = useCallback(async () => {
-    const [a, b] = await Promise.all([supabase.rpc('admin_campaigns'), supabase.rpc('admin_templates')]);
+    const [a, b, c] = await Promise.all([supabase.rpc('admin_campaigns'), supabase.rpc('admin_templates'), supabase.rpc('admin_senders')]);
+    if (!c.error) setSenders((c.data ?? []) as Sender[]);
     if (a.error) {
       setErr(friendly(a.error.message));
       setOv(null);
@@ -113,6 +121,12 @@ export function OutreachSection() {
         <Stat label="Sender" value={ov.sender?.replace(/<.*>/, '').trim() || 'Not set'} sub={ov.sender?.match(/<(.*)>/)?.[1] ?? '—'} small />
       </div>
 
+      {ov.resend === false && (
+        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong>Resend isn’t connected</strong>, so tests and campaigns can’t send. Add <code>resend_api_key</code> and <code>email_from</code> to <code>app_secrets</code> (EMAIL-SETUP.md).
+        </p>
+      )}
+
       <nav className="flex gap-1 overflow-x-auto rounded-xl bg-white p-1 ring-1 ring-ink-200">
         {SUBS.map((s) => (
           <button
@@ -125,9 +139,10 @@ export function OutreachSection() {
         ))}
       </nav>
 
-      {sub === 'campaigns' && <Campaigns ov={ov} templates={templates} onChange={load} />}
+      {sub === 'campaigns' && <Campaigns ov={ov} templates={templates} senders={senders} onChange={load} />}
       {sub === 'contacts' && <Contacts />}
-      {sub === 'templates' && <Templates templates={templates} onSaved={load} />}
+      {sub === 'templates' && <Templates templates={templates} senders={senders} onSaved={load} />}
+      {sub === 'senders' && <Senders senders={senders} onChange={load} />}
       {sub === 'series' && <Series ov={ov} templates={templates} onChange={load} onEdit={() => setSub('templates')} />}
       {sub === 'limits' && <Limits ov={ov} onChange={load} />}
     </div>
@@ -136,7 +151,7 @@ export function OutreachSection() {
 
 /* --------------------------------------------------------------- Campaigns */
 
-function Campaigns({ ov, templates, onChange }: { ov: Overview; templates: Template[]; onChange: () => void }) {
+function Campaigns({ ov, templates, senders, onChange }: { ov: Overview; templates: Template[]; senders: Sender[]; onChange: () => void }) {
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -151,7 +166,7 @@ function Campaigns({ ov, templates, onChange }: { ov: Overview; templates: Templ
   return (
     <div className="space-y-4">
       {creating ? (
-        <NewCampaign templates={templates} ov={ov} onClose={() => setCreating(false)} onDone={() => (setCreating(false), onChange())} />
+        <NewCampaign templates={templates} senders={senders} ov={ov} onClose={() => setCreating(false)} onDone={() => (setCreating(false), onChange())} />
       ) : (
         <button onClick={() => setCreating(true)} className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-700">
           <Plus className="h-4 w-4" /> New campaign
@@ -176,7 +191,7 @@ function Campaigns({ ov, templates, onChange }: { ov: Overview; templates: Templ
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold capitalize ${STATUS[c.status]}`}>{c.status}</span>
                       </p>
                       <p className="text-xs text-ink-500">
-                        {c.template_name ?? c.template_key} · {audienceLabel(c.audience)} · {c.started_at ? `started ${when(c.started_at)}` : `created ${when(c.created_at)}`}
+                        {c.template_name ?? c.template_key} · {audienceLabel(c.audience)} · from {c.sender_name ?? 'rotating senders'} · {c.started_at ? `started ${when(c.started_at)}` : `created ${when(c.created_at)}`}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -243,7 +258,9 @@ function audienceLabel(a: Audience): string {
   return [who + acc, a.tags?.length ? `tags: ${a.tags.join(', ')}` : '', a.country ? a.country : '', a.skip_days ? `skip emailed in ${a.skip_days} d` : '', a.limit ? `max ${nf(a.limit)}` : ''].filter(Boolean).join(' · ');
 }
 
-function NewCampaign({ templates, ov, onClose, onDone }: { templates: Template[]; ov: Overview; onClose: () => void; onDone: () => void }) {
+function NewCampaign({ templates, senders, ov, onClose, onDone }: { templates: Template[]; senders: Sender[]; ov: Overview; onClose: () => void; onDone: () => void }) {
+  const [sender, setSender] = useState<string>('');
+  const live = senders.filter((x) => x.active && x.for_campaigns);
   const promos = templates.filter((t) => t.audience !== 'series');
   const [name, setName] = useState('');
   const [tpl, setTpl] = useState(promos[0]?.key ?? '');
@@ -272,13 +289,14 @@ function NewCampaign({ templates, ov, onClose, onDone }: { templates: Template[]
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audKey]);
 
-  const perDay = Math.max(1, ov.settings.daily_cap - ov.settings.reserve);
+  const senderCap = live.length ? (sender ? live.filter((x) => x.id === sender) : live).reduce((a, x) => a + x.daily_limit, 0) : Infinity;
+  const perDay = Math.max(1, Math.min(ov.settings.daily_cap - ov.settings.reserve, senderCap));
   const days = count ? Math.ceil(count.total / perDay) : 0;
 
   const save = async (start: boolean) => {
     setBusy(start ? 'start' : 'save');
     setMsg(null);
-    const { data, error } = await supabase.rpc('admin_campaign_save', { p_id: null, p_name: name || `${templates.find((t) => t.key === tpl)?.name ?? 'Campaign'} · ${new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`, p_template: tpl, p_audience: clean(aud) });
+    const { data, error } = await supabase.rpc('admin_campaign_save', { p_id: null, p_name: name || `${templates.find((t) => t.key === tpl)?.name ?? 'Campaign'} · ${new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`, p_template: tpl, p_audience: clean(aud), p_sender: sender || null });
     if (error) {
       setBusy(null);
       return setMsg({ ok: false, text: friendly(error.message) });
@@ -296,7 +314,7 @@ function NewCampaign({ templates, ov, onClose, onDone }: { templates: Template[]
   const test = async () => {
     setBusy('test');
     setMsg(null);
-    const { error } = await supabase.rpc('admin_template_test', { p_key: tpl, p_email: testTo });
+    const { error } = await supabase.rpc('admin_template_test', { p_key: tpl, p_email: testTo, p_sender: sender || null });
     setBusy(null);
     setMsg(error ? { ok: false, text: friendly(error.message) } : { ok: true, text: `Test sent to ${testTo}.` });
   };
@@ -331,6 +349,16 @@ function NewCampaign({ templates, ov, onClose, onDone }: { templates: Template[]
               <Btn onClick={() => void showPreview()} icon={Eye}>Preview</Btn>
             </div>
             <span className="mt-1 block text-[12px] text-ink-500">Subject: {templates.find((t) => t.key === tpl)?.subject}</span>
+          </L>
+          <L label="Send from">
+            <select value={sender} onChange={(e) => setSender(e.target.value)} className={input}>
+              <option value="">{live.length ? `Rotate between ${live.length} switched-on senders` : 'Default sender (no sender switched on yet)'}</option>
+              {senders.map((x) => (
+                <option key={x.id} value={x.id} disabled={!x.active}>
+                  {x.from_name} &lt;{x.from_email}&gt;{x.active ? ` · ${x.sent_today}/${x.daily_limit} today` : ' · off'}
+                </option>
+              ))}
+            </select>
           </L>
           <div>
             <p className="mb-1.5 text-[12px] font-semibold text-ink-700">Send to</p>
@@ -387,7 +415,7 @@ function NewCampaign({ templates, ov, onClose, onDone }: { templates: Template[]
             )}
             {count && count.total > 0 && (
               <p className="mt-2 text-xs text-ink-600">
-                At your daily cap ({nf(perDay)} a day for campaigns) this takes about <b>{days} {days === 1 ? 'day' : 'days'}</b>.
+                At your daily cap ({nf(perDay)} a day for campaigns{live.length ? `, senders allow ${nf((sender ? live.filter((x) => x.id === sender) : live).reduce((a, x) => a + x.daily_limit, 0))}` : ''}) this takes about <b>{days} {days === 1 ? 'day' : 'days'}</b>.
                 {days > 3 && ' Raise the cap in Sending & limits after upgrading Resend.'}
               </p>
             )}
@@ -502,11 +530,13 @@ function Contacts() {
         <Stat label="Bounced" value={nf(data.counts.bounced)} tone={data.counts.bounced ? 'amber' : 'ink'} />
       </div>
 
+      <AddContact onAdded={() => void load()} />
+
       {importing ? (
         <Import onClose={() => setImporting(false)} onDone={() => (setImporting(false), void load())} />
       ) : (
-        <button onClick={() => setImporting(true)} className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-700">
-          <Upload className="h-4 w-4" /> Import contacts
+        <button onClick={() => setImporting(true)} className="inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-bold text-ink-800 ring-1 ring-ink-200 hover:bg-ink-50">
+          <Upload className="h-4 w-4" /> Import many (paste or CSV)
         </button>
       )}
 
@@ -695,9 +725,218 @@ function Import({ onClose, onDone }: { onClose: () => void; onDone: () => void }
   );
 }
 
+/** One address at a time: email (required), name, country, tags. */
+function AddContact({ onAdded }: { onAdded: () => void }) {
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [country, setCountry] = useState('');
+  const [tags, setTags] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const ok = /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email.trim());
+  const add = async () => {
+    setBusy(true);
+    setMsg(null);
+    const { data, error } = await supabase.rpc('admin_contacts_import', {
+      p_rows: [{ email: email.trim(), name: name.trim() || undefined, country: country.trim() || undefined }],
+      p_tags: tags.split(',').map((x) => x.trim()).filter(Boolean),
+      p_source: 'added by admin',
+      p_consent: null,
+    });
+    setBusy(false);
+    if (error) return setMsg({ ok: false, text: friendly(error.message) });
+    const d = data as { added: number; already: number; unsubscribed: number };
+    setMsg(
+      d.added
+        ? { ok: true, text: `${email.trim()} added.` }
+        : d.unsubscribed
+          ? { ok: false, text: `${email.trim()} is already here and unsubscribed — select it below and choose Resubscribe only if they asked.` }
+          : { ok: true, text: `${email.trim()} was already here${tags ? ' — tags added' : ''}.` },
+    );
+    if (d.added || d.already) {
+      setEmail('');
+      setName('');
+      setCountry('');
+      onAdded();
+    }
+  };
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (ok && !busy) void add();
+      }}
+      className="rounded-xl bg-white p-4 ring-1 ring-ink-200"
+    >
+      <p className="text-sm font-bold text-ink-950">Add a contact</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)_auto]">
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" type="email" className={input} aria-label="Email" />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (optional)" className={input} aria-label="Name" />
+        <input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country (optional)" className={input} aria-label="Country" />
+        <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Tags, comma separated" className={input} aria-label="Tags" />
+        <button type="submit" disabled={!ok || busy} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-4 text-[13px] font-bold text-white hover:bg-brand-700 disabled:opacity-50">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add contact
+        </button>
+      </div>
+      {msg && <p className={`mt-2 text-[12.5px] ${msg.ok ? 'text-emerald-700' : 'text-amber-800'}`}>{msg.text}</p>}
+    </form>
+  );
+}
+
+/* ----------------------------------------------------------------- Senders */
+
+function Senders({ senders, onChange }: { senders: Sender[]; onChange: () => void }) {
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const domains = [...new Set(senders.map((x) => x.from_email.split('@')[1]))];
+  const save = async (p: Partial<Sender> & { id?: string }, key: string) => {
+    setBusy(key);
+    const { error } = await supabase.rpc('admin_sender_save', { p });
+    setBusy(null);
+    if (error) return setErr(friendly(error.message));
+    setErr(null);
+    onChange();
+  };
+  const domain = async (d: string, on: boolean) => {
+    setBusy('d' + d);
+    const { error } = await supabase.rpc('admin_senders_domain', { p_domain: d, p_active: on });
+    setBusy(null);
+    if (error) return setErr(friendly(error.message));
+    onChange();
+  };
+  const total = senders.filter((x) => x.active).reduce((a, x) => a + x.daily_limit, 0);
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl bg-white p-5 text-[13.5px] leading-6 text-ink-700 ring-1 ring-ink-200">
+        <p className="text-base font-bold text-ink-950">Sender addresses</p>
+        <p className="mt-1">
+          Each campaign can come from one of these, or rotate between all that are switched on. Each sender stops at its own daily limit; the overall cap in Sending &amp; limits applies on top. Today the switched-on senders allow <b>{nf(total)}</b> a day.
+        </p>
+        <p className="mt-2 rounded-lg bg-amber-50 p-3 text-[13px] text-amber-950">
+          <b>Before switching them on:</b> verify the domain in Resend → Domains (for <code>news.madevisa.com</code>: add it, copy the DNS records into Cloudflare, press Verify). Any address on a verified domain can send — no mailbox needed. Replies go to each sender’s reply-to. All senders on one domain share that domain’s reputation, so more addresses don’t mean more inbox placement — the warm-up still matters.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {domains.map((d) => {
+            const on = senders.filter((x) => x.from_email.endsWith('@' + d)).every((x) => x.active);
+            return (
+              <Btn key={d} onClick={() => void domain(d, !on)} busy={busy === 'd' + d} icon={on ? Pause : Play} tone={on ? 'ink' : 'green'}>
+                {on ? `Switch off all @${d}` : `${d} is verified — switch all on`}
+              </Btn>
+            );
+          })}
+        </div>
+      </div>
+      {err && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-800">{err}</p>}
+      <div className="overflow-x-auto rounded-xl bg-white ring-1 ring-ink-200">
+        <table className="w-full min-w-[760px] text-left text-[13px]">
+          <thead className="text-[11px] uppercase tracking-wide text-ink-500">
+            <tr className="border-b border-ink-100">
+              <th className="px-3 py-2">On</th>
+              <th className="px-2 py-2">Sender</th>
+              <th className="px-2 py-2">Daily limit</th>
+              <th className="px-2 py-2">Today</th>
+              <th className="px-2 py-2">Campaigns</th>
+              <th className="px-2 py-2">Series</th>
+              <th className="px-2 py-2" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-ink-100">
+            {senders.map((x) => (
+              <SenderRow key={x.id} s={x} busy={busy} onSave={save} onDelete={async () => {
+                if (!window.confirm(`Delete ${x.from_email}?`)) return;
+                await supabase.rpc('admin_sender_delete', { p_id: x.id });
+                onChange();
+              }} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {adding ? <NewSender onClose={() => setAdding(false)} onSaved={() => (setAdding(false), onChange())} /> : (
+        <button onClick={() => setAdding(true)} className="inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-bold text-ink-800 ring-1 ring-ink-200 hover:bg-ink-50">
+          <Plus className="h-4 w-4" /> Add a sender
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SenderRow({ s, busy, onSave, onDelete }: { s: Sender; busy: string | null; onSave: (p: Partial<Sender> & { id?: string }, key: string) => Promise<void>; onDelete: () => void }) {
+  const [limit, setLimit] = useState(String(s.daily_limit));
+  const [name, setName] = useState(s.from_name);
+  useEffect(() => {
+    setLimit(String(s.daily_limit));
+    setName(s.from_name);
+  }, [s.daily_limit, s.from_name]);
+  const pct = s.daily_limit ? Math.min(100, Math.round((100 * s.sent_today) / s.daily_limit)) : 0;
+  const dirty = name !== s.from_name || Number(limit) !== s.daily_limit;
+  return (
+    <tr className={s.active ? '' : 'opacity-70'}>
+      <td className="px-3 py-2">
+        <input type="checkbox" checked={s.active} disabled={busy === s.id + 'a'} onChange={(e) => void onSave({ id: s.id, active: e.target.checked }, s.id + 'a')} aria-label={`Use ${s.from_email}`} />
+      </td>
+      <td className="px-2 py-2">
+        <input value={name} onChange={(e) => setName(e.target.value)} className="h-8 w-full rounded-md border border-transparent px-1.5 font-semibold text-ink-900 hover:border-ink-200 focus:border-brand-500 focus:outline-none" aria-label="Display name" />
+        <span className="block px-1.5 text-[12px] text-ink-500">{s.from_email}{s.note ? ` · ${s.note}` : ''}</span>
+      </td>
+      <td className="px-2 py-2">
+        <input type="number" min={0} value={limit} onChange={(e) => setLimit(e.target.value)} className="h-8 w-20 rounded-md border border-ink-200 px-2" aria-label="Daily limit" />
+      </td>
+      <td className="px-2 py-2">
+        <span className="block tabular-nums text-ink-800">{nf(s.sent_today)} / {nf(s.daily_limit)}</span>
+        <span className="mt-1 block h-1.5 w-20 overflow-hidden rounded-full bg-ink-100"><span className="block h-full rounded-full bg-brand-500" style={{ width: `${pct}%` }} /></span>
+        {s.failed_7d > 0 && <span className="text-[11px] text-rose-700">{s.failed_7d} refused in 7 d</span>}
+      </td>
+      <td className="px-2 py-2">
+        <input type="checkbox" checked={s.for_campaigns} onChange={(e) => void onSave({ id: s.id, for_campaigns: e.target.checked }, s.id + 'c')} aria-label="Use for campaigns" />
+      </td>
+      <td className="px-2 py-2">
+        <input type="checkbox" checked={s.for_series} onChange={(e) => void onSave({ id: s.id, for_series: e.target.checked }, s.id + 's')} aria-label="Use for the Auto Apply series" />
+      </td>
+      <td className="px-2 py-2 text-right">
+        <span className="inline-flex gap-1">
+          {dirty && <Btn onClick={() => void onSave({ id: s.id, from_name: name, daily_limit: Number(limit) || 0 }, s.id + 'v')} busy={busy === s.id + 'v'} icon={Check} tone="green">Save</Btn>}
+          <Btn onClick={onDelete} icon={Trash2}>Delete</Btn>
+        </span>
+      </td>
+    </tr>
+  );
+}
+
+function NewSender({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [reply, setReply] = useState('hello@madevisa.com');
+  const [limit, setLimit] = useState('50');
+  const [err, setErr] = useState<string | null>(null);
+  const save = async () => {
+    const { error } = await supabase.rpc('admin_sender_save', { p: { from_name: name, from_email: email, reply_to: reply, daily_limit: Number(limit) || 50, active: false, for_campaigns: true } });
+    if (error) return setErr(friendly(error.message));
+    onSaved();
+  };
+  return (
+    <div className="rounded-xl bg-white p-4 ring-1 ring-ink-200">
+      <p className="text-sm font-bold text-ink-950">Add a sender</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name, e.g. Aysel from MadeVisa" className={input} />
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="aysel@news.madevisa.com" className={input} />
+        <input value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Reply-to" className={input} />
+        <input type="number" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="Daily limit" className={input} />
+      </div>
+      <p className="mt-2 text-[12px] text-ink-500">The domain after @ must be verified in Resend. Use a real person’s name only if that person writes and answers these emails.</p>
+      <div className="mt-3 flex items-center gap-2">
+        <Btn onClick={() => void save()} icon={Plus} tone="green">Add</Btn>
+        <Btn onClick={onClose} icon={X}>Cancel</Btn>
+        {err && <span className="text-[12.5px] text-rose-700">{err}</span>}
+      </div>
+    </div>
+  );
+}
+
 /* --------------------------------------------------------------- Templates */
 
-function Templates({ templates, onSaved }: { templates: Template[]; onSaved: () => void }) {
+function Templates({ templates, senders, onSaved }: { templates: Template[]; senders: Sender[]; onSaved: () => void }) {
+  const [testFrom, setTestFrom] = useState('');
   const [key, setKey] = useState(templates[0]?.key ?? '');
   const t = templates.find((x) => x.key === key);
   const [draft, setDraft] = useState<Template | null>(t ?? null);
@@ -733,7 +972,7 @@ function Templates({ templates, onSaved }: { templates: Template[]; onSaved: () 
   const test = async () => {
     if (dirty) await save();
     setBusy('test');
-    const { error } = await supabase.rpc('admin_template_test', { p_key: key, p_email: testTo });
+    const { error } = await supabase.rpc('admin_template_test', { p_key: key, p_email: testTo, p_sender: testFrom || null });
     setBusy(null);
     setMsg(error ? { ok: false, text: friendly(error.message) } : { ok: true, text: `Test sent to ${testTo}.` });
   };
@@ -785,9 +1024,22 @@ function Templates({ templates, onSaved }: { templates: Template[]; onSaved: () 
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Btn onClick={() => void save()} busy={busy === 'save'} icon={Check} tone="green">Save</Btn>
-            <input value={testTo} onChange={(e) => setTestTo(e.target.value)} className={`${input} w-52`} aria-label="Send a test to" />
-            <Btn onClick={() => void test()} busy={busy === 'test'} icon={Send}>Send test</Btn>
-            {msg && <span className={`text-[12.5px] ${msg.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{msg.text}</span>}
+          </div>
+          <div className="rounded-lg border border-ink-100 p-3">
+            <p className="mb-2 text-[12px] font-semibold text-ink-700">Send a test of this email (it doesn’t add the address to your contacts)</p>
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+              <input value={testTo} onChange={(e) => setTestTo(e.target.value)} className={input} aria-label="Send a test to" placeholder="you@example.com" />
+              <select value={testFrom} onChange={(e) => setTestFrom(e.target.value)} className={input} aria-label="Send the test from">
+                <option value="">From: default sender</option>
+                {senders.filter((x) => x.active).map((x) => (
+                  <option key={x.id} value={x.id}>
+                    From: {x.from_name}
+                  </option>
+                ))}
+              </select>
+              <Btn onClick={() => void test()} busy={busy === 'test'} icon={Send}>Send test</Btn>
+            </div>
+            {msg && <p className={`mt-2 text-[12.5px] ${msg.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{msg.text}</p>}
           </div>
         </div>
         <div className="rounded-xl bg-white p-3 ring-1 ring-ink-200">
@@ -887,11 +1139,7 @@ function Limits({ ov, onChange }: { ov: Overview; onChange: () => void }) {
             <b>Upgrade Resend</b> (Pro: 50,000 a month, no daily cap; Scale for more). Then set the daily cap above, e.g. 3,000.
           </li>
           <li>
-            <b>Send campaigns from their own address.</b> In Resend add a second domain, e.g. <code>news.madevisa.com</code> (same DNS steps as before). In Supabase → SQL:
-            <pre className="mt-1 overflow-x-auto rounded-lg bg-ink-50 p-2 text-[12px]">{`insert into public.app_secrets (name, value) values
-  ('email_from_outreach', 'Oqtay from MadeVisa <oqtay@news.madevisa.com>')
-on conflict (name) do update set value = excluded.value;`}</pre>
-            Campaigns and the series then come from that address; sign-in codes and alerts keep coming from the main one, so a bad campaign can’t hurt them. Optional: <code>resend_api_key_outreach</code> for a separate Resend key.
+            <b>Send campaigns from their own addresses.</b> In Resend add a second domain, <code>news.madevisa.com</code> (same DNS steps as before), press Verify, then switch the senders on in the <b>Senders</b> tab. Ten are ready (oqtay@, jobs@, careers@, autoapply@ …), each with its own name and daily limit. Sign-in codes and job alerts keep coming from the main address, so a bad campaign can’t hurt them.
           </li>
           <li>
             <b>Warm up.</b> On a new sending domain go 50 → 200 → 500 → 1,000+ a day over two to three weeks. Keep bounces under 2% and spam complaints under 0.1%.
