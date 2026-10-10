@@ -37,9 +37,7 @@ import { MultiCountryBadge } from '@/components/common/MultiCountryBadge';
 import { EMPTY_FACTS, fetchJobFacts, isCurrentFacts, type JobContact, type StoredJobFacts } from '@/lib/jobFactsClient';
 import { allCountries } from '@/data/allCountries';
 import { ReportJobButton } from '@/components/jobs/ReportJobDialog';
-import { JobInsights } from '@/components/jobs/JobInsights';
 import { JobSignals } from '@/components/jobs/JobSignals';
-import { JobProInsights } from '@/components/pro/JobProInsights';
 
 type JobDetailPageProps = {
   id: string;
@@ -619,31 +617,6 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
         {/* Other jobs this CV matches best (shows only once a CV is on file). */}
         <RecommendedJobs currentId={matchKey} onAuth={onAuth} className="mt-6" />
-
-        {raw?.publisher_id && (
-          <JobInsights
-            publisherId={raw.publisher_id}
-            company={job.company}
-            listing={{ id: raw.id, title: job.title, kind: 'job' }}
-            onOpenTracking={() => {
-              window.history.pushState({}, '', `/profile?track=${raw.id}`);
-              window.dispatchEvent(new PopStateEvent('popstate'));
-              window.scrollTo({ top: 0 });
-            }}
-            onSignUp={() => onAuth?.('register')}
-          />
-        )}
-
-        {raw && !closed && (
-          <JobProInsights
-            publisherId={raw.publisher_id}
-            company={job.company}
-            title={job.title}
-            department={raw.job_function}
-            countryCode={raw.country?.iso_code ?? job.countryCode}
-            countryName={raw.country?.name ?? job.country}
-          />
-        )}
 
         {raw && (
           <div className="mt-4 flex flex-col gap-3 rounded-xl border border-ink-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">

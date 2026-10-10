@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { SoonChip } from '@/components/common/SoonChip';
-import { ApplicantReport } from '@/components/dashboard/ApplicantReport';
 import { jobPath } from '@/lib/jobUrl';
 import {
   ArrowRight,
@@ -10,6 +9,7 @@ import {
   Camera,
   CheckCircle2,
   Clock,
+  Zap,
   Copy,
   Download,
   ExternalLink,
@@ -37,7 +37,7 @@ import { TwoFactorSettings } from '@/components/auth/TwoFactorSettings';
 import { NetworkSettingsCard } from '@/components/network/NetworkSettingsCard';
 import { MyBriefsSection, PlanCard } from '@/components/briefs/MyBriefsSection';
 import { CvCard } from '@/components/cv/CvCard';
-import { CvPrompt } from '@/components/cv/CvPrompt';
+import { EmailSettingsCard } from '@/components/common/EmailSettingsCard';
 import { supabase } from '@/lib/supabase';
 import {
   createPublisherProfile,
@@ -133,8 +133,6 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
     const el = document.getElementById('profile-section');
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 84, behavior: 'smooth' });
   }, [tab]);
-  // /profile?track=<listing id> (from "I applied — track this job"): open that application's check-in.
-  const [trackFocus] = useState(() => new URLSearchParams(window.location.search).get('track'));
   const [countries, setCountries] = useState<CountryOption[]>([]);
 
   // Personal info form state
@@ -419,26 +417,13 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
 
         {/* Email verification is only asked for where it matters: registering or managing a company (Organizations tab). */}
 
-        {/* DASHBOARD — applications at a glance + recently viewed */}
+        {/* DASHBOARD — the jobs you applied to and the jobs you looked at. Nothing to fill in. */}
         {tab === 'dashboard' && (
           <div className="mt-5 space-y-8">
-            <CvPrompt where="every job" />
-            <ApplicantReport
-              viewedCount={recentlyViewedJobs.length}
-              hasPublicProfile={Boolean(profile.username)}
-              focusListingId={trackFocus}
-              onEditProfile={() => setTab('settings')}
-              me={{
-                name: profile.full_name ?? user?.email ?? 'You',
-                avatarUrl: profile.avatar_url,
-                emailVerified: isEmailConfirmed,
-                nationalitySet: Boolean(profile.nationality_country_id),
-                accountCreatedAt: user?.created_at ?? null,
-              }}
-            />
+            <AppliedJobsSection onBrowse={() => go('jobs')} />
             <RecentlyViewedSection items={recentlyViewedJobs} onBrowse={() => go('jobs')} />
-            {/* Sponsorship documents: below the applications they belong to. */}
-            <MyBriefsSection />
+            {/* Sponsorship documents: only for people who have made one. */}
+            <MyBriefsSection hideWhenEmpty />
           </div>
         )}
 
@@ -459,6 +444,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {/* SETTINGS */}
         {tab === 'settings' && (
           <div className="mt-6 space-y-6">
+            <EmailSettingsCard />
             <NetworkSettingsCard onNeedUsername={() => window.setTimeout(() => document.getElementById('profile-link')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)} />
             <TwoFactorSettings isAdmin={profile.role === 'admin'} />
             <div className="border border-ink-200 bg-white p-6">
@@ -720,12 +706,158 @@ function CircleFlagInline({ countryCode }: { countryCode: string }) {
   );
 }
 
-function RecentlyViewedSection({ items }: { items: ViewedJobSnapshot[]; onBrowse?: () => void }) {
+type AppliedJob = {
+  job_id: string | null;
+  title: string;
+  company: string;
+  logo: string | null;
+  location: string | null;
+  at: string;
+  via: 'you' | 'madevisa';
+  kind: 'job' | 'program';
+  live: boolean | null;
+  url: string | null;
+};
+
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+
+/** Jobs you applied to: your own Apply clicks, and the ones MadeVisa applied to for you (Auto Apply). Migration 20261215090000. */
+function AppliedJobsSection({ onBrowse }: { onBrowse: () => void }) {
+  const STEP = 6;
+  const [rows, setRows] = useState<AppliedJob[] | null>(null);
+  const [limit, setLimit] = useState(STEP);
+  useEffect(() => {
+    let alive = true;
+    supabase.rpc('my_applied_jobs').then(({ data, error }) => {
+      if (alive) setRows(error ? [] : ((data ?? []) as AppliedJob[]));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (rows === null) {
+    return (
+      <section className="flex items-center justify-center rounded-xl border border-ink-200 bg-white py-10">
+        <Loader2 className="h-5 w-5 animate-spin text-ink-300" />
+      </section>
+    );
+  }
+  const byUs = rows.filter((r) => r.via === 'madevisa').length;
+  const shown = rows.slice(0, limit);
+  const href = (r: AppliedJob) =>
+    r.kind === 'program' && r.job_id ? `/programs/${r.job_id}` : r.job_id ? jobPath({ id: `sponsored-${r.job_id}`, title: r.title, company: r.company }) : r.url ?? undefined;
+
+  return (
+    <section className="rounded-xl bg-white p-4 shadow-xl shadow-brand-900/10 ring-1 ring-ink-200 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Briefcase className="h-4 w-4 text-ink-400" />
+          <h2 className="text-lg font-bold text-ink-950">Jobs you applied to</h2>
+          <span className="text-xs text-ink-400">({rows.length})</span>
+        </div>
+        {byUs > 0 && (
+          <a href="/cv-match#auto-apply" className="inline-flex items-center gap-1 text-xs font-semibold text-[#1D4ED8] hover:underline">
+            <Zap className="h-3.5 w-3.5 fill-current" /> {byUs} by Auto Apply
+          </a>
+        )}
+      </div>
+      {rows.length === 0 ? (
+        <div className="mt-4 rounded-xl border border-dashed border-ink-200 bg-white px-6 py-8 text-center">
+          <p className="text-[15px] font-semibold text-ink-900">No applications yet</p>
+          <p className="mx-auto mt-1 max-w-sm text-[13px] leading-5 text-ink-500">Jobs you apply to from MadeVisa show here — and every job Auto Apply sends for you.</p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <button onClick={onBrowse} className="rounded-full bg-[#1D4ED8] px-4 py-2 text-[13px] font-bold text-white hover:bg-brand-800">
+              Browse jobs
+            </button>
+            <a href="/cv-match" className="rounded-full px-4 py-2 text-[13px] font-bold text-ink-800 ring-1 ring-ink-200 hover:bg-ink-50">
+              See your matches
+            </a>
+          </div>
+        </div>
+      ) : (
+        <>
+          <ul className="mt-4 divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 bg-white">
+            {shown.map((r, i) => {
+              const link = href(r);
+              return (
+                <li key={`${r.job_id ?? r.title}-${i}`}>
+                  <a href={link} className="flex items-center gap-3 px-4 py-3 transition hover:bg-ink-50/70">
+                    {r.logo ? (
+                      <img src={r.logo} alt="" loading="lazy" className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain ring-1 ring-ink-200" />
+                    ) : (
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-[15px] font-bold text-brand-700">{(r.company || r.title).slice(0, 1).toUpperCase()}</span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-ink-900">{r.title}</span>
+                      <span className="block truncate text-xs text-ink-500">
+                        {r.company}
+                        {r.location ? ` · ${r.location}` : ''}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 flex-col items-end gap-1">
+                      {r.via === 'madevisa' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#1D4ED8]/10 px-2 py-0.5 text-[11px] font-bold text-[#1D4ED8]">
+                          <Zap className="h-3 w-3 fill-current" /> Auto Apply
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Applied</span>
+                      )}
+                      <span className="text-[11px] text-ink-400">
+                        {shortDate(r.at)}
+                        {r.live === false ? ' · closed' : ''}
+                      </span>
+                    </span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+          {(rows.length > limit || limit > STEP) && (
+            <div className="mt-3 flex justify-center gap-2">
+              {rows.length > limit && (
+                <button
+                  onClick={() => setLimit((n) => n + STEP * 2)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 transition hover:border-brand-300 hover:text-brand-700"
+                >
+                  Show more ({rows.length - limit})
+                </button>
+              )}
+              {limit > STEP && (
+                <button onClick={() => setLimit(STEP)} className="rounded-full px-4 py-2 text-sm font-semibold text-ink-500 hover:text-ink-800">
+                  Show less
+                </button>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function RecentlyViewedSection({ items, onBrowse }: { items: ViewedJobSnapshot[]; onBrowse?: () => void }) {
   // Short by default (like the job description's "Read more"): the last
   // rows fade out, and "Show more" reveals the next batch.
   const STEP = 6;
   const [limit, setLimit] = useState(STEP);
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return (
+      <section>
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-ink-400" />
+          <h2 className="text-lg font-bold text-ink-950">Jobs you viewed</h2>
+        </div>
+        <div className="mt-4 rounded-xl border border-dashed border-ink-200 bg-white px-6 py-6 text-center">
+          <p className="text-[13px] text-ink-500">Jobs you open show here for 48 hours.</p>
+          {onBrowse && (
+            <button onClick={onBrowse} className="mt-3 text-[13px] font-bold text-[#1D4ED8] hover:underline">
+              Browse jobs
+            </button>
+          )}
+        </div>
+      </section>
+    );
+  }
   const shown = items.slice(0, limit);
   const hasMore = items.length > limit;
 
@@ -734,7 +866,7 @@ function RecentlyViewedSection({ items }: { items: ViewedJobSnapshot[]; onBrowse
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-ink-400" />
-          <h2 className="text-lg font-bold text-ink-950">Recently viewed</h2>
+          <h2 className="text-lg font-bold text-ink-950">Jobs you viewed</h2>
           <span className="text-xs text-ink-400">({items.length})</span>
         </div>
         <span className="text-xs text-ink-400">Clears after 48 hours</span>

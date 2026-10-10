@@ -14,7 +14,7 @@ import { CvUpload } from '@/components/cv/CvUpload';
 import { MatchLevels } from '@/components/cv/MatchShowcase';
 import { ENCOURAGEMENT, GUEST_VISIBLE, SearchProgress, TopMatchesList } from '@/components/cv/TopMatches';
 import { ProPlanCard } from '@/components/pro/ProPlanCard';
-import { AutoApplyTracker } from '@/components/apply/AutoApply';
+import { AutoApplyService } from '@/components/apply/AutoApplyService';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { Faq } from '@/pages/info/InfoPage';
@@ -35,7 +35,7 @@ const PARTS: { name: string; points: number; text: string }[] = [
 const STEPS: { icon: typeof Upload; title: string; text: string }[] = [
   { icon: Upload, title: 'Upload your CV', text: 'PDF or Word. It is read on your device, and goes to an employer only when you ask.' },
   { icon: FileSearch, title: 'We compare it with live jobs', text: 'The ads closest to your experience are read and scored, one by one.' },
-  { icon: ListChecks, title: 'Open your best matches — or apply', text: 'Highest score first: where each job is, what it pays if the ad says, whether you need a visa. With an account, MadeVisa prepares a tailored application for each one worth applying to.' },
+  { icon: ListChecks, title: 'Open your best matches — or let us apply', text: 'Highest score first: where each job is, what it pays if the ad says, whether you need a visa. With Pro, turn on Auto Apply and MadeVisa applies to them for you for a month.' },
 ];
 
 /** The search is quick; the waiting screen stays this long so it can be read. */
@@ -137,6 +137,9 @@ export function CvMatchPage({ go, onAuth }: Props) {
           </section>
         )}
 
+        {/* Auto Apply (Pro, one month): above the matches it works through. */}
+        {cv && !searching && <AutoApplyService result={result} onAuth={onAuth} />}
+
         {cv && !searching && result && <TopMatchesList result={result} onAuth={onAuth} onAgain={top.start} />}
 
         {cv && !searching && result && result.items.length > 0 && (
@@ -146,9 +149,6 @@ export function CvMatchPage({ go, onAuth }: Props) {
             </button>
           </p>
         )}
-
-        {/* Every application prepared or sent through MadeVisa (shown once there is one). */}
-        {cv && !searching && !result?.items.length && <AutoApplyTracker />}
 
         <div className="mx-auto max-w-3xl space-y-3">
           {p && (
@@ -222,10 +222,10 @@ export function CvMatchPage({ go, onAuth }: Props) {
               items={[
                 { q: 'Which files can I upload?', a: 'PDF or Word (.docx), up to 5 MB. Plain text and .odt work too. A scanned CV — a picture of a page — has no text to read, so export it from Word or Google Docs instead, or paste the text.' },
                 { q: 'Who sees my CV?', a: 'You, and MadeVisa staff when they need it to run or support the service — for example to fix a problem with your account or to improve how CVs are read. It goes to an employer only when you ask MadeVisa to apply to that employer’s job for you. Until you create an account your CV stays in your browser. You can replace or delete it at any time.' },
-                { q: 'What does “Apply to N jobs” do?', a: 'MadeVisa reads every selected employer’s application form first, works out what it already knows from your CV and your saved answers, and asks you only what is genuinely missing — once, in one short form, however many employers ask it. Then it tailors your CV to each ad (your own lines, reordered so the most relevant come first — nothing is added), writes a cover letter when the ad asks for one or the match is one of your strongest, fills in each employer’s form on their careers site and submits it. You can leave the page while it works, pause or stop at any time, and open any application to see exactly what was sent.' },
-                { q: 'Does MadeVisa submit the applications itself?', a: 'Yes. It opens each employer’s careers page, fills in the form, attaches your tailored CV and submits it using your email address — so employers reply to you, and their confirmation emails arrive in your inbox. An application is only marked “Submitted” when the employer’s page confirms it. Some employers ask you to sign in to their own careers site (Workday, for example), and some show a check that a person is applying (a CAPTCHA). MadeVisa never gets round those: that one application is marked “Needs attention”, with everything prepared for you to finish it in one visit, and the rest of the batch carries on.' },
-                { q: 'What if a form asks something MadeVisa doesn’t know?', a: 'It asks you before it starts — once, even if twelve employers ask the same thing in twelve different ways (“Will you require sponsorship?”, “Do you need a visa?”). Your answer is saved to your application profile and reused from then on. A question only one employer asks doesn’t hold up the others: that application waits for you, the rest go. MadeVisa never guesses, and never answers questions about gender, ethnicity or similar for you.' },
-                { q: 'How many applications can I make?', a: 'It comes with your plan — there is nothing extra to buy. The number left this month is shown under the Apply button. An application counts when it is submitted. One that fails, needs your attention, is skipped or turns out to be a duplicate uses nothing. You also choose the most MadeVisa may work on in a day.' },
+                { q: 'What is Auto Apply?', a: 'A MadeVisa Pro feature. For one month, MadeVisa applies to the jobs your CV matches best — every day, with your CV and the answers you give once (phone, notice period, whether you need sponsorship and so on). You choose the job titles, the countries, the lowest match to apply to and how many applications a day. Each one is listed on this page, and you get an email the moment it is sent.' },
+                { q: 'Who sends the applications, and where do replies go?', a: 'MadeVisa sends them on each employer’s own application page, in your name, with your CV, your answers and the email address you choose. So employers reply to you directly, and their confirmation emails arrive in your inbox. MadeVisa never applies to a job below the match you set, and never answers questions about gender, ethnicity or similar for you.' },
+                { q: 'Can I pause or stop it?', a: 'Yes — at any time, on this page. Pausing keeps your queue; stopping clears it. You can also change your job titles, countries and answers while it runs. It ends by itself after one month; turn it on again for another.' },
+                { q: 'What does MadeVisa do with my details?', a: 'They are used only to apply to the jobs in your Auto Apply list, and are kept with your account. You agree to this, in so many words, when you turn Auto Apply on. Delete your CV or your account and they go with it.' },
                 { q: 'My score is low but I can do the job. Why?', a: 'The score reads the CV, not you. If the ad asks for a skill and your CV doesn’t name it, it counts as missing — which is also how a recruiter’s search and screening software see it. Add what is true, in the ad’s own words, and check again.' },
                 { q: 'Does a high score mean I’ll get an interview?', a: 'No. It means your CV says what the ad asks for. Employers also weigh things no CV check can see — and, abroad, whether they can sponsor a visa, which is what the sponsorship document is for.' },
                 { q: 'Does it work for jobs or CVs that aren’t in English?', a: 'Yes. An ad written in another language is compared in an English translation when one is available, and a CV in another language is translated once you have an account (translation is done by a machine translation service). Without a translation, skills, role, years and education are still compared and wording is left out. A language the ad requires and your CV doesn’t list holds the score down.' },

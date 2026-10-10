@@ -27,7 +27,7 @@ const STATUS_TONE: Record<string, string> = {
  * "Your sponsorship documents" — on the dashboard. What's left this month, the details
  * that go on every document (editable here), and the documents made.
  */
-export function MyBriefsSection() {
+export function MyBriefsSection({ hideWhenEmpty = false }: { hideWhenEmpty?: boolean } = {}) {
   const { profile, refreshProfile } = useAuth();
   const credits = useOfferCredits();
   const [briefs, setBriefs] = useState<MyBrief[] | null | undefined>(undefined);
@@ -38,6 +38,8 @@ export function MyBriefsSection() {
   if (briefs === null || !profile) return null; // table missing (migration not run)
 
   const list = briefs ?? [];
+  // Profile dashboard: only for people who have made a document.
+  if (hideWhenEmpty && (briefs === undefined || list.length === 0)) return null;
   const sent = list.filter((b) => b.status !== 'created').length;
   const viewed = list.filter((b) => b.view_count > 0).length;
 

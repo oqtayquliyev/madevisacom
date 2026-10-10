@@ -4,7 +4,6 @@ import { SoonChip, SOON_VIEWS } from "@/components/common/SoonChip";
 import { ChevronDown, Building2, Briefcase, GraduationCap, LayoutDashboard, LogIn, LogOut, ScanSearch, ShieldCheck, UserPlus, Users, X, BarChart3 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useCv } from "@/lib/cv/store";
-import { CheckInReminder } from "@/components/jobs/CheckInReminder";
 import { CvRequiredDialog } from "@/components/cv/CvGate";
 import { fetchMyManagedPublishers } from "@/lib/companyManager";
 import { handleNavClick } from "@/lib/navLink";
@@ -424,7 +423,6 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
         </div>
       </header>
       {/* Outside the header: its backdrop blur would trap a fixed-position child. */}
-      <CheckInReminder />
       <CvRequiredDialog />
     </>
   );
