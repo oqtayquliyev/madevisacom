@@ -38,6 +38,8 @@ import { NetworkSettingsCard } from '@/components/network/NetworkSettingsCard';
 import { MyBriefsSection, PlanCard } from '@/components/briefs/MyBriefsSection';
 import { CvCard } from '@/components/cv/CvCard';
 import { EmailSettingsCard } from '@/components/common/EmailSettingsCard';
+import { BillingCard } from '@/components/billing/BillingCard';
+import { SavedJobsSection } from '@/components/billing/SavedJobs';
 import { supabase } from '@/lib/supabase';
 import {
   createPublisherProfile,
@@ -422,6 +424,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {tab === 'dashboard' && (
           <div className="mt-5 space-y-8">
             <AppliedJobsSection onBrowse={() => go('jobs')} />
+            <SavedJobsSection />
             <RecentlyViewedSection items={recentlyViewedJobs} onBrowse={() => go('jobs')} />
             {/* Sponsorship documents: only for people who have made one. */}
             <MyBriefsSection hideWhenEmpty />
@@ -445,6 +448,7 @@ function ProfilePageInner({ go, onAuth }: ProfilePageProps) {
         {/* SETTINGS */}
         {tab === 'settings' && (
           <div className="mt-6 space-y-6">
+            <BillingCard />
             <EmailSettingsCard />
             <NetworkSettingsCard onNeedUsername={() => window.setTimeout(() => document.getElementById('profile-link')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)} />
             <TwoFactorSettings isAdmin={profile.role === 'admin'} />

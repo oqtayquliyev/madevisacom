@@ -1,113 +1,117 @@
-import { useState } from 'react';
-import { Check, ExternalLink, Sparkles } from 'lucide-react';
-import { countryName } from '@/lib/visaFit';
-import { PRO_FEATURES, useMyPlan, type Billing } from '@/lib/plans';
-import { PLAN_RANGE, priceNote, priceRequestLabel, PRO_MONTHLY_DOCS, usePrices } from '@/lib/pricing';
-import { manageUrl, useCardPayments } from '@/lib/gumroad';
-import { PlanRequestDialog } from '@/components/pro/PlanRequestDialog';
-import { PlanCheckoutDialog } from '@/components/pro/PlanCheckoutDialog';
+import { useEffect } from 'react';
+import { ArrowRight, Check, ExternalLink, Sparkles } from 'lucide-react';
+import { PLANS, priceLabel, useMyPlan, type PaidPlanId, type PlanId } from '@/lib/plans';
+import { manageUrl } from '@/lib/gumroad';
+import { checkoutHref, trackBilling } from '@/lib/billing';
+import { handleNavClick } from '@/lib/navLink';
+import { nav } from '@/lib/pageLayout';
 
-type Cycle = Exclude<Billing, 'one_time'>;
+// Plan cards. Prices are the flat monthly prices (the same everywhere); the
+// checkout page shows the server's price and summary before anyone pays.
 
-/** Monthly / yearly switch, shared by the plan card and the pricing page. */
-export function BillingToggle({ value, onChange, saving }: { value: Cycle; onChange: (b: Cycle) => void; saving: number }) {
+/** One plan's card: price, what's in it, and the button to its checkout (or "Your plan"). */
+export function PlanCard({
+  plan,
+  source,
+  highlight = false,
+  compact = false,
+  onFree,
+}: {
+  plan: PlanId;
+  /** Which page this is on (for the checkout funnel). */
+  source: string;
+  highlight?: boolean;
+  compact?: boolean;
+  /** Free plan's button. */
+  onFree?: { label: string; onClick: () => void };
+}) {
+  const my = useMyPlan();
+  const info = PLANS[plan];
+  const mine = my.plan === plan;
+  const covered = my.plan === 'pro' && plan === 'starter';
+  const benefits = compact ? info.benefits.slice(0, 3) : info.benefits;
+  const href = plan === 'free' ? null : checkoutHref(plan, source);
+  const sub = my.sub;
+
   return (
-    <div className="inline-flex rounded-full bg-ink-100 p-1 text-sm font-semibold" role="tablist" aria-label="Billing">
-      {(['monthly', 'yearly'] as const).map((b) => (
-        <button key={b} role="tab" aria-selected={value === b} onClick={() => onChange(b)} className={`rounded-full px-4 py-1.5 ${value === b ? 'bg-white text-ink-950 shadow-sm' : 'text-ink-500'}`}>
-          {b === 'monthly' ? 'Monthly' : `Yearly · save ${saving}%`}
-        </button>
-      ))}
+    <div id={plan} className={`relative flex scroll-mt-24 flex-col rounded-2xl bg-white p-6 ${highlight ? 'border-2 border-brand-600 shadow-soft-lg' : 'border border-ink-200'}`}>
+      {highlight && (
+        <span className="absolute -top-3 left-6 inline-flex items-center gap-1 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold text-white">
+          <Sparkles className="h-3.5 w-3.5" aria-hidden /> Recommended start
+        </span>
+      )}
+      <p className="text-lg font-bold text-ink-950">{plan === 'free' ? 'Free' : `MadeVisa ${info.name}`}</p>
+      <p className="mt-1 text-sm leading-5 text-ink-600">{info.tagline}</p>
+      <p className="mt-4 text-4xl font-bold tracking-tight text-ink-950" data-plan-price={plan}>
+        {plan === 'free' ? '$0' : priceLabel(plan).replace(' / month', '')}
+        <span className="text-base font-medium text-ink-500">{plan === 'free' ? ' forever' : ' / month'}</span>
+      </p>
+      <p className="text-[13px] text-ink-500">{plan === 'free' ? 'No card needed' : 'USD, billed monthly · cancel any time'}</p>
+
+      <ul className="mt-5 flex-1 space-y-3">
+        {plan !== 'free' && <li className="text-sm font-semibold text-ink-900">{plan === 'starter' ? 'Everything in Free, plus:' : 'Everything in Starter, plus:'}</li>}
+        {benefits
+          .filter((b) => b.title !== 'Everything in Starter')
+          .map((b) => (
+            <li key={b.title} className="flex gap-2 text-sm text-ink-700">
+              <Check className={`mt-0.5 h-4 w-4 shrink-0 ${plan === 'free' ? 'text-ink-400' : 'text-brand-600'}`} aria-hidden />
+              <span>
+                <strong className="font-semibold text-ink-900">{b.title}.</strong>
+                {!compact && <> {b.text}</>}
+              </span>
+            </li>
+          ))}
+      </ul>
+      {!compact && info.coming.length > 0 && <p className="mt-4 text-[12px] leading-5 text-ink-500">Coming to Pro, not included yet: {info.coming.join('; ')}.</p>}
+
+      {plan === 'free' ? (
+        onFree ? (
+          <button type="button" onClick={onFree.onClick} className="mt-6 rounded-lg border border-ink-200 py-2.5 text-sm font-semibold text-ink-800 hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+            {onFree.label}
+          </button>
+        ) : null
+      ) : mine || covered ? (
+        <div className="mt-6 rounded-lg bg-emerald-50 px-3 py-2.5 text-center text-sm font-semibold text-emerald-900">
+          {mine ? 'Your plan' : 'Included in your Pro'}
+          {mine && sub?.current_period_end ? ` · ${sub.cancel_at_period_end ? 'ends' : 'renews'} ${new Date(sub.renews_at ?? sub.current_period_end).toLocaleDateString()}` : ''}
+          {mine && sub?.provider === 'gumroad' && sub.provider_ref && (
+            <a href={manageUrl(sub.provider_ref)} target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center justify-center gap-1 text-[12px] font-semibold text-emerald-900 underline">
+              Manage or cancel on Gumroad <ExternalLink className="h-3 w-3" aria-hidden />
+            </a>
+          )}
+        </div>
+      ) : (
+        <a
+          href={href!}
+          onClick={(e) => {
+            trackBilling('plan_selected', { plan, source });
+            handleNavClick(e, () => nav(href!));
+          }}
+          className={`mt-6 inline-flex items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${
+            highlight ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-ink-950 text-white hover:bg-ink-800'
+          }`}
+        >
+          Get {info.name} <ArrowRight className="h-4 w-4" aria-hidden />
+        </a>
+      )}
     </div>
   );
 }
 
 /**
- * MadeVisa Pro — the one plan: price for the visitor's country in their
- * currency, monthly or yearly, what's in it, and the button to get it.
- * `billing` can be controlled from outside (pricing page) or left to the card.
- *
- * The button: with card payments on (Admin → Plans) it opens Gumroad's
- * checkout and Pro switches on by itself; otherwise it opens the request form.
- * A member who pays by card gets "Manage or cancel" under it.
+ * The card shown on feature pages (CV match, documents): the plan that unlocks
+ * what the page is about, with a link to compare. Name kept from the one-plan days.
  */
-export function ProPlanCard({ onAuth, billing: outer, compact = false }: { onAuth?: (p: 'login' | 'register') => void; billing?: Cycle; compact?: boolean }) {
-  const prices = usePrices();
-  const { isPro, sub } = useMyPlan();
-  // Monthly first: the smallest amount to pay today is the price people see.
-  const [inner, setInner] = useState<Cycle>('monthly');
-  const card = useCardPayments();
-  // 'pay' = Gumroad's checkout; 'request' = the form (card payments off, or not reachable just now).
-  const [dialog, setDialog] = useState<'pay' | 'request' | null>(null);
-  const billing = outer ?? inner;
-  const pro = prices.pro;
-  const price = billing === 'monthly' ? pro.monthly : pro.yearly;
-  const features = compact ? PRO_FEATURES.slice(0, 3) : PRO_FEATURES;
-
+export function ProPlanCard({ plan = 'starter', source, compact = false }: { plan?: PaidPlanId; source: string; compact?: boolean; onAuth?: (p: 'login' | 'register') => void }) {
+  useEffect(() => {
+    trackBilling('upgrade_prompt_shown', { id: `plan_card_${plan}`, plan, source });
+  }, [plan, source]);
   return (
-    <div id="pro" className="relative flex scroll-mt-24 flex-col rounded-2xl border-2 border-brand-600 bg-white p-6 shadow-lg">
-      <span className="absolute -top-3 left-6 inline-flex items-center gap-1 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold text-white">
-        <Sparkles className="h-3.5 w-3.5" /> Everything in one plan
-      </span>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="text-lg font-bold text-ink-950">MadeVisa Pro</p>
-        {!outer && <BillingToggle value={billing} onChange={setInner} saving={pro.saving} />}
-      </div>
-      <p className="mt-2 text-4xl font-bold tracking-tight text-ink-950" data-pro-price>
-        {price.label}
-        <span className="text-base font-medium text-ink-500"> / {billing === 'monthly' ? 'month' : 'year'}</span>
-      </p>
-      <p className="text-sm text-ink-500">
-        {price.local ? `${price.usdLabel} in US dollars · ` : ''}
-        {billing === 'yearly' ? `${pro.yearlyPerMonth.label} a month, billed yearly` : 'Cancel any time'}
-      </p>
-      <p className="mt-1 text-xs leading-5 text-ink-500">
-        {priceNote(prices, countryName)}
-        {prices.reduced ? ` List price $${PLAN_RANGE.monthly.high} a month or $${PLAN_RANGE.yearly.high} a year.` : ''}
-      </p>
-
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-800">Full CV match report on every job</p>
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">{PRO_MONTHLY_DOCS} sponsorship documents a month</p>
-      </div>
-
-      <ul className="mt-5 flex-1 space-y-3">
-        <li className="text-sm font-semibold text-ink-900">Everything in Free, plus:</li>
-        {features.map((f) => (
-          <li key={f.title} className="flex gap-2 text-sm text-ink-700">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
-            <span>
-              <strong className="text-ink-900">{f.title}.</strong> {f.text}
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      <button onClick={() => setDialog(card.on ? 'pay' : 'request')} disabled={isPro} className="mt-6 rounded-lg bg-brand-600 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
-        {isPro ? `Your plan${sub?.current_period_end ? ` · ${sub.cancel_at_period_end ? 'ends' : 'until'} ${new Date(sub.current_period_end).toLocaleDateString()}` : ''}` : 'Get Pro'}
-      </button>
-      {isPro && sub?.provider === 'gumroad' && sub.provider_ref ? (
-        <p className="mt-2 text-center text-xs leading-5 text-ink-500">
-          {sub.cancel_at_period_end ? 'Cancelled: Pro stays on until that date and is not renewed. ' : `Renews every ${sub.billing === 'yearly' ? 'year' : 'month'}. `}
-          <a href={manageUrl(sub.provider_ref)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand-700 hover:underline">
-            {sub.cancel_at_period_end ? 'Start it again on Gumroad' : 'Manage or cancel on Gumroad'} <ExternalLink className="h-3 w-3" />
-          </a>
-        </p>
-      ) : !isPro && card.on ? (
-        <p className="mt-2 text-center text-xs text-ink-500">Pay by card on Gumroad, our payment partner. Pro starts at once.</p>
-      ) : null}
-
-      {dialog === 'pay' && <PlanCheckoutDialog billing={billing} onClose={() => setDialog(null)} onAuth={onAuth} onUnavailable={() => setDialog('request')} />}
-      {dialog === 'request' && (
-        <PlanRequestDialog
-          plan="pro"
-          billing={billing}
-          priceLabel={priceRequestLabel(prices, billing === 'monthly' ? 'Pro monthly' : 'Pro yearly', price)}
-          region={prices.country ?? prices.tier}
-          onClose={() => setDialog(null)}
-          onAuth={onAuth}
-        />
-      )}
+    <div>
+      <PlanCard plan={plan} source={source} highlight compact={compact} />
+      <a href="/pricing" onClick={(e) => handleNavClick(e, () => nav('/pricing'))} className="mt-3 inline-block text-sm font-semibold text-brand-700 hover:underline">
+        Compare Free, Starter and Pro
+      </a>
     </div>
   );
 }

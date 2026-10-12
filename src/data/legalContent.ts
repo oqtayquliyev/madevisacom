@@ -48,7 +48,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         paragraphs: [
           'If your company already has a careers page, its jobs can appear on MadeVisa at no cost. To manage your company page, add your team or post a job directly, use Post a job or email us.',
           'For sponsored placements and Hiring Briefs (a plain-language summary of what hiring someone from abroad involves for your company), see the Sponsored Listing Terms.',
-          'For sponsorship documents job seekers prepare (included in Pro, finality and refunds), see the Sponsorship Document Terms.',
+          'For sponsorship documents job seekers prepare (included in Starter and Pro, finality and refunds), see the Sponsorship Document Terms.',
         ],
       },
       {
@@ -158,7 +158,7 @@ export const legalPages: Record<string, LegalPageContent> = {
           'Google — Google Analytics (visit statistics, with advertising features off).',
           'Google — optional “Sign in with Google” and web fonts.',
           'Cloudflare — the bot check (Turnstile) on sign-up and sign-in.',
-          'Gumroad — card payments for MadeVisa Pro. When you choose to pay by card we pass your account email to Gumroad’s payment page so it is filled in for you. Gumroad is the seller named on your receipt and collects your card and billing details itself, under its own privacy policy; we never see your card. Gumroad tells us that you paid, the amount, the country of the payment and when the membership renews, is cancelled or ends.',
+          'Gumroad — card payments for MadeVisa Starter and Pro. When you choose to pay by card we pass your account email to Gumroad’s payment page so it is filled in for you. Gumroad is the seller named on your receipt and collects your card and billing details itself, under its own privacy policy; we never see your card. Gumroad tells us that you paid, the amount, the country of the payment and when the membership renews, is cancelled or ends.',
           'Google Cloud Translation or Microsoft Azure Translator — machine translation into English of job ads written in another language and, for people with an account, of a CV written in another language, so the two can be compared. Email addresses, phone numbers and web links are removed from a CV before it is sent; the rest of its text, which can include your name, is sent for translation only.',
           'Cloudinary and our own storage — images such as logos and profile photos.',
           'BigDataCloud and ipwho.is — turning a location or network address into a country code.',
@@ -448,10 +448,10 @@ export const legalPages: Record<string, LegalPageContent> = {
   'sponsorship-document-terms': {
     slug: 'sponsorship-document-terms',
     title: 'Sponsorship Document Terms',
-    description: 'How sponsorship documents are included in MadeVisa Pro, changes, confirmation and refunds.',
+    description: 'How sponsorship documents are included in MadeVisa Starter and Pro, changes, confirmation and refunds.',
     intro: `These terms apply when you prepare a sponsorship document (a Visa Plan: your sponsorship proposal to an employer) on ${ENTITY}. Last updated ${LEGAL_LAST_UPDATED}.`,
     summary: [
-      'Sponsorship documents are part of MadeVisa Pro: 50 each calendar month.',
+      'Sponsorship documents are part of MadeVisa Starter (10 each calendar month) and Pro (50 each calendar month).',
       'They are no longer sold one by one, and new accounts don’t get a free one.',
       'Credits you bought or earned before October 2026 are still yours and still work.',
       'It is a proposal for discussion, not a contract, a job offer or a visa guarantee.',
@@ -470,17 +470,17 @@ export const legalPages: Record<string, LegalPageContent> = {
         ],
       },
       {
-        heading: 'Pro',
+        heading: 'Starter and Pro',
         paragraphs: [
-          'MadeVisa Pro is one plan, billed monthly or yearly. Its price depends on the country you are in, which we detect from your internet connection, and is shown in your local currency where possible (otherwise in US dollars). The price shown when you send your request, or on the payment step when you pay by card, is the price you pay. Card payments are taken in US dollars by Gumroad, which is the seller named on your receipt; you can cancel there at any time.',
-          'Pro includes 50 sponsorship documents each calendar month, the full CV match report on every job, instant job alerts and full company data. Unused documents don’t carry over to the next month. A fair-use limit of 30 documents in any 7 days applies.',
+          'Sponsorship documents come with the paid plans: Starter includes 10 each calendar month and Pro includes 50. Prices, billing, cancellation and refunds for the plans are in the Subscription Terms.',
+          'Unused documents don’t carry over to the next month. A fair-use limit of 30 documents in any 7 days applies on every plan. Members who started Pro before the October 2026 plan change keep Pro, with 50 documents a month, for as long as their membership runs.',
           'Previewing, adjusting the terms and seeing the demo are free. A document is counted only when you approve it.',
         ],
       },
       {
         heading: 'Credits from before October 2026',
         paragraphs: [
-          'Until October 2026 documents were also sold as credits and every account had one free document. Credits you bought or earned through an invite are kept, don’t expire, and each still prepares one document. Accounts created before the change keep their free document if it hasn’t been used. When you are on Pro, the monthly allowance is used first.',
+          'Until October 2026 documents were also sold as credits and every account had one free document. Credits you bought or earned through an invite are kept, don’t expire, and each still prepares one document. Accounts created before the change keep their free document if it hasn’t been used. When you are on Starter or Pro, the monthly allowance is used first.',
         ],
       },
       {
@@ -501,12 +501,12 @@ export const legalPages: Record<string, LegalPageContent> = {
           'Unused credit bought before October 2026: refundable within 14 days of its purchase.',
           'Double charges, or a document that failed to generate: always refunded.',
           'A document made wrong by an error on our side: corrected or refunded.',
-          'Pro: cancel any time; it stops at the end of the month or year. Within 14 days of first starting Pro, if you have not used any Pro documents, you get a full refund.',
+          'Starter and Pro: see the refund rules in the Subscription Terms.',
         ],
       },
       {
         heading: 'Contact',
-        paragraphs: [`Questions about credit, Pro or a document: ${EMAIL}. These terms are governed by ${JURISDICTION}.`],
+        paragraphs: [`Questions about credit, your plan or a document: ${EMAIL}. These terms are governed by ${JURISDICTION}.`],
       },
     ],
     faq: [
@@ -515,7 +515,82 @@ export const legalPages: Record<string, LegalPageContent> = {
       { q: 'Does it say I will get the visa?', a: 'No. It names a route that may apply, with its official source and the date we last checked it, and says that the employer or a qualified adviser has to confirm it. It never states a chance of approval, of sponsorship or of being hired.' },
       { q: 'What does “Checked by the candidate against the job ad” mean?', a: 'That you opened the original job ad and ticked that line as matching it. MadeVisa collects job ads automatically and does not verify the employer or the job independently, so the document says who did the checking.' },
     ],
-    related: ['terms', 'privacy', 'disclaimer'],
+    related: ['subscription-terms', 'terms', 'privacy', 'disclaimer'],
+  },
+
+  'subscription-terms': {
+    slug: 'subscription-terms',
+    title: 'Subscription Terms',
+    description: 'MadeVisa Starter and Pro: prices, what each includes and its limits, billing, renewal, cancellation, switching plans and refunds.',
+    intro: `These terms apply to MadeVisa’s paid plans for job seekers, Starter and Pro. Last updated ${LEGAL_LAST_UPDATED}.`,
+    summary: [
+      'Starter is $2.99 a month and Pro is $8.99 a month, in US dollars, the same in every country.',
+      'Billed monthly until you cancel. Cancel any time: you keep the plan until the end of the month you paid for.',
+      'Payments are taken by Gumroad, the seller named on your receipt. MadeVisa never sees your card.',
+      'Every limit is listed below and on the checkout page before you pay.',
+      'Full refund within 14 days of first starting a plan if you haven’t used any sponsorship documents from it.',
+    ],
+    sections: [
+      {
+        heading: 'The plans',
+        paragraphs: [
+          'Free: every job, search and filters, your CV match score on every job, the skills missing from your CV on 3 jobs a day, up to 5 saved jobs, application tracking with reminders, and 1 job alert.',
+          'Starter ($2.99 a month): the full CV match report on every job (where each point of the score comes from and what to change in your CV), all your best matches, 10 sponsorship documents a month, the companies that sponsor visas in each country with their reply data, up to 5 job alerts and unlimited saved jobs.',
+          'Pro ($8.99 a month): everything in Starter, plus Auto Apply (a CV tailored to each job and a cover letter when one helps, sent for you where the employer takes applications through MadeVisa, otherwise prepared for you to send), 50 sponsorship documents a month, up to 10 job alerts and 10 jobs in each “Jobs for you” email. The monthly number of Auto Apply applications is shown on the checkout page.',
+          'Features we describe as “coming” are not part of a plan until they are released. We don’t charge extra when they are added to the plan you have.',
+          'MadeVisa helps you find and apply for jobs. No plan guarantees interviews, a job, visa sponsorship or a visa decision.',
+        ],
+      },
+      {
+        heading: 'Fair use',
+        paragraphs: ['To keep the service available to everyone, these limits apply:'],
+        bullets: [
+          'Sponsorship documents: 10 a calendar month on Starter, 50 on Pro, and at most 30 in any 7 days. Unused documents don’t carry over.',
+          'Job alerts: 1 on Free, 5 on Starter, 10 on Pro, and at most 3 new alerts a day.',
+          'Auto Apply: the monthly number shown on the checkout page, and a daily maximum.',
+        ],
+      },
+      {
+        heading: 'Billing and renewal',
+        paragraphs: [
+          'Plans are billed monthly in US dollars, starting on the day you subscribe, and renew on the same day each month at the same price until you cancel. Gumroad adds sales tax or VAT where it applies; the amount is shown on Gumroad’s checkout before you pay. Your bank may convert the amount into your currency.',
+          'Your plan starts once Gumroad confirms the payment to MadeVisa, usually within a minute. If a renewal fails, Gumroad tries again and asks you to update your payment method; your plan stays on for a few days while it does, then pauses until a payment goes through.',
+        ],
+      },
+      {
+        heading: 'Cancelling',
+        paragraphs: [
+          'You can cancel any time: in Settings → Billing on MadeVisa (which takes you to your membership on Gumroad), or from the link in your Gumroad receipt. Your plan stays on until the end of the month you paid for and is not renewed. Cancelling in MadeVisa’s database alone is not possible: the cancellation is made on Gumroad, which stops the charges.',
+          'When a plan ends, your account goes back to Free. Your CV, matches, saved jobs, application history and documents stay in your account.',
+        ],
+      },
+      {
+        heading: 'Switching between Starter and Pro',
+        paragraphs: [
+          'Each plan is a separate membership on Gumroad, which cannot move a membership from one plan to the other. To switch, cancel your current plan on Gumroad (you keep it until the end of the month you paid for and are not charged for it again), then start the other plan on MadeVisa’s checkout page. There is no automatic upgrade, downgrade or pro-rated price. While both run, you get the higher plan.',
+        ],
+      },
+      {
+        heading: 'Refunds',
+        paragraphs: ['Payments are refunded through Gumroad. Write to us with your receipt and we arrange it.'],
+        bullets: [
+          'Within 14 days of first starting Starter or Pro, if you haven’t used any sponsorship documents from the plan: a full refund.',
+          'Double charges: always refunded.',
+          'After a refund, or if a payment is disputed with your bank, the plan ends straight away.',
+        ],
+      },
+      {
+        heading: 'Members from before October 2026',
+        paragraphs: [
+          'Until October 2026 MadeVisa sold one plan, MadeVisa Pro, at a price that depended on your country, monthly or yearly. If you are on that membership, nothing changes: you keep Pro and keep paying the price you agreed to until you cancel.',
+        ],
+      },
+      {
+        heading: 'Contact',
+        paragraphs: [`Questions about your plan or a payment: ${EMAIL}. These terms are governed by ${JURISDICTION}.`],
+      },
+    ],
+    related: ['terms', 'privacy', 'sponsorship-document-terms'],
   },
 
   'editorial-policy': {

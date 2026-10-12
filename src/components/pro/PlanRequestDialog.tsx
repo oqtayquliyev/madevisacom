@@ -3,15 +3,15 @@ import { CheckCircle2, Loader2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { allCountries } from '@/data/allCountries';
-import { EXPERIENCE_OPTIONS, PLAN_NAME, submitPlanRequest, type Billing, type PlanId, type PriceRegion } from '@/lib/plans';
+import { EXPERIENCE_OPTIONS, PLAN_NAME, submitPlanRequest, type Billing, type RequestPlanId, type PriceRegion } from '@/lib/plans';
 
 // Plan request form. No card needed: hello@madevisa.com gets the request
-// and replies with a secure payment link. For Pro it also fills in the
+// and replies with a secure payment link. For Starter and Pro it also fills in the
 // profile details matching needs (role, specialization, experience,
 // passport, target country) and saves them to the person's profile.
 
 const input = 'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-950 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200';
-const PERSONAL: PlanId[] = ['pro', 'relocation', 'brief_credits'];
+const PERSONAL: RequestPlanId[] = ['starter', 'pro', 'relocation', 'brief_credits'];
 
 async function countryIdFor(code: string | undefined): Promise<string | null> {
   if (!code) return null;
@@ -32,7 +32,7 @@ export function PlanRequestDialog({
   onClose,
   onAuth,
 }: {
-  plan: PlanId;
+  plan: RequestPlanId;
   billing: Billing;
   priceLabel: string;
   region: PriceRegion;
@@ -142,7 +142,7 @@ export function PlanRequestDialog({
           </div>
         ) : personal && !user ? (
           <div className="px-5 py-6 text-center">
-            <p className="text-sm leading-6 text-ink-700">Pro is linked to your MadeVisa account — alerts, visa matching and tracking all use your profile. Create a free account first; it takes a minute.</p>
+            <p className="text-sm leading-6 text-ink-700">Your plan is linked to your MadeVisa account — alerts, visa matching and tracking all use your profile. Create a free account first; it takes a minute.</p>
             <div className="mt-4 flex justify-center gap-2">
               <button onClick={() => onAuth?.('register')} className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
                 Create account

@@ -6,7 +6,7 @@ import { SEO_META } from '@/lib/seoMeta';
 import { useAuth } from '@/lib/auth';
 import { WRAP, nav } from '@/lib/pageLayout';
 import { allowanceLabel, useOfferCredits } from '@/lib/sponsorOffer';
-import { usePrices } from '@/lib/pricing';
+import { priceLabel } from '@/lib/plans';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { OfferFlags } from '@/components/briefs/OfferBits';
@@ -35,7 +35,6 @@ const WHY: { icon: typeof FileCheck2; title: string; text: string }[] = [
 export function OffersPage({ go, onAuth }: Props) {
   const { user } = useAuth();
   const credits = useOfferCredits();
-  const prices = usePrices();
 
   useSeo({ ...SEO_META.offers, path: '/offers' });
 
@@ -79,7 +78,7 @@ export function OffersPage({ go, onAuth }: Props) {
                 </>
               ) : (
                 <>
-                  Part of MadeVisa Pro · 50 a month · <strong className="text-white">{prices.pro.monthly.label}</strong> a month
+                  Part of Starter (10 a month, <strong className="text-white">{priceLabel('starter')}</strong>) and Pro (50 a month, <strong className="text-white">{priceLabel('pro')}</strong>)
                 </>
               )}
             </p>
@@ -133,11 +132,11 @@ export function OffersPage({ go, onAuth }: Props) {
         {/* 5. The plan */}
         <section id="buy" aria-labelledby="buy-title" className="scroll-mt-24">
           <h2 id="buy-title" className="text-[17px] font-bold text-ink-950">
-            Included in one plan
+            Included in Starter and Pro
           </h2>
-          <p className="mt-0.5 text-[14px] text-ink-500">Sponsorship documents come with the full CV match report. Priced for your country.</p>
+          <p className="mt-0.5 text-[14px] text-ink-500">Sponsorship documents come with the full CV match report. The same price in every country.</p>
           <div className="mt-5 max-w-2xl">
-            <ProPlanCard onAuth={onAuth} compact />
+            <ProPlanCard plan="starter" source="documents_page" onAuth={onAuth} compact />
           </div>
           {user && (
             <div className="mt-3">

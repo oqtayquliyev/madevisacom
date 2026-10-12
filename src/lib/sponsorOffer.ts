@@ -233,7 +233,7 @@ export function splitWord(split: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Sponsorship documents are part of MadeVisa Pro: 50 a calendar month.
+// Sponsorship documents are part of Starter (10) and Pro (50) each calendar month.
 // They are no longer sold one by one and new accounts get none for free.
 // Documents bought or earned before that change (`docs`) are kept and can
 // still be used — see migration 20261126090000 and src/lib/pricing.ts.
@@ -249,6 +249,8 @@ export type OfferCredits = {
   pro: boolean;
   /** Plan documents left this calendar month. */
   proLeft: number;
+  /** The plan's monthly allowance (Starter 10, Pro 50; 0 on Free). */
+  quota: number;
   used: number;
 };
 
@@ -262,16 +264,18 @@ export async function fetchOfferCredits(): Promise<OfferCredits | null> {
   if (!auth.user) return null;
   const { data, error } = await supabase.rpc('brief_credits');
   if (!error && data) {
-    const d = data as { unit?: string; docs?: number; balance?: number; left: number; pro?: boolean; pro_left?: number; used: number };
+    const d = data as { unit?: string; docs?: number; balance?: number; left: number; pro?: boolean; pro_left?: number; quota?: number; used: number };
+    // 'pro' = the plan includes documents (Starter or Pro); quota = how many a month.
     const pro = Boolean(d.pro);
     const proLeft = d.pro_left ?? 0;
+    const quota = d.quota ?? (pro ? PRO_MONTHLY_DOCS : 0);
     // Current database: counted in documents.
-    if (d.unit === 'documents' && typeof d.docs === 'number') return { docs: d.docs, left: d.left, pro, proLeft, used: d.used };
+    if (d.unit === 'documents' && typeof d.docs === 'number') return { docs: d.docs, left: d.left, pro, proLeft, quota, used: d.used };
     // Before migration 20261113090000: dollars, $15 a document.
-    if (typeof d.balance === 'number') return { docs: Math.floor(Number(d.balance) / 15), left: d.left, pro, proLeft, used: d.used };
+    if (typeof d.balance === 'number') return { docs: Math.floor(Number(d.balance) / 15), left: d.left, pro, proLeft, quota, used: d.used };
   }
   const { count } = await supabase.from('hiring_briefs').select('id', { count: 'exact', head: true }).eq('user_id', auth.user.id);
-  return { docs: 0, left: 0, pro: false, proLeft: 0, used: count ?? 0 };
+  return { docs: 0, left: 0, pro: false, proLeft: 0, quota: 0, used: count ?? 0 };
 }
 
 /** Can this person prepare a document right now? */
@@ -315,7 +319,7 @@ export function useOfferCredits(): OfferCredits | null {
 
 /** "47 of 50 left this month" / "2 documents left" — what a person can still make. */
 export function allowanceLabel(c: OfferCredits): string {
-  if (c.pro) return `${c.proLeft} of ${PRO_MONTHLY_DOCS} left this month${c.docs > 0 ? ` + ${c.docs} kept` : ''}`;
+  if (c.pro) return `${c.proLeft} of ${c.quota} left this month${c.docs > 0 ? ` + ${c.docs} kept` : ''}`;
   return `${docsLabel(c.docs)} left`;
 }
 

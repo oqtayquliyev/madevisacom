@@ -63,7 +63,7 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
         intro: 'Six things, in one place, so every application is a better-informed one.',
         items: [
           { icon: 'check', title: 'CV match on every job', text: 'Upload your CV once. Every job shows how well it fits — a score that is always free — plus the skills the ad asks for that your CV doesn’t show, and what to change before you apply.' },
-          { icon: 'send', title: 'Sponsorship proposals', text: 'When a job needs a visa, add a proposal to your application: the route that may apply, what it asks of the employer and who you suggest pays each cost, with the source of every line. 50 a month are part of MadeVisa Pro.' },
+          { icon: 'send', title: 'Sponsorship proposals', text: 'When a job needs a visa, add a proposal to your application: the route that may apply, what it asks of the employer and who you suggest pays each cost, with the source of every line. Starter includes 10 a month and Pro 50.' },
           { icon: 'source', title: 'Jobs from the source', text: 'Roles come from the employer’s own careers page — not reposts — so you see them early, with the real posting date. When a job closes there, it closes here.' },
           { icon: 'score', title: 'Company Scores', text: 'Reply rates, reply times and “was the job as described?” — built from outcomes applicants share, weighted so no single account can tilt a score.' },
           { icon: 'chart', title: 'Hiring insights', text: 'Who is hiring this week, where, for which roles, how much is remote and which companies offer visa sponsorship — updated through the day.' },
@@ -77,7 +77,7 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
           { icon: 'calendar', title: 'Honest dates', text: 'A job posted two weeks ago says two weeks ago. We never refresh dates to make listings look new.' },
           { icon: 'scale', title: 'Outcomes over opinions', text: 'Scores come from what actually happened to applicants, not star ratings. The method is the same for every company — and sponsorship never changes it.' },
           { icon: 'lock', title: 'Your data stays yours', text: 'We never sell data and never pass your details to employers. Your email, phone and nationality are never shown publicly.' },
-          { icon: 'gift', title: 'Free to search, fair to pay', text: 'Searching, tracking applications and visa guides are free. Sponsorship proposals and the full CV report are part of MadeVisa Pro — and no one should ever ask you to pay to apply or to be hired.' },
+          { icon: 'gift', title: 'Free to search, fair to pay', text: 'Searching, tracking applications and visa guides are free. Sponsorship proposals and the full CV report are part of Starter ($2.99 a month) and Pro — and no one should ever ask you to pay to apply or to be hired.' },
         ],
       },
       {
@@ -120,7 +120,7 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
       },
     ],
     faq: [
-      { q: 'Is MadeVisa free?', a: 'Searching, saving and tracking applications, Company Scores and visa guides are free. Sponsorship proposals (50 a month) and the full CV match report are part of MadeVisa Pro, priced for your country. Companies can pay to sponsor a listing; sponsored listings are always labelled and never change scores.' },
+      { q: 'Is MadeVisa free?', a: 'Searching, saving and tracking applications, Company Scores and visa guides are free. Sponsorship proposals and the full CV match report are part of Starter ($2.99 a month; 10 proposals) and Pro ($8.99 a month; 50 proposals and Auto Apply), the same price in every country. Companies can pay to sponsor a listing; sponsored listings are always labelled and never change scores.' },
       { q: 'What is a sponsorship proposal?', a: 'A document you attach to an application to open the conversation about sponsorship: the route that may apply, what it usually asks of the employer, and who you suggest pays each visa-related cost. Every line shows its source and whether it is known, your proposal, or still needs confirmation. It is not a contract, a job offer or a visa guarantee; its terms count only once you and the employer put them into the employment contract or a signed agreement.' },
       { q: 'Where do the jobs come from?', a: 'Mostly straight from employers’ own career pages, plus jobs companies post with us directly. Every listing links to the original posting, where you apply.' },
       { q: 'How fresh are the listings?', a: 'New roles arrive throughout the day, and jobs that close on the employer’s page are marked closed and then removed. Each listing shows when the employer posted it.' },
@@ -153,7 +153,7 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
           { icon: 'check', title: 'Every listing is checked', text: 'Before a job appears we check that it is a real job ad and pull out the essentials: location, remote or on-site, salary, experience, visa sponsorship. What the ad doesn’t say shows as “not mentioned” — never guessed.' },
           { icon: 'search', title: 'Search by what matters to you', text: 'Filter by country, visa sponsorship, remote or hybrid, salary transparency, experience and category. Set your location once and the routes open to you are highlighted.' },
           { icon: 'check', title: 'Check your match', text: 'Press “Check your match” next to Apply. Your CV is compared with the ad: skills, role, years, languages and education. The score is free; with a free account you also see the missing skills on 3 jobs a day.' },
-          { icon: 'lock', title: 'Add the sponsorship proposal', text: 'If the job needs a visa, the proposal is listed under “Your application” as the missing piece. Check the details against the original ad, choose who you suggest pays each cost, review and approve. Part of MadeVisa Pro; you can correct it until the employer accepts.' },
+          { icon: 'lock', title: 'Add the sponsorship proposal', text: 'If the job needs a visa, the proposal is listed under “Your application” as the missing piece. Check the details against the original ad, choose who you suggest pays each cost, review and approve. Part of Starter and Pro; you can correct it until the employer accepts.' },
           { icon: 'send', title: 'Apply at the source — with the proposal attached', text: 'You apply on the employer’s own page and attach the PDF next to your CV, or paste its link in your cover letter. MadeVisa never stands between you and the employer, and never passes on your details.' },
           { icon: 'track', title: 'Track what happens', text: 'Mark when you applied and what happened next. Gentle check-ins ask at the right time. Your outcome, combined anonymously with others’, becomes the company’s reply rate.' },
           { icon: 'plane', title: 'Plan the move', text: 'For each country: the visa routes you may qualify for, fees, validity, years to permanent residence and citizenship — with the official source one click away.' },
@@ -186,8 +186,8 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
       { q: 'Why does a job show “Location on source”?', a: 'Some employers don’t state a clear location in the ad. Rather than guess, we point you to the original posting, where the employer gives the details.' },
       { q: 'Do I need an account?', a: 'No — you can search and read everything without one, and even check your CV against a job. An account keeps your CV, shows the skills you’re missing, and lets you save jobs, track applications and get check-in reminders.' },
       { q: 'Can I trust a Company Score with only a few applicants?', a: 'Scores only appear once several people have shared an outcome, and while data is early they show as a range. The more people track, the sharper they get.' },
-      { q: 'How much does a sponsorship proposal cost?', a: 'It is part of MadeVisa Pro, which includes 50 a month along with the full CV match report on every job. Pro is one plan, monthly or yearly, priced for your country in your currency. Credits bought before October 2026 still work; see the Sponsorship Document Terms.' },
-      { q: 'Is checking my CV against a job free?', a: 'Yes. The match score is free on every job, without a limit. With a free account you also see which skills are missing on 3 jobs a day. The full report — where each point comes from and what to change — is part of Pro.' },
+      { q: 'How much does a sponsorship proposal cost?', a: 'It is part of the paid plans: Starter ($2.99 a month) includes 10 a month and Pro ($8.99 a month) 50, both with the full CV match report on every job. Credits bought before October 2026 still work; see the Sponsorship Document Terms.' },
+      { q: 'Is checking my CV against a job free?', a: 'Yes. The match score is free on every job, without a limit. With a free account you also see which skills are missing on 3 jobs a day. The full report — where each point comes from and what to change — is part of Starter and Pro.' },
       { q: 'Is the visa information official?', a: 'Each guide summarises the official rules and links to the government source, with the month it was last checked. Always confirm with the official source before you apply.' },
     ],
     cta: {

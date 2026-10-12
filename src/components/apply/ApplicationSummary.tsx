@@ -3,10 +3,10 @@ import { Send, Zap } from 'lucide-react';
 import type { Planned } from '@/lib/apply/decision';
 import type { ApplyStatus, AutoStatus } from '@/lib/apply/store';
 import type { ApplyRoute } from '@/lib/apply/types';
-import { usePrices } from '@/lib/pricing';
+import { priceLabel } from '@/lib/plans';
+import { checkoutHref } from '@/lib/billing';
 import { nav } from '@/lib/pageLayout';
 import { MatchRing } from '@/components/cv/MatchBits';
-import { PlanCheckoutDialog } from '@/components/pro/PlanCheckoutDialog';
 import { BTN } from '@/components/apply/ui';
 
 type Props = {
@@ -24,8 +24,6 @@ type Props = {
 
 /** Under the headline: apply to your top 3 now — and, with Pro, let MadeVisa apply to every new match. */
 export function ApplicationSummary({ top, routeOf, status, auto, onApply, onChoose, onAuto, onAuth }: Props) {
-  const prices = usePrices();
-  const [pay, setPay] = useState(false);
   const [busy, setBusy] = useState(false);
   const n = top.length;
   const none = status.signedIn && status.left < 1;
@@ -115,17 +113,16 @@ export function ApplicationSummary({ top, routeOf, status, auto, onApply, onChoo
             <button
               onClick={() => {
                 if (!status.signedIn) return onAuth?.('register');
-                setPay(true);
+                nav(checkoutHref('pro', 'auto_apply_summary'));
               }}
               className={`${BTN.primary} mt-3 w-full sm:w-auto`}
             >
-              Start for {prices.pro.monthly.label} / month
+              Start with Pro · {priceLabel('pro')}
             </button>
           </div>
         )}
       </div>
 
-      {pay && <PlanCheckoutDialog billing="monthly" onClose={() => setPay(false)} onAuth={onAuth} onUnavailable={() => nav('/pricing#pro')} />}
     </section>
   );
 }

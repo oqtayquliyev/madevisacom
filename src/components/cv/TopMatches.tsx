@@ -8,7 +8,8 @@ import { briefEligibility, briefPath, fetchMyBriefs, newOfferPath } from '@/lib/
 import { isLocalJobFor } from '@/lib/visaFit';
 import { usePersonalization } from '@/lib/personalization';
 import { TestimonialTicker } from '@/components/common/Testimonials';
-import { useMyPlan } from '@/lib/plans';
+import { priceLabel, useMyPlan } from '@/lib/plans';
+import { checkoutHref } from '@/lib/billing';
 import { useOutcomes } from '@/lib/cv/outcomes';
 import { MIN_SCORE, useTopMatches, type TopMatch, type TopResult, type TopState } from '@/lib/cv/topMatches';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -236,8 +237,8 @@ function MissingLine({ m, open, guest, onAuth }: { m: TopMatch; open: boolean; g
           See them with a free account
         </button>
       ) : (
-        <a href="/pricing#pro" onClick={go('/pricing#pro')} className="shrink-0 text-[12.5px] font-bold text-brand-700 hover:underline">
-          See them with Pro
+        <a href={checkoutHref('starter', 'top_matches')} onClick={go(checkoutHref('starter', 'top_matches'))} className="shrink-0 text-[12.5px] font-bold text-brand-700 hover:underline">
+          See them with Starter
         </a>
       )}
     </div>
@@ -336,9 +337,9 @@ function LockedRows({ scores, onAuth, next, pro = false }: { scores: number[]; o
           </p>
           {pro ? (
             <>
-              <p className="mt-1 text-[13px] leading-5 text-ink-600">Every match, with the skills your CV is missing on each one, is in MadeVisa Pro.</p>
-              <a href="/pricing#pro" onClick={go('/pricing#pro')} className="mt-3.5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-[14px] font-bold text-white hover:bg-brand-700">
-                See them all with Pro <ArrowRight className="h-4 w-4" />
+              <p className="mt-1 text-[13px] leading-5 text-ink-600">Every match, with the skills your CV is missing on each one, is in MadeVisa Starter ({priceLabel('starter')}).</p>
+              <a href={checkoutHref('starter', 'top_matches')} onClick={go(checkoutHref('starter', 'top_matches'))} className="mt-3.5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-[14px] font-bold text-white hover:bg-brand-700">
+                See them all with Starter <ArrowRight className="h-4 w-4" />
               </a>
             </>
           ) : (
@@ -496,8 +497,8 @@ function Roadmap({ lead, place, doc, from, step, fresh, missingOpen, onAuth }: {
                 </div>
               )}
               {missingOpen && !doc.pro && (
-                <a href="/pricing#pro" onClick={go('/pricing#pro')} className="mt-2.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-brand-700 hover:underline">
-                  Every requirement, line by line, with Pro <ArrowRight className="h-3.5 w-3.5" />
+                <a href={checkoutHref('starter', 'top_matches')} onClick={go(checkoutHref('starter', 'top_matches'))} className="mt-2.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-brand-700 hover:underline">
+                  Every requirement, line by line, with Starter <ArrowRight className="h-3.5 w-3.5" />
                 </a>
               )}
             </>
@@ -598,7 +599,9 @@ type Filter = 'all' | 'here' | 'sponsor';
 
 export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult; onAuth?: OnAuth; onAgain?: () => void }) {
   const { session } = useAuth();
-  const { isPro } = useMyPlan();
+  const my = useMyPlan();
+  // Every match and the full report: Starter and Pro.
+  const full = my.has('cv_full_report');
   const visitor = useVisitor();
   const made = useMadeDocs(Boolean(session));
   const [all, setAll] = useState(false);
@@ -606,8 +609,8 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
   const items = result.items;
   const t = tiers(items);
   const guest = !session;
-  // Guests: 2 matches, no missing skills. Free: 10 matches, missing skills on the best 3. Pro: everything.
-  const access = accessFor(guest, isPro);
+  // Guests: 2 matches, no missing skills. Free: 10 matches, missing skills on the best 3. Starter and Pro: everything.
+  const access = accessFor(guest, full);
   // A result that has just been worked out builds up step by step; a saved one is simply there.
   const fresh = useMemo(() => Date.now() - result.at < 20_000, [result.at]);
   const step = useReveal(9, fresh);
@@ -624,7 +627,7 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
 
   // The document page is open to everyone: it shows the document, and asks for the plan at download.
   const doc: DocAction = {
-    pro: isPro,
+    pro: my.has('sponsorship_documents'),
     made,
     go: (m) => {
       const share = made.get(m.id);

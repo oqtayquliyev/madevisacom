@@ -8,6 +8,7 @@ export const legalPageOrder = [
   'disclaimer',
   'advertising-policy',
   'sponsored-listing-terms',
+  'subscription-terms',
   'sponsorship-document-terms',
   'editorial-policy',
   'corrections',

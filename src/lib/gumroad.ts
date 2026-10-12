@@ -1,16 +1,18 @@
-// Card payments for MadeVisa Pro, through Gumroad.
+// Card payments for Starter and Pro, through Gumroad.
 //
 // The browser only ever does three things here: ask whether card payment is
-// on, ask the `gumroad` function for a checkout link, and ask it to look at
-// the person's payment again. The price, the discount code and switching Pro
-// on all happen on the server (supabase/functions/gumroad, migration
-// 20261203090000). Until that is set up, everything here says "off" and the
-// site keeps its request form.
+// on, ask the `gumroad` function to prepare a checkout for a plan, and ask it
+// to look at the person's payment again. The price, the product and switching
+// the plan on all happen on the server (supabase/functions/gumroad, migrations
+// 20261203090000 and 20261219090000). The page never sends an amount.
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
-import { refreshMyPlan } from '@/lib/plans';
+import { refreshMyPlan, type PaidPlanId, type PlanId } from '@/lib/plans';
+import { readCheckout, type CheckoutResult } from '@/lib/billingCore';
+
+export { readCheckout, type Checkout, type CheckoutResult } from '@/lib/billingCore';
 
 type Status = { enabled: boolean; connected: boolean };
 const OFF: Status = { enabled: false, connected: false };
@@ -37,7 +39,7 @@ export function resetCardPayments(): void {
 
 /**
  * Can this person pay by card? On for everyone once an admin switches it on;
- * admins can try the checkout as soon as the product is connected.
+ * admins can try the checkout as soon as a product is connected.
  */
 export function useCardPayments(): { on: boolean; ready: boolean } {
   const { profile } = useAuth();
@@ -53,24 +55,6 @@ export function useCardPayments(): { on: boolean; ready: boolean } {
   return { on, ready: status !== null };
 }
 
-export type Checkout = {
-  /** Gumroad's checkout, with the email, the billing period and the price already set. */
-  url: string;
-  billing: 'monthly' | 'yearly';
-  /** Country the price is for, as the server saw it (null = could not tell). */
-  country: string | null;
-  price_cents: number;
-  list_cents: number;
-  email: string | null;
-};
-export type CheckoutResult =
-  | { kind: 'ready'; checkout: Checkout }
-  /** A membership is already running on Gumroad for this account. */
-  | { kind: 'already'; manageUrl: string }
-  /** Card payment is not available (not set up, or switched off): use the request form. */
-  | { kind: 'off' }
-  | { kind: 'error'; message: string };
-
 async function invoke(body: Record<string, unknown>): Promise<Record<string, unknown> | null> {
   try {
     const { data, error } = await supabase.functions.invoke('gumroad', { body });
@@ -81,24 +65,20 @@ async function invoke(body: Record<string, unknown>): Promise<Record<string, unk
   }
 }
 
-export async function startCheckout(billing: 'monthly' | 'yearly'): Promise<CheckoutResult> {
-  const data = await invoke({ action: 'checkout', billing });
-  if (!data) return { kind: 'error', message: 'The payment page could not be prepared. Check your connection and try again.' };
-  if (data.error === 'off') return { kind: 'off' };
-  if (typeof data.error === 'string') return { kind: 'error', message: data.error };
-  if (data.already && typeof data.manage_url === 'string') return { kind: 'already', manageUrl: data.manage_url };
-  if (typeof data.url === 'string' && /^https:\/\/([a-z0-9-]+\.)*gumroad\.com\//i.test(data.url)) return { kind: 'ready', checkout: data as unknown as Checkout };
-  return { kind: 'error', message: 'The payment page could not be prepared. Please try again.' };
+/** Prepare a checkout. `source` says which button led here (for the funnel in Admin → Plans). */
+export async function startCheckout(plan: PaidPlanId, source: string | null): Promise<CheckoutResult> {
+  return readCheckout(plan, await invoke({ action: 'checkout', plan, billing: 'monthly', source }));
 }
 
 /**
  * Looks at the person's payment again on Gumroad (the server allows it once
- * every 10 seconds) and reloads their plan. True when Pro is on.
+ * every 10 seconds) and reloads their plan. Answers the plan they have now.
  */
-export async function checkPayment(): Promise<boolean> {
+export async function checkPayment(): Promise<{ plan: PlanId; throttled: boolean }> {
   const data = await invoke({ action: 'refresh' });
   refreshMyPlan();
-  return Boolean(data?.active);
+  const plan = data?.plan === 'starter' || data?.plan === 'pro' ? data.plan : 'free';
+  return { plan, throttled: Boolean(data?.throttled) };
 }
 
 /** Where a member changes their card, or cancels. */

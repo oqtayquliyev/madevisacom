@@ -1,28 +1,34 @@
-// The plan (/pricing), plan requests, and "am I on the plan?".
+// Plans for job seekers (Free, Starter, Pro), plan requests, and "what do I have?".
 //
-// One plan for job seekers — MadeVisa Pro, monthly or yearly:
-//   • the full CV match report on every job (the score is free for everyone,
-//     and so are the missing skills on 3 jobs a day)
-//   • 50 sponsorship documents a month
-//   • instant job alerts, full company reply data, companies that sponsor
-// Paying: when card payments are connected (Admin → Plans, src/lib/gumroad.ts)
-// "Get Pro" goes to Gumroad's checkout and Pro switches on by itself. Until
-// then, choosing the plan sends a request (plan_requests, migration
-// 20261107090000): hello@madevisa.com gets an email, admins get a
-// notification, and an admin activates it after payment.
+// The catalogue — prices, benefits, limits — is one shared file,
+// supabase/functions/_shared/plans.ts, re-exported here. What a person HAS
+// comes from one place on the server, my_entitlements() (migration
+// 20261219090000), which every database gate also uses. The app only uses
+// it to decide what to show; the database refuses paid features itself.
+//
+// Paying: with card payments on (Admin → Plans), /checkout prepares a Gumroad
+// checkout and the plan switches on when Gumroad's payment is verified on the
+// server. With them off, choosing a plan sends a request (plan_requests) that
+// an admin activates after payment.
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
-import { FREE_DAILY_CHECKS, PRO_MONTHLY_DOCS } from '@/lib/pricing';
+import { ENTITLEMENTS, type PlanId } from '../../supabase/functions/_shared/plans';
+import { planView, type Loaded, type MyPlan, type OtherMembership, type Subscription, type Usage } from '@/lib/billingCore';
 
-/** 'relocation' and 'brief_credits' are no longer sold; kept so earlier requests still show in Admin. */
-export type PlanId = 'pro' | 'relocation' | 'sponsored_job' | 'featured_social' | 'employer' | 'hiring_brief' | 'brief_credits';
+export { planView, type MyPlan, type OtherMembership, type Subscription, type Usage } from '@/lib/billingCore';
+
+export * from '../../supabase/functions/_shared/plans';
+
+/** What a plan request (the form) can be for. 'relocation' and 'brief_credits' are no longer sold; kept so earlier requests still show in Admin. */
+export type RequestPlanId = 'starter' | 'pro' | 'relocation' | 'sponsored_job' | 'featured_social' | 'employer' | 'hiring_brief' | 'brief_credits';
 export type Billing = 'monthly' | 'yearly' | 'one_time';
 /** Where the price came from, for the request: country code, or A / B / C on older requests. */
 export type PriceRegion = string;
 
-export const PLAN_NAME: Record<PlanId, string> = {
+export const PLAN_NAME: Record<RequestPlanId, string> = {
+  starter: 'MadeVisa Starter',
   pro: 'MadeVisa Pro',
   relocation: 'Pro Relocation (retired)',
   sponsored_job: 'Sponsored job',
@@ -32,25 +38,8 @@ export const PLAN_NAME: Record<PlanId, string> = {
   brief_credits: 'Document credit (retired)',
 };
 
-export const FREE_FEATURES = [
-  'Every job, straight from company career pages',
-  'Your CV match score on every job',
-  `Missing skills on ${FREE_DAILY_CHECKS} jobs a day`,
-  'Reply-rate and hiring-activity line on every job',
-  'Your visa route for every job',
-  'Track your applications, with reminders',
-];
-
-export const PRO_FEATURES = [
-  { title: 'Full CV match report on every job', text: 'Where each point of your score comes from — skills, role, experience, languages, education — and exactly what to change in your CV before you apply. No daily limit.' },
-  { title: `${PRO_MONTHLY_DOCS} sponsorship documents a month`, text: 'Your sponsorship proposal to an employer: the visa route that may apply, what it asks of them and who you suggest pays what, with the source of every line. One for each job you apply to.' },
-  { title: 'Up to 10 instant job alerts', text: 'Free accounts get one daily email alert. Pro adds up to 10, in your notifications within 30 minutes of a job going live.' },
-  { title: 'Full company response data', text: 'Exact reply rate, typical time to reply and hiring activity before you apply.' },
-  { title: 'Companies that sponsor visas', text: 'Who is hiring with visa sponsorship in each country, updated live.' },
-];
-
 export type PlanRequest = {
-  plan: PlanId;
+  plan: RequestPlanId;
   billing: Billing;
   priceLabel: string;
   region: PriceRegion;
@@ -85,97 +74,100 @@ export async function submitPlanRequest(r: PlanRequest): Promise<{ ok: true } | 
   return { ok: true };
 }
 
-export type Subscription = {
-  plan: string;
-  status: string;
-  current_period_end: string | null;
-  /** 'gumroad' when paid by card; absent when an admin switched it on. */
-  provider?: string | null;
-  /** The membership's id at the payment provider (for "Manage or cancel"). */
-  provider_ref?: string | null;
-  billing?: string | null;
-  /** Cancelled: Pro runs until current_period_end and is not renewed. */
-  cancel_at_period_end?: boolean;
-};
+const asPlan = (v: unknown): PlanId => (v === 'starter' || v === 'pro' ? v : 'free');
 
-let proCache: { userId: string; sub: Subscription | null; at: number } | null = null;
+let cache: { userId: string; data: Loaded; at: number } | null = null;
 /** One read at a time per person, shared by every part of the page that asks. */
-let proInflight: { userId: string; promise: Promise<Subscription | null> } | null = null;
-const planListeners = new Set<() => void>();
+let inflight: { userId: string; promise: Promise<Loaded> } | null = null;
+const listeners = new Set<() => void>();
 
 /** Read the plan again everywhere it is shown (after a payment, a cancellation…). */
 export function refreshMyPlan(): void {
-  proCache = null;
-  proInflight = null;
-  planListeners.forEach((l) => l());
+  cache = null;
+  inflight = null;
+  listeners.forEach((l) => l());
 }
 
 let lapseChecked = false;
 
-/** The card-payment columns exist from migration 20261203090000; before it, the three original ones are read. */
-async function loadSubscription(userId: string): Promise<Subscription | null> {
-  const read = () => supabase.from('subscriptions').select('plan, status, current_period_end, provider, provider_ref, billing, cancel_at_period_end').eq('user_id', userId).maybeSingle();
-  const full = await read();
-  if (full.error) {
-    const basic = await supabase.from('subscriptions').select('plan, status, current_period_end').eq('user_id', userId).maybeSingle();
-    return (basic.data as Subscription | null) ?? null;
+/** The server's answer; before migration 20261219090000 the old table is read (everything paid was Pro then). */
+async function loadPlan(userId: string): Promise<Loaded> {
+  const read = () => supabase.rpc('my_entitlements');
+  const { data, error } = await read();
+  if (error || !data) {
+    const old = await supabase.from('subscriptions').select('plan, status, current_period_end, provider, provider_ref, billing, cancel_at_period_end').eq('user_id', userId).maybeSingle();
+    const s = (old.data as (Omit<Subscription, 'plan'> & { plan: string }) | null) ?? null;
+    const on = Boolean(s && s.status === 'active' && (!s.current_period_end || Date.parse(s.current_period_end) > Date.now()));
+    const plan: PlanId = on ? (s!.plan === 'starter' ? 'starter' : 'pro') : 'free';
+    return { plan, sub: on && s ? { ...s, plan } : null, others: [], last: null, usage: null, features: ENTITLEMENTS[plan] };
   }
-  const s = (full.data as Subscription | null) ?? null;
-  // Paid by card and run out without being cancelled: a renewal notice may have
-  // been lost on the way. Ask the server to look at the payment once, then read again.
-  const ended = s?.current_period_end ? Date.parse(s.current_period_end) : NaN;
-  if (s?.provider === 'gumroad' && s.status === 'active' && !s.cancel_at_period_end && ended < Date.now() && ended > Date.now() - 21 * 86_400_000 && !lapseChecked) {
+  let d = data as { plan: string; sub: Subscription | null; others?: OtherMembership[]; last?: Loaded['last']; usage?: Usage; features?: Loaded['features'] };
+  // Paid by card and run out without being cancelled: a renewal notice may have been
+  // lost on the way. Ask the server to look at the payment once, then read again.
+  const ended = d.last?.ended_at ? Date.parse(d.last.ended_at) : NaN;
+  if (!d.sub && d.last?.provider_status === 'alive' && ended < Date.now() && ended > Date.now() - 21 * 86_400_000 && !lapseChecked) {
     lapseChecked = true;
     try {
       await supabase.functions.invoke('gumroad', { body: { action: 'refresh' } });
       const again = await read();
-      if (!again.error) return (again.data as Subscription | null) ?? null;
+      if (!again.error && again.data) d = again.data as typeof d;
     } catch {
       /* keep what we read */
     }
   }
-  return s;
+  const plan = asPlan(d.plan);
+  return {
+    plan,
+    sub: d.sub ? { ...d.sub, plan } : null,
+    others: (d.others ?? []).map((o) => ({ ...o, plan: asPlan(o.plan) })),
+    last: d.last ? { ...d.last, plan: asPlan(d.last.plan) } : null,
+    usage: d.usage ?? null,
+    features: d.features ?? ENTITLEMENTS[plan],
+  };
 }
 
-/** The signed-in person's active plan (null = free). */
-export function useMyPlan(): { isPro: boolean; sub: Subscription | null; loading: boolean } {
+const FREE: Loaded = { plan: 'free', sub: null, others: [], last: null, usage: null, features: ENTITLEMENTS.free };
+
+/** The signed-in person's plan and what it includes. */
+export function useMyPlan(): MyPlan {
   const { user } = useAuth();
   const [tick, setTick] = useState(0);
-  const cached = user && proCache?.userId === user.id && Date.now() - proCache.at < 5 * 60_000 ? proCache : null;
-  const [sub, setSub] = useState<Subscription | null>(cached?.sub ?? null);
+  const cached = user && cache?.userId === user.id && Date.now() - cache.at < 5 * 60_000 ? cache : null;
+  const [data, setData] = useState<Loaded>(cached?.data ?? FREE);
   const [loading, setLoading] = useState(Boolean(user) && !cached);
   useEffect(() => {
     const again = () => setTick((n) => n + 1);
-    planListeners.add(again);
+    listeners.add(again);
     return () => {
-      planListeners.delete(again);
+      listeners.delete(again);
     };
   }, []);
   useEffect(() => {
     if (!user) {
-      setSub(null);
+      setData(FREE);
       setLoading(false);
       return;
     }
     if (cached) {
-      setSub(cached.sub);
+      setData(cached.data);
+      setLoading(false);
       return;
     }
     let alive = true;
     const uid = user.id;
-    if (proInflight?.userId !== uid) {
-      const promise = loadSubscription(uid).then((s) => {
-        if (proInflight?.promise === promise) {
-          proCache = { userId: uid, sub: s, at: Date.now() };
-          proInflight = null;
+    if (inflight?.userId !== uid) {
+      const promise = loadPlan(uid).then((d) => {
+        if (inflight?.promise === promise) {
+          cache = { userId: uid, data: d, at: Date.now() };
+          inflight = null;
         }
-        return s;
+        return d;
       });
-      proInflight = { userId: uid, promise };
+      inflight = { userId: uid, promise };
     }
-    void proInflight.promise.then((s) => {
+    void inflight.promise.then((d) => {
       if (!alive) return;
-      setSub(s);
+      setData(d);
       setLoading(false);
     });
     return () => {
@@ -183,11 +175,10 @@ export function useMyPlan(): { isPro: boolean; sub: Subscription | null; loading
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, tick]);
-  const isPro = Boolean(sub && sub.status === 'active' && (!sub.current_period_end || Date.parse(sub.current_period_end) > Date.now()));
-  return { isPro, sub, loading };
+  return planView(data, loading);
 }
 
-/** Profile fields that make Pro matching work — what's still missing. */
+/** Profile fields that make matching work — what's still missing. */
 export function missingProfileFields(p: { occupation?: string | null; specialization?: string | null; experience?: string | null; nationality_country_id?: string | null; preferred_destination_country_id?: string | null } | null) {
   if (!p) return ['role', 'specialization', 'experience', 'passport', 'target country'];
   const m: string[] = [];

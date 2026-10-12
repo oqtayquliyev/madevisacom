@@ -9,6 +9,9 @@ import type { Part } from '@/lib/cv/match';
 import { CvReplaceButton, CvUpload } from '@/components/cv/CvUpload';
 import { MatchLabel, MatchRing, PartBar, ProPrice, Row, toneFor } from '@/components/cv/MatchBits';
 import { SponsorDocRow } from '@/components/cv/SponsorDocRow';
+import { UpgradePrompt } from '@/components/pro/UpgradePrompt';
+import { useMyPlan } from '@/lib/plans';
+import { checkoutHref, trackBilling } from '@/lib/billing';
 
 type Props = {
   match: JobMatch;
@@ -23,12 +26,13 @@ type Props = {
 /**
  * "How well does your CV match this job?" — on every job page.
  *   Score: free, always.  Missing skills: 3 jobs a day, free account.
- *   Full report: MadeVisa Pro.
+ *   Full report: Starter and Pro.
  * Below it, the application as a checklist — where the sponsorship
  * document shows up as the missing piece.
  */
 export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAuth }: Props) {
   const { session } = useAuth();
+  const { plan } = useMyPlan();
   const { cv, result, busy, unlocked, full, quota } = match;
   const [open, setOpen] = useState<string | null>(null);
 
@@ -165,7 +169,7 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
                         ? `Create a free account to see which — free on ${FREE_DAILY_CHECKS} jobs every day.`
                         : canUnlock
                           ? `${quota ? quota.left : FREE_DAILY_CHECKS} of ${FREE_DAILY_CHECKS} free skill checks left today.`
-                          : `You’ve used today’s ${FREE_DAILY_CHECKS} free skill checks. See these tomorrow, or now with Pro.`}
+                          : `You’ve used today’s ${FREE_DAILY_CHECKS} free skill checks. See these tomorrow, or now with Starter.`}
                     </span>
                   </p>
                   {!session ? (
@@ -177,8 +181,14 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
                       {busy && <Loader2 className="h-4 w-4 animate-spin" />} Show missing skills
                     </button>
                   ) : (
-                    <button onClick={() => nav('/pricing#pro')} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-700">
-                      <Sparkles className="h-4 w-4" /> Unlock with Pro
+                    <button
+                      onClick={() => {
+                        trackBilling('feature_limit_reached', { feature: 'cv_missing_skills' });
+                        nav(checkoutHref('starter', 'cv_daily_limit'));
+                      }}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-700"
+                    >
+                      <Sparkles className="h-4 w-4" /> Every job with Starter
                     </button>
                   )}
                 </div>
@@ -186,14 +196,17 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
             )}
           </div>
 
-          {/* The full report — Pro */}
+          {/* The full report — Starter and Pro */}
           <div>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-[15px] font-bold text-ink-950">Where your {result.score}% comes from</h3>
-              {full && <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Pro</span>}
+              {full && <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">{plan === 'pro' ? 'Pro' : 'Starter'}</span>}
             </div>
             {full ? (
-              <FullReport parts={result.parts} open={open} setOpen={setOpen} fixes={result.fixes} health={result.health} />
+              <>
+                <FullReport parts={result.parts} open={open} setOpen={setOpen} fixes={result.fixes} health={result.health} />
+                {plan === 'starter' && <UpgradePrompt id="match_auto_apply" plan="pro" source="cv_match" className="mt-4" />}
+              </>
             ) : (
               <div className="mt-2.5 rounded-xl border border-ink-200 p-4">
                 <div className="space-y-2.5">
@@ -205,10 +218,10 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
                   <p className="text-[13.5px] font-semibold leading-5 text-ink-900">
                     See each part of your score and what to change in your CV for this job.
                     <span className="block text-[12.5px] font-normal text-ink-600">
-                      Full report on every job, no daily limit, plus 50 sponsorship documents a month. <ProPrice />.
+                      Full report on every job, no daily limit, plus 10 sponsorship documents a month. <ProPrice />.
                     </span>
                   </p>
-                  <button onClick={() => nav('/pricing#pro')} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-ink-950 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-ink-800">
+                  <button onClick={() => nav(checkoutHref('starter', 'cv_full_report'))} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-ink-950 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-ink-800">
                     <Lock className="h-3.5 w-3.5" /> Get the full report
                   </button>
                 </div>

@@ -8,9 +8,10 @@ import { OfferSteps } from '@/components/briefs/OfferDemo';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { formatRelativeTime } from '@/lib/dates';
 import { nav } from '@/lib/pageLayout';
-import { useMyPlan } from '@/lib/plans';
+import { PLANS, useMyPlan } from '@/lib/plans';
+import { checkoutHref } from '@/lib/billing';
 import { BRIEF_STATUS_LABEL, briefPath, fetchMyBriefs, type MyBrief } from '@/lib/briefs';
-import { allowanceLabel, fetchOfferCredits, PRO_MONTHLY_DOCS, useOfferCredits, type OfferCredits } from '@/lib/sponsorOffer';
+import { allowanceLabel, fetchOfferCredits, useOfferCredits, type OfferCredits } from '@/lib/sponsorOffer';
 import { OfferFlags, OfferInfo } from '@/components/briefs/OfferBits';
 
 const STATUS_TONE: Record<string, string> = {
@@ -61,12 +62,12 @@ export function MyBriefsSection({ hideWhenEmpty = false }: { hideWhenEmpty?: boo
           <div className="sm:text-right">
             <p className="text-[22px] font-bold leading-none tabular-nums">{credits ? credits.left : '…'}</p>
             <p className="mt-1 text-[12px] text-white/75">
-              {credits?.left === 1 ? 'document' : 'documents'} left{credits?.pro ? ` · ${PRO_MONTHLY_DOCS} a month in Pro` : ' · part of Pro'}
+              {credits?.left === 1 ? 'document' : 'documents'} left{credits?.pro ? ` · ${credits.quota} a month in your plan` : ' · part of Starter and Pro'}
             </p>
           </div>
           {!credits?.pro && (
-            <a href="/pricing#pro" onClick={(e) => (e.preventDefault(), nav('/pricing#pro'))} className="shrink-0 rounded-lg bg-white px-3.5 py-2 text-[13px] font-bold text-brand-700 hover:bg-brand-50">
-              Get Pro
+            <a href={checkoutHref('starter', 'my_documents')} onClick={(e) => (e.preventDefault(), nav(checkoutHref('starter', 'my_documents')))} className="shrink-0 rounded-lg bg-white px-3.5 py-2 text-[13px] font-bold text-brand-700 hover:bg-brand-50">
+              Get Starter
             </a>
           )}
         </div>
@@ -244,7 +245,8 @@ function DocumentDetails({ profile, onSaved }: { profile: Profile; onSaved: () =
 
 /** Plan + sponsorship documents left, in the profile sidebar. */
 export function PlanCard() {
-  const { isPro, sub, loading } = useMyPlan();
+  const { plan, sub, loading, has } = useMyPlan();
+  const paid = plan !== 'free';
   const [credits, setCredits] = useState<OfferCredits | null>(null);
   useEffect(() => {
     fetchOfferCredits().then(setCredits);
@@ -254,21 +256,21 @@ export function PlanCard() {
     <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-ink-200">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[13px] text-ink-500">Your plan</p>
-        <a href="/pricing" onClick={(e) => (e.preventDefault(), nav('/pricing'))} className="text-[13px] font-semibold text-[#1D4ED8] hover:underline">
-          {isPro ? 'Manage' : 'Upgrade'}
+        <a href={paid ? '/profile?tab=settings#billing' : '/pricing'} onClick={(e) => (e.preventDefault(), nav(paid ? '/profile?tab=settings#billing' : '/pricing'))} className="text-[13px] font-semibold text-[#1D4ED8] hover:underline">
+          {paid ? 'Manage' : 'See plans'}
         </a>
       </div>
-      <p className="mt-0.5 text-[17px] font-bold text-ink-950">{isPro ? 'MadeVisa Pro' : 'Free'}</p>
-      {isPro && sub?.current_period_end && <p className="text-[12px] text-ink-500">Until {new Date(sub.current_period_end).toLocaleDateString()}</p>}
+      <p className="mt-0.5 text-[17px] font-bold text-ink-950">{paid ? `MadeVisa ${PLANS[plan].name}` : 'Free'}</p>
+      {paid && sub?.current_period_end && <p className="text-[12px] text-ink-500">{sub.cancel_at_period_end ? 'Ends' : 'Until'} {new Date(sub.current_period_end).toLocaleDateString()}</p>}
       <div className="mt-3 border-t border-ink-100 pt-3">
         <div className="flex items-center gap-1">
           <p className="text-[13px] font-semibold text-ink-800">Sponsorship documents</p>
           <OfferInfo />
         </div>
-        <p className="mt-1.5 text-[13px] text-ink-700">{credits ? (credits.left > 0 ? allowanceLabel(credits) : isPro ? 'All used this month — they renew on the 1st' : `${PRO_MONTHLY_DOCS} a month with Pro`) : '…'}</p>
-        {credits && credits.left === 0 && !isPro && (
-          <a href="/pricing#pro" onClick={(e) => (e.preventDefault(), nav('/pricing#pro'))} className="mt-2 inline-block text-[13px] font-semibold text-[#1D4ED8] hover:underline">
-            See the plan
+        <p className="mt-1.5 text-[13px] text-ink-700">{credits ? (credits.left > 0 ? allowanceLabel(credits) : has('sponsorship_documents') ? 'All used this month — they renew on the 1st' : '10 a month with Starter, 50 with Pro') : '…'}</p>
+        {credits && credits.left === 0 && !has('sponsorship_documents') && (
+          <a href={checkoutHref('starter', 'dashboard_documents')} onClick={(e) => (e.preventDefault(), nav(checkoutHref('starter', 'dashboard_documents')))} className="mt-2 inline-block text-[13px] font-semibold text-[#1D4ED8] hover:underline">
+            See Starter
           </a>
         )}
       </div>

@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { FileCheck2, FileSignature, Lock } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
-import { usePrices } from '@/lib/pricing';
+import { priceLabel } from '@/lib/plans';
+import { checkoutHref } from '@/lib/billing';
 import { briefPath, fetchMyBriefForJob, newOfferPath } from '@/lib/briefs';
 import { allowanceLabel, canMakeDocument, useOfferCredits } from '@/lib/sponsorOffer';
 import { Row } from '@/components/cv/MatchBits';
@@ -23,13 +24,12 @@ type DocProps = {
 
 /**
  * The sponsorship document as a line of the application: "Missing" until
- * one has been made for this job. Making it is part of MadeVisa Pro (people
+ * one has been made for this job. Making it is part of Starter and Pro (people
  * with documents left from before can still use those).
  */
 export function SponsorDocRow({ jobId, company, country, visaOffered, onAuth, compact = false }: DocProps) {
   const { session } = useAuth();
   const credits = useOfferCredits();
-  const prices = usePrices();
   const [existing, setExisting] = useState<string | null | undefined>(session ? undefined : null);
   useEffect(() => {
     if (!session) return setExisting(null);
@@ -83,21 +83,19 @@ export function SponsorDocRow({ jobId, company, country, visaOffered, onAuth, co
           </span>
         ) : credits?.pro ? (
           <span className="text-right text-[12px] leading-4 text-ink-500">
-            All 50 used this month.
+            All {credits.quota} used this month.
             <br />
-            They renew on the 1st.
+            They renew on the 1st{credits.quota < 50 ? <> — or <button onClick={go(checkoutHref('pro', 'documents_limit'))} className="font-semibold text-brand-700 hover:underline">50 a month with Pro</button></> : null}.
           </span>
         ) : (
           <span className="flex flex-col items-stretch gap-1 sm:items-end">
             <button
-              onClick={() => (session ? nav('/pricing#pro') : onAuth?.('register'))}
+              onClick={() => (session ? nav(checkoutHref('starter', 'sponsor_document')) : onAuth?.('register'))}
               className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-[13px] font-bold text-white hover:bg-brand-700"
             >
-              <Lock className="h-3.5 w-3.5" /> Add it with Pro
+              <Lock className="h-3.5 w-3.5" /> Add it with Starter
             </button>
-            <span className="text-[11px] text-ink-500">
-              50 a month · {prices.pro.monthly.label}/month
-            </span>
+            <span className="text-[11px] text-ink-500">10 a month · {priceLabel('starter')}</span>
           </span>
         )
       }

@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, CheckCircle2, FileSignature, Lock, ScanSearch, Minus } from 'lucide-react';
+import { Check, CheckCircle2, FileSignature, Lock, Minus } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { SEO_META } from '@/lib/seoMeta';
 import { WRAP, nav } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
-import { FREE_FEATURES, missingProfileFields, useMyPlan, type Billing, type PlanId } from '@/lib/plans';
-import { EMPLOYER_PRICES, FREE_DAILY_CHECKS, PLAN_RANGE, PLAN_USD, PRO_MONTHLY_DOCS, usePrices, type Money, type Prices } from '@/lib/pricing';
-import { countryName } from '@/lib/visaFit';
+import { missingProfileFields, PLANS, priceLabel, useMyPlan, type RequestPlanId } from '@/lib/plans';
+import { EMPLOYER_PRICES, FREE_DAILY_CHECKS } from '@/lib/pricing';
 import { useCv } from '@/lib/cv/store';
 import { useCardPayments } from '@/lib/gumroad';
-import { CvUpload } from '@/components/cv/CvUpload';
-import { BillingToggle, ProPlanCard } from '@/components/pro/ProPlanCard';
+import { trackBilling, useBillingCatalog } from '@/lib/billing';
+import { PlanCard } from '@/components/pro/ProPlanCard';
 import { PlanRequestDialog } from '@/components/pro/PlanRequestDialog';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -21,87 +20,59 @@ import { PRO_TESTIMONIALS } from '@/data/testimonials';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
-const EMPLOYER: { id: PlanId; name: string; price: string; unit: string; text: string; points: string[] }[] = [
+const EMPLOYER: { id: RequestPlanId; name: string; price: string; unit: string; text: string; points: string[] }[] = [
   { id: 'sponsored_job', name: 'Sponsored job', price: `$${EMPLOYER_PRICES.sponsoredJob}`, unit: 'per job · 30 days', text: 'Pinned at the top of /jobs and on the homepage, labelled Sponsored.', points: ['Reviewed within a day', 'Nothing charged before approval', 'Packs of 3+ at a discount'] },
   { id: 'featured_social', name: 'Featured in social posts', price: `+$${EMPLOYER_PRICES.featuredSocial}`, unit: 'per job', text: 'Your role in MadeVisa’s LinkedIn, Instagram and Facebook job posts, labelled Sponsored.', points: ['Real job seekers, fresh posts', 'Direct link to your job', 'Add to any sponsored job'] },
   { id: 'employer', name: 'Employer plan', price: `from $${EMPLOYER_PRICES.employerPlanFrom}`, unit: 'per month', text: 'Always-on sponsored slots, applicant-interest stats and your reply speed vs. similar companies.', points: ['Verified company page', 'Team access', 'Monthly hiring report'] },
   { id: 'hiring_brief', name: 'Hiring Brief', price: `$${EMPLOYER_PRICES.hiringBrief}`, unit: 'per brief', text: 'What hiring one person from a given country involves: route, timeline, costs and who pays what.', points: ['Plain language', 'Official sources', 'Delivered in 2 working days'] },
 ];
 
-/** What each level of the CV match shows. */
-const COMPARE: { what: string; guest: string | boolean; free: string | boolean; pro: string | boolean }[] = [
-  { what: 'Match score on every job', guest: true, free: true, pro: true },
-  { what: 'Skills missing from your CV', guest: false, free: `${FREE_DAILY_CHECKS} jobs a day`, pro: 'Every job' },
-  { what: 'Where each point of the score comes from', guest: false, free: false, pro: true },
-  { what: 'What to change in your CV for the job', guest: false, free: false, pro: true },
-  { what: 'Checks on the CV itself (dates, length, results)', guest: false, free: false, pro: true },
-  { what: 'Sponsorship documents', guest: false, free: false, pro: `${PRO_MONTHLY_DOCS} a month` },
+type Cell = string | boolean;
+/** What each plan includes, side by side. Limits are the fair-use limits the database applies. */
+const compareRows = (autoApply: { free: number; pro: number } | null): { what: string; free: Cell; starter: Cell; pro: Cell }[] => [
+  { what: 'Every job, search, filters and visa route', free: true, starter: true, pro: true },
+  { what: 'CV match score on every job', free: true, starter: true, pro: true },
+  { what: 'Skills missing from your CV', free: `${FREE_DAILY_CHECKS} jobs a day`, starter: 'Every job', pro: 'Every job' },
+  { what: 'Full report: where each point comes from, what to change', free: false, starter: true, pro: true },
+  { what: 'All your best matches, ranked', free: 'Top 10', starter: true, pro: true },
+  { what: 'Saved jobs', free: 'Up to 5', starter: 'No limit', pro: 'No limit' },
+  { what: 'Application tracking with reminders', free: true, starter: true, pro: true },
+  { what: 'Job alerts', free: '1', starter: 'Up to 5', pro: 'Up to 10' },
+  { what: 'Companies that sponsor visas, reply rates', free: false, starter: true, pro: true },
+  { what: 'Sponsorship documents', free: false, starter: '10 a month', pro: '50 a month' },
+  { what: 'Auto Apply (tailored CV and cover letter)', free: autoApply ? `${autoApply.free} a month to try` : 'To try', starter: autoApply ? `${autoApply.free} a month to try` : 'To try', pro: autoApply ? `Up to ${autoApply.pro} a month` : true },
+  { what: '“Jobs for you” emails', free: '5 jobs each', starter: '5 jobs each', pro: '10 jobs each' },
 ];
-
-/**
- * What Pro costs, in plain words and without an account: the list price, and
- * the price for the visitor's own country. Deliberately NOT a table of every
- * country: a public list of the cheapest countries is an invitation to pick
- * one with a VPN. Each visitor sees the list price and their own.
- */
-function ProPrice({ prices }: { prices: Prices }) {
-  const pro = prices.pro;
-  const place = prices.country ? countryName(prices.country) ?? prices.country : null;
-  const usd = (m: Money) => (m.local ? ` (${m.usdLabel})` : '');
-  return (
-    <section id="prices" className="mt-12 scroll-mt-24 rounded-2xl border border-ink-200 bg-white p-6" aria-labelledby="prices-title">
-      <h2 id="prices-title" className="text-lg font-bold text-ink-950">
-        What MadeVisa Pro costs
-      </h2>
-      <dl className="mt-3 grid gap-4 sm:grid-cols-2">
-        <div>
-          <dt className="text-sm font-semibold text-ink-500">List price</dt>
-          <dd className="mt-0.5 text-[17px] font-bold text-ink-950">
-            ${PLAN_RANGE.monthly.high} a month or ${PLAN_RANGE.yearly.high} a year
-          </dd>
-        </div>
-        <div data-my-price>
-          <dt className="text-sm font-semibold text-ink-500">{place ? `Your price in ${place}` : 'Your price'}</dt>
-          <dd className="mt-0.5 text-[17px] font-bold text-ink-950">
-            {pro.monthly.label}
-            {usd(pro.monthly)} a month or {pro.yearly.label}
-            {usd(pro.yearly)} a year
-          </dd>
-        </div>
-      </dl>
-      <p className="mt-3 max-w-3xl text-sm leading-6 text-ink-600">
-        Prices are set in US dollars. In countries where incomes are lower, a regional price applies; it follows the country you live in and pay from, and is confirmed at payment. Pro is billed
-        monthly or yearly. You can cancel any time, and it then stops at the end of the month or year you paid for.
-      </p>
-    </section>
-  );
-}
 
 export function PricingPage({ go, onAuth }: Props) {
   const { profile } = useAuth();
-  const { isPro, sub } = useMyPlan();
+  const my = useMyPlan();
   const { cv } = useCv();
-  // Card payments on (Admin → Plans): the two answers about paying and cancelling say how that works.
+  const catalog = useBillingCatalog();
+  // Card payments on (Admin → Plans): the answers about paying and cancelling say how that works.
   const card = useCardPayments();
-  const [billing, setBilling] = useState<Exclude<Billing, 'one_time'>>('monthly');
-  const [dialog, setDialog] = useState<{ plan: PlanId; billing: Billing; label: string } | null>(null);
+  const [dialog, setDialog] = useState<{ plan: RequestPlanId; billing: 'monthly' | 'one_time'; label: string } | null>(null);
 
   useSeo({
     title: SEO_META.pricing.title,
-    description: `Checking how well your CV matches a job is free. MadeVisa Pro adds the full report on every job and ${PRO_MONTHLY_DOCS} sponsorship documents a month: $${PLAN_RANGE.monthly.high} a month or $${PLAN_RANGE.yearly.high} a year, with lower regional prices in lower-income countries.`,
+    description: `Job search and your CV match score are free. Starter (${priceLabel('starter')}) adds the full CV match report on every job and sponsorship documents; Pro (${priceLabel('pro')}) adds Auto Apply. Same price in every country, cancel any time.`,
     path: '/pricing',
   });
 
-  const prices = usePrices();
-  const pro = prices.pro;
+  useEffect(() => {
+    trackBilling('pricing_viewed', { plan: my.plan });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const missing = useMemo(() => (profile ? missingProfileFields(profile) : []), [profile]);
   useEffect(() => {
     const id = window.location.hash.slice(1);
     if (id) window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
   }, []);
 
-  const cell = (v: string | boolean) =>
-    v === true ? <Check className="mx-auto h-4 w-4 text-emerald-600" aria-label="Yes" /> : v === false ? <Minus className="mx-auto h-4 w-4 text-ink-300" aria-label="No" /> : <span className="font-semibold text-ink-900">{v}</span>;
+  const cell = (v: Cell) =>
+    v === true ? <Check className="mx-auto h-4 w-4 text-emerald-600" aria-label="Included" /> : v === false ? <Minus className="mx-auto h-4 w-4 text-ink-300" aria-label="Not included" /> : <span className="font-semibold text-ink-900">{v}</span>;
+  const aa = catalog?.auto_apply?.enabled ? { free: catalog.auto_apply.free_monthly, pro: catalog.auto_apply.pro_monthly } : null;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
@@ -110,17 +81,21 @@ export function PricingPage({ go, onAuth }: Props) {
       <section className="border-b border-ink-200 bg-white">
         <div className={`${WRAP} py-12 text-center sm:py-16`}>
           <p className="text-sm font-semibold text-brand-700">Pricing</p>
-          <h1 className="mx-auto mt-2 max-w-3xl text-3xl font-bold tracking-tight text-ink-950 sm:text-5xl">Check your match for free. One plan for everything else.</h1>
+          <h1 className="mx-auto mt-2 max-w-3xl text-3xl font-bold tracking-tight text-ink-950 sm:text-5xl">Get noticed. Get hired. Keep growing.</h1>
           <p className="mx-auto mt-4 max-w-2xl text-[16px] leading-7 text-ink-600">
-            Every job shows how well your CV fits it. Pro tells you exactly why, what to change, and adds the sponsorship document you send to an employer when the job needs a visa.
+            Browsing jobs and checking your match stay free. Starter makes every application stronger; Pro prepares applications for you.
           </p>
         </div>
       </section>
 
       <main className={`${WRAP} py-10 sm:py-14`}>
-        {isPro && (
+        {my.plan !== 'free' && (
           <p className="mb-6 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
-            <CheckCircle2 className="h-4 w-4" /> You’re on MadeVisa Pro{sub?.current_period_end ? ` until ${new Date(sub.current_period_end).toLocaleDateString()}` : ''}. Thank you!
+            <CheckCircle2 className="h-4 w-4" aria-hidden /> You’re on MadeVisa {PLANS[my.plan].name}
+            {my.sub?.current_period_end ? ` until ${new Date(my.sub.current_period_end).toLocaleDateString()}` : ''}. Thank you!{' '}
+            <AppLink href="/profile?tab=settings#billing" className="font-semibold underline">
+              Billing
+            </AppLink>
           </p>
         )}
 
@@ -135,73 +110,62 @@ export function PricingPage({ go, onAuth }: Props) {
           </div>
         )}
 
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-2xl font-bold tracking-tight text-ink-950">Plans</h2>
-          <BillingToggle value={billing} onChange={setBilling} saving={pro.saving} />
+        <h2 className="sr-only">Plans</h2>
+        <div className="grid gap-5 lg:grid-cols-3">
+          <PlanCard
+            plan="free"
+            source="pricing"
+            onFree={!cv ? { label: 'Upload your CV', onClick: () => nav('/cv-match') } : !profile ? { label: 'Create free account', onClick: () => onAuth?.('register') } : { label: 'Check a job', onClick: () => nav('/jobs') }}
+          />
+          <PlanCard plan="starter" source="pricing" highlight />
+          <PlanCard plan="pro" source="pricing" />
         </div>
+        <p className="mt-4 text-center text-[13px] leading-5 text-ink-500">
+          Prices in US dollars, the same in every country. Tax is added by Gumroad at checkout where it applies. Billed monthly; cancel any time and keep your plan to the end of the month.{' '}
+          <AppLink href="/subscription-terms" className="font-semibold text-brand-700 hover:underline">
+            Subscription terms
+          </AppLink>
+        </p>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-          {/* Free */}
-          <div className="flex flex-col rounded-2xl border border-ink-200 bg-white p-6">
-            <p className="text-lg font-bold text-ink-950">Free</p>
-            <p className="mt-2 text-4xl font-bold tracking-tight text-ink-950">{prices.m(0).label}</p>
-            <p className="text-sm text-ink-500">forever</p>
-            <ul className="mt-5 flex-1 space-y-2.5">
-              {FREE_FEATURES.map((f) => (
-                <li key={f} className="flex gap-2 text-sm text-ink-700">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" /> {f}
-                </li>
-              ))}
-            </ul>
-            {!cv ? (
-              <div className="mt-6">
-                <CvUpload compact />
-              </div>
-            ) : !profile ? (
-              <button onClick={() => onAuth?.('register')} className="mt-6 rounded-lg border border-ink-200 py-2.5 text-sm font-semibold text-ink-800 hover:bg-ink-50">
-                Create free account
-              </button>
-            ) : (
-              <button onClick={() => nav('/jobs')} className="mt-6 inline-flex items-center justify-center gap-2 rounded-lg border border-ink-200 py-2.5 text-sm font-semibold text-ink-800 hover:bg-ink-50">
-                <ScanSearch className="h-4 w-4" /> Check a job
-              </button>
-            )}
-          </div>
-
-          <ProPlanCard onAuth={onAuth} billing={billing} />
-        </div>
-
-        <ProPrice prices={prices} />
-
-        {/* What you see at each level */}
-        <section className="mt-12" aria-labelledby="compare-title">
+        <section className="mt-14" aria-labelledby="compare-title">
           <h2 id="compare-title" className="text-2xl font-bold tracking-tight text-ink-950">
-            What you see when you check a job
+            Compare plans
           </h2>
           <div className="mt-4 overflow-x-auto rounded-2xl border border-ink-200 bg-white">
-            <table className="w-full min-w-[520px] text-left text-sm">
+            <table className="w-full min-w-[560px] text-left text-sm">
               <thead>
                 <tr className="border-b border-ink-200 text-xs font-bold uppercase tracking-wide text-ink-500">
-                  <th scope="col" className="px-4 py-3 font-bold">&nbsp;</th>
-                  <th scope="col" className="w-[18%] px-3 py-3 text-center font-bold">No account</th>
-                  <th scope="col" className="w-[18%] px-3 py-3 text-center font-bold">Free account</th>
-                  <th scope="col" className="w-[18%] bg-brand-50 px-3 py-3 text-center font-bold text-brand-800">Pro</th>
+                  <th scope="col" className="px-4 py-3 font-bold">
+                    &nbsp;
+                  </th>
+                  <th scope="col" className="w-[17%] px-3 py-3 text-center font-bold">
+                    Free
+                  </th>
+                  <th scope="col" className="w-[17%] bg-brand-50 px-3 py-3 text-center font-bold text-brand-800">
+                    Starter
+                  </th>
+                  <th scope="col" className="w-[17%] px-3 py-3 text-center font-bold">
+                    Pro
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-100">
-                {COMPARE.map((r) => (
+                {compareRows(aa).map((r) => (
                   <tr key={r.what}>
                     <th scope="row" className="px-4 py-3 font-medium text-ink-800">
                       {r.what}
                     </th>
-                    <td className="px-3 py-3 text-center text-ink-600">{cell(r.guest)}</td>
                     <td className="px-3 py-3 text-center text-ink-600">{cell(r.free)}</td>
-                    <td className="bg-brand-50/60 px-3 py-3 text-center text-ink-600">{cell(r.pro)}</td>
+                    <td className="bg-brand-50/60 px-3 py-3 text-center text-ink-600">{cell(r.starter)}</td>
+                    <td className="px-3 py-3 text-center text-ink-600">{cell(r.pro)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <p className="mt-3 text-[13px] leading-5 text-ink-500">
+            Coming to Pro, not included yet: {PLANS.pro.coming.join('; ')}. Sponsorship documents: at most 30 in any 7 days on every plan. No plan guarantees interviews, a job, sponsorship or a visa.
+          </p>
         </section>
 
         {/* The sponsorship document, where it is now */}
@@ -214,7 +178,7 @@ export function PricingPage({ go, onAuth }: Props) {
               <h2 className="text-lg font-bold text-ink-950">The sponsorship document</h2>
               <p className="mt-1 text-sm leading-6 text-ink-600">
                 A proposal you send with your application when the job needs a visa: the route that may apply, what it asks of the employer and who you suggest pays what. Open any job, check your match, and it is
-                listed under “Your application” as the missing piece. {PRO_MONTHLY_DOCS} a month are part of Pro.
+                listed under “Your application” as the missing piece. Starter includes 10 a month and Pro 50.
               </p>
             </div>
             <AppLink href="/offers" className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-brand-700 hover:underline">
@@ -266,17 +230,17 @@ export function PricingPage({ go, onAuth }: Props) {
               items={[
                 { q: 'How is the match score worked out?', a: 'MadeVisa reads the job ad and your CV and compares six things: the skills the ad names (40 points), whether your roles fit the job (20), years of experience (15), the ad’s own wording (10), languages (8) and education (7). Anything the ad doesn’t ask for is left out, so an ad can’t lower your score with something it never mentioned. If the ad requires a language your CV doesn’t show, the score is held at 60%. It’s the same rules for every job — no AI guesswork — and it never looks at age, gender, nationality or a photo.' },
                 { q: 'Is the score a prediction that I’ll get the job?', a: 'No. It tells you how closely your CV, as written, matches what the ad asks for. A low score often means the CV doesn’t say something you can do — which is what the full report helps you fix.' },
-                { q: 'What is free, exactly?', a: `The match score, on every job, with no limit. With a free account you also see which skills are missing from your CV on ${FREE_DAILY_CHECKS} different jobs a day; a job you opened once stays open. The full report — each part of the score, what to change, and the checks on your CV — is Pro.` },
+                { q: 'What is free, exactly?', a: `The match score, on every job, with no limit. With a free account you also see which skills are missing from your CV on ${FREE_DAILY_CHECKS} different jobs a day; a job you opened once stays open. You can also save up to 5 jobs, track your applications and keep one job alert. The full report — each part of the score, what to change, and the checks on your CV — is in Starter and Pro.` },
                 { q: 'Who can see my CV?', a: 'You, and MadeVisa staff when they need it to run or support the service — for example to fix a problem with your account or to improve how CVs are read. It goes to an employer only when you ask MadeVisa to apply to that employer’s job for you, and only if the employer takes applications through MadeVisa; for every other job you apply on the employer’s own site. Until you create an account your CV stays in your browser. You can replace or delete it in your profile at any time.' },
                 { q: 'What is the sponsorship document, and is it legally binding?', a: 'It is a proposal you send to an employer when a job needs a visa: the route that may apply, what it usually asks of the employer, and who you suggest pays each cost. Every line shows its source and whether it is known, your proposal, or still needs confirmation. It is not a contract, a job offer or a visa guarantee: its terms count only once you and the employer put them into the employment contract or a signed agreement. It never moves costs the law puts on the employer, never touches salary, and isn’t legal advice.' },
-                { q: 'Can I buy one document without the plan?', a: `No — documents are part of Pro, ${PRO_MONTHLY_DOCS} each calendar month, which is cheaper than they were one by one. Credits you bought or earned before this change are still yours and still work.` },
-                { q: 'Why is the price different in my country?', a: `The list price is ${prices.m(PLAN_USD.top).usdLabel} a month. Where incomes are lower, a regional price applies, so the plan stays affordable there. It follows the country you live in and pay from, which we read from your internet connection and confirm at payment, and it is shown in your currency when we can (otherwise in US dollars). Pro is exactly the same in every country.` },
+                { q: 'What’s the difference between Starter and Pro?', a: `Starter (${priceLabel('starter')}) makes each application stronger: the full CV match report on every job, all your matches, 10 sponsorship documents a month, the companies that sponsor visas, up to 5 job alerts and unlimited saved jobs. Pro (${priceLabel('pro')}) adds Auto Apply — a CV tailored to each job and a cover letter when one helps, sent for you or ready to send — 50 documents a month and up to 10 alerts. Features listed as “coming” aren’t included until they’re released.` },
+                { q: 'Can I buy one document without a plan?', a: 'No — documents are part of Starter (10 a month) and Pro (50 a month). Credits you bought or earned before October 2026 are still yours and still work.' },
+                { q: 'Is the price the same in every country?', a: `Yes: ${priceLabel('starter')} for Starter and ${priceLabel('pro')} for Pro, in US dollars, everywhere. Gumroad adds sales tax or VAT at checkout where it applies, and your bank may convert the amount into your currency. Members who joined Pro before October 2026 keep the price they signed up with.` },
                 card.on
-                  ? { q: 'How do I pay?', a: 'Choose monthly or yearly and press Get Pro. You pay by card on Gumroad, our payment partner, in US dollars; MadeVisa never sees your card. Pro starts by itself a moment after the payment, and Gumroad emails you the receipt.' }
-                  : { q: 'How do I pay?', a: 'Choose monthly or yearly and send the short form. We email you a secure payment link within one working day, and Pro starts as soon as it’s paid. No card is needed to send the request.' },
-                card.on
-                  ? { q: 'Can I cancel? Can I get a refund?', a: 'Yes. Under your plan on this page choose “Manage or cancel on Gumroad”, or use the link in your receipt. Monthly then stops at the end of the month, yearly at the end of the year. Within 14 days of first starting Pro, if you haven’t used any Pro documents, you get a full refund: write to hello@madevisa.com — see the Sponsorship Document Terms.' }
-                  : { q: 'Can I cancel? Can I get a refund?', a: 'Yes. Monthly stops at the end of the month, yearly at the end of the year — email hello@madevisa.com. Within 14 days of first starting Pro, if you haven’t used any Pro documents, you get a full refund — see the Sponsorship Document Terms.' },
+                  ? { q: 'How do I pay?', a: 'Choose a plan and press Get Starter or Get Pro. The checkout page shows what you pay today and every month; then you pay on Gumroad, our payment partner and the seller on your receipt. MadeVisa never sees your card. Your plan starts once Gumroad confirms the payment, usually within a minute.' }
+                  : { q: 'How do I pay?', a: 'Choose a plan and send the short form. We email you a secure payment link within one working day, and the plan starts as soon as it’s paid. No card is needed to send the request.' },
+                { q: 'Can I cancel? Can I get a refund?', a: 'Yes. Cancel any time in Settings → Billing (it opens your membership on Gumroad) or from the link in your receipt; you keep the plan until the end of the month you paid for. Within 14 days of first starting a plan, if you haven’t used any sponsorship documents from it, you get a full refund — write to hello@madevisa.com. See the Subscription Terms.' },
+                { q: 'Can I switch between Starter and Pro?', a: 'Yes. Cancel your current plan on Gumroad (you keep it until the end of the month you paid for), then start the other one from its checkout page. Gumroad can’t move a membership between plans, so there is no automatic pro-rated switch; while both run you get the higher plan.' },
                 { q: 'Does paying change Company Scores?', a: 'Never. Scores and reply rates are calculated the same way for every company — see our Advertising Policy.' },
               ]}
             />
@@ -284,7 +248,7 @@ export function PricingPage({ go, onAuth }: Props) {
         </section>
       </main>
 
-      {dialog && <PlanRequestDialog plan={dialog.plan} billing={dialog.billing} priceLabel={dialog.label} region={prices.country ?? prices.tier} onClose={() => setDialog(null)} onAuth={onAuth} />}
+      {dialog && <PlanRequestDialog plan={dialog.plan} billing={dialog.billing} priceLabel={dialog.label} region="USD" onClose={() => setDialog(null)} onAuth={onAuth} />}
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );

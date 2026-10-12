@@ -24,10 +24,10 @@ export function ApplicationCredits({ status, asking = 0, className = '' }: { sta
       </span>
       {!status.pro && (
         <a
-          href="/pricing#pro"
+          href="/checkout?plan=pro&source=auto_apply_allowance"
           onClick={(e) => {
             e.preventDefault();
-            nav('/pricing#pro');
+            nav('/checkout?plan=pro&source=auto_apply_allowance');
           }}
           className="inline-flex items-center gap-1 font-bold text-brand-700 hover:underline"
         >

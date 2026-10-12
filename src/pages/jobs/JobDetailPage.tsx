@@ -12,6 +12,7 @@ import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { MatchButton } from '@/components/cv/MatchButton';
 import { MatchPanel } from '@/components/cv/MatchPanel';
+import { SaveJobButton } from '@/components/billing/SavedJobs';
 import { ApplySheet } from '@/components/cv/ApplySheet';
 import { OtherMatchesPopup, RecommendedJobs } from '@/components/cv/TopMatches';
 import { useJobMatch } from '@/lib/cv/checks';
@@ -520,6 +521,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             <MatchPanel match={match} jobTitle={job.title} company={job.company} doc={docFor} onAuth={onAuth} />
           </div>
         )}
+        {raw && !closed && <SaveJobButton jobId={raw.id} onAuth={onAuth} className="mb-5" />}
         {closed && (
           <div className="mb-5 flex flex-col gap-3 rounded-xl border border-ink-200 bg-white p-4 sm:flex-row sm:items-center">
             <p className="min-w-0 flex-1 text-sm leading-6 text-ink-700">

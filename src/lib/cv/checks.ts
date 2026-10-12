@@ -4,7 +4,7 @@
 //   • Missing skills: 3 different jobs a day on a free account (a job stays
 //     unlocked once opened). Guests are asked to create an account.
 //   • The full report (every part of the score, what to change, CV checks)
-//     is MadeVisa Pro.
+//     is part of Starter and Pro.
 //
 // A score is remembered for 24 hours for the CV it was worked out with; after
 // that, or with a new CV, it is worked out again. Ads and CVs in another
@@ -64,7 +64,8 @@ const pingQuota = () => quotaListeners.forEach((l) => l());
 /** Free missing-skill checks left today for the signed-in person. */
 export function useCheckQuota(): Quota | null {
   const { user } = useAuth();
-  const { isPro } = useMyPlan();
+  // The full report (Starter and Pro) has no daily limit.
+  const full = useMyPlan().has('cv_full_report');
   const [used, setUsed] = useState<number | null>(user && quotaMemo?.userId === user.id ? quotaMemo.used : null);
   useEffect(() => {
     if (!user) return setUsed(null);
@@ -89,7 +90,7 @@ export function useCheckQuota(): Quota | null {
     };
   }, [user]);
   if (!user || used == null) return null;
-  return { used, limit: FREE_DAILY_CHECKS, left: Math.max(0, FREE_DAILY_CHECKS - used), pro: isPro };
+  return { used, limit: FREE_DAILY_CHECKS, left: Math.max(0, FREE_DAILY_CHECKS - used), pro: full };
 }
 
 function localUsedToday(): number {
@@ -144,7 +145,7 @@ export type JobMatch = {
  */
 export function useJobMatch(jobKey: string | null, job: JobInput | null): JobMatch {
   const { user } = useAuth();
-  const { isPro } = useMyPlan();
+  const full = useMyPlan().has('cv_full_report');
   const { cv, loading: cvLoading } = useCv();
   const quota = useCheckQuota();
   const [checked, setChecked] = useState<Saved | null>(null);
@@ -209,8 +210,8 @@ export function useJobMatch(jobKey: string | null, job: JobInput | null): JobMat
     cv,
     cvLoading,
     result,
-    unlocked: isPro || Boolean(checked?.unlocked && user),
-    full: isPro,
+    unlocked: full || Boolean(checked?.unlocked && user),
+    full,
     busy: busy || Boolean(checked && !ready),
     quota,
     check,

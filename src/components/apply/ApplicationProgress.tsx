@@ -85,7 +85,7 @@ export function ApplicationProgress({ apps, queue, status, phase, error, onPause
               </button>
             ) : queue.reason === 'allowance' && status.left < 1 ? (
               !status.pro && (
-                <button onClick={() => nav('/pricing#pro')} className={BTN.small}>
+                <button onClick={() => nav('/checkout?plan=pro&source=auto_apply_allowance')} className={BTN.small}>
                   See MadeVisa Pro <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               )

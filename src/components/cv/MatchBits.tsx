@@ -1,6 +1,6 @@
 import type React from 'react';
 import { AlertCircle as CircleAlert, CheckCircle2, Lock } from 'lucide-react';
-import { usePrices } from '@/lib/pricing';
+import { priceLabel } from '@/lib/plans';
 import type { MatchResult } from '@/lib/cv/match';
 
 const TONE = {
@@ -92,11 +92,7 @@ export function MatchLabel({ result }: { result: MatchResult }) {
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-bold ${tone.bg} ${tone.text}`}>{result.label}</span>;
 }
 
+/** "Starter: $2.99 / month" — the plan that includes the full report. */
 export function ProPrice({ className = '' }: { className?: string }) {
-  const prices = usePrices();
-  return (
-    <span className={className}>
-      {prices.pro.monthly.label} a month, or {prices.pro.yearly.label} a year
-    </span>
-  );
+  return <span className={className}>Starter: {priceLabel('starter')}</span>;
 }

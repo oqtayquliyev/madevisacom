@@ -7,10 +7,13 @@ import { companyPath } from '@/lib/companies';
 import { classifyJob } from '@/lib/jobTaxonomy';
 import { AppLink } from '@/pages/info/InfoPage';
 import { ProLock } from '@/components/pro/ProLock';
+import { UpgradePrompt } from '@/components/pro/UpgradePrompt';
+import { trackBilling } from '@/lib/billing';
 
-// Three Pro boxes on the job page. Non-Pro visitors see blurred
-// placeholders with "Unlock with Pro"; the real data is only fetched for
-// Pro members (and the database refuses it to everyone else).
+// Three boxes on the job page. Company reply data and visa sponsors are part of
+// Starter and Pro: others see blurred placeholders, the real data is only
+// fetched for members (and the database refuses it to everyone else). Job
+// alerts are on every plan, with the plan's limit applied by the database.
 
 function ResponseDetails({ publisherId, company }: { publisherId: string; company: string }) {
   const s = useCompanySignal(publisherId);
@@ -69,12 +72,18 @@ function VisaSponsors({ iso, countryName }: { iso: string; countryName: string }
 }
 
 function AlertButton({ keywords, country }: { keywords: string; country: string | null }) {
+  const my = useMyPlan();
   const [state, setState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
+  const [err, setErr] = useState<string | null>(null);
+  // create_job_alert() applies the plan's limit (Free 1 — a new one replaces it, Starter 5, Pro 10).
   const save = async () => {
     setState('busy');
-    const { error } = await supabase.from('job_alerts').insert({ keywords, country_code: country, label: keywords });
+    const { error } = await supabase.rpc('create_job_alert', { p_keywords: keywords, p_country: country });
+    if (error && /alerts/.test(error.message) && /most|maximum/.test(error.message)) trackBilling('feature_limit_reached', { feature: 'job_alerts', plan: my.plan });
+    setErr(error ? error.message : null);
     setState(error ? 'error' : 'done');
   };
+  const cap = my.limit('job_alerts');
   if (state === 'done')
     return (
       <p className="flex items-center gap-2 text-sm text-emerald-800">
@@ -85,11 +94,13 @@ function AlertButton({ keywords, country }: { keywords: string; country: string 
     <>
       <p className="text-sm text-ink-600">
         Get notified the moment new <strong>{keywords}</strong> roles{country ? ' in this country' : ''} are published — before most people see them.
+        {cap === 1 ? ' On the Free plan you have one alert, so this replaces your current one.' : cap ? ` Your plan includes up to ${cap} alerts.` : ''}
       </p>
       <button onClick={() => void save()} disabled={state === 'busy'} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
         {state === 'busy' ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellPlus className="h-4 w-4" />} Create alert
       </button>
-      {state === 'error' && <p className="mt-2 text-xs text-rose-700">Couldn’t save the alert. Please try again.</p>}
+      {state === 'error' && <p className="mt-2 text-xs text-rose-700">{err ?? 'Couldn’t save the alert. Please try again.'}</p>}
+      {my.plan === 'free' && <UpgradePrompt id="job_alerts_box" plan="starter" source="job_alert" className="mt-3" text="Following more than one search? Starter includes up to 5 job alerts, the full CV match report on every job and sponsorship documents." />}
     </>
   );
 }
@@ -109,23 +120,23 @@ export function JobProInsights({
   countryCode: string | null | undefined;
   countryName: string | null | undefined;
 }) {
-  const { isPro } = useMyPlan();
+  const my = useMyPlan();
   const keywords = classifyJob(title, department)?.label.replace(/\s*\(other\)$/, '') ?? title.split(/\s+/).slice(0, 3).join(' ');
   return (
     <section className="mt-8 space-y-4">
       <h2 className="text-lg font-bold text-ink-950">Before you apply</h2>
       {publisherId && (
-        <ProLock title={`How ${company} treats applicants`} teaser={`See ${company}’s exact reply rate, typical reply time and hiring activity.`}>
-          {isPro && <ResponseDetails publisherId={publisherId} company={company} />}
+        <ProLock feature="sponsorship_insights" title={`How ${company} treats applicants`} teaser={`See ${company}’s exact reply rate, typical reply time and hiring activity.`}>
+          {my.has('sponsorship_insights') && <ResponseDetails publisherId={publisherId} company={company} />}
         </ProLock>
       )}
       {countryCode && (
-        <ProLock title={`Companies sponsoring visas in ${countryName ?? 'this country'}`} teaser="See which companies are hiring with visa sponsorship right now." rows={4}>
-          {isPro && <VisaSponsors iso={countryCode} countryName={countryName ?? 'this country'} />}
+        <ProLock feature="sponsorship_insights" title={`Companies sponsoring visas in ${countryName ?? 'this country'}`} teaser="See which companies are hiring with visa sponsorship right now." rows={4}>
+          {my.has('sponsorship_insights') && <VisaSponsors iso={countryCode} countryName={countryName ?? 'this country'} />}
         </ProLock>
       )}
-      <ProLock title={`Alert me about new “${keywords}” jobs`} teaser="Get notified the moment matching jobs are published — be an early applicant." rows={2}>
-        {isPro && <AlertButton keywords={keywords} country={countryCode ?? null} />}
+      <ProLock feature="job_alerts" title={`Alert me about new “${keywords}” jobs`} teaser="Get notified the moment matching jobs are published — be an early applicant." rows={2}>
+        <AlertButton keywords={keywords} country={countryCode ?? null} />
       </ProLock>
     </section>
   );

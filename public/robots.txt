@@ -19,6 +19,7 @@ Disallow: /login
 Disallow: /register
 Disallow: /reset-password
 Disallow: /verify-email
+Disallow: /checkout
 Disallow: /api/
 # The jobs page loads its filter counts from here; Google needs it to render the page.
 Allow: /api/facets

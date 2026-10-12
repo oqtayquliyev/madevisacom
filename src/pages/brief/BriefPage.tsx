@@ -1039,7 +1039,7 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
               </dd>
             </div>
           )}
-          {/* Documents bought or earned before they became part of Pro. */}
+          {/* Documents bought or earned before they became part of the plans. */}
           {credits && credits.docs > 0 && (
             <div className="flex justify-between">
               <dt className="text-ink-600">Kept from before</dt>
@@ -1049,7 +1049,7 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
           {signedIn && credits && !canPay && (
             <div className="flex justify-between border-t border-ink-100 pt-1.5">
               <dt className="font-semibold text-rose-700">{credits.pro ? 'Used up this month' : 'Needed'}</dt>
-              <dd className="font-bold tabular-nums text-rose-700">{credits.pro ? 'Renews on the 1st' : 'MadeVisa Pro'}</dd>
+              <dd className="font-bold tabular-nums text-rose-700">{credits.pro ? 'Renews on the 1st' : 'Starter or Pro'}</dd>
             </div>
           )}
         </dl>
@@ -1086,18 +1086,18 @@ function PlanSheet({ company, signedIn, onClose, onAuth }: { company: string; si
             <h2 id="plan-sheet-title" className="text-[20px] font-bold leading-snug tracking-tight text-ink-950">
               Download your document{company ? ` for ${company}` : ''}
             </h2>
-            <p className="mt-1 text-[13.5px] leading-5 text-ink-600">The PDF is part of MadeVisa Pro. Your document stays as you set it.</p>
+            <p className="mt-1 text-[13.5px] leading-5 text-ink-600">The PDF is part of MadeVisa Starter (10 a month) and Pro (50 a month). Your document stays as you set it.</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="-mr-1 -mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-ink-100">
             <X className="h-5 w-5" />
           </button>
         </div>
         <div className="mt-6">
-          <ProPlanCard onAuth={onAuth} />
+          <ProPlanCard plan="starter" source="document_download" onAuth={onAuth} />
         </div>
         {!signedIn && (
           <p className="mt-4 text-center text-[13px] text-ink-600">
-            Already have Pro?{' '}
+            Already have a plan?{' '}
             <button onClick={() => onAuth?.('login')} className="font-semibold text-[#1D4ED8] hover:underline">
               Sign in
             </button>

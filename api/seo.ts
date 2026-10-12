@@ -16,7 +16,7 @@ import { escHtml as esc } from './_supa';
 import { slugify } from '../src/lib/jobUrl';
 import { infoPages } from '../src/data/infoContent';
 import { visaGuides } from '../src/data/visa';
-import { PLAN_RANGE, PRO_MONTHLY_DOCS } from '../src/lib/planPrice';
+import { PLANS, usd } from '../supabase/functions/_shared/plans';
 import { legalPageOrder, legalPages } from '../src/data/legalContent';
 import { PRO_TESTIMONIALS } from '../src/data/testimonials';
 import {
@@ -567,22 +567,22 @@ async function staticPage(slug: string): Promise<Page | null> {
   }
 
   if (slug === 'pricing') {
-    // The list price is printed here, in the page itself, so nobody has to run the app or sign up to
-    // see what the plan costs. Same numbers as the app: src/lib/planPrice.ts. Regional prices are
-    // not listed country by country (that would be a guide to the cheapest VPN location); each
-    // visitor sees their own price on the page.
-    const R = PLAN_RANGE;
-    const desc = `Checking how well your CV matches a job is free. MadeVisa Pro adds the full report on every job and ${PRO_MONTHLY_DOCS} sponsorship documents a month: $${R.monthly.high} a month or $${R.yearly.high} a year, with lower regional prices in lower-income countries.`;
-    const offer = (name: string, price: number, unit: 'MON' | 'ANN') => ({
+    // The prices are printed here, in the page itself, so nobody has to run the app or sign up to
+    // see what the plans cost. Same numbers as the app: supabase/functions/_shared/plans.ts.
+    const S = usd(PLANS.starter.priceCents);
+    const P = usd(PLANS.pro.priceCents);
+    const desc = `Job search and your CV match score are free. Starter (${S} a month) adds the full CV match report on every job and sponsorship documents; Pro (${P} a month) adds Auto Apply. Same price in every country, cancel any time.`;
+    const offer = (name: string, cents: number) => ({
       '@type': 'Offer',
       name,
-      price,
+      price: (cents / 100).toFixed(2),
       priceCurrency: 'USD',
       url: `${SITE}/pricing`,
       availability: 'https://schema.org/InStock',
-      priceSpecification: { '@type': 'UnitPriceSpecification', price, priceCurrency: 'USD', billingDuration: 1, unitCode: unit },
+      priceSpecification: { '@type': 'UnitPriceSpecification', price: (cents / 100).toFixed(2), priceCurrency: 'USD', billingDuration: 1, unitCode: 'MON' },
     });
     const reviews = PRO_TESTIMONIALS;
+    const list = (id: 'free' | 'starter' | 'pro') => `<ul>${PLANS[id].benefits.map((b) => `<li><strong>${esc(b.title)}.</strong> ${esc(b.text)}</li>`).join('')}</ul>`;
     return {
       title: SEO_META.pricing.title,
       description: desc,
@@ -592,12 +592,12 @@ async function staticPage(slug: string): Promise<Page | null> {
         {
           '@context': 'https://schema.org',
           '@type': 'Product',
-          name: 'MadeVisa Pro',
-          description: `Subscription for job seekers: the full CV match report on every job and ${PRO_MONTHLY_DOCS} sponsorship documents a month. Billed monthly or yearly.`,
+          name: 'MadeVisa',
+          description: `Plans for job seekers: Starter (${S} a month) and Pro (${P} a month), billed monthly.`,
           brand: { '@type': 'Brand', name: 'MadeVisa' },
           // Google requires an image on anything marked as a Product. The site's own share picture.
           image: `${SITE}/api/og/page?p=home`,
-          // The Pro members' feedback shown on this page (and on /cv-match), each rated 5 of 5 by the member.
+          // The members' feedback shown on this page (and on /cv-match), each rated 5 of 5 by the member.
           ...(reviews.length
             ? {
                 aggregateRating: { '@type': 'AggregateRating', ratingValue: 5, bestRating: 5, worstRating: 1, reviewCount: reviews.length },
@@ -610,17 +610,17 @@ async function staticPage(slug: string): Promise<Page | null> {
                 })),
               }
             : {}),
-          offers: [offer('MadeVisa Pro, monthly', R.monthly.high, 'MON'), offer('MadeVisa Pro, yearly', R.yearly.high, 'ANN')],
+          offers: [offer('MadeVisa Starter, monthly', PLANS.starter.priceCents), offer('MadeVisa Pro, monthly', PLANS.pro.priceCents)],
         },
       ],
       body:
-        '<h1>Pricing</h1><p>Every job, reply rate and visa route on MadeVisa is free, and so is the match score between your CV and any job. With a free account you also see the skills missing from your CV on 3 jobs a day.</p>' +
-        `<h2>MadeVisa Pro: $${R.monthly.high} a month or $${R.yearly.high} a year</h2>` +
-        `<p>Pro is one plan, billed monthly or yearly: $${R.monthly.high} a month, or $${R.yearly.high} a year. It includes the full CV match report on every job, ${PRO_MONTHLY_DOCS} sponsorship documents a month, instant job alerts, full company response data and the companies that sponsor visas.</p>` +
-        '<p>Prices are set in US dollars. In countries where incomes are lower, a regional price applies; it follows the country you live in and pay from. The price for your country is shown on this page, in your currency where we can, before you create an account, and again before you pay.</p>' +
-        '<p>You can cancel any time, and Pro then stops at the end of the month or year you paid for.</p>' +
+        '<h1>Pricing</h1><p>Every job, reply rate and visa route on MadeVisa is free, and so is the match score between your CV and any job.</p>' +
+        `<h2>Free: $0</h2>${list('free')}` +
+        `<h2>MadeVisa Starter: ${S} a month</h2><p>${esc(PLANS.starter.worth)}</p>${list('starter')}` +
+        `<h2>MadeVisa Pro: ${P} a month</h2><p>${esc(PLANS.pro.worth)}</p>${list('pro')}<p>Coming to Pro, not included yet: ${esc(PLANS.pro.coming.join('; '))}.</p>` +
+        '<p>Prices are in US dollars and the same in every country. Gumroad, our payment partner, adds sales tax or VAT where it applies. Plans are billed monthly; you can cancel any time and keep your plan until the end of the month you paid for. No plan guarantees interviews, a job, sponsorship or a visa.</p>' +
         (reviews.length
-          ? `<h2>What Pro members say</h2><p>${reviews.length} Pro members, all 5 stars.</p>` +
+          ? `<h2>What members say</h2><p>${reviews.length} MadeVisa Pro members, all 5 stars.</p>` +
             reviews.map((t) => `<blockquote><p><strong>${esc(t.headline)}</strong> ${esc(t.text)}</p><p>${esc([t.name, t.role, `${t.from.name} → ${t.to.name}`].filter(Boolean).join(' · '))}</p></blockquote>`).join('') +
             '<p>Shared by MadeVisa Pro members with their permission. Names shortened; results vary.</p>'
           : '') +
@@ -639,7 +639,7 @@ async function staticPage(slug: string): Promise<Page | null> {
       body:
         '<h1>How well does your CV match the job?</h1><p>Upload your CV once. Then press “Check your match” next to Apply on any job: a score in a second, the skills you’re missing, and what to change before you send it.</p>' +
         '<h2>Where the score comes from</h2><ul><li><strong>Skills (40 points).</strong> Every skill the ad names; must-haves count in full, nice-to-haves for less.</li><li><strong>Role fit (20).</strong> Whether the roles on your CV are the same kind of job.</li><li><strong>Experience (15).</strong> The years the ad asks for against the dates on your CV.</li><li><strong>Wording (10).</strong> The words the ad leans on, and whether your CV uses them.</li><li><strong>Languages (8).</strong> Languages the ad requires, and the level.</li><li><strong>Education (7).</strong> The degree the ad asks for.</li></ul>' +
-        '<h2>What is free</h2><p>The match score is free on every job. With a free account, the skills missing from your CV are shown on 3 jobs a day. The full report and 50 sponsorship documents a month are part of MadeVisa Pro.</p>' +
+        '<h2>What is free</h2><p>The match score is free on every job. With a free account, the skills missing from your CV are shown on 3 jobs a day. The full report on every job and 10 sponsorship documents a month are part of MadeVisa Starter ($2.99 a month); Pro ($8.99 a month) adds Auto Apply and 50 documents a month.</p>' +
         footerLinks(),
       maxAge: 3600,
     };
@@ -692,7 +692,7 @@ async function staticPage(slug: string): Promise<Page | null> {
         '<li><strong>Choose who pays what.</strong> Start from a balanced suggestion and change any line. The route that may apply and what it asks of the employer are filled in for you.</li>' +
         '<li><strong>Attach the PDF when you apply.</strong> A short proposal with the source of every line. The employer sees what sponsoring you would involve, what is confirmed and what is still open, and can reply in one click.</li>' +
         '</ol>' +
-        `<h2>What it costs</h2><p>Visa Plans are part of MadeVisa Pro: ${PRO_MONTHLY_DOCS} a month, with the full CV match report on every job. ${link('/pricing', 'See pricing')}.</p>` +
+        `<h2>What it costs</h2><p>Visa Plans are part of MadeVisa Starter (10 a month, ${usd(PLANS.starter.priceCents)} a month) and Pro (50 a month, ${usd(PLANS.pro.priceCents)} a month), with the full CV match report on every job. ${link('/pricing', 'See pricing')}.</p>` +
         `<p>A Visa Plan is a proposal written by you, not legal advice. It does not guarantee that an employer will sponsor you or that a visa will be granted. ${link('/sponsorship-document-terms', 'Sponsorship document terms')}.</p>` +
         footerLinks(),
       maxAge: 3600,

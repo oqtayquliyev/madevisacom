@@ -20,7 +20,7 @@ import {
 } from '@/lib/autoApplyService';
 import { MatchRing } from '@/components/cv/MatchBits';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
-import { PlanCheckoutDialog } from '@/components/pro/PlanCheckoutDialog';
+import { checkoutHref } from '@/lib/billing';
 import { Sheet } from '@/components/apply/Sheet';
 import { BTN, FIELD } from '@/components/apply/ui';
 
@@ -47,7 +47,6 @@ const dateLong = (iso: string) => new Date(iso).toLocaleDateString(undefined, { 
 export function AutoApplyService({ result, onAuth }: { result: TopResult | null; onAuth?: OnAuth }) {
   const { state } = useAutoApplyService();
   const [setup, setSetup] = useState(false);
-  const [pay, setPay] = useState(false);
 
   // While it runs, every fresh set of matches tops up the queue.
   const req = state?.request ?? null;
@@ -73,7 +72,7 @@ export function AutoApplyService({ result, onAuth }: { result: TopResult | null;
       rememberAuthIntent({ reason: 'match', next: '/cv-match#auto-apply' });
       return onAuth?.('register');
     }
-    if (!state.pro) return setPay(true);
+    if (!state.pro) return nav(checkoutHref('pro', 'auto_apply'));
     setSetup(true);
   };
 
@@ -85,7 +84,6 @@ export function AutoApplyService({ result, onAuth }: { result: TopResult | null;
         <Offer state={state} result={result} onTurnOn={turnOn} />
       )}
       {setup && <SetupSheet state={state} result={result} onClose={() => setSetup(false)} />}
-      {pay && <PlanCheckoutDialog billing="monthly" onClose={() => setPay(false)} onAuth={onAuth} onUnavailable={() => nav('/pricing#pro')} />}
     </section>
   );
 }

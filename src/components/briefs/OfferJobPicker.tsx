@@ -54,7 +54,7 @@ export function OfferJobPicker({ limit = PAGE, onAuth, title = 'Your last visite
     e.preventDefault();
     const el = document.getElementById('buy');
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    else nav('/pricing#pro');
+    else nav('/checkout?plan=starter&source=documents');
   };
 
   if (!user) {
@@ -125,10 +125,10 @@ export function OfferJobPicker({ limit = PAGE, onAuth, title = 'Your last visite
                       </a>
                     ) : (
                       <>
-                        <span className="text-[12px] font-semibold text-ink-500">{credits?.pro ? 'All 50 used this month' : 'Part of Pro'}</span>
+                        <span className="text-[12px] font-semibold text-ink-500">{credits?.pro ? `All ${credits.quota} used this month` : 'Part of Starter and Pro'}</span>
                         {!credits?.pro && (
                           <a href="#buy" onClick={toBuy} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-2 text-[13px] font-bold text-ink-950 hover:bg-amber-300">
-                            <Lock className="h-4 w-4" /> Get Pro
+                            <Lock className="h-4 w-4" /> Get Starter
                           </a>
                         )}
                       </>

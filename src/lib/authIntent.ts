@@ -42,7 +42,7 @@ export const AUTH_REASON_TEXT: Record<NonNullable<AuthIntent['reason']>, string>
   save: 'Sign in to save jobs.',
   track: 'Sign in to track your applications.',
   share: 'Sign in to share your experience.',
-  offer: 'Create an account to keep what you chose. Sponsorship documents are part of MadeVisa Pro.',
+  offer: 'Create an account to keep what you chose. Sponsorship documents are part of Starter and Pro.',
   match: 'Create a free account to see which skills your CV is missing — free on 3 jobs every day.',
   alert: 'Create a free account and we’ll email you new matching jobs once a day. Unsubscribe anytime.',
 };

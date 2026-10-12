@@ -4,7 +4,7 @@
 // check, network and secrets are handed in (Deps), so the same code runs in
 // the tests against a pretend Gumroad.
 
-import { PLAN_USD, planUsd, yearlyUsd } from '../_shared/planPrice.ts';
+import { isPaidPlanId, PLANS, type PaidPlanId } from '../_shared/plans.ts';
 
 // deno-lint-ignore no-explicit-any
 type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -33,17 +33,46 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const RESOURCES = ['sale', 'refund', 'dispute', 'dispute_won', 'cancellation', 'subscription_updated', 'subscription_ended', 'subscription_restarted'] as const;
 const ALIVE = new Set(['alive', 'pending_cancellation', 'pending_failure', 'payment_method_update_required']);
 
-type Config = {
-  enabled: boolean;
-  product_url: string | null;
+/** One paid plan and the Gumroad product it is sold as (billing_plans). */
+export type PlanProduct = {
+  plan: PaidPlanId;
+  /** The plan's price (cents) — what the site shows and what the product must cost. */
+  price_cents: number;
+  currency: string;
   product_id: string | null;
+  product_url: string | null;
+  product_name: string | null;
+  provider_price_cents: number | null;
+  connected_at: string | null;
+  active: boolean;
+};
+export type Config = {
+  enabled: boolean;
+  /** The old single "MadeVisa Pro" product (PPP prices). Still read so its members keep Pro. */
+  product_id: string | null;
+  product_url: string | null;
+  legacy_product_id?: string | null;
   monthly_cents: number | null;
   yearly_cents: number | null;
   can_discount: boolean;
   webhook_key: string;
   hooks: { id: string; resource_name: string }[];
   connected_at: string | null;
+  plans?: PlanProduct[];
 };
+
+/** Which plan a Gumroad product is. The old Pro product is Pro. Anything else is not ours. */
+export function planForProduct(cfg: Config, productId: unknown): PaidPlanId | null {
+  const id = typeof productId === 'string' ? productId : productId == null ? '' : String(productId);
+  if (!id) return null;
+  const hit = (cfg.plans ?? []).find((p) => p.product_id && p.product_id === id);
+  if (hit) return hit.plan;
+  const legacy = cfg.legacy_product_id ?? cfg.product_id;
+  return legacy && legacy === id ? 'pro' : null;
+}
+const knownProducts = (cfg: Config): string[] =>
+  [...new Set([...(cfg.plans ?? []).map((p) => p.product_id), cfg.legacy_product_id ?? cfg.product_id].filter((x): x is string => Boolean(x)))];
+const planProduct = (cfg: Config, plan: PaidPlanId): PlanProduct | null => (cfg.plans ?? []).find((p) => p.plan === plan) ?? null;
 
 // ---------------------------------------------------------------------------
 // Gumroad's API
@@ -76,7 +105,7 @@ async function gumroad(deps: Deps, method: 'GET' | 'POST' | 'PUT' | 'DELETE', pa
 // One membership, as Gumroad's API describes it now → the database
 // ---------------------------------------------------------------------------
 type SyncInput = { subscriptionId?: string | null; saleId?: string | null; checkoutId?: string | null; test?: boolean; claimUser?: string | null };
-type SyncResult = { ok: boolean; note: string; active?: boolean; linked?: boolean };
+type SyncResult = { ok: boolean; note: string; active?: boolean; linked?: boolean; plan?: PaidPlanId };
 
 const time = (v: unknown): number => {
   const t = typeof v === 'string' ? Date.parse(v) : NaN;
@@ -90,7 +119,7 @@ const iso = (v: unknown): string | null => (time(v) ? new Date(time(v)).toISOStr
  * the API, so a made-up notification cannot switch Pro on.
  */
 export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput): Promise<SyncResult> {
-  if (!cfg.product_id) return { ok: true, note: 'No product is connected: ignored.' };
+  if (!knownProducts(cfg).length) return { ok: true, note: 'No product is connected: ignored.' };
   let subscriptionId = input.subscriptionId || null;
   const sales = new Map<string, Json>();
 
@@ -99,7 +128,7 @@ export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput
     const s = await gumroad(deps, 'GET', `/sales/${encodeURIComponent(input.saleId)}`);
     if (!s.ok) return { ok: false, note: `Gumroad does not confirm this sale. ${s.message}` };
     const sale = s.body.sale;
-    if (sale?.product_id !== cfg.product_id) return { ok: true, note: 'A sale of another product: ignored.' };
+    if (!planForProduct(cfg, sale?.product_id)) return { ok: true, note: 'A sale of another product: ignored.' };
     if (!sale?.subscription_id) return { ok: true, note: 'Not a membership payment: ignored.' };
     subscriptionId = String(sale.subscription_id);
     sales.set(String(sale.id), sale);
@@ -108,7 +137,9 @@ export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput
   const r = await gumroad(deps, 'GET', `/subscribers/${encodeURIComponent(subscriptionId)}`);
   if (!r.ok) return { ok: false, note: `Gumroad does not confirm this membership. ${r.message}` };
   const sub = r.body.subscriber;
-  if (sub?.product_id !== cfg.product_id) return { ok: true, note: 'A membership of another product: ignored.' };
+  // The product decides the plan — never the checkout link or the notification.
+  const plan = planForProduct(cfg, sub?.product_id);
+  if (!plan) return { ok: true, note: 'A membership of another product: ignored.' };
 
   // The latest payments (a refund can leave an earlier one as the last that counts).
   const ids: string[] = Array.isArray(sub.purchase_ids) ? sub.purchase_ids.map(String) : [];
@@ -116,7 +147,7 @@ export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput
   await Promise.all(
     ids.slice(-3).filter((id) => !sales.has(id)).map(async (id) => {
       const s = await gumroad(deps, 'GET', `/sales/${encodeURIComponent(id)}`);
-      if (s.ok && s.body.sale?.product_id === cfg.product_id) sales.set(id, s.body.sale);
+      if (s.ok && s.body.sale?.product_id === sub.product_id) sales.set(id, s.body.sale);
     }),
   );
   const known = [...sales.values()].sort((a, b) => time(a.created_at) - time(b.created_at));
@@ -137,6 +168,8 @@ export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput
   const applied = await deps.rpc('gumroad_apply', {
     p: {
       subscription_id: subscriptionId,
+      plan,
+      product_id: String(sub.product_id),
       status,
       recurrence: sub.recurrence ?? null,
       email,
@@ -155,14 +188,15 @@ export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput
   const out = applied.data ?? {};
   const who = email ?? 'A buyer';
   const until = iso(out.until)?.slice(0, 10);
+  const name = PLANS[plan].name;
   const note = !out.linked
-    ? `${who}: ${status}, no MadeVisa account matched yet.`
+    ? `${who}: ${name} ${status}, no MadeVisa account matched yet.`
     : out.kept_other_plan
-      ? `${who}: ${status}. Their other plan runs longer, so it was left as it is.`
+      ? `${who}: ${name} ${status}. A plan an admin switched on is higher or runs longer, so it was left as it is.`
       : out.active
-        ? `${who}: Pro on until ${until}${status === 'pending_cancellation' ? ' (cancelled, runs out then)' : ''}${guessed ? ' (payment date not readable, counted from now)' : ''}.`
-        : `${who}: Pro off (${status}).`;
-  return { ok: true, note, active: Boolean(out.active), linked: Boolean(out.linked) };
+        ? `${who}: ${name} on until ${until}${status === 'pending_cancellation' ? ' (cancelled, runs out then)' : ''}${guessed ? ' (payment date not readable, counted from now)' : ''}.`
+        : `${who}: ${name} off (${status}).`;
+  return { ok: true, note, active: Boolean(out.active), linked: Boolean(out.linked), plan };
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +241,7 @@ async function webhook(deps: Deps, req: Request, key: string): Promise<Response>
   }
   // Gumroad sends notifications for every product of the account. Another product's
   // sale is none of this site's business: nothing about it is kept.
-  if (ping.product_id && cfg.product_id && ping.product_id !== cfg.product_id) return new Response('ok', { status: 200 });
+  if (ping.product_id && knownProducts(cfg).length && !planForProduct(cfg, ping.product_id)) return new Response('ok', { status: 200 });
   const resource = (RESOURCES as readonly string[]).includes(ping.resource_name) ? ping.resource_name : 'sale';
   const saleId = ping.sale_id || null;
   const subscriptionId = ping.subscription_id || null;
@@ -225,123 +259,143 @@ async function webhook(deps: Deps, req: Request, key: string): Promise<Response>
 }
 
 // ---------------------------------------------------------------------------
-// "Get Pro": the checkout link, at this buyer's price
+// The product as Gumroad sells it right now: is it safe to send a buyer there?
 // ---------------------------------------------------------------------------
-/** Country of the person asking, as the server sees it (never what the browser says). */
-async function buyerCountry(deps: Deps, req: Request): Promise<string | null> {
-  const valid = (c: string | null | undefined) => (c && /^[A-Za-z]{2}$/.test(c) && !/^(XX|T1|ZZ)$/i.test(c) ? c.toUpperCase() : null);
-  const header = valid(req.headers.get('cf-ipcountry')) ?? valid(req.headers.get('x-vercel-ip-country')) ?? valid(req.headers.get('x-country-code'));
-  if (header) return header;
-  const ip = (req.headers.get('cf-connecting-ip') ?? req.headers.get('x-real-ip') ?? (req.headers.get('x-forwarded-for') ?? '').split(',')[0] ?? '').trim();
-  if (!ip || /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|f[cd])/i.test(ip)) return null;
-  try {
-    // The same lookup the pricing page uses, so both give the same country.
-    const res = await deps.fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=success,country_code`, { signal: AbortSignal.timeout(2500) });
-    const body = await res.json().catch(() => null);
-    return body?.success ? valid(body.country_code) : null;
-  } catch {
-    return null;
+/** What a buyer would actually be charged, read from the product itself. */
+export type ProductCheck =
+  | { ok: true; product: Json; monthlyCents: number; url: string }
+  | { ok: false; reason: string };
+
+/**
+ * The amount shown on MadeVisa must be the amount Gumroad charges (before tax). So a product
+ * qualifies only when it is a published membership with ONE tier, a monthly price equal to the
+ * plan's price, no other billing periods a buyer could pick instead, and no Gumroad
+ * purchasing-power discount that would change the price by country.
+ */
+export function checkProduct(product: Json, plan: PaidPlanId): ProductCheck {
+  const want = PLANS[plan].priceCents;
+  const name = `“${product?.name ?? 'This product'}”`;
+  if (!product?.is_tiered_membership) return { ok: false, reason: `${name} is not a membership. Create it in Gumroad with the type Membership.` };
+  const tiers = ((product.variants ?? []) as Json[]).flatMap((v) => (v.options ?? []) as Json[]);
+  if (tiers.length !== 1) return { ok: false, reason: `${name} has ${tiers.length} tiers. Keep exactly one tier, so buyers can't pick a different price on Gumroad.` };
+  const prices = (tiers[0].recurrence_prices ?? {}) as Record<string, Json>;
+  const monthly = Number(prices.monthly?.price_cents ?? 0);
+  if (!monthly) return { ok: false, reason: `${name} has no monthly price. Switch on monthly billing for its tier.` };
+  const others = Object.keys(prices).filter((k) => k !== 'monthly' && Number(prices[k]?.price_cents ?? 0) > 0);
+  if (others.length) return { ok: false, reason: `${name} can also be bought ${others.join(', ')}. MadeVisa sells monthly only: switch the other billing periods off for its tier.` };
+  if (monthly !== want) return { ok: false, reason: `${name} costs $${(monthly / 100).toFixed(2)} a month on Gumroad, but ${PLANS[plan].name} is $${(want / 100).toFixed(2)}. Make them the same.` };
+  if (prices.monthly?.purchasing_power_parity_prices) {
+    return { ok: false, reason: `Gumroad’s “purchasing power parity” discount is on for ${name}. Switch it off (Gumroad → Settings → Payments, or exclude this product): MadeVisa charges the same price everywhere.` };
   }
+  if (product.published === false) return { ok: false, reason: `${name} is not published yet. Publish it in Gumroad.` };
+  const url = String(product.short_url ?? '');
+  if (!/^https:\/\/([a-z0-9-]+\.)*gumroad\.com\//i.test(url)) return { ok: false, reason: `${name} has no Gumroad link.` };
+  return { ok: true, product, monthlyCents: monthly, url };
 }
 
-const newCode = () => `mv-${[...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+const manageLink = (subscriptionId: string) => `https://gumroad.com/subscriptions/${encodeURIComponent(subscriptionId)}/manage`;
 
-async function checkout(deps: Deps, req: Request, cfg: Config, user: { id: string; email: string | null }, body: Json): Promise<Response> {
+// ---------------------------------------------------------------------------
+// Checkout: the plan, at its price, for this account
+// ---------------------------------------------------------------------------
+async function checkout(deps: Deps, cfg: Config, user: { id: string; email: string | null }, body: Json): Promise<Response> {
+  // The plan is the only thing the page chooses. Its price, product and link come from the server.
+  const plan = body?.plan ?? 'pro';
+  if (!isPaidPlanId(plan)) return json({ error: 'Choose Starter or Pro.' }, 400);
+  if (body?.billing && body.billing !== 'monthly') return json({ error: 'Plans are billed monthly. Reload the page and try again.' }, 400);
+  const source = typeof body?.source === 'string' && /^[a-z0-9_]{1,40}$/.test(body.source) ? body.source : null;
+
   const state = (await deps.rpc('gumroad_user', { p_user: user.id })).data ?? {};
-  const connected = Boolean(cfg.product_id && cfg.product_url && cfg.connected_at && cfg.monthly_cents);
-  if (!connected || (!cfg.enabled && !state.is_admin)) return json({ error: 'off' });
-  if (state.alive_subscription) {
-    return json({ already: true, manage_url: `https://gumroad.com/subscriptions/${encodeURIComponent(state.alive_subscription)}/manage` });
-  }
-  const billing: 'monthly' | 'yearly' = body?.billing === 'yearly' ? 'yearly' : 'monthly';
-  const listCents = billing === 'yearly' ? cfg.yearly_cents : cfg.monthly_cents;
-  if (!listCents) return json({ error: `The ${billing} price is not switched on in Gumroad.` });
+  const pp = planProduct(cfg, plan);
+  if (!pp?.product_id || !pp.connected_at || (!cfg.enabled && !state.is_admin)) return json({ error: 'off' });
 
-  // The price for the buyer's country: the same list the pricing page prints.
-  const country = await buyerCountry(deps, req);
-  const monthlyUsd = planUsd(country);
-  const wantCents = Math.min(listCents, (billing === 'yearly' ? yearlyUsd(monthlyUsd) : monthlyUsd) * 100);
-  const discount = listCents - wantCents;
-  if (discount > 0 && !cfg.can_discount) {
-    await deps.rpc('gumroad_save', { p: { last_error: `${new Date().toISOString().slice(0, 16)} A checkout needed a discount code, but the access token cannot create them. Press Connect again.` } });
-    return json({ error: 'Card payment is not available right now. Please try again later, or write to hello@madevisa.com.' });
+  // A membership that is still being billed: never start a second one.
+  const alive = ((state.alive ?? []) as { subscription_id: string; plan: PaidPlanId; status: string }[]).filter((a) => a?.subscription_id);
+  const same = alive.find((a) => a.plan === plan);
+  if (same) return json({ already: true, plan, manage_url: manageLink(same.subscription_id) });
+  if (alive.length) {
+    // Gumroad can't move a membership to another product, so switching = cancel the current one there
+    // (it runs to the end of what was paid), then come back and start the new plan.
+    return json({ switch: true, plan, current_plan: alive[0].plan, manage_url: manageLink(alive[0].subscription_id) });
   }
 
-  const started = await deps.rpc('gumroad_checkout_start', { p_user: user.id, p_billing: billing, p_country: country, p_price_cents: wantCents, p_list_cents: listCents });
-  if (started.error) return json({ error: /today/i.test(started.error.message) ? started.error.message : 'The checkout could not be prepared. Please try again.' });
-  const checkoutId = String(started.data.id);
-  let code: string | null = started.data.offer_code ?? null;
-
-  if (discount > 0 && !code) {
-    code = newCode();
-    const made = await gumroad(deps, 'POST', `/products/${encodeURIComponent(cfg.product_id!)}/offer_codes`, {
-      name: code,
-      offer_type: 'cents',
-      amount_off: discount,
-      amount_cents: discount,
-      max_purchase_count: 1,
-      // Only for this billing period: a yearly discount must never land on a monthly price.
-      minimum_amount_cents: listCents,
-      universal: false,
-    });
-    if (!made.ok) {
-      await deps.rpc('gumroad_save', { p: { last_error: `${new Date().toISOString().slice(0, 16)} A discount code could not be created: ${made.message}` } });
-      return json({ error: 'Card payment is not available right now. Please try again later, or write to hello@madevisa.com.' });
-    }
-    await deps.rpc('gumroad_checkout_code', { p_id: checkoutId, p_code: code, p_code_id: String(made.body.offer_code?.id ?? '') || null });
+  // Read the product now: the price shown must be the price charged.
+  const live = await gumroad(deps, 'GET', `/products/${encodeURIComponent(pp.product_id)}`);
+  if (!live.ok) return json({ error: 'The payment page could not be prepared. Please try again in a minute.' });
+  const checked = checkProduct(live.body.product, plan);
+  if (!checked.ok) {
+    await deps.rpc('gumroad_save', { p: { last_error: `${new Date().toISOString().slice(0, 16)} ${PLANS[plan].name} checkout refused: ${checked.reason}` } });
+    return json({ error: `${PLANS[plan].name} can’t be bought right now. Please try again later, or write to hello@madevisa.com.` });
   }
+  if (pp.provider_price_cents !== checked.monthlyCents) await deps.rpc('gumroad_plan_save', { p_plan: plan, p: { price_cents: checked.monthlyCents } });
 
-  // Tidy up: codes nobody used.
-  deps.background(
-    (async () => {
-      const stale = ((await deps.rpc('gumroad_checkout_stale', { p_limit: 5 })).data ?? []) as { id: string; offer_code_id: string }[];
-      for (const s of stale) {
-        const gone = await gumroad(deps, 'DELETE', `/products/${encodeURIComponent(cfg.product_id!)}/offer_codes/${encodeURIComponent(s.offer_code_id)}`);
-        if (gone.ok || gone.status === 404 || /not found/i.test(gone.message)) await deps.rpc('gumroad_checkout_code_gone', { p_id: s.id });
-      }
-    })().catch(() => undefined),
-  );
+  const begun = await deps.rpc('gumroad_checkout_begin', { p_user: user.id, p_plan: plan, p_source: source });
+  if (begun.error) {
+    const m = begun.error.message;
+    return json({ error: /today/i.test(m) ? m : /can't be bought|unavailable/i.test(m) ? 'off' : 'The checkout could not be prepared. Please try again.' });
+  }
+  const c = begun.data as { id: string; price_cents: number; currency: string };
+  // Belt and braces: the amount the database priced must be what Gumroad charges.
+  if (c.price_cents !== checked.monthlyCents) return json({ error: 'The price could not be confirmed. Please try again later.' });
 
-  const url = new URL(cfg.product_url!);
+  const url = new URL(checked.url);
   url.searchParams.set('wanted', 'true');
-  url.searchParams.set('recurrence', billing);
+  url.searchParams.set('recurrence', 'monthly');
   if (user.email) url.searchParams.set('email', user.email);
-  // Comes back with the payment, and says which account it is for.
-  url.searchParams.set('mv', checkoutId);
-  if (code) url.searchParams.set('code', code);
-  url.searchParams.set('referrer', `${SITE}/pricing`);
-  return json({ url: url.toString(), billing, country, price_cents: wantCents, list_cents: listCents, email: user.email });
+  // Comes back with the payment and says which account it is for (never which plan: the product says that).
+  url.searchParams.set('mv', c.id);
+  url.searchParams.set('referrer', `${SITE}/checkout`);
+
+  // Tidy up discount codes the old Pro checkout made and nobody used.
+  const legacy = cfg.legacy_product_id ?? cfg.product_id;
+  if (legacy) {
+    deps.background(
+      (async () => {
+        const stale = ((await deps.rpc('gumroad_checkout_stale', { p_limit: 5 })).data ?? []) as { id: string; offer_code_id: string }[];
+        for (const s of stale) {
+          const gone = await gumroad(deps, 'DELETE', `/products/${encodeURIComponent(legacy)}/offer_codes/${encodeURIComponent(s.offer_code_id)}`);
+          if (gone.ok || gone.status === 404 || /not found/i.test(gone.message)) await deps.rpc('gumroad_checkout_code_gone', { p_id: s.id });
+        }
+      })().catch(() => undefined),
+    );
+  }
+
+  return json({ url: url.toString(), checkout_id: c.id, plan, billing: 'monthly', price_cents: c.price_cents, currency: c.currency ?? 'USD', email: user.email });
 }
 
 // ---------------------------------------------------------------------------
 // "Check my payment": the person's memberships, read again from Gumroad
 // ---------------------------------------------------------------------------
 async function refresh(deps: Deps, cfg: Config, user: { id: string; email: string | null }): Promise<Response> {
-  if (!cfg.product_id) return json({ ok: true, active: false });
+  const products = knownProducts(cfg);
+  if (!products.length) return json({ ok: true, active: false, plan: 'free' });
   const allowed = await deps.rpc('gumroad_refresh_allowed', { p_user: user.id });
   if (allowed.data === false) return json({ ok: true, throttled: true });
   const state = (await deps.rpc('gumroad_user', { p_user: user.id })).data ?? {};
   const ids = new Map<string, boolean>(); // id → found by this person's verified email
-  for (const id of ((state.subscription_ids ?? []) as string[]).slice(0, 3)) ids.set(id, false);
+  for (const id of ((state.subscription_ids ?? []) as string[]).slice(0, 4)) ids.set(id, false);
   // Only a verified email may claim a membership bought with it (sign-up alone proves nothing).
   if (state.email && state.email_verified) {
-    const found = await gumroad(deps, 'GET', `/products/${encodeURIComponent(cfg.product_id)}/subscribers`, { email: state.email });
-    if (found.ok) for (const s of ((found.body.subscribers ?? []) as Json[]).slice(0, 3)) if (!ids.has(String(s.id))) ids.set(String(s.id), true);
+    for (const productId of products) {
+      const found = await gumroad(deps, 'GET', `/products/${encodeURIComponent(productId)}/subscribers`, { email: state.email });
+      if (found.ok) for (const s of ((found.body.subscribers ?? []) as Json[]).slice(0, 3)) if (!ids.has(String(s.id))) ids.set(String(s.id), true);
+    }
   }
-  let active = false;
   for (const [id, byEmail] of ids) {
     const r = await syncSubscription(deps, cfg, { subscriptionId: id, claimUser: byEmail ? user.id : null }).catch((): SyncResult => ({ ok: false, note: 'Unexpected error.' }));
     if (byEmail || !r.ok) {
       const logged = await deps.rpc('gumroad_log_event', { p_resource: 'check', p_sale: null, p_subscription: id, p_email: state.email ?? null, p_payload: { asked_by: user.id } });
       if (!logged.error) await deps.rpc('gumroad_finish_event', { p_id: logged.data, p_ok: r.ok, p_note: r.note });
     }
-    active = active || Boolean(r.active);
   }
-  return json({ ok: true, active });
+  // What the person has now, from the one resolver.
+  const after = (await deps.rpc('gumroad_user', { p_user: user.id })).data ?? {};
+  const plan = typeof after.plan === 'string' ? after.plan : 'free';
+  return json({ ok: true, active: plan !== 'free', plan });
 }
 
 // ---------------------------------------------------------------------------
-// Admin: connect the Gumroad product
+// Admin: connect the Gumroad product of a plan
 // ---------------------------------------------------------------------------
 async function findProduct(deps: Deps, slug: string): Promise<ApiResult> {
   const direct = await gumroad(deps, 'GET', `/products/${encodeURIComponent(slug)}`);
@@ -359,7 +413,32 @@ async function findProduct(deps: Deps, slug: string): Promise<ApiResult> {
   return { ok: false, status: 404, body: null, message: 'That product was not found in the Gumroad account this access token belongs to.' };
 }
 
+/** Ask Gumroad to post every payment and change to this function (one set of notifications for the whole account). */
+async function ensureHooks(deps: Deps, cfg: Config): Promise<{ hooks: { id: string; resource_name: string }[] } | { error: string }> {
+  const base = `${(deps.env('SUPABASE_URL') ?? '').replace(/\/+$/, '')}/functions/v1/gumroad`;
+  const postUrl = `${base}?k=${cfg.webhook_key}`;
+  const hooks: { id: string; resource_name: string }[] = [];
+  for (const name of RESOURCES) {
+    const existing = await gumroad(deps, 'GET', '/resource_subscriptions', { resource_name: name });
+    if (!existing.ok) return { error: `Gumroad would not list its notifications for this access token. ${existing.message}` };
+    let kept: string | null = null;
+    for (const h of (existing.body.resource_subscriptions ?? []) as { id: string; post_url: string }[]) {
+      if (h.post_url === postUrl && !kept) kept = h.id;
+      else if (String(h.post_url ?? '').startsWith(base)) await gumroad(deps, 'DELETE', `/resource_subscriptions/${encodeURIComponent(h.id)}`);
+    }
+    if (!kept) {
+      const made = await gumroad(deps, 'PUT', '/resource_subscriptions', { resource_name: name, post_url: postUrl });
+      if (!made.ok) return { error: `Gumroad would not set up the "${name}" notification. ${made.message}` };
+      kept = String(made.body.resource_subscription?.id ?? '');
+    }
+    hooks.push({ id: kept, resource_name: name });
+  }
+  return { hooks };
+}
+
 async function connect(deps: Deps, cfg: Config, body: Json): Promise<Response> {
+  const plan = body?.plan;
+  if (!isPaidPlanId(plan)) return json({ error: 'Choose which plan this product is: Starter or Pro.' });
   if (!deps.env('GUMROAD_ACCESS_TOKEN')) return json({ error: 'Add the secret GUMROAD_ACCESS_TOKEN to this function first (Supabase → Edge Functions → Secrets), then press Connect again.' });
   let link: URL;
   try {
@@ -376,66 +455,35 @@ async function connect(deps: Deps, cfg: Config, body: Json): Promise<Response> {
   const found = await findProduct(deps, decodeURIComponent(slug));
   if (!found.ok) return json({ error: found.message });
   const product = found.body.product;
-  if (!product?.is_tiered_membership) return json({ error: `"${product?.name ?? 'This product'}" is not a membership. Create it with the type Membership.` });
-  const tiers = ((product.variants ?? []) as Json[]).flatMap((v) => (v.options ?? []) as Json[]);
-  if (!tiers.length) return json({ error: 'The membership has no tier. Add one tier in Gumroad.' });
-  const monthly = Number(tiers[0].recurrence_prices?.monthly?.price_cents ?? 0);
-  const yearly = Number(tiers[0].recurrence_prices?.yearly?.price_cents ?? 0);
-  if (!monthly || !yearly) return json({ error: 'Switch on both a monthly and a yearly price for the tier in Gumroad (Product → Content → tier → pricing).' });
+  const other = (cfg.plans ?? []).find((p) => p.plan !== plan && p.product_id && p.product_id === String(product?.id));
+  if (other) return json({ error: `That product is already connected as ${PLANS[other.plan].name}. Starter and Pro need a product each.` });
+  const checked = checkProduct(product, plan);
+  if (!checked.ok) return json({ error: checked.reason });
 
-  const warnings: string[] = [];
-  if (tiers.length > 1) warnings.push(`The membership has ${tiers.length} tiers. Gumroad puts the first one in the checkout; keep one tier.`);
-  if (!product.published) warnings.push('The product is not published yet. Publish it in Gumroad before switching card payments on.');
-  const wantMonthly = PLAN_USD.top * 100;
-  const wantYearly = yearlyUsd(PLAN_USD.top) * 100;
-  // Gumroad lists its own per-country prices on the tier only when its purchasing-power discount is on for this product.
-  if (tiers[0].recurrence_prices?.monthly?.purchasing_power_parity_prices) {
-    warnings.push('Gumroad’s own “purchasing power parity” discount is on for this product. Switch it off in Gumroad (Settings → Payments), or exclude this product there: MadeVisa already applies the country price, and both together would discount twice.');
-  }
-  if (monthly !== wantMonthly || yearly !== wantYearly) {
-    warnings.push(`Gumroad has $${monthly / 100} a month and $${yearly / 100} a year; the site's list price is $${wantMonthly / 100} and $${wantYearly / 100}. Make them the same.`);
-  }
-
-  // Can this token create discount codes? (Needed for the country prices.)
-  const probe = await gumroad(deps, 'POST', `/products/${encodeURIComponent(String(product.id))}/offer_codes`, {
-    name: `mv-check-${newCode().slice(3, 11)}`, offer_type: 'cents', amount_off: 1, amount_cents: 1, max_purchase_count: 1, universal: false,
-  });
-  if (probe.ok && probe.body.offer_code?.id) await gumroad(deps, 'DELETE', `/products/${encodeURIComponent(String(product.id))}/offer_codes/${encodeURIComponent(String(probe.body.offer_code.id))}`);
-  if (!probe.ok) {
-    return json({ error: `The access token cannot create discount codes, which the country prices need. In Gumroad → Settings → Advanced, create a new application, generate its access token and put that in the secret GUMROAD_ACCESS_TOKEN. (Gumroad said: ${probe.message})` });
-  }
-
-  // Ask Gumroad to tell this function about payments and changes.
-  const base = `${(deps.env('SUPABASE_URL') ?? '').replace(/\/+$/, '')}/functions/v1/gumroad`;
-  const postUrl = `${base}?k=${cfg.webhook_key}`;
-  const hooks: { id: string; resource_name: string }[] = [];
-  for (const name of RESOURCES) {
-    const existing = await gumroad(deps, 'GET', '/resource_subscriptions', { resource_name: name });
-    if (!existing.ok) return json({ error: `Gumroad would not list its notifications for this access token. ${existing.message}` });
-    let kept: string | null = null;
-    for (const h of (existing.body.resource_subscriptions ?? []) as { id: string; post_url: string }[]) {
-      if (h.post_url === postUrl && !kept) kept = h.id;
-      else if (String(h.post_url ?? '').startsWith(base)) await gumroad(deps, 'DELETE', `/resource_subscriptions/${encodeURIComponent(h.id)}`);
-    }
-    if (!kept) {
-      const made = await gumroad(deps, 'PUT', '/resource_subscriptions', { resource_name: name, post_url: postUrl });
-      if (!made.ok) return json({ error: `Gumroad would not set up the "${name}" notification. ${made.message}` });
-      kept = String(made.body.resource_subscription?.id ?? '');
-    }
-    hooks.push({ id: kept, resource_name: name });
-  }
-
-  const productUrl = String(product.short_url || `${link.origin}/l/${slug}`);
-  const saved = await deps.rpc('gumroad_save', {
-    p: { product_url: productUrl, product_id: String(product.id), product_name: String(product.name ?? ''), seller_id: String(me.body.user?.user_id ?? me.body.user?.id ?? ''), monthly_cents: monthly, yearly_cents: yearly, can_discount: true, hooks, connected: true, last_error: null },
+  const hooks = await ensureHooks(deps, cfg);
+  if ('error' in hooks) return json({ error: hooks.error });
+  await deps.rpc('gumroad_save', { p: { hooks: hooks.hooks, seller_id: String(me.body.user?.user_id ?? me.body.user?.id ?? ''), last_error: null } });
+  const saved = await deps.rpc('gumroad_plan_save', {
+    p_plan: plan,
+    p: { product_id: String(product.id), product_url: checked.url, product_name: String(product.name ?? ''), price_cents: checked.monthlyCents, connected: true },
   });
   if (saved.error) return json({ error: `Connected to Gumroad, but the settings could not be saved: ${saved.error.message}` });
-  return json({ ok: true, product_name: product.name, monthly_cents: monthly, yearly_cents: yearly, warnings });
+  const warnings: string[] = [];
+  const legacy = cfg.legacy_product_id ?? cfg.product_id;
+  if (legacy && legacy === String(product.id)) warnings.push('This is the product the old Pro plan was sold as. Its existing members keep paying their old price on Gumroad and keep Pro.');
+  return json({ ok: true, plan, product_name: product.name, monthly_cents: checked.monthlyCents, warnings });
 }
 
-async function disconnect(deps: Deps, cfg: Config): Promise<Response> {
-  for (const h of cfg.hooks ?? []) if (h?.id) await gumroad(deps, 'DELETE', `/resource_subscriptions/${encodeURIComponent(h.id)}`);
-  await deps.rpc('gumroad_save', { p: { hooks: [], connected: false, last_error: null } });
+async function disconnect(deps: Deps, cfg: Config, body: Json): Promise<Response> {
+  const plan = body?.plan;
+  if (!isPaidPlanId(plan)) return json({ error: 'Choose Starter or Pro.' });
+  await deps.rpc('gumroad_plan_save', { p_plan: plan, p: { connected: false } });
+  // Keep Gumroad's notifications while any product (or the old Pro product's members) still needs them.
+  const stillNeeded = (cfg.plans ?? []).some((p) => p.plan !== plan && p.product_id && p.connected_at) || Boolean(cfg.legacy_product_id ?? cfg.product_id);
+  if (!stillNeeded) {
+    for (const h of cfg.hooks ?? []) if (h?.id) await gumroad(deps, 'DELETE', `/resource_subscriptions/${encodeURIComponent(h.id)}`);
+    await deps.rpc('gumroad_save', { p: { hooks: [], last_error: null } });
+  }
   return json({ ok: true });
 }
 
@@ -458,12 +506,12 @@ export function makeHandler(deps: Deps): (req: Request) => Promise<Response> {
     // The database part is missing: the site keeps its request form.
     if (cfgRes.error || !cfg) return json({ error: 'off' });
 
-    if (action === 'checkout') return checkout(deps, req, cfg, user, body);
+    if (action === 'checkout') return checkout(deps, cfg, user, body);
     if (action === 'refresh') return refresh(deps, cfg, user);
     if (action === 'connect' || action === 'disconnect') {
       const state = (await deps.rpc('gumroad_user', { p_user: user.id })).data ?? {};
       if (!state.is_admin) return json({ error: 'Only admins.' }, 403);
-      return action === 'connect' ? connect(deps, cfg, body) : disconnect(deps, cfg);
+      return action === 'connect' ? connect(deps, cfg, body) : disconnect(deps, cfg, body);
     }
     return json({ error: 'Unknown action.' }, 400);
   };

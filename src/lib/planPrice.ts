@@ -1,4 +1,4 @@
-// The price list lives in supabase/functions/_shared/planPrice.ts — one copy,
-// read by the app, the server-rendered pricing page and the checkout function,
-// so the price shown and the price charged are always the same numbers.
+// Fixed numbers shared with the server-rendered pages and the server functions.
+// The one copy is supabase/functions/_shared/planPrice.ts (a function can only
+// be deployed with files from supabase/functions).
 export * from '../../supabase/functions/_shared/planPrice';

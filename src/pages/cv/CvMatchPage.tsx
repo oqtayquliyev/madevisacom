@@ -195,11 +195,11 @@ export function CvMatchPage({ go, onAuth }: Props) {
 
           <More title="What’s free, and what’s in the plan">
             <p className="text-[14px] leading-6 text-ink-600">
-              Without an account you see your best {GUEST_VISIBLE} matches and the score on any job. A free account shows every match and, on {FREE_DAILY_CHECKS} jobs a day, the skills your CV is missing. MadeVisa Pro adds the full report on every job and 50 sponsorship documents a month.
+              Without an account you see your best {GUEST_VISIBLE} matches and the score on any job. A free account shows your best matches and, on {FREE_DAILY_CHECKS} jobs a day, the skills your CV is missing. Starter adds the full report on every job, all your matches and 10 sponsorship documents a month; Pro adds Auto Apply and 50 documents a month.
             </p>
             <MatchLevels className="mt-4" />
             <div className="mt-5 max-w-2xl">
-              <ProPlanCard onAuth={onAuth} compact />
+              <ProPlanCard plan="starter" source="cv_match_page" onAuth={onAuth} compact />
             </div>
           </More>
         </div>
