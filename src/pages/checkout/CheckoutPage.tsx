@@ -3,24 +3,13 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
-  BellRing,
-  Bookmark,
-  Building2,
-  CalendarClock,
   Check,
   CheckCircle2,
   ExternalLink,
-  FileText,
-  Info,
-  ListChecks,
   Loader2,
   Lock,
-  Mail,
-  Rocket,
-  ScanSearch,
   ShieldCheck,
   Star,
-  type LucideIcon,
 } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
@@ -29,7 +18,7 @@ import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { PLANS, useMyPlan, type PaidPlanId } from '@/lib/plans';
 import { checkPayment, startCheckout, useCardPayments, type CheckoutResult } from '@/lib/gumroad';
-import { catalogPlan, cleanSource, formatMoney, limitRows, longDate, orderSummary, readPlanParam, trackBilling, useBillingCatalog } from '@/lib/billing';
+import { catalogPlan, cleanSource, formatMoney, orderSummary, readPlanParam, trackBilling, useBillingCatalog } from '@/lib/billing';
 import { AppLink } from '@/pages/info/InfoPage';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
@@ -44,10 +33,6 @@ import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
-const ICONS: Record<PaidPlanId, LucideIcon[]> = {
-  starter: [ScanSearch, ListChecks, FileText, Building2, BellRing, Bookmark],
-  pro: [Star, ScanSearch, ListChecks, FileText, Building2, BellRing, Bookmark, Mail],
-};
 
 /** The plans' own Gumroad pages: used when the prepared checkout isn't available, so a click always ends on Gumroad. */
 const GUMROAD_PAGE: Record<PaidPlanId, string> = {
@@ -62,10 +47,6 @@ const gumroadPage = (plan: PaidPlanId, email: string | null | undefined) => {
   return u.toString();
 };
 
-const PLAN_PITCH: Record<PaidPlanId, string> = {
-  starter: 'Full CV reports on every job, sponsorship documents and an organised search.',
-  pro: 'Auto Apply prepares applications for you, plus 50 documents a month.',
-};
 
 type Step = { at: 'idle' } | { at: 'preparing' } | { at: 'result'; result: CheckoutResult };
 
@@ -186,11 +167,9 @@ export function CheckoutPage({ go, onAuth }: Props) {
         <div className="mt-5 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,400px)] lg:gap-12">
           {/* LEFT — the plan and why it's worth it */}
           <section aria-labelledby="checkout-title" className="min-w-0">
-            <p className="text-sm font-semibold text-brand-700">MadeVisa checkout</p>
-            <h1 id="checkout-title" className="mt-1.5 text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">
-              Get noticed. Get hired. Keep growing.
+            <h1 id="checkout-title" className="text-3xl font-bold tracking-tight text-ink-950 sm:text-4xl">
+              Upgrade to MadeVisa {info.name}
             </h1>
-            <p className="mt-3 max-w-2xl text-[16px] leading-7 text-ink-600">Find jobs that fit your experience, prepare stronger applications, and reach the people behind the opportunities.</p>
 
             <fieldset className="mt-7">
               <legend className="text-sm font-bold text-ink-900">Choose your plan</legend>
@@ -209,7 +188,6 @@ export function CheckoutPage({ go, onAuth }: Props) {
                       <span className="flex items-start justify-between gap-3">
                         <span>
                           <span className="block text-[15px] font-bold text-ink-950">{PLANS[p].name}</span>
-                          <span className="mt-0.5 block text-[13px] leading-5 text-ink-500">{PLAN_PITCH[p]}</span>
                         </span>
                         <span
                           aria-hidden
@@ -230,85 +208,21 @@ export function CheckoutPage({ go, onAuth }: Props) {
             </fieldset>
 
             <div className="mt-6 rounded-2xl border border-ink-200 bg-white p-5 sm:p-6" aria-live="polite">
-              <h2 className="text-lg font-bold text-ink-950">What you get with {info.name}</h2>
-              <p className="mt-1 text-sm leading-6 text-ink-600">{info.worth}</p>
-
-              <ul className="mt-5 grid gap-3 sm:grid-cols-2">
-                {info.benefits.slice(0, 2).map((b, i) => {
-                  const Icon = ICONS[plan][i] ?? Check;
-                  return (
-                    <li key={b.title} className={`rounded-xl p-4 ${b.star ? 'bg-amber-50 ring-1 ring-amber-300' : 'bg-brand-50/70'}`}>
-                      <Icon className={`h-5 w-5 ${b.star ? 'fill-amber-400 text-amber-500' : 'text-brand-700'}`} aria-hidden />
-                      <p className="mt-2 text-[15px] font-bold text-ink-950">{b.title}</p>
-                      <p className="mt-1 text-[13px] leading-5 text-ink-600">{b.text}</p>
+              <h2 className="text-lg font-bold text-ink-950">What you get</h2>
+              <ul className="mt-3 space-y-2.5">
+                {info.benefits.map((b) =>
+                  b.star ? (
+                    <li key={b.title} className="-mx-2 flex items-center gap-2.5 rounded-xl bg-amber-50 px-2 py-2 text-[15px] font-bold text-ink-950 ring-1 ring-amber-300">
+                      <Star className="h-5 w-5 shrink-0 fill-amber-400 text-amber-500" aria-hidden /> {b.title}
                     </li>
-                  );
-                })}
-              </ul>
-              <ul className="mt-4 space-y-3">
-                {info.benefits.slice(2).map((b, i) => {
-                  const Icon = ICONS[plan][i + 2] ?? Check;
-                  return (
-                    <li key={b.title} className="flex gap-3">
-                      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" aria-hidden />
-                      <p className="text-sm leading-6 text-ink-700">
-                        <strong className="font-semibold text-ink-950">{b.title}.</strong> {b.text}
-                      </p>
+                  ) : (
+                    <li key={b.title} className="flex items-center gap-2.5 text-[15px] font-semibold text-ink-900">
+                      <Check className="h-4 w-4 shrink-0 text-brand-600" aria-hidden /> {b.title}
                     </li>
-                  );
-                })}
+                  )
+                )}
               </ul>
-
-              {info.coming.length > 0 && (
-                <div className="mt-5 rounded-xl border border-dashed border-ink-200 p-4">
-                  <p className="flex items-center gap-1.5 text-[13px] font-bold text-ink-700">
-                    <Rocket className="h-4 w-4 text-ink-400" aria-hidden /> Coming to Pro — not included yet
-                  </p>
-                  <ul className="mt-2 space-y-1">
-                    {info.coming.map((c) => (
-                      <li key={c} className="text-[13px] leading-5 text-ink-500">
-                        {c}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-2 text-[12px] leading-5 text-ink-400">They’ll be added to Pro at no extra cost when they’re ready. Choose Pro for what it includes today.</p>
-                </div>
-              )}
             </div>
-
-            {catalog && cp && (
-              <section className="mt-6 rounded-2xl border border-ink-200 bg-white p-5 sm:p-6" aria-labelledby="limits-title">
-                <h2 id="limits-title" className="text-sm font-bold text-ink-950">
-                  {info.name} limits, upfront
-                </h2>
-                <dl className="mt-3 divide-y divide-ink-100">
-                  {limitRows(catalog, cp).map((r) => (
-                    <div key={r.label} className="flex flex-col gap-0.5 py-2.5 text-sm sm:flex-row sm:justify-between sm:gap-6">
-                      <dt className="text-ink-500">{r.label}</dt>
-                      <dd className="font-semibold text-ink-900 sm:text-right">{r.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-                <p className="mt-3 text-[12px] leading-5 text-ink-500">
-                  MadeVisa helps you find and apply for jobs. It can’t promise interviews, a job offer, visa sponsorship or a visa decision.
-                </p>
-              </section>
-            )}
-
-            <nav className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Plans and policies">
-              <AppLink href="/pricing" className="font-semibold text-brand-700 hover:underline">
-                Compare all plans
-              </AppLink>
-              <AppLink href="/subscription-terms" className="text-ink-600 hover:text-ink-950 hover:underline">
-                Subscription & refund terms
-              </AppLink>
-              <AppLink href="/terms" className="text-ink-600 hover:text-ink-950 hover:underline">
-                Terms
-              </AppLink>
-              <AppLink href="/privacy" className="text-ink-600 hover:text-ink-950 hover:underline">
-                Privacy
-              </AppLink>
-            </nav>
           </section>
 
           {/* RIGHT — the order summary and the payment step */}
@@ -333,10 +247,6 @@ export function CheckoutPage({ go, onAuth }: Props) {
                     <dt className="text-ink-500">Price</dt>
                     <dd className="font-semibold text-ink-950">{price ? `${price} / month` : '…'}</dd>
                   </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-ink-500">Tax</dt>
-                    <dd className="max-w-[60%] text-right text-[13px] leading-5 text-ink-600">Added by Gumroad at checkout if it applies where you live</dd>
-                  </div>
                 </dl>
                 <div className="mt-4 flex items-end justify-between gap-4 border-t border-ink-100 pt-4">
                   <p className="text-sm font-bold text-ink-950">Due today</p>
@@ -347,15 +257,6 @@ export function CheckoutPage({ go, onAuth }: Props) {
                     <span className="ml-1 text-xs font-semibold text-ink-500">{summary?.currency ?? 'USD'}</span>
                   </p>
                 </div>
-                {summary && (
-                  <p className="mt-2 flex gap-2 text-[13px] leading-5 text-ink-600">
-                    <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" aria-hidden />
-                    <span>
-                      Then {formatMoney(summary.renewalAmount, summary.currency)} every month. Subscribing today, it renews on <strong className="font-semibold text-ink-800">{longDate(summary.renewsOn)}</strong>.
-                    </span>
-                  </p>
-                )}
-
                 <div className="mt-5">
                   <PayButton
                     plan={plan}
@@ -377,25 +278,12 @@ export function CheckoutPage({ go, onAuth }: Props) {
                   </p>
                 )}
 
-                <div className="mt-5 space-y-2.5 border-t border-ink-100 pt-4 text-[13px] leading-5 text-ink-600">
-                  <p className="flex gap-2">
-                    <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
-                    <span>
-                      You pay on <strong className="font-semibold text-ink-800">Gumroad</strong>, MadeVisa’s payment partner and the seller on your receipt. Gumroad shows the payment methods
-                      available where you are. MadeVisa never sees your card.
-                    </span>
-                  </p>
-                  <p className="flex gap-2">
-                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" aria-hidden />
-                    <span>
-                      Cancel any time on Gumroad or from Settings → Billing. You keep {info.name} until the end of the month you paid for, and it isn’t renewed. Refunds:{' '}
-                      <AppLink href="/subscription-terms" className="font-semibold text-brand-700 hover:underline">
-                        see the terms
-                      </AppLink>
-                      .
-                    </span>
-                  </p>
-                </div>
+                <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[12.5px] text-ink-500">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden /> Secure payment by Gumroad · Cancel any time ·{' '}
+                  <AppLink href="/subscription-terms" className="font-semibold text-brand-700 hover:underline">
+                    Terms
+                  </AppLink>
+                </p>
               </div>
             </div>
           </aside>
@@ -540,7 +428,6 @@ function PayButton({
       <button type="button" onClick={() => onPay()} className={PRIMARY}>
         <Lock className="h-4 w-4" aria-hidden /> Continue to secure payment{price ? ` · ${price}` : ''}
       </button>
-      <p className="text-center text-[12px] leading-5 text-ink-500">You pay on Gumroad’s secure checkout; your plan starts as soon as the payment is confirmed.</p>
     </div>
   );
 }

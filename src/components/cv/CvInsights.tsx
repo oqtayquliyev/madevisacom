@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
-import { ArrowRight, Briefcase, GraduationCap, Languages, Lock, MapPin, Sparkles, Timer } from 'lucide-react';
+import { ArrowRight, Briefcase, FileCheck2, GraduationCap, Languages, Lock, MapPin, Sparkles, Timer } from 'lucide-react';
 import type { StoredCv } from '@/lib/cv/store';
-import type { TopResult } from '@/lib/cv/topMatches';
+import type { TopMatch, TopResult } from '@/lib/cv/topMatches';
+import { jobPath } from '@/lib/jobUrl';
 import { EDU_NAME } from '@/lib/cv/cvProfile';
 import { LEVEL_NAME } from '@/lib/cv/languages';
 import { skillName } from '@/lib/cv/skills';
@@ -216,33 +217,99 @@ export function CvInsights({ result }: { result: TopResult }) {
   );
 }
 
-/** Free accounts and guests: CV match is part of Starter and Pro. Shows the real count, nothing else. */
-export function CvMatchLocked({ result, guest, onAuth }: { result: TopResult | null; guest: boolean; onAuth?: (p: 'login' | 'register') => void }) {
+/** "Sponsorship document from 🇦🇿 to 🇩🇪 ready" — when the job is in another country than the seeker's. */
+function DocLine({ from, m }: { from: string | null; m: TopMatch }) {
+  if (!m.cc || (from && from.toUpperCase() === m.cc.toUpperCase())) return null;
+  const href = `/brief/new?job=${m.id}&country=${m.cc.toUpperCase()}`;
+  return (
+    <a
+      href={href}
+      onClick={(e) => {
+        e.preventDefault();
+        nav(href);
+      }}
+      className="flex items-center gap-2 border-t border-ink-100 bg-emerald-50/60 px-4 py-2.5 text-[13px] font-semibold text-emerald-900 hover:bg-emerald-50"
+    >
+      <FileCheck2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+        Sponsorship document from
+        {from ? <CircleFlag countryCode={from} size={16} label={from} /> : <span>you</span>}
+        to
+        <CircleFlag countryCode={m.cc} size={16} label={m.country ?? m.cc} />
+        ready
+      </span>
+      <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+    </a>
+  );
+}
+
+/**
+ * Free accounts: three of their matches. The best one keeps its score and country but hides the role and the
+ * company; the next two are shown in full. Every one shows its sponsorship document. The rest is Starter.
+ */
+export function CvMatchLocked({ result, guest, onAuth, from = null }: { result: TopResult | null; guest: boolean; onAuth?: (p: 'login' | 'register') => void; from?: string | null }) {
   const items = result?.items ?? [];
   const countries = new Set(items.map((m) => m.country).filter(Boolean)).size;
   const href = checkoutHref('starter', 'cv_match_locked');
-  const fake = [86, 82, 78];
+  const [best, ...rest] = items;
+  const open = rest.slice(0, 2);
+  const jobHref = (m: TopMatch) => `${jobPath({ id: `sponsored-${m.id}`, title: m.title, company: m.company })}`;
+  const where = (m: TopMatch) => [m.remote && !m.city ? 'Remote' : m.city, m.country].filter(Boolean).join(', ');
   return (
-    <section className="mx-auto max-w-2xl overflow-hidden rounded-3xl bg-white ring-1 ring-ink-200">
-      <div aria-hidden className="pointer-events-none select-none space-y-px bg-ink-100 blur-[5px]">
-        {(items.length ? items.slice(0, 3).map((m) => m.score) : fake).map((s, i) => (
-          <div key={i} className="flex items-center gap-4 bg-white px-5 py-4">
-            <MatchRing score={s} size={48} />
-            <span className="min-w-0 flex-1">
-              <span className="block h-4 rounded bg-ink-300" style={{ width: `${60 - i * 8}%` }} />
-              <span className="mt-2 block h-3 rounded bg-ink-200" style={{ width: `${42 + i * 6}%` }} />
-            </span>
+    <section className="mx-auto max-w-2xl space-y-3">
+      {best && (
+        <article className="overflow-hidden rounded-2xl bg-white ring-2 ring-brand-200">
+          <div className="flex items-center gap-4 p-4 sm:p-5">
+            <MatchRing score={best.score} size={60} />
+            <div className="min-w-0 flex-1">
+              <p className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-brand-700">
+                <Lock className="h-3 w-3" aria-hidden /> Your best match
+              </p>
+              <div aria-hidden className="pointer-events-none mt-1.5 select-none blur-[6px]">
+                <span className="block h-4 w-3/4 rounded bg-ink-300" />
+                <span className="mt-2 block h-3 w-1/2 rounded bg-ink-200" />
+              </div>
+              {best.cc && (
+                <p className="mt-2 flex items-center gap-1.5 text-[13px] font-semibold text-ink-700">
+                  <CircleFlag countryCode={best.cc} size={15} label={best.country ?? best.cc} /> {best.country}
+                </p>
+              )}
+            </div>
           </div>
-        ))}
-      </div>
-      <div className="px-6 py-7 text-center sm:px-10">
-        <p className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-[12px] font-bold text-brand-700">
-          <Lock className="h-3.5 w-3.5" /> Starter and Pro
-        </p>
-        <h2 className="mt-3 text-[24px] font-bold leading-tight tracking-tight text-ink-950">
+          <DocLine from={from} m={best} />
+        </article>
+      )}
+
+      {open.map((m) => (
+        <article key={m.id} className="overflow-hidden rounded-2xl bg-white ring-1 ring-ink-200">
+          <a
+            href={jobHref(m)}
+            onClick={(e) => {
+              e.preventDefault();
+              nav(jobHref(m));
+            }}
+            className="flex items-center gap-4 p-4 hover:bg-ink-50/60 sm:p-5"
+          >
+            <MatchRing score={m.score} size={60} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[12px] font-semibold text-ink-500">{m.company}</span>
+              <span className="block break-words text-[16px] font-bold leading-snug text-ink-950">{m.title}</span>
+              {where(m) && (
+                <span className="mt-1 flex items-center gap-1.5 text-[13px] text-ink-600">
+                  {m.cc && <CircleFlag countryCode={m.cc} size={14} label={m.country ?? m.cc} />} {where(m)}
+                </span>
+              )}
+            </span>
+          </a>
+          <DocLine from={from} m={m} />
+        </article>
+      ))}
+
+      <div className="rounded-3xl bg-white px-6 py-6 text-center ring-1 ring-ink-200 sm:px-10">
+        <h2 className="text-[22px] font-bold leading-tight tracking-tight text-ink-950">
           {items.length ? `${items.length} ${items.length === 1 ? 'job fits' : 'jobs fit'} your CV${countries > 1 ? `, in ${countries} countries` : ''}` : 'See the jobs your CV matches'}
         </h2>
-        <p className="mx-auto mt-2 max-w-md text-[14.5px] leading-6 text-ink-600">Your score on every job, the skills your CV is missing, what employers also want, and charts of where you fit best.</p>
+        <p className="mx-auto mt-1.5 max-w-md text-[14px] leading-6 text-ink-600">See every match, your best one, and the skills your CV is missing.</p>
         <a
           href={href}
           onClick={(e) => {
@@ -250,9 +317,9 @@ export function CvMatchLocked({ result, guest, onAuth }: { result: TopResult | n
             trackBilling('plan_selected', { plan: 'starter', source: 'cv_match_locked' });
             nav(href);
           }}
-          className="mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-brand-600 px-6 py-3.5 text-[15px] font-bold text-white hover:bg-brand-700"
+          className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-brand-600 px-6 py-3.5 text-[15px] font-bold text-white hover:bg-brand-700"
         >
-          <Sparkles className="h-4 w-4" /> Unlock CV match · {priceLabel('starter')} <ArrowRight className="h-4 w-4" />
+          <Sparkles className="h-4 w-4" /> Unlock all matches · {priceLabel('starter')} <ArrowRight className="h-4 w-4" />
         </a>
         {guest && (
           <p className="mt-3 text-[13px] text-ink-600">

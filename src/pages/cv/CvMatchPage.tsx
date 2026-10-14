@@ -153,7 +153,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
         )}
 
         {/* Starter and Pro: the matches and the charts. Everyone else: the count, and what unlocks it. */}
-        {cv && !searching && !my.loading && !paid && <CvMatchLocked result={result} guest={!session} onAuth={onAuth} />}
+        {cv && !searching && !my.loading && !paid && <CvMatchLocked result={result} guest={!session} onAuth={onAuth} from={(visitor.currentLocation ?? visitor.citizenship ?? '').toUpperCase() || null} />}
 
         {cv && !searching && paid && result && <TopMatchesList result={result} onAuth={onAuth} onAgain={top.start} />}
 

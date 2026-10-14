@@ -2,6 +2,9 @@ import { useRef, useState, type DragEvent } from 'react';
 import { CheckCircle2, ClipboardPaste, FileText, Loader2, Trash2, Upload } from 'lucide-react';
 import { CV_ACCEPT } from '@/lib/cv/extract';
 import { cvSummary, removeCv, saveCvFile, saveCvText, useCv, type StoredCv } from '@/lib/cv/store';
+import { useAuth } from '@/lib/auth';
+import { rememberAuthIntent } from '@/lib/authIntent';
+import { nav } from '@/lib/pageLayout';
 
 type Props = {
   /** `light` sits on the blue hero; `card` on white. */
@@ -21,6 +24,7 @@ type Props = {
  */
 export function CvUpload({ tone = 'card', compact = false, onDone, allowRemove = false, className = '' }: Props) {
   const { cv } = useCv();
+  const { session, loading: authLoading } = useAuth();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +78,28 @@ export function CvUpload({ tone = 'card', compact = false, onDone, allowRemove =
       {error}
     </p>
   );
+
+  // Uploading a CV needs an account (free).
+  if (!session && !authLoading) {
+    const go = (page: 'register' | 'login') => {
+      rememberAuthIntent({ reason: 'match', next: `${window.location.pathname}${window.location.search}` });
+      nav(`/${page}`);
+    };
+    return (
+      <div className={`rounded-2xl p-5 text-center ${light ? 'bg-white/10 ring-1 ring-white/30' : 'bg-white ring-1 ring-ink-200'} ${className}`}>
+        <Upload className={`mx-auto h-6 w-6 ${light ? 'text-white' : 'text-brand-600'}`} aria-hidden />
+        <p className={`mt-2 text-[16px] font-bold ${light ? 'text-white' : 'text-ink-950'}`}>Create a free account to upload your CV</p>
+        <div className="mt-3 flex flex-wrap justify-center gap-2">
+          <button type="button" onClick={() => go('register')} className={`rounded-full px-5 py-2.5 text-[14px] font-bold ${light ? 'bg-white text-brand-700 hover:bg-brand-50' : 'bg-brand-600 text-white hover:bg-brand-700'}`}>
+            Sign up free
+          </button>
+          <button type="button" onClick={() => go('login')} className={`rounded-full px-5 py-2.5 text-[14px] font-bold ${light ? 'text-white ring-1 ring-white/60 hover:bg-white/10' : 'text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50'}`}>
+            Sign in
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (cv && !paste) {
     return (

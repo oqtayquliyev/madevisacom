@@ -43,6 +43,6 @@ export const AUTH_REASON_TEXT: Record<NonNullable<AuthIntent['reason']>, string>
   track: 'Sign in to track your applications.',
   share: 'Sign in to share your experience.',
   offer: 'Create a free account to download it: every account gets 1 free sponsorship document a month.',
-  match: 'Create a free account to see which skills your CV is missing — free on 3 jobs every day.',
+  match: 'Create a free account to upload your CV and see the jobs it matches.',
   alert: 'Create a free account and we’ll email you new matching jobs once a day. Unsubscribe anytime.',
 };
