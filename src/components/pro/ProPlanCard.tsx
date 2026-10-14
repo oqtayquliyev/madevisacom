@@ -40,29 +40,26 @@ export function PlanCard({
           <Sparkles className="h-3.5 w-3.5" aria-hidden /> Recommended start
         </span>
       )}
-      <p className="text-lg font-bold text-ink-950">{plan === 'free' ? 'Free' : `MadeVisa ${info.name}`}</p>
-      <p className="mt-1 text-sm leading-5 text-ink-600">{info.tagline}</p>
-      <p className="mt-4 text-4xl font-bold tracking-tight text-ink-950" data-plan-price={plan}>
+      <p className="text-2xl font-bold tracking-tight text-ink-950 sm:text-[28px]">{plan === 'free' ? 'Free' : `MadeVisa ${info.name}`}</p>
+      <p className="mt-1 text-[15px] font-medium leading-5 text-ink-600">{info.tagline}</p>
+      <p className="mt-4 text-5xl font-bold tracking-tight text-ink-950" data-plan-price={plan}>
         {plan === 'free' ? '$0' : priceLabel(plan).replace(' / month', '')}
         <span className="text-base font-medium text-ink-500">{plan === 'free' ? ' forever' : ' / month'}</span>
       </p>
       <p className="text-[13px] text-ink-500">{plan === 'free' ? 'No card needed' : 'USD, billed monthly · cancel any time'}</p>
 
-      <ul className="mt-5 flex-1 space-y-3">
-        {plan !== 'free' && <li className="text-sm font-semibold text-ink-900">{plan === 'starter' ? 'Everything in Free, plus:' : 'Everything in Starter, plus:'}</li>}
+      {/* Feature titles only: the details are in "Compare plans" below the cards. */}
+      <ul className="mt-6 flex-1 space-y-3">
+        {plan !== 'free' && <li className="text-[15px] font-bold text-ink-950">{plan === 'starter' ? 'Everything in Free, plus:' : 'Everything in Starter, plus:'}</li>}
         {benefits
           .filter((b) => b.title !== 'Everything in Starter')
           .map((b) => (
-            <li key={b.title} className="flex gap-2 text-sm text-ink-700">
-              <Check className={`mt-0.5 h-4 w-4 shrink-0 ${plan === 'free' ? 'text-ink-400' : 'text-brand-600'}`} aria-hidden />
-              <span>
-                <strong className="font-semibold text-ink-900">{b.title}.</strong>
-                {!compact && <> {b.text}</>}
-              </span>
+            <li key={b.title} className="flex items-start gap-2.5 text-[15px] font-semibold leading-6 text-ink-900">
+              <Check className={`mt-1 h-4 w-4 shrink-0 ${plan === 'free' ? 'text-ink-400' : 'text-brand-600'}`} aria-hidden />
+              <span>{b.title}</span>
             </li>
           ))}
       </ul>
-      {!compact && info.coming.length > 0 && <p className="mt-4 text-[12px] leading-5 text-ink-500">Coming to Pro, not included yet: {info.coming.join('; ')}.</p>}
 
       {plan === 'free' ? (
         onFree ? (

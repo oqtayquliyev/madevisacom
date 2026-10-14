@@ -101,6 +101,11 @@ const FAMILY: Record<string, SkillGroup[]> = {
   'Public Sector & Nonprofit': ['Business & operations'],
 };
 
+/** The skill groups that belong to a kind of job: anything outside them is industry or other-field experience, not a core skill. */
+export function familyOf(category: JobCategory | null): SkillGroup[] {
+  return category ? FAMILY[category.group] ?? [] : [];
+}
+
 const EDU_LINE = /degree|bachelor|master|ph\.?\s?d|doctorate|diploma|studium|abschluss|ausbildung|university|hochschul|dipl[oô]me|formation|titulación|licenciatura|\bgrado\b|laurea|educated to|higher education|apprenticeship|vocational/i;
 const EDU_ASK: [EduLevel, RegExp][] = [
   [5, /ph\.?\s?d\b|doctorate|doctoral|promotion\b/i],

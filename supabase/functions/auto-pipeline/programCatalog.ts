@@ -5,12 +5,13 @@
 // "Content ideas". Add a format here + a builder in programFormats.ts and it
 // appears everywhere.
 //
-// The strategy in one paragraph: vacancies alone make a feed people mute.
-// So every network gets a mix of seven pillars — fresh jobs, market numbers,
-// visa knowledge, "your application" (how well a CV matches a job, what is
-// missing from it, and the sponsorship document), proof from real applicants,
-// community posts and news — and never the same kind of post twice in a row. Every post links back to the page on
-// madevisa.com that holds the full answer.
+// The strategy (October 2026): direct job opportunities first. Most posts say one
+// thing plainly — "<Company> is hiring <Role> in <Country>" — on a white card or a
+// fast reel (one still screen per role, no slow text animation), always roles from
+// different kinds of work, never a company or role posted before on that network.
+// Around them: CV match ("see your score for this job"), and an invitation to follow
+// for more opportunities. Telegram is links only. The other pillars stay available
+// with small shares.
 
 export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'telegram';
 export const ALL_PLATFORMS: Platform[] = ['instagram', 'facebook', 'linkedin', 'tiktok', 'telegram'];
@@ -19,13 +20,13 @@ export type Pillar = 'jobs' | 'market' | 'visa' | 'plan' | 'proof' | 'community'
 export type DayPart = 'early' | 'morning' | 'lunch' | 'afternoon' | 'evening' | 'night';
 
 export const PILLARS: Record<Pillar, { name: string; why: string; share: number; color: string }> = {
-  jobs: { name: 'Fresh jobs', why: 'The reason people follow: roles that opened today, straight from career pages.', share: 26, color: '#2563EB' },
-  market: { name: 'Who is hiring', why: 'Countries, companies and roles by the numbers — the posts people share.', share: 17, color: '#0891B2' },
-  visa: { name: 'Visa know-how', why: 'Routes, salary rules and timelines with the official source — the posts people save.', share: 17, color: '#7C3AED' },
-  plan: { name: 'Your application', why: 'What MadeVisa does for the applicant: how well a CV matches the job, what is missing from it, and the sponsorship document that goes with it.', share: 16, color: '#DB2777' },
-  proof: { name: 'Real outcomes', why: 'What actually happened to applicants: replies, silence, interviews. Builds trust.', share: 8, color: '#059669' },
-  community: { name: 'Community', why: 'Questions, tips, follow and comment prompts. Grows the account and starts conversations.', share: 10, color: '#D97706' },
-  news: { name: 'News', why: 'New programs, rule changes and new articles — timely posts with a source.', share: 6, color: '#DC2626' },
+  jobs: { name: 'Job opportunities', why: 'The reason people follow: “<Company> is hiring <Role> in <Country>”, straight from career pages.', share: 70, color: '#2563EB' },
+  market: { name: 'Who is hiring', why: 'Countries, companies and roles by the numbers — the posts people share.', share: 4, color: '#0891B2' },
+  visa: { name: 'Visa know-how', why: 'Routes, salary rules and timelines with the official source — the posts people save.', share: 2, color: '#7C3AED' },
+  plan: { name: 'Your application', why: 'CV match — your score for each job — and the sponsorship document that goes with the application.', share: 12, color: '#DB2777' },
+  proof: { name: 'Real outcomes', why: 'What actually happened to applicants: replies, silence, interviews. Builds trust.', share: 1, color: '#059669' },
+  community: { name: 'Community', why: 'Follow prompts and questions. Grows the account.', share: 10, color: '#D97706' },
+  news: { name: 'News', why: 'New programs, rule changes and new articles — timely posts with a source.', share: 1, color: '#DC2626' },
 };
 export const PILLAR_ORDER: Pillar[] = ['jobs', 'market', 'visa', 'plan', 'proof', 'community', 'news'];
 
@@ -151,11 +152,11 @@ export const FORMATS: FormatDef[] = [
     platforms: ['telegram', 'facebook'], parts: ['early', 'morning', 'lunch', 'afternoon', 'evening', 'night'], weight: 3, cooldown: 1.5, fresh: true, perDay: 12,
   },
   {
-    key: 'hiring_card', pillar: 'jobs', name: '“We are hiring” card',
-    idea: 'One role, one company, as a clean hiring poster: company logo, “We are Hiring”, the role in big letters, three chips (skill, experience, where), and how to apply. Every card is a company that has never been on the account before.',
-    example: 'We are Hiring · Software Developer · Flutter · 1+ Year · Onsite',
-    source: 'The newest role from a company never posted on Instagram', link: 'The job page (link in bio)', visual: 'Hiring poster (light gradient)',
-    platforms: ['instagram'], parts: ['morning', 'lunch', 'evening', 'afternoon'], weight: 3, cooldown: 3, fresh: true, perDay: 2,
+    key: 'hiring_card', pillar: 'jobs', name: '“X is hiring” card',
+    idea: 'One opportunity, said plainly on a white card: the company’s logo and name, “Now hiring”, the role in big letters, the flag and the place, how to apply and “Follow for daily job opportunities”. Every card is a company never posted on the account, and a different kind of work from the last posts.',
+    example: 'Spotify is hiring · Backend Engineer · 🇸🇪 Stockholm, Sweden',
+    source: 'The newest role from a company never posted on this network', link: 'The job page', visual: 'White hiring card',
+    platforms: VISUAL, parts: ['early', 'morning', 'lunch', 'afternoon', 'evening', 'night'], weight: 3, cooldown: 2, fresh: true, perDay: 3,
   },
   {
     key: 'job_spotlight', pillar: 'jobs', name: 'Role of the day',
@@ -284,7 +285,7 @@ export const FORMATS: FormatDef[] = [
   // --- Your application: CV match first, then the sponsorship document -----------
   {
     key: 'match_check', pillar: 'plan', name: 'How well does your CV match?',
-    idea: 'The new button next to Apply: one press compares your CV with the ad and gives a score. The score is free on every job.',
+    idea: 'The button next to Apply: one press compares your CV with the ad and gives a score. Part of Starter and Pro.',
     example: 'Before you apply: how well does your CV actually match this ad?',
     source: 'CV match', link: '/cv-match', visual: 'Photo with one line, then a card',
     platforms: FEED, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 40,
@@ -298,7 +299,7 @@ export const FORMATS: FormatDef[] = [
   },
   {
     key: 'match_missing', pillar: 'plan', name: 'The skill your CV forgot',
-    idea: 'Why a skill you have but didn’t write down counts as missing — for the match score and for a recruiter’s search. Free accounts see their missing skills on 3 jobs a day.',
+    idea: 'Why a skill you have but didn’t write down counts as missing — for the match score and for a recruiter’s search. Part of Starter and Pro.',
     example: 'You know Excel. Your CV doesn’t say so. To a recruiter’s search, you don’t.',
     source: 'CV match — missing skills', link: '/cv-match', visual: 'Big statement',
     platforms: FEED, parts: ['morning', 'lunch', 'evening'], weight: 2.5, cooldown: 60,
@@ -312,7 +313,7 @@ export const FORMATS: FormatDef[] = [
   },
   {
     key: 'match_free', pillar: 'plan', name: 'What’s free, what’s Pro',
-    idea: 'Plainly: the score is free on every job; missing skills on 3 jobs a day with a free account; the full report and 50 sponsorship documents a month in Pro.',
+    idea: 'Plainly: every job and 5 sponsorship documents are free; CV match is in Starter; Auto Apply and 50 documents a month in Pro.',
     example: 'What you get without paying, and what the plan adds.',
     source: 'Pricing', link: '/pricing', visual: 'Fact card',
     platforms: FEED, parts: ['lunch', 'evening'], weight: 1, cooldown: 240,
@@ -502,56 +503,63 @@ FORMATS.push(
     idea: 'Footage of the country, then “Germany is hiring”, three numbers that appear one by one, and where to find the roles.',
     example: 'Germany is hiring. 5,200 open roles right now.',
     source: 'Live job-market numbers by country', link: '/destinations/<country>', visual: 'Reel, about 12 seconds',
-    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 22, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 22, off: true, needs: 'Off: slow text reels were replaced by the fast job reel (“Reel: who is hiring”). Switch on in the admin panel if wanted.',
   },
   {
     key: 'reel_city', pillar: 'jobs', name: 'Reel: jobs in one city', video: true, fresh: true,
     idea: 'Footage of a city, then three roles that opened there today, with the links in the caption.',
     example: 'Berlin is hiring. 3 roles posted in the last 24 hours.',
     source: 'Fresh jobs, grouped by city', link: '/jobs?country=…', visual: 'Reel, about 12 seconds',
-    platforms: REEL_ON, parts: ['morning', 'lunch', 'evening'], weight: 3, cooldown: 20, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['morning', 'lunch', 'evening'], weight: 3, cooldown: 20, off: true, needs: 'Off: slow text reels were replaced by the fast job reel (“Reel: who is hiring”). Switch on in the admin panel if wanted.',
   },
   {
     key: 'reel_route', pillar: 'visa', name: 'Reel: a visa route in 15 seconds', video: true,
     idea: 'One visa route: its name over footage of the country, then what it asks for, line by line, and the official source.',
     example: 'Opportunity Card, Germany. Move first, find the job after.',
     source: 'Visa guides', link: '/destinations/<country>', visual: 'Reel, about 15 seconds',
-    platforms: REEL_ON, parts: ['evening', 'night', 'lunch'], weight: 3, cooldown: 22, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['evening', 'night', 'lunch'], weight: 3, cooldown: 22, off: true, needs: 'Off: slow text reels were replaced by the fast job reel (“Reel: who is hiring”). Switch on in the admin panel if wanted.',
   },
   {
     key: 'reel_myth', pillar: 'visa', name: 'Reel: myth, then fact', video: true,
     idea: 'A common belief on screen, then the fact that corrects it. Short, and made to be shared.',
     example: 'Myth: you need a job offer before you can move.',
     source: 'Visa guides', link: '/destinations', visual: 'Reel, about 14 seconds',
-    platforms: REEL_ON, parts: ['evening', 'night'], weight: 2, cooldown: 44, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['evening', 'night'], weight: 2, cooldown: 44, off: true, needs: 'Off: slow text reels were replaced by the fast job reel (“Reel: who is hiring”). Switch on in the admin panel if wanted.',
   },
   {
     key: 'reel_plan', pillar: 'plan', name: 'Reel: you make the offer', video: true,
     idea: 'The Visa Plan idea as a reel: the hook, the three steps, “see how it works”.',
     example: 'No visa line in the ad is not a no.',
     source: 'Visa Plan', link: '/offers', visual: 'Reel, about 15 seconds',
-    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 1.5, cooldown: 68, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 1.5, cooldown: 68, off: true, needs: 'Off: slow text reels were replaced by the fast job reel (“Reel: who is hiring”). Switch on in the admin panel if wanted.',
   },
   {
     key: 'reel_match', pillar: 'plan', name: 'Reel: check your match', video: true,
     idea: 'Footage of people at work, then the question (“Does your CV match the job?”), the three things you get, and where to try it.',
     example: 'Does your CV say what the ad asks for?',
     source: 'CV match', link: '/cv-match', visual: 'Reel, about 14 seconds',
-    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 30, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 30, off: true, needs: 'Off: slow text reels were replaced by the fast job reel (“Reel: who is hiring”). Switch on in the admin panel if wanted.',
   },
   {
     key: 'reel_cvfix', pillar: 'plan', name: 'Reel: one CV fix', video: true,
     idea: 'One CV mistake and its fix in three screens, over footage of someone working on a laptop.',
     example: 'Your CV has no numbers. Here’s the fix.',
     source: 'CV match — checks on the CV itself', link: '/cv-match', visual: 'Reel, about 13 seconds',
-    platforms: REEL_ON, parts: ['morning', 'evening', 'night'], weight: 2.5, cooldown: 22, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['morning', 'evening', 'night'], weight: 2.5, cooldown: 22, off: true, needs: 'Off: slow text reels were replaced by the fast job reel (“Reel: who is hiring”). Switch on in the admin panel if wanted.',
+  },
+  {
+    key: 'reel_hiring', pillar: 'jobs', name: 'Reel: who is hiring (fast)', video: true, fresh: true,
+    idea: 'Three opportunities from three different kinds of work, one white screen each (1.7 seconds): “<Company> is hiring”, the role, the flag and the place. Then “Follow @madevisacom”. No slow text animation; the first role is the thumbnail.',
+    example: 'Spotify is hiring · Backend Engineer · Stockholm, Sweden',
+    source: 'Fresh jobs never posted on this network, one per company and kind of work', link: 'Each job page (caption)', visual: 'Reel, about 7 seconds, white',
+    platforms: ['instagram', 'facebook', 'tiktok'], parts: ['early', 'morning', 'lunch', 'afternoon', 'evening', 'night'], weight: 3, cooldown: 2, perDay: 3, needs: REEL_NEEDS,
   },
   {
     key: 'reel_news', pillar: 'news', name: 'Reel: news', video: true,
     idea: 'A News desk item as a reel: the headline over footage of the country, the key facts, the source.',
     example: 'Portugal opens applications for its job-seeker visa.',
     source: 'News desk (you add the item and the source)', link: 'The source or a MadeVisa page', visual: 'Reel, about 13 seconds',
-    platforms: REEL_ON, parts: ['morning', 'lunch', 'evening'], weight: 3, cooldown: 6, needs: REEL_NEEDS,
+    platforms: REEL_ON, parts: ['morning', 'lunch', 'evening'], weight: 3, cooldown: 6, off: true, needs: 'Off: slow text reels were replaced by the fast job reel (“Reel: who is hiring”). Switch on in the admin panel if wanted.',
   }
 );
 
@@ -561,23 +569,25 @@ export const FORMAT_BY_KEY: Record<string, FormatDef> = Object.fromEntries(FORMA
 export const JOB_FORMATS = new Set(FORMATS.filter((f) => f.fresh).map((f) => f.key));
 
 // --- How each network posts jobs ------------------------------------------------
-// Telegram posts nothing but job links. Facebook and Instagram keep the rest of the
-// mix, but every job post there is in their own style (Facebook: the same link
-// list; Instagram: the hiring card), and each day has at least one.
+// Telegram posts nothing but job links (no image, no header). Instagram, Facebook,
+// LinkedIn and TikTok post jobs as the white "X is hiring" card, plus the fast job
+// reel where the network takes reels; each day has at least one card.
 /** Networks that post only these formats. */
 export const ONLY_FORMATS: Partial<Record<Platform, string[]>> = { telegram: ['jobs_links'] };
-/** The one job format a network uses; its other job formats are left out. */
-export const JOB_STYLE: Partial<Record<Platform, string>> = { telegram: 'jobs_links', facebook: 'jobs_links', instagram: 'hiring_card' };
+/** The job format a network posts every day; its other job formats are left out (except JOB_EXTRA). */
+export const JOB_STYLE: Partial<Record<Platform, string>> = { telegram: 'jobs_links', facebook: 'hiring_card', instagram: 'hiring_card', linkedin: 'hiring_card', tiktok: 'hiring_card' };
+/** Other job formats a network may post besides its style. */
+export const JOB_EXTRA: Partial<Record<Platform, string[]>> = { facebook: ['reel_hiring'], instagram: ['reel_hiring'], tiktok: ['reel_hiring'] };
 /** Networks the program runs on even before Start is pressed (always on autopilot). */
 export const ALWAYS_ON: Platform[] = ['telegram'];
 /** Formats that go out exactly as written: no photo is put in front of them. */
-export const PLAIN_FORMATS = new Set(['jobs_links', 'hiring_card']);
+export const PLAIN_FORMATS = new Set(['jobs_links', 'hiring_card', 'reel_hiring']);
 /** May this network post this format at all? */
 export const formatAllowed = (p: Platform, key: string): boolean => {
   const only = ONLY_FORMATS[p];
   if (only) return only.includes(key);
   const style = JOB_STYLE[p];
-  return !(style && JOB_FORMATS.has(key) && key !== style);
+  return !(style && JOB_FORMATS.has(key) && key !== style && !(JOB_EXTRA[p] ?? []).includes(key));
 };
 
 /** Program settings, as stored in social_program. */

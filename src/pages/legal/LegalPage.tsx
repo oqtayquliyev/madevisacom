@@ -1,7 +1,8 @@
-import { ArrowRight, Mail } from 'lucide-react';
+import { ArrowRight, Mail, MapPin, Phone } from 'lucide-react';
 import type { View } from '@/types';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { legalPages, LEGAL_LAST_UPDATED } from '@/data/legalContent';
+import { CONTACT } from '@/lib/contact';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { useSeo } from '@/lib/seo';
@@ -61,6 +62,19 @@ export function LegalPage({ slug, go, onAuth }: LegalPageProps) {
         )}
 
         <main className="max-w-3xl">
+          {content.slug === 'contact' && (
+            <address className="mb-6 grid gap-3 rounded-xl border border-ink-200 bg-white p-5 not-italic sm:grid-cols-3 sm:p-6">
+              <span className="flex items-start gap-2.5 text-[15px] leading-6 text-ink-800">
+                <MapPin className="mt-1 h-4 w-4 shrink-0 text-brand-600" aria-hidden /> {CONTACT.address}
+              </span>
+              <a href={`tel:${CONTACT.tel}`} className="flex items-start gap-2.5 text-[15px] font-semibold leading-6 text-brand-700 hover:underline">
+                <Phone className="mt-1 h-4 w-4 shrink-0" aria-hidden /> {CONTACT.phone}
+              </a>
+              <a href={`mailto:${CONTACT.email}`} className="flex items-start gap-2.5 text-[15px] font-semibold leading-6 text-brand-700 hover:underline">
+                <Mail className="mt-1 h-4 w-4 shrink-0" aria-hidden /> {CONTACT.email}
+              </a>
+            </address>
+          )}
           {content.summary && (
             <section className="rounded-xl border border-brand-200 bg-brand-50/60 p-5 sm:p-6">
               <h2 className="text-sm font-bold text-brand-800">At a glance</h2>

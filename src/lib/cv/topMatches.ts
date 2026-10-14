@@ -55,8 +55,12 @@ export type TopMatch = {
   /** Skills the ad names, and how many of them the CV shows. */
   asked: number;
   covered: number;
-  /** Skills the ad names that the CV doesn't mention — required ones first (at most 8). */
+  /** Core skills for this kind of job that the ad asks for and the CV doesn't mention (at most 8). */
   missing: string[];
+  /** Industry or other-field experience the ad also wants (at most 6). */
+  wanted?: string[];
+  /** Nice-to-haves the CV doesn't mention (at most 6). */
+  nice?: string[];
   /** The score this job would get if the CV mentioned every skill the ad names. Never below `score`. */
   potential: number;
   /** The kind of role, who posted it, where the work is done. */
@@ -66,7 +70,7 @@ export type TopMatch = {
 };
 export type TopResult = {
   /** Shape of the saved result; older ones are searched again. */
-  v: 4;
+  v: 5;
   cvAt: string;
   at: number;
   /** Ads read and scored. */
@@ -101,7 +105,7 @@ function readSaved(cv: StoredCv | null): TopResult | null {
   if (!cv) return null;
   try {
     const v = JSON.parse(window.localStorage.getItem(KEY) ?? 'null') as TopResult | null;
-    if (v && v.v === 4 && v.cvAt === cv.at && Date.now() - v.at < TOP_TTL_MS && Array.isArray(v.items)) return v;
+    if (v && v.v === 5 && v.cvAt === cv.at && Date.now() - v.at < TOP_TTL_MS && Array.isArray(v.items)) return v;
   } catch {
     /* ignore */
   }
@@ -237,7 +241,7 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
     const me: EnglishCv = await cvInEnglish(cv, userId);
     const words = shortlistWords(me.profile);
     if (!words.title.length && !words.skill.length) {
-      const empty: TopResult = { v: 4, cvAt: cv.at, at: Date.now(), read: 0, pool: 0, items: [], cvForeign: me.state === 'foreign', tips: [] };
+      const empty: TopResult = { v: 5, cvAt: cv.at, at: Date.now(), read: 0, pool: 0, items: [], cvForeign: me.state === 'foreign', tips: [] };
       writeSaved(empty);
       return set({ status: 'done', stage: null, progress: 1, result: empty });
     }
@@ -314,13 +318,15 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
         visa: x?.visa_status ?? (x?.visa_sponsorship ? 'offered' : null),
         postedAt: x?.source_posted_at ?? x?.created_at ?? r.created_at ?? null,
         asked: m.skills.asked, covered: m.skills.covered,
-        missing: m.skills.missing.slice(0, 8).map((k) => k.name),
+        missing: m.skills.missing.filter((k) => k.kind === 'skill').slice(0, 8).map((k) => k.name),
+        wanted: m.skills.missing.filter((k) => k.kind === 'experience').slice(0, 6).map((k) => k.name),
+        nice: m.skills.missing.filter((k) => k.kind === 'nice').slice(0, 6).map((k) => k.name),
         potential: Math.max(m.score, full),
         role: job.category?.label ?? null, publisherId: r.publisher_id, arrangement: x?.work_arrangement ?? null,
       });
     }
     items.sort((a, b) => b.score - a.score);
-    const result: TopResult = { v: 4, cvAt: cv.at, at: Date.now(), read: readable.length, pool: pool.length, items: items.filter((x) => x.score >= MIN_SCORE).slice(0, KEEP), cvForeign: me.state === 'foreign', tips };
+    const result: TopResult = { v: 5, cvAt: cv.at, at: Date.now(), read: readable.length, pool: pool.length, items: items.filter((x) => x.score >= MIN_SCORE).slice(0, KEEP), cvForeign: me.state === 'foreign', tips };
     writeSaved(result);
     set({ status: 'done', stage: null, progress: 1, result });
   } catch (e) {

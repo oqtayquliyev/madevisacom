@@ -1,6 +1,7 @@
-import { Loader2, ScanSearch } from 'lucide-react';
+import { Loader2, Lock, ScanSearch } from 'lucide-react';
 import type { JobMatch } from '@/lib/cv/checks';
 import { MatchRing } from '@/components/cv/MatchBits';
+import { useMyPlan } from '@/lib/plans';
 
 const toPanel = () => document.getElementById('cv-match')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
@@ -11,11 +12,13 @@ const toPanel = () => document.getElementById('cv-match')?.scrollIntoView({ beha
 export function MatchButton({ match, variant, disabled = false }: { match: JobMatch; variant: 'hero' | 'body'; disabled?: boolean }) {
   const hero = variant === 'hero';
   const { cv, result, busy } = match;
+  // CV match is part of Starter and Pro: everyone else is taken to the panel, which says so.
+  const { isPaid } = useMyPlan();
 
   const click = () => {
     toPanel();
     // With a CV on file, pressing the button is the check itself.
-    if (cv && !result && !busy) void match.check();
+    if (isPaid && cv && !result && !busy) void match.check();
   };
 
   return (
@@ -27,7 +30,11 @@ export function MatchButton({ match, variant, disabled = false }: { match: JobMa
         hero ? 'text-white ring-1 ring-white/50 hover:bg-white/10 focus-visible:outline-white' : 'text-brand-700 ring-1 ring-brand-600/40 hover:bg-brand-50 focus-visible:outline-brand-600'
       }`}
     >
-      {busy ? (
+      {!isPaid ? (
+        <>
+          <Lock className="h-4 w-4" /> Check your match
+        </>
+      ) : busy ? (
         <>
           <Loader2 className="h-4 w-4 animate-spin" /> Checking…
         </>

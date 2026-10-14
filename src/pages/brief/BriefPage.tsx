@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, BadgeCheck, Check, ChevronDown, Copy, Download, ExternalLink, Link2, Loader2, Lock, Maximize2, Paperclip, Unlock, X } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Check, ChevronDown, Copy, Download, ExternalLink, Link2, Loader2, Lock, Maximize2, Paperclip, X } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { useAuth } from '@/lib/auth';
@@ -181,10 +181,8 @@ function NewOffer({ go, onAuth }: Props) {
   // The full name comes first: a document that says "Your name" is worth nothing.
   const [nameOk, setNameOk] = useState(false);
   const [fullOpen, setFullOpen] = useState(false);
-  // Each line of "Check your details" is ticked by the person, against the original ad. A tick belongs to
-  // the value it was given for: change the value and the tick is gone.
-  const [ticks, setTicks] = useState<Record<string, string>>({});
-  const [sourceOpened, setSourceOpened] = useState(false);
+  // One approval for every line of "Check your details". Everything can still be edited after the download.
+  const [approved, setApproved] = useState(false);
   // Starts on the recommended, balanced terms until the candidate changes them.
   const [useRec, setUseRec] = useState(true);
   const { profile: visitor } = usePersonalization();
@@ -408,10 +406,9 @@ function NewOffer({ go, onAuth }: Props) {
       source: routeSrc,
     },
   ];
-  // Lines that come from the job ad can only be ticked after the original ad was opened.
-  const needsSource = Boolean(job.source) && !sourceOpened;
-  const ticked = (c: Check_) => c.level !== 'stop' && ticks[c.id] === c.value;
-  const left = checks.filter((c) => !ticked(c)).length;
+  // One "I approve all" tick covers every line; nothing forces a visit to the original ad.
+  const ticked = (c: Check_) => c.level !== 'stop' && approved;
+  const left = approved ? checks.filter((c) => c.level === 'stop').length : checks.length;
   const stop = checks.find((c) => c.level === 'stop') ?? null;
   // The evidence kept with the document: what came from the ad, what the person compared, what they entered.
   const terms: OfferTerms = {
@@ -452,11 +449,11 @@ function NewOffer({ go, onAuth }: Props) {
       setError(stop.text);
       return goTo(stop.field);
     }
-    // Every line has to be ticked by the person, against the original ad.
-    if (left > 0) {
+    // One approval for all the details, at the end of the list.
+    if (!approved) {
       setFullOpen(false);
-      setError(null);
-      return goTo('offer-checks');
+      setError('Tick “I approve all these details” first. You can edit the document any time after downloading.');
+      return goTo('offer-approve');
     }
     // No plan yet (or no account): this is the moment to show the price and what it covers.
     if (!canPay && !credits?.pro) {
@@ -467,7 +464,8 @@ function NewOffer({ go, onAuth }: Props) {
     if (!canPay) return fail(`All ${PRO_MONTHLY_DOCS} documents for this month are used. They renew on the 1st.`);
     setError(null);
     setFullOpen(false);
-    setConfirming(true);
+    // Approved above: straight to the download, no second confirmation.
+    void generate();
   };
 
   const generate = async () => {
@@ -574,23 +572,21 @@ function NewOffer({ go, onAuth }: Props) {
                 </>
               ) : left ? (
                 <>
-                  <strong className="text-ink-950">Check your document{job.source ? ' against the original job ad' : ''}.</strong> {checks.length - left} of {checks.length} lines confirmed. The download opens when all are ticked.
+                  <strong className="text-ink-950">Ready with the recommended settings.</strong> Approve the details below and download. You can edit it any time later.
                 </>
               ) : (
                 <>
-                  <strong className="text-ink-950">Your sponsorship document{companyName ? ` for ${companyName}` : ''} is ready.</strong> Everything is checked.
+                  <strong className="text-ink-950">Your sponsorship document{companyName ? ` for ${companyName}` : ''} is ready.</strong> Download it now and edit it later from your profile.
                 </>
               )}
             </p>
             <button
               onClick={review}
               disabled={busy}
-              aria-disabled={Boolean(stop) || left > 0}
-              className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-bold disabled:opacity-60 ${
-                stop ? 'bg-[#1D4ED8] text-white hover:bg-brand-800' : left ? 'bg-ink-200 text-ink-500 hover:bg-ink-300' : 'bg-[#1D4ED8] text-white hover:bg-brand-800'
-              }`}
+              aria-disabled={Boolean(stop)}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-5 py-2.5 text-[14px] font-bold text-white hover:bg-brand-800 disabled:opacity-60"
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : stop ? null : left ? <Lock className="h-4 w-4" /> : <Download className="h-4 w-4" />} {stop ? 'Fix it' : 'Download PDF'}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : stop ? null : <Download className="h-4 w-4" />} {stop ? 'Fix it' : 'Download PDF'}
             </button>
           </div>
         </div>
@@ -610,55 +606,27 @@ function NewOffer({ go, onAuth }: Props) {
         </Panel>
       }
     >
-      {/* 0. The job this document is for, and where it came from */}
+      {/* 0. The job this document is for. The original ad is there to look at, never required. */}
       {!custom && (
-        <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-2 ring-amber-300">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4">
-            {job.logo ? (
-              <img src={job.logo} alt="" className="h-12 w-12 shrink-0 rounded-lg object-contain ring-1 ring-ink-100" />
-            ) : (
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-ink-100 text-[16px] font-bold text-ink-600">{job.company.slice(0, 1)}</span>
-            )}
-            <div className="min-w-0 flex-1 basis-56">
-              <p className="truncate text-[12px] font-semibold text-ink-500">{job.company}</p>
-              <p className="break-words text-[16px] font-bold leading-snug text-ink-950">{job.title}</p>
-              <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-ink-600">
-                {job.ownCode && <CircleFlag countryCode={job.ownCode} size={15} label={countryNameOf(job.ownCode) ?? job.ownCode} />}
-                {[job.city, countryNameOf(job.ownCode)].filter(Boolean).join(', ') || 'Location on the ad'}
-              </p>
-            </div>
-            {job.source ? (
-              <a
-                href={job.source}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setSourceOpened(true)}
-                className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-400 px-5 py-3 text-[15px] font-bold text-ink-950 hover:bg-amber-300 sm:w-auto"
-              >
-                <ExternalLink className="h-4 w-4" /> Open the original job ad
-              </a>
-            ) : (
-              job.path && (
-                <a href={job.path} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[#1D4ED8] hover:underline">
-                  <ExternalLink className="h-3.5 w-3.5" /> The job on MadeVisa
-                </a>
-              )
-            )}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-ink-200">
+          {job.logo ? (
+            <img src={job.logo} alt="" className="h-12 w-12 shrink-0 rounded-lg object-contain ring-1 ring-ink-100" />
+          ) : (
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-ink-100 text-[16px] font-bold text-ink-600">{job.company.slice(0, 1)}</span>
+          )}
+          <div className="min-w-0 flex-1 basis-56">
+            <p className="truncate text-[12px] font-semibold text-ink-500">{job.company}</p>
+            <p className="break-words text-[16px] font-bold leading-snug text-ink-950">{job.title}</p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-ink-600">
+              {job.ownCode && <CircleFlag countryCode={job.ownCode} size={15} label={countryNameOf(job.ownCode) ?? job.ownCode} />}
+              {[job.city, countryNameOf(job.ownCode)].filter(Boolean).join(', ') || 'Location on the ad'}
+            </p>
           </div>
-          <p className="flex items-start gap-2 border-t border-amber-200 bg-amber-50 px-4 py-2.5 text-[13px] leading-5 text-amber-950">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-            <span>
-              <strong>Compare with the source before you download.</strong> Job ads are collected automatically and a detail can be wrong.{' '}
-              {job.source ? (
-                <>
-                  Open the ad on <span className="font-semibold">{cleanWebsite(job.source)?.split('/')[0] ?? 'the company’s site'}</span>, then tick each line below.
-                  {sourceOpened ? <span className="font-semibold text-emerald-800"> Opened ✓</span> : ''}
-                </>
-              ) : (
-                'We have no link to the original ad for this job: check the details on the company’s own careers page.'
-              )}
-            </span>
-          </p>
+          {(job.source || job.path) && (
+            <a href={job.source || job.path || undefined} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[#1D4ED8] hover:underline">
+              <ExternalLink className="h-3.5 w-3.5" /> {job.source ? 'Original job ad' : 'The job on MadeVisa'}
+            </a>
+          )}
         </div>
       )}
 
@@ -667,30 +635,23 @@ function NewOffer({ go, onAuth }: Props) {
         <div id="offer-checks" tabIndex={-1} className="scroll-mt-24 outline-none">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h1 className="text-[18px] font-bold leading-snug text-ink-950">Check your details</h1>
-            <p className={`text-[13px] font-semibold tabular-nums ${left ? 'text-amber-700' : 'text-emerald-700'}`}>
-              {checks.length - left} of {checks.length} confirmed
-            </p>
+            <p className={`text-[13px] font-semibold ${approved && !stop ? 'text-emerald-700' : 'text-ink-500'}`}>{approved && !stop ? 'Approved' : 'Recommended settings'}</p>
           </div>
-          <p className="mt-0.5 text-[13px] leading-5 text-ink-600">The company reads this document as written. Tick each line once you have checked it{job.source ? ' against the original ad' : ''}.</p>
+          <p className="mt-0.5 text-[13px] leading-5 text-ink-600">Filled in from the job ad and your profile. Change anything, then approve all at the end.</p>
           <ul className="mt-3 divide-y divide-ink-100 rounded-lg ring-1 ring-ink-200">
             {checks.map((c) => {
               const on = ticked(c);
-              const blocked = c.level === 'stop' || (Boolean(c.fromAd) && needsSource);
               return (
                 <li key={c.id} className={`flex items-start gap-3 px-3 py-2.5 ${on ? 'bg-emerald-50/60' : ''}`}>
-                  <input
-                    id={`tick-${c.id}`}
-                    type="checkbox"
-                    checked={on}
-                    disabled={blocked}
-                    onChange={(e) => setTicks((t) => ({ ...t, [c.id]: e.target.checked ? c.value : '' }))}
-                    className="mt-0.5 h-5 w-5 shrink-0 accent-emerald-600 disabled:opacity-40"
-                  />
-                  <label htmlFor={`tick-${c.id}`} className={`min-w-0 flex-1 text-[14px] leading-5 ${blocked ? '' : 'cursor-pointer'}`}>
+                  {c.level === 'stop' ? (
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" aria-hidden />
+                  ) : (
+                    <Check className={`mt-0.5 h-5 w-5 shrink-0 ${on ? 'text-emerald-600' : 'text-ink-300'}`} aria-hidden />
+                  )}
+                  <div className="min-w-0 flex-1 text-[14px] leading-5">
                     <span className={`block break-words font-semibold ${c.level === 'stop' ? 'text-rose-700' : 'text-ink-950'}`}>{c.text}</span>
-                    {c.level !== 'stop' && <span className="block text-[12.5px] text-ink-500">{c.fromAd && needsSource ? 'Open the original job ad first, then tick this.' : c.hint}</span>}
                     {c.level !== 'stop' && c.source && <span className="mt-0.5 block text-[11.5px] font-medium text-ink-400">Source: {c.source}</span>}
-                  </label>
+                  </div>
                   {c.field && (
                     <button onClick={() => goTo(c.field)} className="shrink-0 text-[13px] font-semibold text-[#1D4ED8] hover:underline">
                       {c.level === 'stop' ? 'Fix' : 'Change'}
@@ -701,6 +662,22 @@ function NewOffer({ go, onAuth }: Props) {
             })}
           </ul>
           <OpenQuestions gaps={gaps} />
+          <label id="offer-approve" tabIndex={-1} className={`mt-3 flex cursor-pointer items-start gap-3 rounded-lg px-3 py-3 outline-none ring-2 ${approved && !stop ? 'bg-emerald-50 ring-emerald-300' : 'bg-[#1D4ED8]/5 ring-[#1D4ED8]/30'}`}>
+            <input
+              type="checkbox"
+              checked={approved}
+              onChange={(e) => {
+                setApproved(e.target.checked);
+                if (e.target.checked) setError(null);
+              }}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-emerald-600"
+            />
+            <span className="min-w-0 text-[14px] leading-5">
+              <span className="block font-bold text-ink-950">I approve all these details</span>
+              <span className="block text-[12.5px] text-ink-600">You can edit the document any time later, from its link or from your profile, until the company accepts it.</span>
+            </span>
+          </label>
+          {error && !stop && !approved && <p className="mt-2 text-[13px] font-semibold text-rose-700">{error}</p>}
         </div>
 
         <div className="mt-4 grid gap-3 border-t border-ink-100 pt-4 sm:grid-cols-2">
@@ -792,7 +769,7 @@ function NewOffer({ go, onAuth }: Props) {
       <PayBox credits={credits} signedIn={Boolean(session)} usesPro={usesPro} canPay={canPay} busy={busy} error={error} onGo={review} />
 
       {fullOpen && (
-        <FullDocument onClose={() => setFullOpen(false)} onDownload={review} canDownload={!stop && !left}>
+        <FullDocument onClose={() => setFullOpen(false)} onDownload={review} canDownload={!stop && approved}>
           {paper}
         </FullDocument>
       )}
@@ -1029,7 +1006,7 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
         <dl className="space-y-1.5 text-[14px]">
           <div className="flex justify-between">
             <dt className="text-ink-600">This document</dt>
-            <dd className="font-semibold tabular-nums text-ink-950">{usesPro || !canPay ? 'Included in Pro' : '1 from your balance'}</dd>
+            <dd className="font-semibold tabular-nums text-ink-950">{usesPro ? 'Included in your plan' : canPay ? '1 of your free documents' : 'Starter or Pro'}</dd>
           </div>
           {credits?.pro && (
             <div className="flex justify-between">
@@ -1042,7 +1019,7 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
           {/* Documents bought or earned before they became part of the plans. */}
           {credits && credits.docs > 0 && (
             <div className="flex justify-between">
-              <dt className="text-ink-600">Kept from before</dt>
+              <dt className="text-ink-600">Free documents left</dt>
               <dd className="font-semibold tabular-nums text-ink-950">{docsLabel(credits.docs)}</dd>
             </div>
           )}
@@ -1056,11 +1033,11 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
       </div>
       {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{error}</p>}
       <button onClick={onGo} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800 disabled:opacity-60">
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : canPay ? <Unlock className="h-4 w-4" /> : credits?.pro ? <Lock className="h-4 w-4" /> : <Download className="h-4 w-4" />}
-        {canPay ? `Review & download${usesPro ? ' · Pro' : ''}` : credits?.pro ? `All ${PRO_MONTHLY_DOCS} used this month` : 'Download PDF'}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : canPay ? <Download className="h-4 w-4" /> : credits?.pro ? <Lock className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+        {canPay ? 'Download PDF' : credits?.pro ? `All ${PRO_MONTHLY_DOCS} used this month` : 'Download PDF'}
       </button>
       <div className="flex items-center justify-between text-[12px] text-ink-500">
-        <span>You review everything before it’s counted, and can correct it until the company accepts.</span>
+        <span>Every account gets 5 free documents. Edit any of them later from your profile.</span>
         <OfferInfo />
       </div>
     </div>
@@ -1086,7 +1063,7 @@ function PlanSheet({ company, signedIn, onClose, onAuth }: { company: string; si
             <h2 id="plan-sheet-title" className="text-[20px] font-bold leading-snug tracking-tight text-ink-950">
               Download your document{company ? ` for ${company}` : ''}
             </h2>
-            <p className="mt-1 text-[13.5px] leading-5 text-ink-600">The PDF is part of MadeVisa Starter (10 a month) and Pro (50 a month). Your document stays as you set it.</p>
+            <p className="mt-1 text-[13.5px] leading-5 text-ink-600">{signedIn ? 'Your 5 free documents are used. Starter includes 10 a month and Pro 50.' : 'Sign up free to download: every account gets 5 free documents.'} Your document stays as you set it.</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="-mr-1 -mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-ink-100">
             <X className="h-5 w-5" />
@@ -1334,7 +1311,7 @@ function SavedOffer({ shareId, go, onAuth }: Props) {
               <Panel>
                 <p className="text-[15px] font-bold text-ink-950">Edit your document</p>
                 <p className="mt-0.5 text-[12.5px] leading-5 text-ink-600">
-                  You can correct it until the company accepts it. The link stays the same, nothing extra is counted, and each saved change gets a new version number (now v1.{terms.rev ?? 0}).
+                  This page is your edit link, and the document is also listed under Profile → Your sponsorship documents. Correct anything until the company accepts it: the link stays the same, nothing extra is counted, and each saved change gets a new version number (now v1.{terms.rev ?? 0}).
                 </p>
                 <label className="mt-3 block">
                   <span className="text-[13px] font-semibold text-ink-800">Full name, as in your passport</span>

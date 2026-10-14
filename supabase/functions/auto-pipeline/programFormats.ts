@@ -149,7 +149,7 @@ export type Draft = {
   jobs?: Job[];
   meta?: Record<string, unknown>;
   /** A Reel instead of images: what to look for as background, and the screens. */
-  reel?: { bg: { queries: string[]; cc: string | null }; scenes: ReelScene[] };
+  reel?: { bg: { queries: string[]; cc: string | null; /** White background, no footage (fast job reels). */ plain?: boolean }; scenes: ReelScene[] };
 };
 export type Builder = (c: Ctx) => Promise<Draft | null>;
 
@@ -1441,7 +1441,7 @@ const program: Builder = async (c) => {
 
 const REEL_V = '1';
 /** One screen of a reel. `steps` > 1 reveals its lines or rows one by one. */
-function scene(sc: 'hook' | 'list' | 'cta', q: Record<string, string | null | undefined | false>, o: { steps?: number; step?: number; hold?: number } = {}): ReelScene {
+function scene(sc: 'hook' | 'list' | 'cta' | 'job' | 'follow', q: Record<string, string | null | undefined | false>, o: { steps?: number; step?: number; hold?: number } = {}): ReelScene {
   const sp = new URLSearchParams({ t: 'reel', sc });
   for (const [k, v] of Object.entries(q)) if (v) sp.set(k, String(v));
   sp.set('v', REEL_V);
@@ -1715,14 +1715,14 @@ const reel_news: Builder = async (c) => {
 // Your application: the CV match
 // ---------------------------------------------------------------------------
 // Everything said here is how the feature works — no made-up numbers, no
-// "users say". Free = the score; 3 jobs a day = missing skills; Pro = the rest.
+// "users say". CV match (score, missing skills, report) is part of Starter and Pro.
 
 const MATCH_TAGS = ['cv', 'resume', 'cvtips', 'jobsearch', 'workabroad', 'jobsabroad', 'jobapplication'];
 /** Footage with people in it: someone working, an interview, a desk — never presented as a named person. */
 export const PEOPLE_FOOTAGE = ['woman working on laptop', 'job interview', 'young professional office', 'man typing laptop cafe', 'people working office'];
 
 const MATCHES: { h: string; hl: string; s: string; hooks: string[] }[] = [
-  { h: 'How well does your CV match the job?', hl: 'match the job', s: 'One press next to Apply. A score in a second, free on every job.', hooks: ['Before you apply: how well does your CV actually match this ad?', 'Most people apply and hope. There’s a quicker way to know where you stand.'] },
+  { h: 'How well does your CV match the job?', hl: 'match the job', s: 'One press next to Apply. A score in a second, on every job.', hooks: ['Before you apply: how well does your CV actually match this ad?', 'Most people apply and hope. There’s a quicker way to know where you stand.'] },
   { h: 'Your CV gets read against the ad. Read it that way first.', hl: 'that way first', s: 'Skills, role, years, languages, education: compared in one press.', hooks: ['A recruiter reads your CV with the ad open next to it. You can do the same before you send it.', 'The ad is a checklist. Your CV is the answer sheet. Compare them first.'] },
   { h: 'Apply to fewer jobs. Match them better.', hl: 'Match them better', s: 'See your score on each one, and what’s missing, before you spend an evening on it.', hooks: ['Sending the same CV to fifty ads feels productive. Matching five of them properly works better.', 'Fewer applications, each one checked against the ad.'] },
   { h: 'A strong match and a weak one look the same from your side of the screen.', hl: 'look the same', s: 'Until you check. The button is next to Apply.', hooks: ['You can’t tell a 90% match from a 40% one by reading the ad once. Now you can check.', 'Which of the jobs you saved are you actually a match for?'] },
@@ -1741,7 +1741,7 @@ const match_check: Builder = async (c) => {
       c.w,
       'explain'
     ),
-    'The score is free on every job. With a free account you also see which skills the ad asks for that your CV doesn’t show, on 3 jobs a day.',
+    'CV match is part of MadeVisa Starter and Pro: your score on every job, the skills the ad asks for that your CV doesn’t show, and what to change.',
     go(c.p, c.w, ['Upload your CV and try it:', 'Try it on a job you like:', 'Check yours:'], '/cv-match'),
     c.p !== 'telegram' && chance(0.45, c.w, 'ask') ? 'What’s the lowest match you’d still apply with?' : null,
     tags(c.p, MATCH_TAGS),
@@ -1789,7 +1789,7 @@ const match_missing: Builder = async (c) => {
     pick(f.hooks, c.w, 'hook'),
     'When you check your match on MadeVisa, it lists the skills the ad asks for that your CV doesn’t show — the required ones first, then the nice-to-haves.',
     pick(['Add the ones you really have, in the ad’s own words. Leave out the ones you don’t: interviews check, and a visa application repeats what your CV says.', 'Then it’s simple: if you’ve used it, write it down, the way the ad spells it. If you haven’t, don’t.'], c.w, 'guard'),
-    'Missing skills are free on 3 jobs a day with a free account.',
+    'Part of MadeVisa Starter and Pro.',
     go(c.p, c.w, ['See what yours is missing:', 'Check a job:'], '/cv-match'),
     closer(c.p, c.w, 'share', 0.4),
     tags(c.p, MATCH_TAGS),
@@ -1814,7 +1814,7 @@ const cv_fix: Builder = async (c) => {
     f.h,
     f.why,
     f.rows.map((r, i) => `${i + 1}. ${r[0]}: ${lowerFirst(r[1])}.`).join('\n'),
-    pick(['MadeVisa checks this on your own CV when you check your match (the full report is part of Pro).', 'This is one of the checks MadeVisa runs on your CV. Your match score on each job is free.'], c.w, 'where'),
+    pick(['MadeVisa checks this on your own CV when you check your match (the full report is part of Pro).', 'This is one of the checks MadeVisa runs on your CV when you check your match (Starter and Pro).'], c.w, 'where'),
     go(c.p, c.w, ['Check your CV against a job:', 'Try it:'], '/cv-match'),
     closer(c.p, c.w, 'save', 0.6),
     tags(c.p, MATCH_TAGS),
@@ -1825,15 +1825,15 @@ const cv_fix: Builder = async (c) => {
 const match_free: Builder = async (c) => {
   if (c.age('match_free:levels') < 24 * 30) return null;
   const levels: [string, string][] = [
-    ['Match score', 'Free on every job. No account needed.'],
-    ['Skills your CV is missing', 'Free account: 3 jobs a day.'],
-    ['Full report + 50 sponsorship documents a month', 'MadeVisa Pro, priced for your country.'],
+    ['Every job + 5 sponsorship documents', 'Free, with an account.'],
+    ['CV match on every job', 'MadeVisa Starter.'],
+    ['Auto Apply + 50 documents a month', 'MadeVisa Pro.'],
   ];
   const h = 'What’s free, and what the plan adds';
   const caption = write(c.p, [
     pick(['What you get on MadeVisa without paying, and what Pro adds.', 'Free, free with an account, and Pro. Here’s the split.'], c.w, 'hook'),
     levels.map((l) => `${l[0]} — ${lowerFirst(l[1])}`).join('\n'),
-    'Pro is one plan, monthly or yearly. The price follows local incomes, so it’s lower where salaries are lower, and it’s shown in your currency.',
+    'Starter and Pro are monthly plans in US dollars, the same price in every country. Cancel any time.',
     go(c.p, c.w, ['The price for your country:', 'See it here:'], '/pricing'),
     tags(c.p, ['cv', 'jobsearch', 'workabroad', 'jobsabroad', 'visasponsorship']),
   ]);
@@ -1845,7 +1845,7 @@ const reel_match: Builder = async (c) => {
   if (!f) return null;
   const parts = f.h.split(/(?<=[.?!”])\s+/).filter(Boolean);
   const gets: [string, string][] = [
-    ['A score', 'Free on every job'],
+    ['A score', 'On every job'],
     ['What’s missing', 'Skills the ad asks for'],
     ['What to change', 'Before you send it'],
   ];
@@ -1853,7 +1853,7 @@ const reel_match: Builder = async (c) => {
     pick(f.hooks, c.w, 'hook'),
     'Upload your CV once on MadeVisa. On any job, press Check your match next to Apply: your CV is compared with the ad and you get a score out of 100.',
     gets.map((g, i) => `${i + 1}. ${g[0]}: ${lowerFirst(g[1])}`).join('\n'),
-    'The score is free. Missing skills are free on 3 jobs a day with an account.',
+    'Part of MadeVisa Starter and Pro.',
     go(c.p, c.w, ['Try it:', 'Check yours:'], '/cv-match'),
     tags(c.p, MATCH_TAGS),
   ]);
@@ -1946,25 +1946,69 @@ const hiring_card: Builder = async (c) => {
   const title = cleanTitle(j.title);
   const where = place(j);
   const mode = j.work_arrangement === 'hybrid' ? 'Hybrid' : isRemote(j) ? 'Remote' : 'Onsite';
-  const q = new URLSearchParams({ layout: 'hiring', size: c.size, ids: j.id.slice(0, 8), s: 'ig', v: '1' });
+  const handle = (c.handle || '@madevisacom').replace(/^@/, '');
+  const q = new URLSearchParams({ layout: 'hiring', size: c.size, ids: j.id.slice(0, 8), s: c.p.slice(0, 2), fh: handle, v: '2' });
   if (contact?.email) q.set('em', contact.email);
   const short = `madevisa.com/j/${j.id.slice(0, 8)}`;
+  const linkWord = c.p === 'instagram' || c.p === 'tiktok' ? ' Link in bio.' : '';
   const caption = write(c.p, [
-    `📢 JOB VACANCY – ${j.company.toUpperCase()}`,
-    `💼 Position: ${title}`,
-    [where ? `📍 Location: ${where}` : null, `🏢 Work: ${mode}`, j.employment_type ? `🕒 Type: ${j.employment_type}` : null, j.salary ? `💰 Salary: ${j.salary}` : null, j.visa ? '🛂 Visa sponsorship: stated in the ad' : null].filter(Boolean).join('\n'),
-    contact?.email ? `📩 Send your CV to ${contact.email}\nor apply on ${short}. Link in bio.` : `📩 Apply: ${short}. Link in bio.`,
-    jobTags(c, [j], ['wearehiring', 'jobvacancy', j.job_function ?? '']),
+    `${flag(j.iso)} ${j.company} is hiring: ${title}${where ? ` in ${where}` : ''}`.trim(),
+    [`🏢 ${mode}`, j.employment_type ? `🕒 ${j.employment_type}` : null, j.salary ? `💰 ${j.salary}` : null, j.visa ? '🛂 Visa sponsorship stated in the ad' : null].filter(Boolean).join('\n'),
+    contact?.email ? `📩 Send your CV to ${contact.email} or apply on ${short}.${linkWord}` : `📩 Apply: ${short}.${linkWord}`,
+    '📊 See your CV match score for this job on MadeVisa.',
+    `🔔 Follow @${handle} for new job opportunities every day.`,
+    jobTags(c, [j], ['hiring', 'jobopportunity', j.job_function ?? '']),
   ]);
   return {
     topic: j.id.slice(0, 8),
-    headline: `We are hiring: ${title} — ${j.company}`,
+    headline: `${j.company} is hiring: ${title}`,
     format: 'image',
     images: [`${SITE}/api/og/social?${q.toString()}`],
     caption,
     links: [{ job_id: j.id, title, company: j.company, url: jobLink(j, c.p) }],
     jobs: [j],
     meta: { company: j.company, contact: contact?.email ?? null },
+  };
+};
+
+// --- Fast job reel: one white screen per opportunity --------------------------------
+// "<Company> is hiring · Role · flag Place", 1.7 seconds each, three roles from three
+// different kinds of work, then "Follow @madevisacom". No line-by-line text animation;
+// the first screen (a real job) is the thumbnail.
+
+const reel_hiring: Builder = async (c) => {
+  const jobs = await c.jobs({ kind: 'fresh', want: 3, min: 2 });
+  if (jobs.length < 2) return null;
+  const handle = (c.handle || '@madevisacom').replace(/^@/, '');
+  const jobScreen = (j: Job) => {
+    const where = place(j);
+    const extra = j.visa ? 'Visa sponsorship in the ad' : j.salary ? j.salary : isRemote(j) ? 'Remote' : j.work_arrangement === 'hybrid' ? 'Hybrid' : '';
+    return scene('job', { l: cleanTitle(j.title), co: j.company, pl: where, cc: j.iso ?? '', logo: j.logo && /^https:\/\//.test(j.logo) ? j.logo : '', s: extra, fh: handle }, { hold: 1.7 });
+  };
+  const first = jobs[0];
+  const caption = write(c.p, [
+    `${flag(first.iso)} ${first.company} is hiring: ${cleanTitle(first.title)}${place(first) ? ` in ${place(first)}` : ''}`.trim(),
+    jobs
+      .slice(1)
+      .map((j) => `${flag(j.iso)} ${j.company} is hiring: ${cleanTitle(j.title)}${place(j) ? ` in ${place(j)}` : ''}`.trim())
+      .join('\n'),
+    jobs.map((j) => `👉 ${cleanTitle(j.title)}: ${jobLink(j, c.p)}`).join('\n'),
+    '📊 Check your CV match score for each one on MadeVisa.',
+    `🔔 Follow @${handle} for new job opportunities every day.`,
+    jobTags(c, jobs, ['hiring', 'jobopportunity']),
+  ]);
+  return {
+    topic: jobs.map((j) => j.id.slice(0, 8)).join(','),
+    headline: `${first.company} is hiring: ${cleanTitle(first.title)}`,
+    format: 'reel',
+    images: [],
+    caption,
+    links: jobs.map((j) => ({ job_id: j.id, title: cleanTitle(j.title), company: j.company, url: jobLink(j, c.p) })),
+    jobs,
+    reel: {
+      bg: { queries: [], cc: null, plain: true },
+      scenes: [...jobs.map(jobScreen), scene('follow', { fh: handle }, { hold: 1.6 })],
+    },
   };
 };
 
@@ -1977,5 +2021,5 @@ export const BUILDERS: Record<string, Builder> = {
   feedback_stats, responsive_companies, ghosting_stat, principle,
   follow_cta, comment_cta, this_or_that, question, tip, feedback_ask, invite, recruiters, employers, job_alert, employer_inbox,
   news, article, program,
-  reel_country, reel_city, reel_route, reel_myth, reel_plan, reel_news, reel_match, reel_cvfix,
+  reel_country, reel_city, reel_route, reel_myth, reel_plan, reel_news, reel_match, reel_cvfix, reel_hiring,
 };

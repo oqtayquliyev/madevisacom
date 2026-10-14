@@ -48,7 +48,8 @@ export type Entitlement = { allowed: boolean; limit: number | null; period: Peri
 /** What each plan may use. Mirrors the plan_entitlements seed in the migration. */
 export const ENTITLEMENTS: Record<PlanId, Record<FeatureId, Entitlement>> = {
   free: {
-    cv_missing_skills: { allowed: true, limit: 3, period: 'day' },
+    // CV match is for paid plans only (October 2026).
+    cv_missing_skills: { allowed: false, limit: 0, period: 'day' },
     cv_full_report: { allowed: false, limit: 0, period: null },
     saved_jobs: { allowed: true, limit: 5, period: null },
     job_alerts: { allowed: true, limit: 1, period: null },
@@ -106,12 +107,11 @@ export const PLANS: Record<PlanId, PlanInfo> = {
     priceCents: 0,
     currency: 'USD',
     interval: null,
-    tagline: 'Browse every job and see how your CV fits.',
+    tagline: 'Browse every job, free forever.',
     worth: 'Job search stays free.',
     benefits: [
       { title: 'Every job, search and filters', text: 'Straight from company career pages, with the visa route and sponsorship information we have.' },
-      { title: 'Your CV match score on every job', text: 'Upload your CV once; every job shows how well it fits.' },
-      { title: 'Missing skills on 3 jobs a day', text: 'See which skills the ad asks for that your CV doesn’t show.' },
+      { title: '5 free sponsorship documents', text: 'Download them instantly and edit them any time later.' },
       { title: 'Save up to 5 jobs', text: 'Keep the jobs you want to come back to.' },
       { title: 'Application tracking with reminders', text: 'Log where you applied and get a nudge to follow up.' },
       { title: 'One job alert', text: 'A notification when new jobs match your search, and a daily email.' },
@@ -124,11 +124,11 @@ export const PLANS: Record<PlanId, PlanInfo> = {
     priceCents: 299,
     currency: 'USD',
     interval: 'month',
-    tagline: 'Stronger applications, a more organised search.',
+    tagline: 'CV match on every job, and stronger applications.',
     worth: 'Know exactly why a job fits you and what to change in your CV before you apply — on every job, not three a day.',
     benefits: [
-      { title: 'Full CV match report on every job', text: 'Where each point of your score comes from, the skills you’re missing, and what to change in your CV for that job.' },
-      { title: 'All your best matches', text: 'Every job that fits your CV, ranked — not just the first ten.' },
+      { title: 'CV match on every job', text: 'Where each point of your score comes from, the skills you’re missing, and what to change in your CV for that job.' },
+      { title: 'All your best matches, ranked', text: 'Every job that fits your CV, ranked — not just the first ten.' },
       { title: '10 sponsorship documents a month', text: 'The proposal you send an employer when a job needs a visa: the route that may apply and what it asks of them, with sources.' },
       { title: 'Companies that sponsor visas', text: 'Who is hiring with visa sponsorship in each country, plus each company’s reply rate and time to reply.' },
       { title: 'Up to 5 job alerts', text: 'Follow several roles and countries; new matching jobs reach your notifications within 30 minutes.' },
@@ -145,11 +145,11 @@ export const PLANS: Record<PlanId, PlanInfo> = {
     tagline: 'Apply faster, with applications prepared for you.',
     worth: 'MadeVisa prepares a tailored CV and cover letter for each job you choose and sends it — or hands it to you ready to send — so you apply to more of the right jobs in less time.',
     benefits: [
-      { title: 'Auto Apply', text: 'A CV tailored to each job and a cover letter when one helps, built only from what your CV says. Sent for you where the employer takes applications through MadeVisa, otherwise ready for you to send.' },
+      { title: 'Auto Apply to your best matches', text: 'A CV tailored to each job and a cover letter when one helps, built only from what your CV says. Sent for you where the employer takes applications through MadeVisa, otherwise ready for you to send.' },
       { title: '50 sponsorship documents a month', text: 'One for every job you apply to that needs a visa.' },
       { title: 'Up to 10 job alerts', text: 'Follow more roles and countries at once.' },
       { title: 'Everything in Starter', text: 'Full CV match reports, unlimited saved jobs, job alerts and sponsorship insights.' },
-      { title: 'More jobs in “Jobs for you” emails', text: '10 matching jobs in each email instead of 5.' },
+      { title: '10 jobs in each “Jobs for you” email', text: '10 matching jobs in each email instead of 5.' },
     ],
     coming: ['Recruiter and hiring-manager discovery with personalised outreach drafts', 'Proof of Fit summaries from your real experience', 'Interview preparation and follow-up help', 'Career Mode after you’re hired'],
   },

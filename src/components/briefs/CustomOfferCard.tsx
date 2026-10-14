@@ -189,7 +189,7 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick
                 {!user ? (
                   <>
                     <p className="text-[15px] font-bold text-ink-950">Sign up to make custom Visa Plans</p>
-                    <p className="text-[13px] text-ink-500">Sponsorship documents are part of Starter (10 a month) and Pro (50 a month).</p>
+                    <p className="text-[13px] text-ink-500">Every account gets 5 free sponsorship documents; Starter adds 10 a month and Pro 50.</p>
                     <button onClick={() => onAuth?.('register')} className="mt-1 rounded-lg bg-[#1D4ED8] px-4 py-2.5 text-[14px] font-bold text-white hover:bg-brand-800">
                       Create account
                     </button>

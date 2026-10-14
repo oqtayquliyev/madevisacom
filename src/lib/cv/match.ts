@@ -11,7 +11,7 @@
 // nationality or a photo.
 
 import { EDU_NAME, type CvProfile } from '@/lib/cv/cvProfile';
-import type { JobProfile } from '@/lib/cv/jobProfile';
+import { familyOf, type JobProfile } from '@/lib/cv/jobProfile';
 import { LEVEL_NAME } from '@/lib/cv/languages';
 import { SKILL_BY_ID, skillName } from '@/lib/cv/skills';
 import { terms, TITLE_NOISE } from '@/lib/cv/text';
@@ -29,6 +29,8 @@ export type Part = {
   findings: Finding[];
 };
 
+export type MissingKind = 'skill' | 'experience' | 'nice';
+
 export type MatchResult = {
   score: number;
   label: 'Strong match' | 'Good match' | 'Partial match' | 'Low match';
@@ -38,8 +40,9 @@ export type MatchResult = {
   skills: {
     /** Asked for in the ad and found in the CV. */
     matched: string[];
-    /** Asked for and not found — must-haves first. */
-    missing: { name: string; required: boolean }[];
+    /** Asked for and not found — must-haves first. `kind`: a core skill for this kind of job, industry or
+     *  other-field experience the ad also wants (dental, go-to-market…), or a nice-to-have. */
+    missing: { name: string; required: boolean; kind: MissingKind }[];
     asked: number;
     /** How many of them the CV covers (alternatives like “SAP or NetSuite” count once met). */
     covered: number;
@@ -73,18 +76,30 @@ export function matchCv(cv: CvProfile, cvText: string, job: JobProfile): MatchRe
   const totalW = job.skills.reduce((a, s) => a + s.weight, 0);
   const gotW = job.skills.reduce((a, s) => a + (has(s) ? s.weight : 0), 0);
   const matched = job.skills.filter((s) => cv.skills[s.id]).map((s) => s.label);
+  // A core skill is one from this kind of job's own field. The rest — the employer's industry, another
+  // team's field — is experience the ad would like, shown apart so "Missing skills" stays about skills.
+  const family = familyOf(job.category);
+  const kindOf = (s: JobProfile['skills'][number]): MissingKind => {
+    const k = SKILL_BY_ID.get(s.id);
+    if (k && (k.broad || (family.length > 0 && !family.includes(k.group)))) return 'experience';
+    return s.required ? 'skill' : 'nice';
+  };
+  const KIND_ORDER: Record<MissingKind, number> = { skill: 0, experience: 1, nice: 2 };
   const missing = job.skills
     .filter((s) => !has(s) && !SKILL_BY_ID.get(s.id)?.soft)
-    .sort((a, b) => Number(b.required) - Number(a.required) || b.weight - a.weight)
-    .map((s) => ({ name: s.label, required: s.required }));
+    .map((s) => ({ name: s.label, required: s.required, kind: kindOf(s), weight: s.weight }))
+    .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || Number(b.required) - Number(a.required) || b.weight - a.weight)
+    .map(({ name, required, kind }) => ({ name, required, kind }));
   const hardW = hard.reduce((a, s) => a + s.weight, 0);
   const skillsScore = totalW > 0 ? gotW / totalW : null;
   {
-    const must = missing.filter((m) => m.required);
-    const nice = missing.filter((m) => !m.required);
+    const must = missing.filter((m) => m.kind === 'skill');
+    const domain = missing.filter((m) => m.kind === 'experience');
+    const nice = missing.filter((m) => m.kind === 'nice');
     const findings: Finding[] = [];
     if (matched.length) findings.push({ ok: true, text: `In your CV: ${list(matched, 8)}.` });
-    if (must.length) findings.push({ ok: false, text: `Asked for, not in your CV: ${list(must.map((m) => m.name), 8)}.` });
+    if (must.length) findings.push({ ok: false, text: `Skills asked for, not in your CV: ${list(must.map((m) => m.name), 8)}.` });
+    if (domain.length) findings.push({ ok: false, text: `Experience the ad also wants: ${list(domain.map((m) => m.name), 6)}.` });
     if (nice.length) findings.push({ ok: false, text: `Nice to have, not in your CV: ${list(nice.map((m) => m.name), 6)}.` });
     parts.push({
       key: 'skills',

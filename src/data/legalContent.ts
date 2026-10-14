@@ -1,3 +1,5 @@
+import { CONTACT } from '../lib/contact';
+
 // Policy pages (/privacy, /terms, /cookies …). Pure data with no imports, so
 // the server-rendered version of each page (api/seo.ts) uses the same text.
 // "About" and "How it works" live in src/data/infoContent.ts.
@@ -19,7 +21,8 @@ export type LegalPageContent = {
 };
 
 const ENTITY = 'MadeVisa';
-const ADDRESS = 'Cherkassi Street, Sumgayit, Azerbaijan';
+const ADDRESS = CONTACT.address;
+const PHONE = CONTACT.phone;
 const EMAIL = 'hello@madevisa.com';
 const JURISDICTION = 'the laws of the Republic of Azerbaijan';
 export const LEGAL_LAST_UPDATED = 'October 2026';
@@ -31,7 +34,8 @@ export const legalPages: Record<string, LegalPageContent> = {
     description: 'How to reach the MadeVisa team — for job seekers, employers, institutions, press and corrections.',
     intro: 'A small team reads every message. Tell us who you are and what you need, and it reaches the right person the first time.',
     summary: [
-      `Email ${EMAIL} for anything — we reply on working days.`,
+      `Email ${EMAIL} or call ${PHONE} — we reply on working days.`,
+      `Address: ${ADDRESS}.`,
       'Employers can list jobs free from their own careers page, or post directly.',
       'Spotted something wrong on a page? Corrections are handled first.',
     ],
@@ -70,8 +74,8 @@ export const legalPages: Record<string, LegalPageContent> = {
         ],
       },
       {
-        heading: 'Registered address',
-        paragraphs: [`${ENTITY}, ${ADDRESS}`],
+        heading: 'Address and phone',
+        paragraphs: [`${ENTITY}, ${ADDRESS}`, `Phone: ${PHONE} · Email: ${EMAIL}`],
       },
     ],
     related: ['corrections', 'privacy', 'sponsored-listing-terms'],
@@ -451,7 +455,7 @@ export const legalPages: Record<string, LegalPageContent> = {
     description: 'How sponsorship documents are included in MadeVisa Starter and Pro, changes, confirmation and refunds.',
     intro: `These terms apply when you prepare a sponsorship document (a Visa Plan: your sponsorship proposal to an employer) on ${ENTITY}. Last updated ${LEGAL_LAST_UPDATED}.`,
     summary: [
-      'Sponsorship documents are part of MadeVisa Starter (10 each calendar month) and Pro (50 each calendar month).',
+      'Every account gets 5 free sponsorship documents. MadeVisa Starter adds 10 each calendar month and Pro 50 each calendar month.',
       'They are no longer sold one by one, and new accounts don’t get a free one.',
       'Credits you bought or earned before October 2026 are still yours and still work.',
       'It is a proposal for discussion, not a contract, a job offer or a visa guarantee.',
@@ -534,7 +538,7 @@ export const legalPages: Record<string, LegalPageContent> = {
       {
         heading: 'The plans',
         paragraphs: [
-          'Free: every job, search and filters, your CV match score on every job, the skills missing from your CV on 3 jobs a day, up to 5 saved jobs, application tracking with reminders, and 1 job alert.',
+          'Free: every job, search and filters, 5 sponsorship documents, up to 5 saved jobs, application tracking with reminders, and 1 job alert. CV match is part of Starter and Pro.',
           'Starter ($2.99 a month): the full CV match report on every job (where each point of the score comes from and what to change in your CV), all your best matches, 10 sponsorship documents a month, the companies that sponsor visas in each country with their reply data, up to 5 job alerts and unlimited saved jobs.',
           'Pro ($8.99 a month): everything in Starter, plus Auto Apply (a CV tailored to each job and a cover letter when one helps, sent for you where the employer takes applications through MadeVisa, otherwise prepared for you to send), 50 sponsorship documents a month, up to 10 job alerts and 10 jobs in each “Jobs for you” email. The monthly number of Auto Apply applications is shown on the checkout page.',
           'Features we describe as “coming” are not part of a plan until they are released. We don’t charge extra when they are added to the plan you have.',

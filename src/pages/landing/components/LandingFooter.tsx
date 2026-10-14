@@ -4,6 +4,7 @@ import { SoonChip, SOON_VIEWS } from '@/components/common/SoonChip';
 import type { View } from '@/types';
 import { BrandMark } from '@/components/layout/Logo';
 import { nav } from '@/lib/pageLayout';
+import { CONTACT } from '@/lib/contact';
 
 type LandingFooterProps = {
   go: (view: View) => void;
@@ -136,7 +137,16 @@ export function LandingFooter({ go }: LandingFooterProps) {
         </div>
 
         <div className="mt-8 flex flex-col gap-3 border-t border-ink-800 pt-5 text-xs text-ink-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} MadeVisa</p>
+          <p>
+            © {new Date().getFullYear()} MadeVisa · {CONTACT.address} ·{' '}
+            <a href={`tel:${CONTACT.tel}`} className="hover:text-white">
+              {CONTACT.phone}
+            </a>{' '}
+            ·{' '}
+            <a href={`mailto:${CONTACT.email}`} className="hover:text-white">
+              {CONTACT.email}
+            </a>
+          </p>
           <nav aria-label="Legal" className="flex flex-wrap gap-x-4 gap-y-1.5">
             {LEGAL.map((l) => (
               <a key={l.href} href={l.href} onClick={(event) => handleNavClick(event, () => nav(l.href))} className="hover:text-white">

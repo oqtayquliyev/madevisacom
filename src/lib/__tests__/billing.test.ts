@@ -4,6 +4,8 @@ import { ENTITLEMENTS, PLANS, PLAN_ORDER, lowestPlanWith, priceLabel, usd, type 
 import { checkoutHref, cleanSource, confirmedFor, fallbackCatalog, formatMoney, limitRows, nextMonth, orderSummary, planView, readCheckout, readPlanParam, type Catalog } from '@/lib/billingCore';
 
 const MIGRATION = readFileSync(new URL('../../../supabase/migrations/20261219090000_starter_pro_plans.sql', import.meta.url), 'utf8');
+/** Later changes to the seed: "UPDATE public.plan_entitlements SET allowed = false, usage_limit = 0 WHERE plan_id = 'free' AND feature IN (…)". */
+const LATER = readFileSync(new URL('../../../supabase/migrations/20261220090000_emails_docs_cvmatch_social.sql', import.meta.url), 'utf8');
 
 describe('the plans', () => {
   it('cost $0, $2.99 and $8.99 a month, in USD', () => {
@@ -56,6 +58,12 @@ describe('the database has the same numbers as the code', () => {
   it('entitlements and limits', () => {
     const rows = [...MIGRATION.matchAll(/\('(free|starter|pro)',\s+'([a-z_]+)',\s+(true|false),\s+(NULL|\d+),\s+(NULL|'day'|'month')\)/g)];
     const seeded = new Map(rows.map((r) => [`${r[1]}:${r[2]}`, { allowed: r[3] === 'true', limit: r[4] === 'NULL' ? null : Number(r[4]), period: r[5] === 'NULL' ? null : r[5].replace(/'/g, '') }]));
+    for (const m of LATER.matchAll(/UPDATE public\.plan_entitlements SET allowed = (true|false), usage_limit = (NULL|\d+)\s+WHERE plan_id = '(free|starter|pro)' AND feature IN \(([^)]*)\)/g)) {
+      for (const f of m[4].split(',').map((x) => x.trim().replace(/'/g, ''))) {
+        const row = seeded.get(`${m[3]}:${f}`);
+        if (row) seeded.set(`${m[3]}:${f}`, { ...row, allowed: m[1] === 'true', limit: m[2] === 'NULL' ? null : Number(m[2]) });
+      }
+    }
     let n = 0;
     for (const plan of PLAN_ORDER) {
       for (const [f, e] of Object.entries(ENTITLEMENTS[plan])) {

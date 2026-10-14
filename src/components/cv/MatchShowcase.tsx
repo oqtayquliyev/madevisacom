@@ -63,30 +63,30 @@ export function MatchExample({ className = '' }: { className?: string }) {
 
 const LEVELS: { who: string; items: { ok: boolean; text: string }[]; tone: string }[] = [
   {
-    who: 'Anyone',
+    who: 'Free',
     tone: 'border-ink-200',
     items: [
-      { ok: true, text: 'Match score on every job' },
-      { ok: false, text: 'Missing skills' },
-      { ok: false, text: 'Full report' },
+      { ok: true, text: 'Every job, search and filters' },
+      { ok: true, text: '5 sponsorship documents' },
+      { ok: false, text: 'CV match' },
     ],
   },
   {
-    who: 'Free account',
-    tone: 'border-ink-200',
+    who: 'Starter',
+    tone: 'border-brand-600 ring-1 ring-brand-600',
     items: [
       { ok: true, text: 'Match score on every job' },
-      { ok: true, text: 'Missing skills on 3 jobs a day' },
-      { ok: false, text: 'Full report' },
+      { ok: true, text: 'Missing skills and experience wanted' },
+      { ok: true, text: 'Full report + 10 documents a month' },
     ],
   },
   {
     who: 'Pro',
-    tone: 'border-brand-600 ring-1 ring-brand-600',
+    tone: 'border-ink-200',
     items: [
-      { ok: true, text: 'Match score on every job' },
-      { ok: true, text: 'Missing skills on every job' },
-      { ok: true, text: 'Full report + 50 sponsorship documents a month' },
+      { ok: true, text: 'Everything in Starter' },
+      { ok: true, text: 'Auto Apply' },
+      { ok: true, text: '50 sponsorship documents a month' },
     ],
   },
 ];

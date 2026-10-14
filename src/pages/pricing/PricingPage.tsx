@@ -6,7 +6,7 @@ import { SEO_META } from '@/lib/seoMeta';
 import { WRAP, nav } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
 import { missingProfileFields, PLANS, priceLabel, useMyPlan, type RequestPlanId } from '@/lib/plans';
-import { EMPLOYER_PRICES, FREE_DAILY_CHECKS } from '@/lib/pricing';
+import { EMPLOYER_PRICES } from '@/lib/pricing';
 import { useCv } from '@/lib/cv/store';
 import { useCardPayments } from '@/lib/gumroad';
 import { trackBilling, useBillingCatalog } from '@/lib/billing';
@@ -31,15 +31,15 @@ type Cell = string | boolean;
 /** What each plan includes, side by side. Limits are the fair-use limits the database applies. */
 const compareRows = (autoApply: { free: number; pro: number } | null): { what: string; free: Cell; starter: Cell; pro: Cell }[] => [
   { what: 'Every job, search, filters and visa route', free: true, starter: true, pro: true },
-  { what: 'CV match score on every job', free: true, starter: true, pro: true },
-  { what: 'Skills missing from your CV', free: `${FREE_DAILY_CHECKS} jobs a day`, starter: 'Every job', pro: 'Every job' },
+  { what: 'CV match score on every job', free: false, starter: true, pro: true },
+  { what: 'Skills missing from your CV, and what the ad also wants', free: false, starter: 'Every job', pro: 'Every job' },
   { what: 'Full report: where each point comes from, what to change', free: false, starter: true, pro: true },
-  { what: 'All your best matches, ranked', free: 'Top 10', starter: true, pro: true },
+  { what: 'All your best matches, ranked', free: false, starter: true, pro: true },
   { what: 'Saved jobs', free: 'Up to 5', starter: 'No limit', pro: 'No limit' },
   { what: 'Application tracking with reminders', free: true, starter: true, pro: true },
   { what: 'Job alerts', free: '1', starter: 'Up to 5', pro: 'Up to 10' },
   { what: 'Companies that sponsor visas, reply rates', free: false, starter: true, pro: true },
-  { what: 'Sponsorship documents', free: false, starter: '10 a month', pro: '50 a month' },
+  { what: 'Sponsorship documents', free: '5 free', starter: '5 free + 10 a month', pro: '5 free + 50 a month' },
   { what: 'Auto Apply (tailored CV and cover letter)', free: autoApply ? `${autoApply.free} a month to try` : 'To try', starter: autoApply ? `${autoApply.free} a month to try` : 'To try', pro: autoApply ? `Up to ${autoApply.pro} a month` : true },
   { what: '“Jobs for you” emails', free: '5 jobs each', starter: '5 jobs each', pro: '10 jobs each' },
 ];
@@ -55,7 +55,7 @@ export function PricingPage({ go, onAuth }: Props) {
 
   useSeo({
     title: SEO_META.pricing.title,
-    description: `Job search and your CV match score are free. Starter (${priceLabel('starter')}) adds the full CV match report on every job and sponsorship documents; Pro (${priceLabel('pro')}) adds Auto Apply. Same price in every country, cancel any time.`,
+    description: `Job search and 5 sponsorship documents are free. Starter (${priceLabel('starter')}) adds the full CV match report on every job and sponsorship documents; Pro (${priceLabel('pro')}) adds Auto Apply. Same price in every country, cancel any time.`,
     path: '/pricing',
   });
 
@@ -83,7 +83,7 @@ export function PricingPage({ go, onAuth }: Props) {
           <p className="text-sm font-semibold text-brand-700">Pricing</p>
           <h1 className="mx-auto mt-2 max-w-3xl text-3xl font-bold tracking-tight text-ink-950 sm:text-5xl">Get noticed. Get hired. Keep growing.</h1>
           <p className="mx-auto mt-4 max-w-2xl text-[16px] leading-7 text-ink-600">
-            Browsing jobs and checking your match stay free. Starter makes every application stronger; Pro prepares applications for you.
+            Browsing jobs stays free, with 5 free sponsorship documents. Starter adds CV match on every job; Pro prepares applications for you.
           </p>
         </div>
       </section>
@@ -178,7 +178,7 @@ export function PricingPage({ go, onAuth }: Props) {
               <h2 className="text-lg font-bold text-ink-950">The sponsorship document</h2>
               <p className="mt-1 text-sm leading-6 text-ink-600">
                 A proposal you send with your application when the job needs a visa: the route that may apply, what it asks of the employer and who you suggest pays what. Open any job, check your match, and it is
-                listed under “Your application” as the missing piece. Starter includes 10 a month and Pro 50.
+                listed under “Your application” as the missing piece. Every account gets 5 free; Starter includes 10 a month and Pro 50.
               </p>
             </div>
             <AppLink href="/offers" className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-brand-700 hover:underline">
@@ -230,11 +230,11 @@ export function PricingPage({ go, onAuth }: Props) {
               items={[
                 { q: 'How is the match score worked out?', a: 'MadeVisa reads the job ad and your CV and compares six things: the skills the ad names (40 points), whether your roles fit the job (20), years of experience (15), the ad’s own wording (10), languages (8) and education (7). Anything the ad doesn’t ask for is left out, so an ad can’t lower your score with something it never mentioned. If the ad requires a language your CV doesn’t show, the score is held at 60%. It’s the same rules for every job — no AI guesswork — and it never looks at age, gender, nationality or a photo.' },
                 { q: 'Is the score a prediction that I’ll get the job?', a: 'No. It tells you how closely your CV, as written, matches what the ad asks for. A low score often means the CV doesn’t say something you can do — which is what the full report helps you fix.' },
-                { q: 'What is free, exactly?', a: `The match score, on every job, with no limit. With a free account you also see which skills are missing from your CV on ${FREE_DAILY_CHECKS} different jobs a day; a job you opened once stays open. You can also save up to 5 jobs, track your applications and keep one job alert. The full report — each part of the score, what to change, and the checks on your CV — is in Starter and Pro.` },
+                { q: 'What is free, exactly?', a: 'Every job, search and filter, 5 sponsorship documents you can download straight away and edit later, up to 5 saved jobs, application tracking and one job alert. CV match — your score on every job, the skills missing from your CV and the full report — is in Starter and Pro.' },
                 { q: 'Who can see my CV?', a: 'You, and MadeVisa staff when they need it to run or support the service — for example to fix a problem with your account or to improve how CVs are read. It goes to an employer only when you ask MadeVisa to apply to that employer’s job for you, and only if the employer takes applications through MadeVisa; for every other job you apply on the employer’s own site. Until you create an account your CV stays in your browser. You can replace or delete it in your profile at any time.' },
                 { q: 'What is the sponsorship document, and is it legally binding?', a: 'It is a proposal you send to an employer when a job needs a visa: the route that may apply, what it usually asks of the employer, and who you suggest pays each cost. Every line shows its source and whether it is known, your proposal, or still needs confirmation. It is not a contract, a job offer or a visa guarantee: its terms count only once you and the employer put them into the employment contract or a signed agreement. It never moves costs the law puts on the employer, never touches salary, and isn’t legal advice.' },
                 { q: 'What’s the difference between Starter and Pro?', a: `Starter (${priceLabel('starter')}) makes each application stronger: the full CV match report on every job, all your matches, 10 sponsorship documents a month, the companies that sponsor visas, up to 5 job alerts and unlimited saved jobs. Pro (${priceLabel('pro')}) adds Auto Apply — a CV tailored to each job and a cover letter when one helps, sent for you or ready to send — 50 documents a month and up to 10 alerts. Features listed as “coming” aren’t included until they’re released.` },
-                { q: 'Can I buy one document without a plan?', a: 'No — documents are part of Starter (10 a month) and Pro (50 a month). Credits you bought or earned before October 2026 are still yours and still work.' },
+                { q: 'Can I make a document without a plan?', a: 'Yes — every account gets 5 free sponsorship documents. You download each one straight away and can edit it later from your profile. After that, Starter includes 10 a month and Pro 50. Credits you bought or earned before October 2026 are still yours and still work.' },
                 { q: 'Is the price the same in every country?', a: `Yes: ${priceLabel('starter')} for Starter and ${priceLabel('pro')} for Pro, in US dollars, everywhere. Gumroad adds sales tax or VAT at checkout where it applies, and your bank may convert the amount into your currency. Members who joined Pro before October 2026 keep the price they signed up with.` },
                 card.on
                   ? { q: 'How do I pay?', a: 'Choose a plan and press Get Starter or Get Pro. The checkout page shows what you pay today and every month; then you pay on Gumroad, our payment partner and the seller on your receipt. MadeVisa never sees your card. Your plan starts once Gumroad confirms the payment, usually within a minute.' }

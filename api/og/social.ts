@@ -409,13 +409,14 @@ async function draw(layout: 'list' | 'single' | 'company' | 'cards', sizeKey: Si
   return { tree, issues, width: S.w, height: S.h };
 }
 
-// --- layout=hiring: one role as a clean "We are Hiring" poster ----------------------
-// Light background with soft colour blobs, the company's logo and name, a "We are
-// Hiring" pill, the role in big letters, three chips (skill · experience · where)
-// and how to apply: "Send your CV to <email>" when the ad gives one (em=…),
-// otherwise the job's short link. Used for Instagram by the content program.
+// --- layout=hiring: one role, said plainly: "<Company> is hiring <Role> in <Place>" ------
+// White background (little MadeVisa blue): the company's logo and name, a "Now hiring"
+// tag, the role in big letters, the flag and the place, two chips, how to apply and a
+// line inviting people to follow for more. Used on Instagram, Facebook, LinkedIn and
+// TikTok by the content program.
 //   c   chips, "Flutter~1+ Year~Onsite" (empty = hidden; absent = from the job)
 //   em  email from the ad (only drawn if it looks like an email)
+//   fh  the account's handle for the follow line ("madevisacom")
 
 const TECH: [RegExp, string][] = [
   [/flutter/i, 'Flutter'], [/react native/i, 'React Native'], [/\breact\b|react\.js/i, 'React'], [/next\.?js/i, 'Next.js'], [/node\.?js|\bnode\b/i, 'Node.js'],
@@ -440,87 +441,102 @@ export function hiringChips(j: Job): string[] {
   return [skill ?? '', exp, j.city && mode !== 'Remote' ? `${mode} · ${j.city}` : mode];
 }
 
-function blob(x: number, y: number, r: number, color: string): El {
-  return h('div', { position: 'absolute', left: Math.round(x - r), top: Math.round(y - r), width: r * 2, height: r * 2, borderRadius: 9999, backgroundImage: `radial-gradient(circle, ${color} 0%, rgba(255,255,255,0) 68%)` });
-}
+const FLAG_SRC = (code: string) => `https://hatscripts.github.io/circle-flags/flags/${code.toLowerCase()}.svg`;
 
-export async function drawHiring(sizeKey: SizeKey, j: Job, chipsIn: string[] | null, email: string | null) {
+export async function drawHiring(sizeKey: SizeKey, j: Job, chipsIn: string[] | null, email: string | null, handle = 'madevisacom') {
   const S = SIZES[sizeKey];
   const u = sizeKey === 'square' ? 0.84 : sizeKey === 'story' ? 1.08 : 1;
   const U = (n: number) => Math.round(n * u);
   const issues: Issue[] = [];
   const side = U(84);
   const inner = S.w - side * 2;
-  const logo = await logoDataUrl(j.logo);
+  const [logo, flag] = await Promise.all([logoDataUrl(j.logo), j.iso ? logoDataUrl(FLAG_SRC(j.iso)) : Promise.resolve(null)]);
   if (j.logo && !logo) issues.push({ level: 'warning', message: `${j.company}: logo couldn’t be drawn — the name is shown alone` });
 
-  // Top: logo + company name, the MadeVisa mark on the right.
-  const logoSize = U(76);
-  const nameFit = fit(j.company, [U(46), U(40), U(34)], inner - (logo ? logoSize + U(18) : 0) - U(230), 1, 800);
+  // Top: logo + company name, the MadeVisa mark on the right (grey, small).
+  const logoSize = U(84);
+  const nameFit = fit(j.company, [U(46), U(40), U(34)], inner - (logo ? logoSize + U(20) : 0) - U(230), 1, 800);
   const top = h(
     'div',
-    { alignItems: 'center', justifyContent: 'space-between', width: inner, height: U(90), flexShrink: 0 },
+    { alignItems: 'center', justifyContent: 'space-between', width: inner, height: U(96), flexShrink: 0 },
     h(
       'div',
       { alignItems: 'center' },
-      logo ? img(logo, { width: logoSize, height: logoSize, objectFit: 'contain', borderRadius: U(16), backgroundColor: 'white', padding: U(6), marginRight: U(18) }) : null,
-      h('div', { fontSize: nameFit.size, fontWeight: 800, color: '#1E1B4B', letterSpacing: -1, fontFamily: SANS, whiteSpace: 'nowrap' }, nameFit.text)
+      logo ? img(logo, { width: logoSize, height: logoSize, objectFit: 'contain', borderRadius: U(18), backgroundColor: 'white', padding: U(6), marginRight: U(20), border: '2px solid #E5E7EB' }) : null,
+      h('div', { fontSize: nameFit.size, fontWeight: 800, color: '#0B0B14', letterSpacing: -1, fontFamily: SANS, whiteSpace: 'nowrap' }, nameFit.text)
     ),
-    brand('#6B7280', U(26))
+    brand('#9CA3AF', U(26))
   );
 
   // The role.
   const title = cleanTitle(j.title);
-  const tf = fit(title, [U(108), U(96), U(84), U(72), U(62)], inner, 3, 800);
+  const tf = fit(title, [U(104), U(92), U(80), U(70), U(60)], inner, 3, 800);
   if (tf.cut) issues.push({ level: 'warning', message: 'Job title shortened to fit' });
   const lineH = Math.round(tf.size * 1.08);
 
-  // Chips: as many as fit on two rows.
-  const chipSize = U(30);
-  const chips = (chipsIn ?? hiringChips(j)).map((x) => x.trim()).filter(Boolean).slice(0, 3);
+  // Where: flag + "Berlin, Germany" (or Remote).
+  const remote = j.work_arrangement === 'remote' || (j.remote && !j.work_arrangement);
+  const placeText = [j.city && !/^remote$/i.test(j.city) ? j.city : null, j.country].filter(Boolean).join(', ') || (remote ? 'Remote' : '');
+  const pf = placeText ? fit(placeText, [U(48), U(42), U(36)], inner - U(80), 1, 700) : null;
+
+  // Chips: skill and experience (the place has its own line).
+  const chipSize = U(28);
+  const chips = (chipsIn ?? hiringChips(j).slice(0, 2).concat(remote ? ['Remote'] : j.work_arrangement === 'hybrid' ? ['Hybrid'] : [])).map((x) => x.trim()).filter(Boolean).slice(0, 3);
   const icons = [CODE, CLOCK, PIN];
   const chipEls = chips.map((text, i) => {
     const c = cut(text, chipSize, inner - U(110), 600);
     return h(
       'div',
-      { alignItems: 'center', height: U(64), padding: `0 ${U(26)}px`, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.62)', border: '2px solid rgba(255,255,255,0.95)', marginRight: U(14), marginBottom: U(14), flexShrink: 0 },
-      svg(U(30), icons[chipsIn ? i % 3 : i], { stroke: '#4B5563', width: 2.2 }),
-      h('div', { marginLeft: U(12), fontSize: chipSize, fontWeight: 600, color: '#374151', fontFamily: SANS, whiteSpace: 'nowrap' }, c.text)
+      { alignItems: 'center', height: U(60), padding: `0 ${U(24)}px`, borderRadius: 999, backgroundColor: '#F3F4F6', marginRight: U(12), marginBottom: U(12), flexShrink: 0 },
+      svg(U(28), icons[i % 3], { stroke: '#4B5563', width: 2.2 }),
+      h('div', { marginLeft: U(10), fontSize: chipSize, fontWeight: 600, color: '#374151', fontFamily: SANS, whiteSpace: 'nowrap' }, c.text)
     );
   });
 
   // How to apply.
   const em = email && EMAIL_RE.test(email) && email.length <= 64 ? email : null;
   const short = `madevisa.com/j/${j.id.slice(0, 8)}`;
-  const target = fit(em ?? short, [U(50), U(44), U(38), U(32)], inner, 1, 800);
+  const target = fit(em ?? short, [U(46), U(40), U(34), U(30)], inner, 1, 800);
   if (target.cut) issues.push({ level: 'warning', message: 'The email had to be shortened — check it' });
 
   const middle = h(
     'div',
     { flexDirection: 'column', width: inner, flexShrink: 0 },
-    h('div', { alignSelf: 'flex-start', alignItems: 'center', height: U(76), padding: `0 ${U(38)}px`, borderRadius: 999, backgroundColor: 'rgba(168,85,247,0.80)', color: 'white', fontSize: U(38), fontWeight: 600, fontFamily: SANS, marginBottom: U(34) }, 'We are Hiring'),
+    h(
+      'div',
+      { alignSelf: 'flex-start', alignItems: 'center', height: U(64), padding: `0 ${U(28)}px`, borderRadius: 999, backgroundColor: '#ECFDF5', color: '#047857', fontSize: U(30), fontWeight: 800, letterSpacing: 2, fontFamily: SANS, marginBottom: U(28) },
+      h('div', { width: U(14), height: U(14), borderRadius: 99, backgroundColor: '#10B981', marginRight: U(12) }),
+      'NOW HIRING'
+    ),
     h('div', { flexDirection: 'column', width: inner, height: lineH * Math.min(4, tf.lines + 1), overflow: 'hidden', fontSize: tf.size, fontWeight: 800, color: '#0B0B14', letterSpacing: -2.5, lineHeight: 1.08, fontFamily: SANS }, tf.text),
-    chipEls.length ? h('div', { flexWrap: 'wrap', width: inner, marginTop: U(36), maxHeight: U(64 * 2 + 28), overflow: 'hidden' }, ...chipEls) : null
+    pf
+      ? h(
+          'div',
+          { alignItems: 'center', marginTop: U(26), height: U(64) },
+          flag ? img(flag, { width: U(56), height: U(56), borderRadius: 99, marginRight: U(18) }) : svg(U(48), PIN, { stroke: '#111827', width: 2.2 }),
+          h('div', { fontSize: pf.size, fontWeight: 700, color: '#111827', fontFamily: SANS, whiteSpace: 'nowrap', marginLeft: flag ? 0 : U(12) }, pf.text)
+        )
+      : null,
+    chipEls.length ? h('div', { flexWrap: 'wrap', width: inner, marginTop: U(28), maxHeight: U(60 * 2 + 24), overflow: 'hidden' }, ...chipEls) : null
   );
 
+  const follow = `Follow @${handle.replace(/^@/, '')} for daily job opportunities`;
+  const ff = fit(follow, [U(28), U(25), U(22)], inner, 1, 600);
   const bottom = h(
     'div',
     { flexDirection: 'column', width: inner, flexShrink: 0 },
-    h('div', { fontSize: U(34), fontWeight: 400, color: '#4B5563', fontFamily: SANS }, em ? 'Send your CV to' : 'Apply on'),
-    h('div', { marginTop: U(6), fontSize: target.size, fontWeight: 800, color: '#111827', letterSpacing: -0.5, fontFamily: SANS, whiteSpace: 'nowrap' }, target.text),
-    j.visa ? h('div', { marginTop: U(18), fontSize: U(24), fontWeight: 700, color: '#047857', fontFamily: SANS }, 'Visa sponsorship stated in the ad') : null
+    h('div', { fontSize: U(30), fontWeight: 400, color: '#4B5563', fontFamily: SANS }, em ? 'Send your CV to' : 'Apply on'),
+    h('div', { marginTop: U(4), fontSize: target.size, fontWeight: 800, color: '#111827', letterSpacing: -0.5, fontFamily: SANS, whiteSpace: 'nowrap' }, target.text),
+    j.visa ? h('div', { marginTop: U(14), fontSize: U(24), fontWeight: 700, color: '#047857', fontFamily: SANS }, 'Visa sponsorship stated in the ad') : null,
+    h('div', { marginTop: U(22), paddingTop: U(18), borderTop: '2px solid #F3F4F6', fontSize: ff.size, fontWeight: 600, color: '#6B7280', fontFamily: SANS, whiteSpace: 'nowrap' }, ff.text)
   );
 
   const tree = h(
     'div',
-    { width: S.w, height: S.h, backgroundColor: '#FAF9FC', position: 'relative', overflow: 'hidden', fontFamily: SANS },
-    blob(S.w * 0.8, S.h * 0.6, S.w * 0.66, 'rgba(192,132,252,1)'),
-    blob(S.w * 0.55, S.h * 0.5, S.w * 0.46, 'rgba(253,224,71,0.95)'),
-    blob(S.w * 0.98, S.h * 0.18, S.w * 0.4, 'rgba(244,114,182,0.45)'),
-    blob(S.w * 0.06, S.h * 0.92, S.w * 0.38, 'rgba(216,180,254,0.55)'),
+    { width: S.w, height: S.h, backgroundColor: '#FFFFFF', position: 'relative', overflow: 'hidden', fontFamily: SANS },
     h(
       'div',
-      { position: 'absolute', left: 0, top: 0, width: S.w, height: S.h, flexDirection: 'column', justifyContent: 'space-between', padding: `${Math.max(S.top, U(70))}px ${side}px ${Math.max(S.bottom, U(70))}px` },
+      { position: 'absolute', left: 0, top: 0, width: S.w, height: S.h, flexDirection: 'column', justifyContent: 'space-between', padding: `${Math.max(S.top, U(70))}px ${side}px ${Math.max(S.bottom, U(64))}px` },
       top,
       middle,
       bottom
@@ -593,7 +609,8 @@ async function hiringHandler(q: URLSearchParams): Promise<Response> {
   }
   const chips = q.has('c') ? (q.get('c') ?? '').split('~').map((x) => x.slice(0, 40)) : null;
   const email = (q.get('em') ?? '').trim().slice(0, 80) || null;
-  const { tree, issues, width, height } = await drawHiring(sizeKey, j, chips, email);
+  const handle = (q.get('fh') ?? '').replace(/[^A-Za-z0-9._]/g, '').slice(0, 30) || 'madevisacom';
+  const { tree, issues, width, height } = await drawHiring(sizeKey, j, chips, email, handle);
   if (check) return Response.json({ ok: !issues.some((i) => i.level === 'error'), width, height, jobs: 1, issues }, { headers: { 'Cache-Control': 'no-store' } });
   const glyphs = `${textOf(tree)} 0123456789→…·#@.`;
   const fonts = (await Promise.all([googleFont('Inter', 400, glyphs), googleFont('Inter', 600, glyphs), googleFont('Inter', 700, glyphs), googleFont('Inter', 800, glyphs)])).filter((f): f is Font => f !== null);

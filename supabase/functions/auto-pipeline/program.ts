@@ -469,9 +469,11 @@ async function writeSlot(
       issues = checks.flatMap((x, i) => x.issues.map((m) => `Screen ${i + 1}: ${m}`));
       if (!checks.every((x) => x.ok)) continue;
       const cc = draft.reel.bg.cc;
-      const photo = photos.photo(cc, seed);
-      const clips = photos.clips(cc, seed);
-      const slides = photos.photos(cc, seed, 5);
+      // A white reel (fast job reels) has no footage, no photos: the plain background and an empty frame.
+      const plain = Boolean(draft.reel.bg.plain);
+      const photo = plain ? null : photos.photo(cc, seed);
+      const clips = plain ? [] : photos.clips(cc, seed);
+      const slides = plain ? [] : photos.photos(cc, seed, 5);
       // Every other reel is built from photos (when the place has at least three), so the feed isn't the same
       // few clips again and again — and a place with no clips still gets a moving reel instead of one still.
       const prefer: 'photos' | 'clips' = slides.length >= 3 && (!clips.length || seed % 2 === 0) ? 'photos' : 'clips';
@@ -480,17 +482,17 @@ async function writeSlot(
       reel = {
         v: 1,
         bg: {
-          queries: draft.reel.bg.queries.slice(0, 6),
+          queries: plain ? [] : draft.reel.bg.queries.slice(0, 6),
           cc,
           photo: photo?.url ?? null,
           credit: photo?.credit ?? null,
-          fallback: `${SITE}/api/og/post?t=reel&sc=bg${cc ? `&cc=${cc}` : ''}&v=1`,
+          fallback: plain ? `${SITE}/api/og/post?t=reel&sc=bg&plain=1&v=1` : `${SITE}/api/og/post?t=reel&sc=bg${cc ? `&cc=${cc}` : ''}&v=1`,
           salt: 0,
           clips,
           photos: slides,
           prefer,
         },
-        frame: `${SITE}/api/og/post?t=reel&sc=frame&v=1`,
+        frame: plain ? `${SITE}/api/og/post?t=reel&sc=frame&plain=1&v=1` : `${SITE}/api/og/post?t=reel&sc=frame&v=1`,
         scenes,
         ...reelLayers(scenes),
         after: ready,

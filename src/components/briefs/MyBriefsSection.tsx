@@ -62,7 +62,7 @@ export function MyBriefsSection({ hideWhenEmpty = false }: { hideWhenEmpty?: boo
           <div className="sm:text-right">
             <p className="text-[22px] font-bold leading-none tabular-nums">{credits ? credits.left : '…'}</p>
             <p className="mt-1 text-[12px] text-white/75">
-              {credits?.left === 1 ? 'document' : 'documents'} left{credits?.pro ? ` · ${credits.quota} a month in your plan` : ' · part of Starter and Pro'}
+              {credits?.left === 1 ? 'document' : 'documents'} left{credits?.pro ? ` · ${credits.quota} a month in your plan` : ' · 5 free with every account'}
             </p>
           </div>
           {!credits?.pro && (
@@ -120,6 +120,7 @@ export function MyBriefsSection({ hideWhenEmpty = false }: { hideWhenEmpty?: boo
                       <Eye className="h-3.5 w-3.5" /> {b.view_count}
                     </span>
                     <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${STATUS_TONE[b.status] ?? STATUS_TONE.created}`}>{BRIEF_STATUS_LABEL[b.status]}</span>
+                    <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#1D4ED8] ring-1 ring-[#1D4ED8]/30">Edit</span>
                   </a>
                 </li>
               ))}

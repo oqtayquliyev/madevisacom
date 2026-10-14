@@ -436,22 +436,64 @@ export async function pickFreshJobs(
   p: Platform,
   o: { kind: 'fresh' | 'student' | 'sponsor' | 'visa' | 'remote' | 'offer'; countries?: string[]; salaryOnly?: boolean; want: number; min: number; newCompanies?: boolean }
 ): Promise<Job[]> {
-  const args = { p_platform: p, p_count: o.newCompanies ? 20 : Math.min(o.want * 4, 20), p_kind: o.kind, p_categories: [], p_countries: o.countries ?? [], p_salary_only: o.salaryOnly ?? false };
+  const args = { p_platform: p, p_count: o.newCompanies ? 20 : Math.min(Math.max(o.want * 6, 12), 20), p_kind: o.kind, p_categories: [], p_countries: o.countries ?? [], p_salary_only: o.salaryOnly ?? false };
   // Companies never posted on this network (migration 20261214090000); before it runs, the usual pick, filtered below.
   let { data, error } = o.newCompanies ? await service.rpc('social_pick_new_company_jobs', { p_platform: p, p_count: 20 }) : await service.rpc('social_pick_jobs', args);
   if (error && o.newCompanies) ({ data, error } = await service.rpc('social_pick_jobs', args));
   if (error) return [];
-  const [recent, seenFp, ever] = await Promise.all([recentOnPlatform(service, p, 3), recentFingerprints(service, p), o.newCompanies ? companiesEverPosted(service, p) : Promise.resolve(new Set<string>())]);
-  const used = new Set<string>();
-  const jobs = ((data ?? []) as Job[])
-    .filter((j) => {
+  const [recent, seenFp, ever, recentKinds] = await Promise.all([
+    recentOnPlatform(service, p, 3),
+    recentFingerprints(service, p),
+    o.newCompanies ? companiesEverPosted(service, p) : Promise.resolve(new Set<string>()),
+    recentKindsOfWork(service, p),
+  ]);
+  const fresh = ((data ?? []) as Job[]).filter((j) => {
+    const k = j.company.trim().toLowerCase();
+    return !(recent.companies.has(k) || ever.has(k) || seenFp.has(fingerprint(j)));
+  });
+  // Always different kinds of work: one role per kind in a post, and kinds this network
+  // showed in its last posts come last. Then one per company, as before.
+  const pickFrom = (avoidRecent: boolean, taken: Job[]) => {
+    const companies = new Set(taken.map((j) => j.company.trim().toLowerCase()));
+    const kinds = new Set(taken.map(kindOfWork));
+    for (const j of fresh) {
+      if (taken.length >= o.want) break;
       const k = j.company.trim().toLowerCase();
-      if (recent.companies.has(k) || used.has(k) || ever.has(k) || seenFp.has(fingerprint(j))) return false;
-      used.add(k);
-      return true;
-    })
-    .slice(0, o.want);
+      const w = kindOfWork(j);
+      if (companies.has(k) || kinds.has(w) || (avoidRecent && recentKinds.has(w))) continue;
+      taken.push(j);
+      companies.add(k);
+      kinds.add(w);
+    }
+    return taken;
+  };
+  let jobs = pickFrom(true, []);
+  if (jobs.length < o.want) jobs = pickFrom(false, jobs);
   return jobs.length >= Math.max(1, o.min) ? jobs : [];
+}
+
+/** The kind of work a job is (its job function, or a word from the title), for "never the same kind twice". */
+export function kindOfWork(j: Pick<Job, 'job_function' | 'title'>): string {
+  const fn = (j.job_function ?? '').trim().toLowerCase();
+  if (fn) return fn;
+  const t = cleanTitle(j.title).toLowerCase();
+  const KINDS: [RegExp, string][] = [
+    [/engineer|developer|devops|software|programmer|sre\b/, 'software'], [/data|analyst|scientist|machine learning|\bai\b/, 'data'], [/design|ux|ui\b/, 'design'],
+    [/sales|account executive|business development/, 'sales'], [/market|seo|content|brand/, 'marketing'], [/finance|account|audit|tax|controller/, 'finance'],
+    [/nurse|doctor|medical|health|care\b|clinic|pharm/, 'healthcare'], [/teacher|tutor|lecturer|education/, 'education'], [/recruit|talent|\bhr\b|people/, 'people'],
+    [/logistic|warehouse|supply|driver|transport/, 'logistics'], [/support|customer|service/, 'customer'], [/manager|director|head of|lead\b/, 'management'],
+    [/technician|mechanic|electrician|welder|construction|operator/, 'trades'], [/legal|lawyer|counsel|paralegal/, 'legal'], [/chef|cook|hotel|restaurant|barista/, 'hospitality'],
+  ];
+  return KINDS.find(([re]) => re.test(t))?.[1] ?? t.split(/\s+/).slice(-1)[0] ?? 'other';
+}
+
+/** Kinds of work in this network's last few posts. */
+async function recentKindsOfWork(service: Service, p: Platform, posts = 4): Promise<Set<string>> {
+  const { data } = await service.from('social_posts').select('links').eq('platform', p).not('status', 'in', '(rejected,expired)').order('created_at', { ascending: false }).limit(posts);
+  const ids = [...new Set(((data ?? []) as { links: { job_id?: string }[] | null }[]).flatMap((r) => (r.links ?? []).map((l) => l.job_id).filter((x): x is string => Boolean(x))))].slice(0, 30);
+  if (!ids.length) return new Set();
+  const { data: rows } = await service.from('sponsored_jobs').select('title, job_function').in('id', ids);
+  return new Set(((rows ?? []) as { title: string; job_function: string | null }[]).map(kindOfWork));
 }
 
 /** Every third post on a network leads with the Visa Plan instead of just listing jobs. */

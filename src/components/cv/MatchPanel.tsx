@@ -25,14 +25,14 @@ type Props = {
 
 /**
  * "How well does your CV match this job?" — on every job page.
- *   Score: free, always.  Missing skills: 3 jobs a day, free account.
+ *   Score, missing skills and the full report: Starter and Pro.
  *   Full report: Starter and Pro.
  * Below it, the application as a checklist — where the sponsorship
  * document shows up as the missing piece.
  */
 export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAuth }: Props) {
   const { session } = useAuth();
-  const { plan } = useMyPlan();
+  const { plan, isPaid, loading: planLoading } = useMyPlan();
   const { cv, result, busy, unlocked, full, quota } = match;
   const [open, setOpen] = useState<string | null>(null);
 
@@ -56,10 +56,45 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
             <p className="mt-1.5 text-[14px] leading-6 text-ink-600">
               Upload your CV once. On every job you get a match score, the skills the ad asks for that your CV doesn’t show, and what to change before you apply.
             </p>
-            <p className="mt-2 text-[12px] text-ink-500">Free. Your CV is read on your device, and goes to an employer only when you ask.</p>
+            <p className="mt-2 text-[12px] text-ink-500">Part of Starter and Pro. Your CV is read on your device, and goes to an employer only when you ask.</p>
           </div>
           <CvUpload />
         </div>
+      </section>
+    );
+  }
+
+  // ---- CV match is part of Starter and Pro ----
+  if (!isPaid && !planLoading) {
+    return (
+      <section id="cv-match" aria-labelledby="cv-match-title" className="scroll-mt-24 rounded-2xl border border-ink-200 bg-white p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <span aria-hidden className="pointer-events-none select-none blur-[4px]">
+            <MatchRing score={82} size={72} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 id="cv-match-title" className="flex items-center gap-2 text-[18px] font-bold leading-tight text-ink-950">
+              <Lock className="h-4 w-4 text-brand-700" /> Your match with this job
+            </h2>
+            <p className="mt-1 text-[13px] leading-5 text-ink-600">
+              CV match is part of Starter and Pro: your score, the skills {company} asks for that {cv.name} doesn’t show, and what to change before you apply.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              trackBilling('feature_limit_reached', { feature: 'cv_match' });
+              nav(checkoutHref('starter', 'job_match_locked'));
+            }}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-brand-600 px-6 py-3 text-[15px] font-bold text-white shadow-sm hover:bg-brand-700"
+          >
+            <Sparkles className="h-4 w-4" /> Unlock with Starter
+          </button>
+        </div>
+        {doc && (
+          <div className="mt-4">
+            <SponsorDocRow jobId={doc.jobId} company={company} country={doc.country} visaOffered={doc.visaOffered} onAuth={onAuth} />
+          </div>
+        )}
       </section>
     );
   }
@@ -75,7 +110,7 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
               {busy ? 'Reading the ad against your CV…' : 'How well does your CV match this job?'}
             </h2>
             <p className="mt-1 text-[13px] leading-5 text-ink-600">
-              {busy ? 'Skills, role, years, languages and education.' : `Compare ${cv.name} with what ${company} asks for. The score is free on every job.`}
+              {busy ? 'Skills, role, years, languages and education.' : `Compare ${cv.name} with what ${company} asks for.`}
             </p>
           </div>
           <button
@@ -93,7 +128,9 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
   // ---- result ----
   const tone = toneFor(result.score);
   const missing = result.skills.missing;
-  const must = missing.filter((m) => m.required);
+  const must = missing.filter((m) => (m.kind ?? (m.required ? 'skill' : 'nice')) === 'skill');
+  const wantedExp = missing.filter((m) => m.kind === 'experience');
+  const niceToHave = missing.filter((m) => (m.kind ?? (m.required ? 'skill' : 'nice')) === 'nice');
   const canUnlock = Boolean(session) && !unlocked && (quota?.left ?? 1) > 0;
 
   return (
@@ -114,7 +151,7 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
         <div className="min-w-0 space-y-5">
           {result.capReason && <p className={`rounded-lg px-3 py-2 text-[13px] font-medium leading-5 ${tone.bg} ${tone.text}`}>{result.capReason}</p>}
 
-          {/* Skills: the count is free, the names are 3 jobs a day */}
+          {/* Skills: Starter and Pro */}
           <div>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-[15px] font-bold text-ink-950">Skills</h3>
@@ -136,16 +173,27 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
               </p>
             ) : unlocked ? (
               <>
-                <p className="mt-2 text-[12px] font-semibold text-ink-500">Asked for in the ad, not found in your CV</p>
-                <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                  {missing.map((m) => (
-                    <li key={m.name} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12.5px] font-semibold ${m.required ? 'bg-amber-100 text-amber-900' : 'bg-ink-100 text-ink-700'}`}>
-                      {m.required ? <X className="h-3 w-3" strokeWidth={3} /> : null}
-                      {m.name}
-                      {!m.required && <span className="font-normal text-ink-500">· nice to have</span>}
-                    </li>
+                {(
+                  [
+                    ['Missing skills', must, 'bg-amber-100 text-amber-900'],
+                    ['Experience the ad also wants', wantedExp, 'bg-sky-50 text-sky-900 ring-1 ring-sky-200'],
+                    ['Nice to have', niceToHave, 'bg-ink-100 text-ink-700'],
+                  ] as [string, typeof missing, string][]
+                )
+                  .filter(([, list]) => list.length > 0)
+                  .map(([label, list, cls]) => (
+                    <div key={label} className="mt-2.5">
+                      <p className="text-[12px] font-semibold text-ink-500">{label}</p>
+                      <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                        {list.map((m) => (
+                          <li key={m.name} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12.5px] font-semibold ${cls}`}>
+                            {label === 'Missing skills' ? <X className="h-3 w-3" strokeWidth={3} /> : null}
+                            {m.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ))}
-                </ul>
                 {!full && quota && (
                   <p className="mt-2 text-[12px] text-ink-500">
                     {quota.left > 0 ? `${quota.left} of ${FREE_DAILY_CHECKS} free skill checks left today.` : `That was today’s last free skill check. ${FREE_DAILY_CHECKS} more tomorrow.`}

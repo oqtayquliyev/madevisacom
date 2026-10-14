@@ -639,7 +639,7 @@ async function staticPage(slug: string): Promise<Page | null> {
       body:
         '<h1>How well does your CV match the job?</h1><p>Upload your CV once. Then press “Check your match” next to Apply on any job: a score in a second, the skills you’re missing, and what to change before you send it.</p>' +
         '<h2>Where the score comes from</h2><ul><li><strong>Skills (40 points).</strong> Every skill the ad names; must-haves count in full, nice-to-haves for less.</li><li><strong>Role fit (20).</strong> Whether the roles on your CV are the same kind of job.</li><li><strong>Experience (15).</strong> The years the ad asks for against the dates on your CV.</li><li><strong>Wording (10).</strong> The words the ad leans on, and whether your CV uses them.</li><li><strong>Languages (8).</strong> Languages the ad requires, and the level.</li><li><strong>Education (7).</strong> The degree the ad asks for.</li></ul>' +
-        '<h2>What is free</h2><p>The match score is free on every job. With a free account, the skills missing from your CV are shown on 3 jobs a day. The full report on every job and 10 sponsorship documents a month are part of MadeVisa Starter ($2.99 a month); Pro ($8.99 a month) adds Auto Apply and 50 documents a month.</p>' +
+        '<h2>Plans</h2><p>CV match — the score on every job, the skills missing from your CV and the full report — is part of MadeVisa Starter ($2.99 a month), with 10 sponsorship documents a month; Pro ($8.99 a month) adds Auto Apply and 50 documents a month. Every account gets 5 free sponsorship documents.</p>' +
         footerLinks(),
       maxAge: 3600,
     };

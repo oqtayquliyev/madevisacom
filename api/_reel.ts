@@ -12,7 +12,11 @@
 //   hook   label + flag + the opening lines                       (0–3 s)
 //   list   a short headline and up to 4 rows that appear one by one
 //   cta    what to do next: lines, the link, "comment X"
-//   bg     the fallback background when there is no footage or photo
+//   bg     the fallback background when there is no footage or photo (plain=1: white)
+//   job    a whole white screen, one opportunity: "<Company> is hiring", the role,
+//          the flag and the place — fast job reels show one of these per role
+//   follow a whole white screen: "Follow @handle for daily job opportunities"
+//   (frame with plain=1 draws nothing: white reels need no dark fades)
 // Parameters:
 //   l     lines, "~" between them. First character sets the box:
 //         "*" blue · "!" yellow · "-" dark · none = white
@@ -22,6 +26,7 @@
 //   n     how many lines / rows are visible (the rest keep their place but are
 //         invisible) — the renderer steps n up to reveal them one by one
 //   link  address in the pill        c   comment prompt, e.g. Comment “GERMANY”
+//   co    company (job)  pl  place (job)  logo  company logo URL (job)  fh  handle (job, follow)
 //
 // The same no-overlap rules as api/_post.ts: line breaks are computed here
 // from Inter's real widths, each box has a fixed height, and the block steps
@@ -30,7 +35,7 @@
 import { h, icon, img, type El } from './_og';
 import { FLAG_URL, breakLines, oneLine, textWidth, type Issue, type Loader } from './_post';
 
-export type ReelScene = 'frame' | 'hook' | 'list' | 'cta' | 'bg';
+export type ReelScene = 'frame' | 'hook' | 'list' | 'cta' | 'bg' | 'job' | 'follow';
 export type ReelParams = {
   sc: ReelScene;
   l: string[];
@@ -42,6 +47,11 @@ export type ReelParams = {
   n: number;
   link: string;
   c: string;
+  co: string;
+  pl: string;
+  logo: string;
+  fh: string;
+  plain: boolean;
 };
 
 const W = 1080;
@@ -153,6 +163,11 @@ export async function drawReel(q: ReelParams, load: Loader): Promise<{ tree: El;
   const issues: Issue[] = [];
   const flag = /^[a-z]{2}$/i.test(q.cc) ? await load(FLAG_URL(q.cc), 'flag') : null;
   const full = (children: (El | null)[], style: Record<string, unknown> = {}) => h('div', { width: W, height: H, position: 'relative', fontFamily: SANS, ...style }, ...children);
+
+  // --- White reels: plain background, no fades, whole-screen job and follow cards ------
+  if (q.sc === 'bg' && q.plain) return { width: W, height: H, issues, tree: full([], { backgroundColor: 'white' }) };
+  if (q.sc === 'frame' && q.plain) return { width: W, height: H, issues, tree: full([]) };
+  if (q.sc === 'job' || q.sc === 'follow') return drawWhite(q, flag, load, issues);
 
   // --- Fallback background: brand gradient, rings, a big flag -------------------
   if (q.sc === 'bg') {
@@ -317,12 +332,97 @@ export async function drawReel(q: ReelParams, load: Loader): Promise<{ tree: El;
   return { tree, issues, width: W, height: H };
 }
 
+/** One white screen: a job ("<Company> is hiring · Role · flag Place") or the follow card. Big, still, readable in a second. */
+async function drawWhite(q: ReelParams, flag: string | null, load: Loader, issues: Issue[]): Promise<{ tree: El; issues: Issue[]; width: number; height: number }> {
+  const handle = `@${(q.fh || 'madevisacom').replace(/^@/, '')}`;
+  const mark = h(
+    'div',
+    { position: 'absolute', left: SAFE.left, top: 190, height: 80, alignItems: 'center' },
+    icon('plane', 46, BLUE, 2.2),
+    h('div', { fontSize: 44, fontWeight: 400, color: INK, marginLeft: 12, fontFamily: SANS }, 'made'),
+    h('div', { fontSize: 44, fontWeight: 800, color: INK, fontFamily: SANS }, 'visa')
+  );
+  const big = (text: string, ladder: number[], maxLines: number, color = INK) => {
+    for (const size of ladder) {
+      const lines = breakLines(text, size, 800, BOX_W, -2);
+      // Never split a word (a handle, a long title word) in the middle.
+      const whole = text.split(/\s+/).every((w) => textWidth(w, size, 800, -2) <= BOX_W);
+      if (lines.length <= maxLines && whole) return { size, lines };
+    }
+    const size = ladder[ladder.length - 1];
+    const lines = breakLines(text, size, 800, BOX_W, -2);
+    if (lines.length > maxLines) issues.push({ level: 'warning', message: 'Role shortened to fit' });
+    return { size, lines: lines.slice(0, maxLines), color };
+  };
+  const block = (f: { size: number; lines: string[] }, color = INK) =>
+    h('div', { flexDirection: 'column', flexShrink: 0 }, ...f.lines.map((ln) => h('div', { height: Math.round(f.size * 1.1), alignItems: 'center', fontSize: f.size, fontWeight: 800, color, letterSpacing: -2, whiteSpace: 'nowrap', fontFamily: SANS }, ln)));
+
+  if (q.sc === 'follow') {
+    const lines = big(handle, [120, 104, 92, 80, 68, 60], 1);
+    return {
+      width: W,
+      height: H,
+      issues,
+      tree: h(
+        'div',
+        { width: W, height: H, position: 'relative', fontFamily: SANS, backgroundColor: 'white' },
+        mark,
+        h(
+          'div',
+          { position: 'absolute', left: SAFE.left, top: SAFE.top, width: BOX_W, height: H - SAFE.top - SAFE.bottom, flexDirection: 'column', justifyContent: 'center' },
+          h('div', { fontSize: 64, fontWeight: 800, color: '#6B7280', fontFamily: SANS, marginBottom: 18 }, 'Follow'),
+          block(lines, BLUE),
+          h('div', { marginTop: 36, fontSize: 52, fontWeight: 700, color: INK, fontFamily: SANS, lineHeight: 1.25, width: BOX_W }, 'for new job opportunities every day'),
+          h('div', { marginTop: 40, alignSelf: 'flex-start', height: 96, padding: '0 34px', borderRadius: 999, backgroundColor: INK, color: 'white', alignItems: 'center', fontSize: 42, fontWeight: 800, fontFamily: SANS }, 'madevisa.com/jobs')
+        )
+      ),
+    };
+  }
+
+  const logo = /^https:\/\//.test(q.logo) ? await load(q.logo, 'logo') : null;
+  const company = oneLine(q.co || 'A company', 52, 800, BOX_W - (logo ? 150 : 0));
+  const role = big(q.l[0] || 'New role', [118, 104, 92, 82, 72, 62], 4);
+  const place = q.pl ? oneLine(q.pl, 54, 700, BOX_W - 110) : '';
+  return {
+    width: W,
+    height: H,
+    issues,
+    tree: h(
+      'div',
+      { width: W, height: H, position: 'relative', fontFamily: SANS, backgroundColor: 'white' },
+      mark,
+      h(
+        'div',
+        { position: 'absolute', left: SAFE.left, top: SAFE.top, width: BOX_W, height: H - SAFE.top - SAFE.bottom, flexDirection: 'column', justifyContent: 'center' },
+        h(
+          'div',
+          { alignItems: 'center', height: 120, flexShrink: 0 },
+          logo ? h('div', { width: 120, height: 120, borderRadius: 26, border: '3px solid #E5E7EB', backgroundColor: 'white', alignItems: 'center', justifyContent: 'center', marginRight: 28, overflow: 'hidden', flexShrink: 0 }, img(logo, { width: 100, height: 100, objectFit: 'contain' })) : null,
+          h('div', { flexDirection: 'column' }, h('div', { fontSize: 52, fontWeight: 800, color: INK, fontFamily: SANS, whiteSpace: 'nowrap' }, company), h('div', { fontSize: 36, fontWeight: 700, color: '#047857', fontFamily: SANS, marginTop: 4 }, 'is hiring'))
+        ),
+        h('div', { height: 54, flexShrink: 0 }),
+        block(role),
+        place
+          ? h(
+              'div',
+              { alignItems: 'center', marginTop: 46, height: 84, flexShrink: 0 },
+              flag ? h('div', { width: 84, height: 84, borderRadius: 999, overflow: 'hidden', marginRight: 24, border: '3px solid #E5E7EB', flexShrink: 0 }, img(flag, { width: 84, height: 84, objectFit: 'cover' })) : null,
+              h('div', { fontSize: 54, fontWeight: 700, color: '#111827', fontFamily: SANS, whiteSpace: 'nowrap' }, place)
+            )
+          : null,
+        q.s ? h('div', { marginTop: 34, alignSelf: 'flex-start', height: 72, padding: '0 26px', borderRadius: 999, backgroundColor: '#F3F4F6', color: '#374151', alignItems: 'center', fontSize: 34, fontWeight: 700, fontFamily: SANS, whiteSpace: 'nowrap' }, oneLine(q.s, 34, 700, BOX_W - 60)) : null
+      ),
+      h('div', { position: 'absolute', left: SAFE.left, top: H - SAFE.bottom + 40, width: BOX_W, fontSize: 36, fontWeight: 600, color: '#6B7280', fontFamily: SANS }, `Follow ${handle} for more`)
+    ),
+  };
+}
+
 const clean = (s: string | null, max: number) => (s ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 export function parseReel(q: URLSearchParams): ReelParams | null {
   if (q.get('t') !== 'reel') return null;
   const sc = q.get('sc') as ReelScene;
-  if (!['frame', 'hook', 'list', 'cta', 'bg'].includes(sc)) return null;
+  if (!['frame', 'hook', 'list', 'cta', 'bg', 'job', 'follow'].includes(sc)) return null;
   const kc = q.get('kc');
   const l = (q.get('l') ?? '').split('~').map((x) => clean(x, 240)).filter(Boolean).slice(0, 6);
   const rows = (q.get('rows') ?? '').split('~').map((r) => r.split('|').map((c) => clean(c, 160))).filter((r) => r.some(Boolean)).slice(0, 4);
@@ -338,5 +438,10 @@ export function parseReel(q: URLSearchParams): ReelParams | null {
     n: q.has('n') && Number.isFinite(n) ? Math.max(0, Math.min(8, Math.round(n))) : 99,
     link: clean(q.get('link'), 60),
     c: clean(q.get('c'), 48),
+    co: clean(q.get('co'), 80),
+    pl: clean(q.get('pl'), 80),
+    logo: clean(q.get('logo'), 400),
+    fh: clean(q.get('fh'), 30).replace(/[^A-Za-z0-9._@]/g, ''),
+    plain: q.get('plain') === '1',
   };
 }

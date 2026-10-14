@@ -194,33 +194,51 @@ function PlaceChip({ place, country }: { place: Place; country: string | null })
   return null;
 }
 
-/** "Missing from your CV: …" — visible, or locked behind an account / Pro. */
+/** Tags of one kind: core skills, the industry / other-field experience the ad wants, nice-to-haves. */
+function TagRow({ label, items, tone }: { label: string; items: string[]; tone: 'skill' | 'experience' | 'nice' }) {
+  if (!items.length) return null;
+  const cls = tone === 'skill' ? 'bg-amber-50 text-amber-900 ring-amber-200' : tone === 'experience' ? 'bg-sky-50 text-sky-900 ring-sky-200' : 'bg-ink-50 text-ink-700 ring-ink-200';
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="mr-0.5 text-[12px] font-semibold text-ink-500">{label}</span>
+      {items.slice(0, 6).map((s) => (
+        <span key={s} className={`rounded-full px-2.5 py-0.5 text-[12.5px] font-semibold ring-1 ${cls}`}>
+          {s}
+        </span>
+      ))}
+      {items.length > 6 && <span className="px-1 text-[12.5px] text-ink-500">+{items.length - 6}</span>}
+    </div>
+  );
+}
+
+/** What the ad asks for that the CV doesn't show, as three kinds of tags — or locked for free accounts. */
 function MissingLine({ m, open, guest, onAuth }: { m: TopMatch; open: boolean; guest: boolean; onAuth?: OnAuth }) {
   const missing = m.missing ?? [];
-  if (!missing.length) {
+  const wanted = m.wanted ?? [];
+  const nice = m.nice ?? [];
+  const n = missing.length + wanted.length + nice.length;
+  if (!n) {
     return (
       <p className="flex items-center gap-1.5 border-t border-ink-100 px-4 py-2.5 text-[13px] text-emerald-800 sm:px-5">
-        <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={3} /> Your CV names every skill this ad asks for.
+        <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={3} /> Your CV covers everything this ad asks for.
       </p>
     );
   }
   if (open) {
     return (
-      <div className="border-t border-ink-100 px-4 py-2.5 sm:px-5">
-        <p className="text-[12px] font-semibold text-ink-500">Missing from your CV</p>
-        <ul className="mt-1 flex flex-wrap gap-1.5">
-          {missing.slice(0, 6).map((s) => (
-            <li key={s} className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[12.5px] font-semibold text-amber-900 ring-1 ring-amber-200">
-              {s}
-            </li>
-          ))}
-          {missing.length > 6 && <li className="px-1 py-0.5 text-[12.5px] text-ink-500">+{missing.length - 6} more</li>}
-        </ul>
+      <div className="space-y-1.5 border-t border-ink-100 px-4 py-2.5 sm:px-5">
+        {missing.length === 0 && (
+          <p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-emerald-800">
+            <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={3} /> Every core skill is on your CV
+          </p>
+        )}
+        <TagRow label="Missing skills" items={missing} tone="skill" />
+        <TagRow label="Experience wanted" items={wanted} tone="experience" />
+        <TagRow label="Nice to have" items={nice} tone="nice" />
       </div>
     );
   }
-  const n = missing.length;
-  const label = `${n} ${n === 1 ? 'skill' : 'skills'} missing from your CV`;
+  const label = missing.length ? `${missing.length} ${missing.length === 1 ? 'skill' : 'skills'} missing from your CV` : `${n} ${n === 1 ? 'thing' : 'things'} the ad also wants`;
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-ink-100 px-4 py-2.5 sm:px-5">
       <p className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] font-semibold text-ink-700">
@@ -234,7 +252,7 @@ function MissingLine({ m, open, guest, onAuth }: { m: TopMatch; open: boolean; g
           }}
           className="shrink-0 text-[12.5px] font-bold text-brand-700 hover:underline"
         >
-          See them with a free account
+          Sign up to see them
         </button>
       ) : (
         <a href={checkoutHref('starter', 'top_matches')} onClick={go(checkoutHref('starter', 'top_matches'))} className="shrink-0 text-[12.5px] font-bold text-brand-700 hover:underline">
@@ -817,6 +835,7 @@ function othersFor(result: TopResult | null, currentId: string | null, guest: bo
  */
 export function OtherMatchesPopup({ currentId, onAuth }: { currentId: string | null; onAuth?: OnAuth }) {
   const { session } = useAuth();
+  const { isPaid } = useMyPlan();
   const { result } = useTopMatches();
   const [open, setOpen] = useState(false);
   const guest = !session;
@@ -835,7 +854,8 @@ export function OtherMatchesPopup({ currentId, onAuth }: { currentId: string | n
     return () => window.clearTimeout(t);
   }, [currentId, mine, total]);
 
-  if (!open || total < 1) return null;
+  // CV match is part of Starter and Pro.
+  if (!open || total < 1 || !isPaid) return null;
   const close = () => {
     setOpen(false);
     const seen = popSeen();
@@ -893,9 +913,10 @@ export function OtherMatchesPopup({ currentId, onAuth }: { currentId: string | n
 export function RecommendedJobs({ currentId, onAuth, className = '' }: { currentId: string | null; onAuth?: OnAuth; className?: string }) {
   const { session } = useAuth();
   // Looks for matches by itself a moment after the page has loaded (only the light, server-side way).
+  const { isPaid } = useMyPlan();
   const { result, status, cv } = useTopMatches({ auto: true, autoDelayMs: 2500, light: true });
   const guest = !session;
-  if (!cv) return null;
+  if (!cv || !isPaid) return null;
   const { list, total } = othersFor(result, currentId, guest);
 
   if (!result) {
@@ -974,8 +995,9 @@ export function RecommendedJobs({ currentId, onAuth, className = '' }: { current
 export function TopMatchesStrip({ className = '' }: { className?: string }) {
   const { session } = useAuth();
   // A CV added on this page (the strip above) is searched for a moment later, the light way.
+  const { isPaid } = useMyPlan();
   const { result } = useTopMatches({ auto: true, autoDelayMs: 1500, light: true });
-  if (!result?.items.length) return null;
+  if (!result?.items.length || !isPaid) return null;
   const guest = !session;
   const list = (guest ? result.items.slice(0, GUEST_VISIBLE) : result.items).slice(0, 3);
   const t = tiers(result.items);
