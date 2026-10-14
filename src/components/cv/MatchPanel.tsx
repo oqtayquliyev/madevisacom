@@ -266,7 +266,7 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
                   <p className="text-[13.5px] font-semibold leading-5 text-ink-900">
                     See each part of your score and what to change in your CV for this job.
                     <span className="block text-[12.5px] font-normal text-ink-600">
-                      Full report on every job, no daily limit, plus 10 sponsorship documents a month. <ProPrice />.
+                      Full report on every job, no daily limit, plus 20 sponsorship documents a month. <ProPrice />.
                     </span>
                   </p>
                   <button onClick={() => nav(checkoutHref('starter', 'cv_full_report'))} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-ink-950 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-ink-800">

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ArrowRight, Check, ExternalLink, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, ExternalLink, Sparkles, Star } from 'lucide-react';
 import { PLANS, priceLabel, useMyPlan, type PaidPlanId, type PlanId } from '@/lib/plans';
 import { manageUrl } from '@/lib/gumroad';
 import { checkoutHref, trackBilling } from '@/lib/billing';
@@ -50,15 +50,26 @@ export function PlanCard({
 
       {/* Feature titles only: the details are in "Compare plans" below the cards. */}
       <ul className="mt-6 flex-1 space-y-3">
-        {plan !== 'free' && <li className="text-[15px] font-bold text-ink-950">{plan === 'starter' ? 'Everything in Free, plus:' : 'Everything in Starter, plus:'}</li>}
+        {plan === 'starter' && <li className="text-[15px] font-bold text-ink-950">Everything in Free, plus:</li>}
+        {plan === 'pro' && <li className="text-[15px] font-bold text-ink-950">Everything you get:</li>}
         {benefits
           .filter((b) => b.title !== 'Everything in Starter')
-          .map((b) => (
-            <li key={b.title} className="flex items-start gap-2.5 text-[15px] font-semibold leading-6 text-ink-900">
-              <Check className={`mt-1 h-4 w-4 shrink-0 ${plan === 'free' ? 'text-ink-400' : 'text-brand-600'}`} aria-hidden />
-              <span>{b.title}</span>
-            </li>
-          ))}
+          .map((b) =>
+            b.star ? (
+              <li key={b.title} className="-mx-2 flex items-start gap-2.5 rounded-xl bg-amber-50 px-2 py-2 text-[15px] font-bold leading-6 text-ink-950 ring-1 ring-amber-300">
+                <Star className="mt-0.5 h-5 w-5 shrink-0 fill-amber-400 text-amber-500" aria-hidden />
+                <span>
+                  {b.title}
+                  <span className="ml-1.5 inline-block rounded-full bg-amber-400 px-2 py-0.5 align-middle text-[10.5px] font-extrabold uppercase tracking-wide text-ink-950">Pro only</span>
+                </span>
+              </li>
+            ) : (
+              <li key={b.title} className="flex items-start gap-2.5 text-[15px] font-semibold leading-6 text-ink-900">
+                <Check className={`mt-1 h-4 w-4 shrink-0 ${plan === 'free' ? 'text-ink-400' : 'text-brand-600'}`} aria-hidden />
+                <span>{b.title}</span>
+              </li>
+            )
+          )}
       </ul>
 
       {plan === 'free' ? (

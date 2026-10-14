@@ -233,7 +233,7 @@ export function splitWord(split: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Sponsorship documents are part of Starter (10) and Pro (50) each calendar month.
+// Sponsorship documents each calendar month: Free 1, Starter 20, Pro 50.
 // They are no longer sold one by one and new accounts get none for free.
 // Documents bought or earned before that change (`docs`) are kept and can
 // still be used — see migration 20261126090000 and src/lib/pricing.ts.
@@ -279,7 +279,8 @@ export async function fetchOfferCredits(): Promise<OfferCredits | null> {
 }
 
 /** Can this person prepare a document right now? */
-export const canMakeDocument = (c: OfferCredits | null) => Boolean(c && ((c.pro && c.proLeft > 0) || c.docs >= 1));
+/** This month's allowance (Free 1, Starter 20, Pro 50) or older kept documents. */
+export const canMakeDocument = (c: OfferCredits | null) => Boolean(c && (c.proLeft > 0 || c.docs >= 1));
 
 /** Countries with checked employer data, for the flag row. */
 export { briefCountries } from '@/data/visa';
@@ -319,7 +320,7 @@ export function useOfferCredits(): OfferCredits | null {
 
 /** "47 of 50 left this month" / "2 documents left" — what a person can still make. */
 export function allowanceLabel(c: OfferCredits): string {
-  if (c.pro) return `${c.proLeft} of ${c.quota} left this month${c.docs > 0 ? ` + ${c.docs} kept` : ''}`;
+  if (c.quota > 0) return `${c.proLeft} of ${c.quota} left this month${c.docs > 0 ? ` + ${c.docs} kept` : ''}`;
   return `${docsLabel(c.docs)} left`;
 }
 

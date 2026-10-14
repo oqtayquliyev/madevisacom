@@ -173,7 +173,7 @@ describe('checkout answers', () => {
     expect(readPlanParam('')).toBe('starter');
     expect(cleanSource('job_page')).toBe('job_page');
     expect(cleanSource('<script>')).toBeNull();
-    expect(checkoutHref('pro', 'auto_apply')).toBe('/checkout?plan=pro&source=auto_apply');
+    expect(checkoutHref('pro', 'auto_apply')).toBe('/checkout?plan=pro&source=auto_apply&go=1');
   });
   it('confirms only when the server says the plan (or a higher one) is on', () => {
     expect(confirmedFor('starter', 'free')).toBe(false);

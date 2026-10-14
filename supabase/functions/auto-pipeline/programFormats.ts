@@ -1825,7 +1825,7 @@ const cv_fix: Builder = async (c) => {
 const match_free: Builder = async (c) => {
   if (c.age('match_free:levels') < 24 * 30) return null;
   const levels: [string, string][] = [
-    ['Every job + 5 sponsorship documents', 'Free, with an account.'],
+    ['Every job + 1 sponsorship document a month', 'Free, with an account.'],
     ['CV match on every job', 'MadeVisa Starter.'],
     ['Auto Apply + 50 documents a month', 'MadeVisa Pro.'],
   ];

@@ -639,7 +639,7 @@ async function staticPage(slug: string): Promise<Page | null> {
       body:
         '<h1>How well does your CV match the job?</h1><p>Upload your CV once. Then press “Check your match” next to Apply on any job: a score in a second, the skills you’re missing, and what to change before you send it.</p>' +
         '<h2>Where the score comes from</h2><ul><li><strong>Skills (40 points).</strong> Every skill the ad names; must-haves count in full, nice-to-haves for less.</li><li><strong>Role fit (20).</strong> Whether the roles on your CV are the same kind of job.</li><li><strong>Experience (15).</strong> The years the ad asks for against the dates on your CV.</li><li><strong>Wording (10).</strong> The words the ad leans on, and whether your CV uses them.</li><li><strong>Languages (8).</strong> Languages the ad requires, and the level.</li><li><strong>Education (7).</strong> The degree the ad asks for.</li></ul>' +
-        '<h2>Plans</h2><p>CV match — the score on every job, the skills missing from your CV and the full report — is part of MadeVisa Starter ($2.99 a month), with 10 sponsorship documents a month; Pro ($8.99 a month) adds Auto Apply and 50 documents a month. Every account gets 5 free sponsorship documents.</p>' +
+        '<h2>Plans</h2><p>CV match — the score on every job, the skills missing from your CV and the full report — is part of MadeVisa Starter ($2.99 a month), with 20 sponsorship documents a month; Pro ($8.99 a month) adds Auto Apply and 50 documents a month. Free accounts get 1 sponsorship document a month.</p>' +
         footerLinks(),
       maxAge: 3600,
     };
@@ -692,7 +692,7 @@ async function staticPage(slug: string): Promise<Page | null> {
         '<li><strong>Choose who pays what.</strong> Start from a balanced suggestion and change any line. The route that may apply and what it asks of the employer are filled in for you.</li>' +
         '<li><strong>Attach the PDF when you apply.</strong> A short proposal with the source of every line. The employer sees what sponsoring you would involve, what is confirmed and what is still open, and can reply in one click.</li>' +
         '</ol>' +
-        `<h2>What it costs</h2><p>Visa Plans are part of MadeVisa Starter (10 a month, ${usd(PLANS.starter.priceCents)} a month) and Pro (50 a month, ${usd(PLANS.pro.priceCents)} a month), with the full CV match report on every job. ${link('/pricing', 'See pricing')}.</p>` +
+        `<h2>What it costs</h2><p>Visa Plans are part of MadeVisa Starter (20 a month, ${usd(PLANS.starter.priceCents)} a month) and Pro (50 a month, ${usd(PLANS.pro.priceCents)} a month), with the full CV match report on every job. ${link('/pricing', 'See pricing')}.</p>` +
         `<p>A Visa Plan is a proposal written by you, not legal advice. It does not guarantee that an employer will sponsor you or that a visa will be granted. ${link('/sponsorship-document-terms', 'Sponsorship document terms')}.</p>` +
         footerLinks(),
       maxAge: 3600,

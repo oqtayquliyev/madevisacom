@@ -20,9 +20,10 @@ Supabase SQL Editor. Safe to run more than once.
    - Every email's footer (and plain-text version) now ends with the address:
      Yashil Dara, Sumgayit AZ5000, Azerbaijan · +994 77 572 00 98 · hello@madevisa.com
 
-2. SPONSORSHIP DOCUMENTS — 5 free for every account
-   brief_credits_for(): every account has 5 free documents (plus the plan's monthly
-   allowance and anything granted). Editing a document never costs one.
+2. SPONSORSHIP DOCUMENTS — every calendar month: Free 1, Starter 20, Pro 50
+   plan_entitlements + brief_credits_for(): the monthly allowance now also applies to
+   free accounts. Documents granted or bought earlier still count on top. Editing a
+   document never costs one.
 
 3. CV MATCH — Starter and Pro only
    plan_entitlements: Free no longer includes missing skills (the app shows CV match
@@ -500,8 +501,16 @@ BEGIN
 END $$;
 
 -- ===========================================================================
--- 2. SPONSORSHIP DOCUMENTS — 5 free for every account
+-- 2. SPONSORSHIP DOCUMENTS — Free 1, Starter 20, Pro 50 each calendar month
 -- ===========================================================================
+UPDATE public.plan_entitlements SET allowed = true, usage_limit = 1
+WHERE plan_id = 'free' AND feature IN ('sponsorship_documents');
+UPDATE public.plan_entitlements SET allowed = true, usage_limit = 20
+WHERE plan_id = 'starter' AND feature IN ('sponsorship_documents');
+UPDATE public.plan_entitlements SET allowed = true, usage_limit = 50
+WHERE plan_id = 'pro' AND feature IN ('sponsorship_documents');
+
+-- 'pro' = on a paid plan; 'quota' / 'pro_left' = this month's allowance (every plan has one now).
 CREATE OR REPLACE FUNCTION public.brief_credits_for(p_user uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -510,36 +519,32 @@ SECURITY DEFINER
 SET search_path = public, auth
 AS $$
 DECLARE
-  FREE_DOCS constant integer := 5;
+  tier text := public.plan_tier(p_user);
   quota integer := coalesce(public.feature_limit(p_user, 'sponsorship_documents'), 0);
   granted integer;
   spent integer;
   used integer;
-  pro boolean := quota > 0;
-  pro_used integer := 0;
+  month_used integer := 0;
   docs integer;
-  pro_left integer;
+  month_left integer;
 BEGIN
   SELECT coalesce(sum(credits), 0) INTO granted FROM public.brief_credit_grants WHERE user_id = p_user;
   SELECT count(*) FILTER (WHERE paid_with = 'credit'), count(*) INTO spent, used FROM public.hiring_briefs WHERE user_id = p_user;
-  IF pro THEN
-    SELECT count(*) INTO pro_used FROM public.hiring_briefs
-    WHERE user_id = p_user AND paid_with = 'pro' AND created_at >= date_trunc('month', now());
-  END IF;
-  docs := greatest(0, FREE_DOCS + granted - spent);
-  pro_left := CASE WHEN pro THEN greatest(0, quota - pro_used) ELSE 0 END;
+  SELECT count(*) INTO month_used FROM public.hiring_briefs
+  WHERE user_id = p_user AND paid_with = 'pro' AND created_at >= date_trunc('month', now());
+  docs := greatest(0, granted - spent);
+  month_left := greatest(0, quota - month_used);
   RETURN jsonb_build_object(
     'unit', 'documents',
     'docs', docs,
-    'free', FREE_DOCS,
     'granted', granted,
     'spent', spent,
     'used', used,
-    'pro', pro,
-    'plan', public.plan_tier(p_user),
-    'pro_left', pro_left,
+    'pro', tier <> 'free',
+    'plan', tier,
+    'pro_left', month_left,
     'quota', quota,
-    'left', docs + pro_left
+    'left', docs + month_left
   );
 END;
 $$;
@@ -562,16 +567,16 @@ BEGIN
       RAISE EXCEPTION 'That''s 30 sponsorship documents this week — the fair-use limit. Try again in a few days.' USING ERRCODE = 'P0001';
     END IF;
     c := public.brief_credits_for(NEW.user_id);
-    IF (c->>'pro')::boolean AND (c->>'pro_left')::int > 0 THEN
+    IF (c->>'pro_left')::int > 0 THEN
       NEW.paid_with := 'pro';
     ELSIF (c->>'docs')::int >= 1 THEN
       NEW.paid_with := 'credit';
-    ELSIF (c->>'pro')::boolean AND c->>'plan' = 'starter' THEN
-      RAISE EXCEPTION 'You''ve used all % sponsorship documents for this month and your 5 free ones. They renew on the 1st, or Pro includes 50 a month.', c->>'quota' USING ERRCODE = 'P0001';
+    ELSIF c->>'plan' = 'starter' THEN
+      RAISE EXCEPTION 'You''ve used all % sponsorship documents for this month. They renew on the 1st, or Pro includes 50 a month.', c->>'quota' USING ERRCODE = 'P0001';
     ELSIF (c->>'pro')::boolean THEN
       RAISE EXCEPTION 'You''ve used all % sponsorship documents for this month. They renew on the 1st.', c->>'quota' USING ERRCODE = 'P0001';
     ELSE
-      RAISE EXCEPTION 'You''ve used your 5 free sponsorship documents. Starter includes 10 a month and Pro 50. See Pricing.' USING ERRCODE = 'P0001';
+      RAISE EXCEPTION 'You''ve used this month''s free sponsorship document. It renews on the 1st; Starter includes 20 a month and Pro 50.' USING ERRCODE = 'P0001';
     END IF;
     NEW.cost_usd := 0;
     NEW.view_count := 0;

@@ -63,7 +63,7 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
         intro: 'Six things, in one place, so every application is a better-informed one.',
         items: [
           { icon: 'check', title: 'CV match on every job', text: 'Upload your CV once. Every job shows how well it fits — a score that is always free — plus the skills the ad asks for that your CV doesn’t show, and what to change before you apply.' },
-          { icon: 'send', title: 'Sponsorship proposals', text: 'When a job needs a visa, add a proposal to your application: the route that may apply, what it asks of the employer and who you suggest pays each cost, with the source of every line. Starter includes 10 a month and Pro 50.' },
+          { icon: 'send', title: 'Sponsorship proposals', text: 'When a job needs a visa, add a proposal to your application: the route that may apply, what it asks of the employer and who you suggest pays each cost, with the source of every line. Free accounts get 1 a month, Starter 20 and Pro 50.' },
           { icon: 'source', title: 'Jobs from the source', text: 'Roles come from the employer’s own careers page — not reposts — so you see them early, with the real posting date. When a job closes there, it closes here.' },
           { icon: 'score', title: 'Company Scores', text: 'Reply rates, reply times and “was the job as described?” — built from outcomes applicants share, weighted so no single account can tilt a score.' },
           { icon: 'chart', title: 'Hiring insights', text: 'Who is hiring this week, where, for which roles, how much is remote and which companies offer visa sponsorship — updated through the day.' },
@@ -186,8 +186,8 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
       { q: 'Why does a job show “Location on source”?', a: 'Some employers don’t state a clear location in the ad. Rather than guess, we point you to the original posting, where the employer gives the details.' },
       { q: 'Do I need an account?', a: 'No — you can search and read everything without one, and even check your CV against a job. An account keeps your CV, shows the skills you’re missing, and lets you save jobs, track applications and get check-in reminders.' },
       { q: 'Can I trust a Company Score with only a few applicants?', a: 'Scores only appear once several people have shared an outcome, and while data is early they show as a range. The more people track, the sharper they get.' },
-      { q: 'How much does a sponsorship proposal cost?', a: 'It is part of the paid plans: Starter ($2.99 a month) includes 10 a month and Pro ($8.99 a month) 50, both with the full CV match report on every job. Credits bought before October 2026 still work; see the Sponsorship Document Terms.' },
-      { q: 'Is checking my CV against a job free?', a: 'CV match is part of MadeVisa Starter and Pro: your match score on every job, the skills your CV is missing, the experience the employer also wants, and the full report on what to change. Browsing jobs and 5 sponsorship documents are free.' },
+      { q: 'How much does a sponsorship proposal cost?', a: 'It is part of the paid plans: Free accounts get 1 a month, Starter ($2.99 a month) 20 and Pro ($8.99 a month) 50, both with the full CV match report on every job. Credits bought before October 2026 still work; see the Sponsorship Document Terms.' },
+      { q: 'Is checking my CV against a job free?', a: 'CV match is part of MadeVisa Starter and Pro: your match score on every job, the skills your CV is missing, the experience the employer also wants, and the full report on what to change. Browsing jobs and 1 sponsorship document a month are free.' },
       { q: 'Is the visa information official?', a: 'Each guide summarises the official rules and links to the government source, with the month it was last checked. Always confirm with the official source before you apply.' },
     ],
     cta: {

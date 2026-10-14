@@ -74,7 +74,7 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick
           </div>
           {credits && !locked && (
             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
-              {credits.pro && credits.proLeft > 0 ? `Included in Pro · ${credits.proLeft} left this month` : `${docsLabel(credits.left)} left`}
+              {credits.proLeft > 0 ? `${credits.proLeft} left this month` : `${docsLabel(credits.left)} left`}
             </span>
           )}
         </div>
@@ -189,7 +189,7 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick
                 {!user ? (
                   <>
                     <p className="text-[15px] font-bold text-ink-950">Sign up to make custom Visa Plans</p>
-                    <p className="text-[13px] text-ink-500">Every account gets 5 free sponsorship documents; Starter adds 10 a month and Pro 50.</p>
+                    <p className="text-[13px] text-ink-500">Free accounts get 1 sponsorship document a month, Starter 20 and Pro 50.</p>
                     <button onClick={() => onAuth?.('register')} className="mt-1 rounded-lg bg-[#1D4ED8] px-4 py-2.5 text-[14px] font-bold text-white hover:bg-brand-800">
                       Create account
                     </button>
@@ -198,7 +198,7 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick
                   <>
                     <p className="text-[15px] font-bold text-ink-950">{credits?.pro ? `All ${credits.quota} used this month` : 'Part of Starter and Pro'}</p>
                     <p className="text-[13px] text-ink-500">
-                      {credits?.pro ? 'Your documents renew on the 1st.' : 'Starter includes 10 sponsorship documents a month and the full CV match report on every job; Pro includes 50.'}
+                      {credits?.pro ? 'Your documents renew on the 1st.' : 'Starter includes 20 sponsorship documents a month and the full CV match report on every job; Pro includes 50.'}
                     </p>
                     {!credits?.pro && (
                       <a

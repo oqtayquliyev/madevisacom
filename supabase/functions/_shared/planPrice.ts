@@ -8,7 +8,7 @@
 // display) was retired in October 2026; its git history has it. Members who
 // bought Pro at those prices keep them on Gumroad.
 
-/** Sponsorship documents in Pro each calendar month (Starter: 10 — see ./plans.ts). */
+/** Sponsorship documents in Pro each calendar month (Free 1, Starter 20 — see ./plans.ts). */
 export const PRO_MONTHLY_DOCS = 50;
 /** New accounts no longer get a free document — it is part of the plans. */
 export const SIGNUP_DOCS = 0;

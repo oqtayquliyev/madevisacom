@@ -62,7 +62,7 @@ export function MyBriefsSection({ hideWhenEmpty = false }: { hideWhenEmpty?: boo
           <div className="sm:text-right">
             <p className="text-[22px] font-bold leading-none tabular-nums">{credits ? credits.left : '…'}</p>
             <p className="mt-1 text-[12px] text-white/75">
-              {credits?.left === 1 ? 'document' : 'documents'} left{credits?.pro ? ` · ${credits.quota} a month in your plan` : ' · 5 free with every account'}
+              {credits?.left === 1 ? 'document' : 'documents'} left{credits?.quota ? ` · ${credits.quota} a month${credits.quota === 1 ? ', free' : ' in your plan'}` : ''}
             </p>
           </div>
           {!credits?.pro && (
@@ -268,7 +268,7 @@ export function PlanCard() {
           <p className="text-[13px] font-semibold text-ink-800">Sponsorship documents</p>
           <OfferInfo />
         </div>
-        <p className="mt-1.5 text-[13px] text-ink-700">{credits ? (credits.left > 0 ? allowanceLabel(credits) : has('sponsorship_documents') ? 'All used this month — they renew on the 1st' : '10 a month with Starter, 50 with Pro') : '…'}</p>
+        <p className="mt-1.5 text-[13px] text-ink-700">{credits ? (credits.left > 0 ? allowanceLabel(credits) : has('sponsorship_documents') ? 'All used this month — they renew on the 1st' : '20 a month with Starter, 50 with Pro') : '…'}</p>
         {credits && credits.left === 0 && !has('sponsorship_documents') && (
           <a href={checkoutHref('starter', 'dashboard_documents')} onClick={(e) => (e.preventDefault(), nav(checkoutHref('starter', 'dashboard_documents')))} className="mt-2 inline-block text-[13px] font-semibold text-[#1D4ED8] hover:underline">
             See Starter

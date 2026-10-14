@@ -313,7 +313,7 @@ export const FORMATS: FormatDef[] = [
   },
   {
     key: 'match_free', pillar: 'plan', name: 'What’s free, what’s Pro',
-    idea: 'Plainly: every job and 5 sponsorship documents are free; CV match is in Starter; Auto Apply and 50 documents a month in Pro.',
+    idea: 'Plainly: every job and 1 sponsorship document a month are free; CV match and 20 documents a month in Starter; Auto Apply and 50 documents a month in Pro.',
     example: 'What you get without paying, and what the plan adds.',
     source: 'Pricing', link: '/pricing', visual: 'Fact card',
     platforms: FEED, parts: ['lunch', 'evening'], weight: 1, cooldown: 240,

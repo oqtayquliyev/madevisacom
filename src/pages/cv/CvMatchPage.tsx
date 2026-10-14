@@ -212,7 +212,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
 
           <More title="What’s free, and what’s in the plan">
             <p className="text-[14px] leading-6 text-ink-600">
-              CV match is part of Starter and Pro: your score on every job, the skills your CV is missing, the experience employers also want, the full report and all your matches. Every account gets 5 free sponsorship documents; Starter adds 10 a month and Pro 50.
+              CV match is part of Starter and Pro: your score on every job, the skills your CV is missing, the experience employers also want, the full report and all your matches. Sponsorship documents each month: Free 1, Starter 20, Pro 50.
             </p>
             <MatchLevels className="mt-4" />
             <div className="mt-5 max-w-2xl">

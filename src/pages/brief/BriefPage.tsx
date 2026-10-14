@@ -288,7 +288,7 @@ function NewOffer({ go, onAuth }: Props) {
   const baseTerms = termsFrom(edNow, allowed, el.code);
   const recTerms = termsFrom({ ...ed, split: recSplit, overrides: {} }, allowed, el.code);
   const isRecommended = edNow.split === recSplit && Object.keys(edNow.overrides).length === 0;
-  const usesPro = Boolean(credits?.pro && credits.proLeft > 0);
+  const usesPro = Boolean(credits && credits.proLeft > 0);
   const canPay = canMakeDocument(credits);
   const generic = !el.checked || route.id === GENERIC_ROUTE_ID;
   const adHost = hostOf(job.source);
@@ -461,7 +461,7 @@ function NewOffer({ go, onAuth }: Props) {
       return setPlanOpen(true);
     }
     // Pro, all of this month's documents used.
-    if (!canPay) return fail(`All ${PRO_MONTHLY_DOCS} documents for this month are used. They renew on the 1st.`);
+    if (!canPay) return fail(`All ${credits?.quota ?? PRO_MONTHLY_DOCS} documents for this month are used. They renew on the 1st.`);
     setError(null);
     setFullOpen(false);
     // Approved above: straight to the download, no second confirmation.
@@ -1006,13 +1006,13 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
         <dl className="space-y-1.5 text-[14px]">
           <div className="flex justify-between">
             <dt className="text-ink-600">This document</dt>
-            <dd className="font-semibold tabular-nums text-ink-950">{usesPro ? 'Included in your plan' : canPay ? '1 of your free documents' : 'Starter or Pro'}</dd>
+            <dd className="font-semibold tabular-nums text-ink-950">{usesPro ? (credits?.pro ? 'Included in your plan' : 'Your free document this month') : canPay ? '1 kept document' : 'Starter or Pro'}</dd>
           </div>
-          {credits?.pro && (
+          {credits && credits.quota > 0 && (
             <div className="flex justify-between">
-              <dt className="text-ink-600">Pro this month</dt>
+              <dt className="text-ink-600">This month</dt>
               <dd className="font-semibold tabular-nums text-ink-950">
-                {credits.proLeft} of {PRO_MONTHLY_DOCS} left
+                {credits.proLeft} of {credits.quota} left
               </dd>
             </div>
           )}
@@ -1025,8 +1025,8 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
           )}
           {signedIn && credits && !canPay && (
             <div className="flex justify-between border-t border-ink-100 pt-1.5">
-              <dt className="font-semibold text-rose-700">{credits.pro ? 'Used up this month' : 'Needed'}</dt>
-              <dd className="font-bold tabular-nums text-rose-700">{credits.pro ? 'Renews on the 1st' : 'Starter or Pro'}</dd>
+              <dt className="font-semibold text-rose-700">Used up this month</dt>
+              <dd className="font-bold tabular-nums text-rose-700">{credits.pro ? 'Renews on the 1st' : 'Starter: 20 a month'}</dd>
             </div>
           )}
         </dl>
@@ -1034,10 +1034,10 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
       {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{error}</p>}
       <button onClick={onGo} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-brand-800 disabled:opacity-60">
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : canPay ? <Download className="h-4 w-4" /> : credits?.pro ? <Lock className="h-4 w-4" /> : <Download className="h-4 w-4" />}
-        {canPay ? 'Download PDF' : credits?.pro ? `All ${PRO_MONTHLY_DOCS} used this month` : 'Download PDF'}
+        {canPay ? 'Download PDF' : credits?.pro ? `All ${credits.quota} used this month` : 'Download PDF'}
       </button>
       <div className="flex items-center justify-between text-[12px] text-ink-500">
-        <span>Every account gets 5 free documents. Edit any of them later from your profile.</span>
+        <span>Free accounts get 1 document a month. Edit any of them later from your profile.</span>
         <OfferInfo />
       </div>
     </div>
@@ -1063,7 +1063,7 @@ function PlanSheet({ company, signedIn, onClose, onAuth }: { company: string; si
             <h2 id="plan-sheet-title" className="text-[20px] font-bold leading-snug tracking-tight text-ink-950">
               Download your document{company ? ` for ${company}` : ''}
             </h2>
-            <p className="mt-1 text-[13.5px] leading-5 text-ink-600">{signedIn ? 'Your 5 free documents are used. Starter includes 10 a month and Pro 50.' : 'Sign up free to download: every account gets 5 free documents.'} Your document stays as you set it.</p>
+            <p className="mt-1 text-[13.5px] leading-5 text-ink-600">{signedIn ? 'This month’s free document is used. Starter includes 20 a month and Pro 50.' : 'Sign up free to download: every account gets 1 free document a month.'} Your document stays as you set it.</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="-mr-1 -mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-ink-100">
             <X className="h-5 w-5" />

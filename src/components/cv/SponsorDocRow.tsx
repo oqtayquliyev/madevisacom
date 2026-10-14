@@ -95,7 +95,7 @@ export function SponsorDocRow({ jobId, company, country, visaOffered, onAuth, co
             >
               <Lock className="h-3.5 w-3.5" /> Add it with Starter
             </button>
-            <span className="text-[11px] text-ink-500">10 a month · {priceLabel('starter')}</span>
+            <span className="text-[11px] text-ink-500">20 a month · {priceLabel('starter')}</span>
           </span>
         )
       }

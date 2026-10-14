@@ -188,7 +188,8 @@ export function orderSummary(plan: CatalogPlan, now: Date, confirmedCents?: numb
 export const cleanSource = (v: string | null | undefined): string | null => (v && /^[a-z0-9_]{1,40}$/.test(v) ? v : null);
 
 /** /checkout?plan=…&source=… */
-export const checkoutHref = (plan: PaidPlanId, source?: string) => `/checkout?plan=${plan}${source ? `&source=${encodeURIComponent(source)}` : ''}`;
+/** Every "Get Starter / Get Pro" button: the checkout page, which goes straight on to Gumroad (go=1) for a signed-in person. */
+export const checkoutHref = (plan: PaidPlanId, source?: string) => `/checkout?plan=${plan}${source ? `&source=${encodeURIComponent(source)}` : ''}&go=1`;
 
 
 // ---------------------------------------------------------------------------

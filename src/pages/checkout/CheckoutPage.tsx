@@ -18,14 +18,13 @@ import {
   Mail,
   Rocket,
   ScanSearch,
-  Send,
   ShieldCheck,
-  Sparkles,
+  Star,
   type LucideIcon,
 } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
-import { WRAP, nav } from '@/lib/pageLayout';
+import { WRAP } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { PLANS, useMyPlan, type PaidPlanId } from '@/lib/plans';
@@ -34,7 +33,6 @@ import { catalogPlan, cleanSource, formatMoney, limitRows, longDate, orderSummar
 import { AppLink } from '@/pages/info/InfoPage';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
-import { PlanRequestDialog } from '@/components/pro/PlanRequestDialog';
 
 // /checkout?plan=starter|pro&source=…
 //
@@ -48,7 +46,20 @@ type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') =
 
 const ICONS: Record<PaidPlanId, LucideIcon[]> = {
   starter: [ScanSearch, ListChecks, FileText, Building2, BellRing, Bookmark],
-  pro: [Send, FileText, BellRing, Sparkles, Mail],
+  pro: [Star, ScanSearch, ListChecks, FileText, Building2, BellRing, Bookmark, Mail],
+};
+
+/** The plans' own Gumroad pages: used when the prepared checkout isn't available, so a click always ends on Gumroad. */
+const GUMROAD_PAGE: Record<PaidPlanId, string> = {
+  starter: 'https://madevisa.gumroad.com/l/starter',
+  pro: 'https://madevisa.gumroad.com/l/pro',
+};
+const gumroadPage = (plan: PaidPlanId, email: string | null | undefined) => {
+  const u = new URL(GUMROAD_PAGE[plan]);
+  u.searchParams.set('wanted', 'true');
+  u.searchParams.set('recurrence', 'monthly');
+  if (email) u.searchParams.set('email', email);
+  return u.toString();
 };
 
 const PLAN_PITCH: Record<PaidPlanId, string> = {
@@ -66,7 +77,8 @@ export function CheckoutPage({ go, onAuth }: Props) {
   const [plan, setPlan] = useState<PaidPlanId>(() => readPlanParam(window.location.search));
   const source = useMemo(() => cleanSource(new URLSearchParams(window.location.search).get('source')) ?? 'checkout', []);
   const [step, setStep] = useState<Step>({ at: 'idle' });
-  const [request, setRequest] = useState(false);
+  // Full-screen "Opening Gumroad…" while the payment page loads.
+  const [leaving, setLeaving] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const now = useMemo(() => new Date(), []);
 
@@ -102,36 +114,57 @@ export function CheckoutPage({ go, onAuth }: Props) {
   // Buyable by card now: the server says so (product connected, price matches, payments on) — admins may try before it's on.
   const buyable = Boolean(cp && catalog?.source === 'server' && (cp.available || (card.on && profile?.role === 'admin')));
 
+  // One click → Gumroad, in this tab, behind a loading screen. The prepared checkout (exact price, linked to
+  // this account) when it's available; otherwise the plan's own Gumroad page with the account's email filled in.
   const pay = useCallback(async (refreshFirst = false) => {
     if (!user) return;
     trackBilling('checkout_started', { plan, source });
-    // Opened now, while the click still counts, so the browser doesn't block it; filled in when the link is ready.
-    const tab = window.open('', '_blank');
-    if (tab) {
-      tab.opener = null;
-      tab.document.title = 'Opening secure checkout…';
-      tab.document.body.innerHTML = '<p style="font:16px system-ui;padding:24px;color:#334155">Opening Gumroad’s secure checkout…</p>';
-    }
+    setLeaving(true);
     setStep({ at: 'preparing' });
+    if (!buyable) {
+      window.location.assign(gumroadPage(plan, user.email));
+      return;
+    }
     // After cancelling the other plan on Gumroad: read the memberships again first, so the cancellation counts.
     if (refreshFirst) await checkPayment();
     const result = await startCheckout(plan, source);
-    setStep({ at: 'result', result });
-    if (result.kind !== 'ready') {
-      tab?.close();
-      if (result.kind === 'off') trackBilling('checkout_unavailable', { plan, source });
+    if (result.kind === 'ready') {
+      window.location.assign(result.checkout.url);
       return;
     }
-    const { checkout } = result;
-    const done = `/checkout/complete?c=${encodeURIComponent(checkout.checkout_id)}&plan=${plan}`;
-    if (tab) {
-      tab.location.href = checkout.url;
-      nav(done);
-    } else {
-      // Pop-ups blocked: pay in this tab. Gumroad's receipt links back to the confirmation page.
-      window.location.assign(checkout.url);
+    if (result.kind === 'off' || result.kind === 'error') {
+      trackBilling('checkout_unavailable', { plan, source });
+      window.location.assign(gumroadPage(plan, user.email));
+      return;
     }
-  }, [user, plan, source]);
+    setLeaving(false);
+    setStep({ at: 'result', result });
+  }, [user, plan, source, buyable]);
+
+  // Back from Gumroad (the browser may restore this page as it was): no loading screen.
+  useEffect(() => {
+    const back = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setLeaving(false);
+        setStep({ at: 'idle' });
+      }
+    };
+    window.addEventListener('pageshow', back);
+    return () => window.removeEventListener('pageshow', back);
+  }, []);
+
+  // From a "Get Starter / Get Pro" button: straight on to Gumroad.
+  const auto = useRef(new URLSearchParams(window.location.search).get('go') === '1');
+  useEffect(() => {
+    if (!auto.current || !user || my.loading || !catalog) return;
+    auto.current = false;
+    // Once only: coming back from Gumroad with the Back button doesn't send you there again.
+    const q = new URLSearchParams(window.location.search);
+    q.delete('go');
+    window.history.replaceState({}, '', `/checkout?${q.toString()}`);
+    if (my.plan === plan || (my.plan === 'pro' && plan === 'starter')) return;
+    void pay();
+  }, [user, my.loading, my.plan, catalog, plan, pay]);
 
   const signIn = (page: 'login' | 'register') => {
     rememberAuthIntent({ next: `/checkout?plan=${plan}&source=${source}` });
@@ -204,8 +237,8 @@ export function CheckoutPage({ go, onAuth }: Props) {
                 {info.benefits.slice(0, 2).map((b, i) => {
                   const Icon = ICONS[plan][i] ?? Check;
                   return (
-                    <li key={b.title} className="rounded-xl bg-brand-50/70 p-4">
-                      <Icon className="h-5 w-5 text-brand-700" aria-hidden />
+                    <li key={b.title} className={`rounded-xl p-4 ${b.star ? 'bg-amber-50 ring-1 ring-amber-300' : 'bg-brand-50/70'}`}>
+                      <Icon className={`h-5 w-5 ${b.star ? 'fill-amber-400 text-amber-500' : 'text-brand-700'}`} aria-hidden />
                       <p className="mt-2 text-[15px] font-bold text-ink-950">{b.title}</p>
                       <p className="mt-1 text-[13px] leading-5 text-ink-600">{b.text}</p>
                     </li>
@@ -330,13 +363,11 @@ export function CheckoutPage({ go, onAuth }: Props) {
                     loadingPlan={my.loading}
                     onThisPlan={onThisPlan}
                     higherAlready={higherAlready}
-                    buyable={buyable}
                     catalogReady={Boolean(catalog)}
                     step={step}
                     price={price}
                     onPay={(refreshFirst) => void pay(refreshFirst)}
                     onSignIn={signIn}
-                    onRequest={() => setRequest(true)}
                   />
                 </div>
 
@@ -390,7 +421,15 @@ export function CheckoutPage({ go, onAuth }: Props) {
         </div>
       </div>
 
-      {request && <PlanRequestDialog plan={plan} billing="monthly" priceLabel={`${info.name} · ${price ?? ''} / month`} region="USD" onClose={() => setRequest(false)} onAuth={onAuth} />}
+      {leaving && (
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-white/95 backdrop-blur" role="status" aria-live="polite">
+          <div className="text-center">
+            <Loader2 className="mx-auto h-9 w-9 animate-spin text-brand-600" aria-hidden />
+            <p className="mt-4 text-lg font-bold text-ink-950">Opening Gumroad’s secure checkout…</p>
+            <p className="mt-1 text-sm text-ink-600">MadeVisa {info.name} · {price ?? ''} / month</p>
+          </div>
+        </div>
+      )}
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );
@@ -407,26 +446,22 @@ function PayButton({
   loadingPlan,
   onThisPlan,
   higherAlready,
-  buyable,
   catalogReady,
   step,
   price,
   onPay,
   onSignIn,
-  onRequest,
 }: {
   plan: PaidPlanId;
   signedIn: boolean;
   loadingPlan: boolean;
   onThisPlan: boolean;
   higherAlready: boolean;
-  buyable: boolean;
   catalogReady: boolean;
   step: Step;
   price: string | null;
   onPay: (refreshFirst?: boolean) => void;
   onSignIn: (p: 'login' | 'register') => void;
-  onRequest: () => void;
 }) {
   const name = PLANS[plan].name;
   if (!signedIn) {
@@ -458,18 +493,6 @@ function PayButton({
         <AppLink href="/profile?tab=settings#billing" className="mt-1 inline-block text-[13px] font-semibold text-emerald-900 underline">
           Manage your plan
         </AppLink>
-      </div>
-    );
-  }
-  if (!buyable) {
-    return (
-      <div className="space-y-2.5">
-        <button type="button" onClick={onRequest} className={PRIMARY}>
-          Request {name}
-        </button>
-        <p className="text-[12px] leading-5 text-ink-500">
-          Card payments aren’t available right now. Send a request and we’ll email you a secure payment link within one working day; {name} starts as soon as it’s paid.
-        </p>
       </div>
     );
   }
@@ -505,16 +528,6 @@ function PayButton({
       </div>
     );
   }
-  if (r?.kind === 'off') {
-    return (
-      <div className="space-y-2.5">
-        <button type="button" onClick={onRequest} className={PRIMARY}>
-          Request {name}
-        </button>
-        <p className="text-[12px] leading-5 text-ink-500">Card payment isn’t available for {name} right now. Send a request and we’ll email you a secure payment link.</p>
-      </div>
-    );
-  }
   if (step.at === 'preparing') {
     return (
       <button type="button" disabled className={PRIMARY} aria-live="polite">
@@ -527,7 +540,7 @@ function PayButton({
       <button type="button" onClick={() => onPay()} className={PRIMARY}>
         <Lock className="h-4 w-4" aria-hidden /> Continue to secure payment{price ? ` · ${price}` : ''}
       </button>
-      <p className="text-center text-[12px] leading-5 text-ink-500">Gumroad’s checkout opens in a new tab, and this page waits for your payment.</p>
+      <p className="text-center text-[12px] leading-5 text-ink-500">You pay on Gumroad’s secure checkout; your plan starts as soon as the payment is confirmed.</p>
     </div>
   );
 }

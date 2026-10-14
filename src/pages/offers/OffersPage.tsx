@@ -78,7 +78,7 @@ export function OffersPage({ go, onAuth }: Props) {
                 </>
               ) : (
                 <>
-                  Part of Starter (10 a month, <strong className="text-white">{priceLabel('starter')}</strong>) and Pro (50 a month, <strong className="text-white">{priceLabel('pro')}</strong>)
+                  Free: 1 a month. Starter (20 a month, <strong className="text-white">{priceLabel('starter')}</strong>) and Pro (50 a month, <strong className="text-white">{priceLabel('pro')}</strong>)
                 </>
               )}
             </p>

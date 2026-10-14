@@ -67,7 +67,7 @@ const LEVELS: { who: string; items: { ok: boolean; text: string }[]; tone: strin
     tone: 'border-ink-200',
     items: [
       { ok: true, text: 'Every job, search and filters' },
-      { ok: true, text: '5 sponsorship documents' },
+      { ok: true, text: '1 sponsorship document a month' },
       { ok: false, text: 'CV match' },
     ],
   },
@@ -77,7 +77,7 @@ const LEVELS: { who: string; items: { ok: boolean; text: string }[]; tone: strin
     items: [
       { ok: true, text: 'Match score on every job' },
       { ok: true, text: 'Missing skills and experience wanted' },
-      { ok: true, text: 'Full report + 10 documents a month' },
+      { ok: true, text: 'Full report + 20 documents a month' },
     ],
   },
   {

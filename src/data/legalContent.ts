@@ -455,7 +455,7 @@ export const legalPages: Record<string, LegalPageContent> = {
     description: 'How sponsorship documents are included in MadeVisa Starter and Pro, changes, confirmation and refunds.',
     intro: `These terms apply when you prepare a sponsorship document (a Visa Plan: your sponsorship proposal to an employer) on ${ENTITY}. Last updated ${LEGAL_LAST_UPDATED}.`,
     summary: [
-      'Every account gets 5 free sponsorship documents. MadeVisa Starter adds 10 each calendar month and Pro 50 each calendar month.',
+      'Free accounts get 1 sponsorship document each calendar month, MadeVisa Starter 20 and Pro 50.',
       'They are no longer sold one by one, and new accounts don’t get a free one.',
       'Credits you bought or earned before October 2026 are still yours and still work.',
       'It is a proposal for discussion, not a contract, a job offer or a visa guarantee.',
@@ -476,7 +476,7 @@ export const legalPages: Record<string, LegalPageContent> = {
       {
         heading: 'Starter and Pro',
         paragraphs: [
-          'Sponsorship documents come with the paid plans: Starter includes 10 each calendar month and Pro includes 50. Prices, billing, cancellation and refunds for the plans are in the Subscription Terms.',
+          'Sponsorship documents come with the paid plans: free accounts get 1 each calendar month, Starter 20 and Pro 50. Prices, billing, cancellation and refunds for the plans are in the Subscription Terms.',
           'Unused documents don’t carry over to the next month. A fair-use limit of 30 documents in any 7 days applies on every plan. Members who started Pro before the October 2026 plan change keep Pro, with 50 documents a month, for as long as their membership runs.',
           'Previewing, adjusting the terms and seeing the demo are free. A document is counted only when you approve it.',
         ],
@@ -538,8 +538,8 @@ export const legalPages: Record<string, LegalPageContent> = {
       {
         heading: 'The plans',
         paragraphs: [
-          'Free: every job, search and filters, 5 sponsorship documents, up to 5 saved jobs, application tracking with reminders, and 1 job alert. CV match is part of Starter and Pro.',
-          'Starter ($2.99 a month): the full CV match report on every job (where each point of the score comes from and what to change in your CV), all your best matches, 10 sponsorship documents a month, the companies that sponsor visas in each country with their reply data, up to 5 job alerts and unlimited saved jobs.',
+          'Free: every job, search and filters, 1 sponsorship document a month, up to 5 saved jobs, application tracking with reminders, and 1 job alert. CV match is part of Starter and Pro.',
+          'Starter ($2.99 a month): the full CV match report on every job (where each point of the score comes from and what to change in your CV), all your best matches, 20 sponsorship documents a month, the companies that sponsor visas in each country with their reply data, up to 5 job alerts and unlimited saved jobs.',
           'Pro ($8.99 a month): everything in Starter, plus Auto Apply (a CV tailored to each job and a cover letter when one helps, sent for you where the employer takes applications through MadeVisa, otherwise prepared for you to send), 50 sponsorship documents a month, up to 10 job alerts and 10 jobs in each “Jobs for you” email. The monthly number of Auto Apply applications is shown on the checkout page.',
           'Features we describe as “coming” are not part of a plan until they are released. We don’t charge extra when they are added to the plan you have.',
           'MadeVisa helps you find and apply for jobs. No plan guarantees interviews, a job, visa sponsorship or a visa decision.',
