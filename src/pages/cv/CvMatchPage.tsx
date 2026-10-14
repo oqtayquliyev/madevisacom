@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Briefcase, ChevronDown, FileSearch, GraduationCap, Languages, ListChecks, ScanSearch, Timer, Upload } from 'lucide-react';
 import type { View } from '@/types';
+import { noteMilestone } from '@/lib/emailAttribution';
 import { useSeo } from '@/lib/seo';
 import { SEO_META } from '@/lib/seoMeta';
 import { useSiteStats } from '@/lib/siteStats';
@@ -66,6 +67,11 @@ export function CvMatchPage({ go, onAuth }: Props) {
   const { profile: visitor } = usePersonalization();
   // CV match is part of Starter and Pro.
   const paid = my.isPaid;
+  // Seen the matches (or the free preview): for the lifecycle emails.
+  const searchingNow = status === 'running';
+  useEffect(() => {
+    if (cv && result && !searchingNow && session) noteMilestone('cv_match_viewed');
+  }, [cv, result, searchingNow, session]);
   const firstName = (profile?.full_name ?? '').trim().split(/\s+/)[0] ?? '';
   useSeo({
     title: SEO_META.cvMatch.title,

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { noteEmailEvent } from '@/lib/emailAttribution';
 import { BellOff, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useSeo } from '@/lib/seo';
@@ -28,6 +29,8 @@ export function UnsubscribePage() {
       if (error || !data) return setState('bad');
       setLabel(String(data));
       setState('done');
+      // Which email it came from, for the unsubscribe rate per template.
+      noteEmailEvent('unsubscribed', q.get('mt'));
     };
     if (!k) {
       // An older alert email: that one alert.

@@ -3,6 +3,7 @@ import { ArrowRight, X } from 'lucide-react';
 import { handleNavClick } from '@/lib/navLink';
 import { nav } from '@/lib/pageLayout';
 import { PLANS, priceLabel, useMyPlan, type PaidPlanId } from '@/lib/plans';
+import { noteMilestone } from '@/lib/emailAttribution';
 import { checkoutHref, dismissPrompt, promptDismissed, trackBilling } from '@/lib/billing';
 
 // A contextual upgrade note: the benefit first, then the plan and its price,
@@ -45,6 +46,7 @@ export function UpgradePrompt({
         href={href}
         onClick={(e) => {
           trackBilling('upgrade_prompt_clicked', { id, plan, source });
+          if (plan === 'pro') noteMilestone('pro_prompt_clicked');
           handleNavClick(e, () => nav(href));
         }}
         className="mt-2 inline-flex items-center gap-1.5 rounded-md text-sm font-semibold text-brand-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"

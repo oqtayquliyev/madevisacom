@@ -98,7 +98,7 @@ SELECT t.ok(t.notes('starter', 'plan_active') = 1, 'told once');
 SELECT t.ok((SELECT plan FROM public.subscriptions WHERE user_id = t.id('starter')) = 'starter', 'subscriptions row says starter');
 SELECT t.ok(public.has_feature(t.id('starter'), 'cv_full_report') AND public.has_feature(t.id('starter'), 'sponsorship_insights'), 'Starter features on');
 SELECT t.ok(NOT public.has_feature(t.id('starter'), 'auto_apply'), 'Auto Apply stays Pro');
-SELECT t.ok(public.feature_limit(t.id('starter'), 'sponsorship_documents') = 10 AND public.feature_limit(t.id('starter'), 'job_alerts') = 5, 'Starter limits');
+SELECT t.ok(public.feature_limit(t.id('starter'), 'sponsorship_documents') = 20 AND public.feature_limit(t.id('starter'), 'job_alerts') = 5, 'Starter limits');
 SELECT t.ok(public.feature_limit(t.id('starter'), 'saved_jobs') IS NULL, 'Starter saves without a limit');
 
 \echo '4. the same notification again (duplicates are idempotent)'
@@ -130,7 +130,7 @@ SELECT t.ok((public.save_job(t.job(6))->>'saved')::boolean, 'free: after removin
 SELECT t.ok((public.my_entitlements()->'usage'->>'saved_jobs')::int = 5, 'usage counts saved jobs');
 SELECT t.fails($q$ SELECT public.auto_apply_start('{"consent":true,"consent_text":"x"}') $q$, 'Pro', 'free: Auto Apply service refused');
 SELECT t.out();
-SELECT t.ok((public.brief_credits_for(t.id('free'))->>'quota')::int = 0, 'free: no documents');
+SELECT t.ok((public.brief_credits_for(t.id('free'))->>'quota')::int = 1, 'free: 1 document a month');
 
 SELECT t.as('starter');
 SELECT public.cv_check('job-' || g, 70) FROM generate_series(1, 5) g;
@@ -145,7 +145,7 @@ SELECT t.ok((public.save_job(t.job(n::int))->>'saved')::boolean, 'Starter: save 
 SELECT t.fails($q$ SELECT public.auto_apply_start('{"consent":true,"consent_text":"x"}') $q$, 'Pro', 'Starter: Auto Apply service refused');
 SELECT t.ok(public.my_entitlements()->'sub'->>'plan' = 'starter' AND (public.my_entitlements()->'sub'->>'renews_at') IS NOT NULL, 'my_entitlements: Starter with a renewal date');
 SELECT t.out();
-SELECT t.ok((public.brief_credits_for(t.id('starter'))->>'quota')::int = 10 AND (public.brief_credits_for(t.id('starter'))->>'pro_left')::int = 10, 'Starter: 10 documents a month');
+SELECT t.ok((public.brief_credits_for(t.id('starter'))->>'quota')::int = 20 AND (public.brief_credits_for(t.id('starter'))->>'pro_left')::int = 20, 'Starter: 20 documents a month');
 
 \echo '6. Starter → Pro (cancel Starter, buy Pro)'
 -- The person cancels Starter on Gumroad: it runs to the end of the paid month.

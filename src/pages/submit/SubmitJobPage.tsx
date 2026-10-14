@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { noteEmailEvent } from '@/lib/emailAttribution';
 import { ArrowRight, Briefcase, Building2, Check, CheckCircle2, GraduationCap, Loader2, ShieldCheck, Zap } from 'lucide-react';
 import type { View } from '@/types';
 import { useAuth } from '@/lib/auth';
@@ -117,6 +118,7 @@ export function SubmitJobPage({ go, onAuth }: Props) {
     setSending(false);
     if (res.ok) {
       setDone({ duplicate: res.duplicate });
+      noteEmailEvent('listing_submitted');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       setError(res.error ?? 'Something went wrong. Please try again.');

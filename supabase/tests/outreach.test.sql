@@ -57,13 +57,13 @@ SELECT t.as('admin');
 SELECT t.ok((public.admin_audience_count('{"source":"both"}')->>'total')::int = 4, 'news off → left out');
 
 \echo '3. templates'
-SELECT t.ok(jsonb_array_length(public.admin_templates()) = 7, 'seven templates (6 + For employers)');
+SELECT t.ok(jsonb_array_length(public.admin_templates()) = 17, '17 templates (12 rewritten + 5 lifecycle)');
 SELECT t.ok(public.admin_template_preview('promo_cv')->>'html' LIKE '%Live jobs%', 'preview with stats');
 SELECT t.ok(public.admin_template_preview('promo_cv')->>'html' NOT LIKE '%{{%', 'no placeholder left');
 SELECT t.ok(public.admin_template_test('promo_auto_apply', 'me@test.com'), 'test send');
 SELECT t.out();
-SELECT t.ok((SELECT body->>'from' FROM net.requests_log ORDER BY id DESC LIMIT 1) = 'Oqtay from MadeVisa <oqtay@news.madevisa.com>', 'outreach sender used');
-SELECT t.ok((SELECT body->>'subject' FROM net.requests_log ORDER BY id DESC LIMIT 1) LIKE '[Test] %', 'test subject');
+SELECT t.ok((SELECT payload->>'from' FROM public.email_log ORDER BY id DESC LIMIT 1) = 'Oqtay from MadeVisa <oqtay@news.madevisa.com>', 'outreach sender used');
+SELECT t.ok((SELECT payload->>'subject' FROM public.email_log ORDER BY id DESC LIMIT 1) LIKE '[Test] %', 'test subject');
 
 \echo '4. campaign: start, send within the budget, unsubscribe, done'
 UPDATE public.outreach_settings SET daily_cap = 100, reserve = 0, per_minute = 2;
@@ -76,10 +76,12 @@ SELECT t.ok((SELECT count(*) FROM public.email_contacts WHERE user_id IS NOT NUL
 SELECT public.email_unsubscribe((SELECT c.token FROM public.email_contacts c JOIN public.email_campaign_recipients q ON q.contact_id = c.id WHERE q.status = 'queued' ORDER BY q.id LIMIT 1), 'all');
 SELECT t.ok(public.run_campaign_sends() = 1, 'one sent, one skipped (unsubscribed)');
 SELECT t.ok((SELECT status FROM public.email_campaigns WHERE name = 'October push') = 'done', 'campaign done');
-SELECT t.ok((SELECT body->'headers'->>'List-Unsubscribe' FROM net.requests_log WHERE body->>'subject' NOT LIKE '[Test]%' ORDER BY id DESC LIMIT 1) LIKE '<https://madevisa.com/alerts/unsubscribe?k=all&t=%', 'unsubscribe header');
+SELECT t.ok((SELECT payload->'headers'->>'List-Unsubscribe' FROM public.email_log WHERE payload->>'subject' NOT LIKE '[Test]%' ORDER BY id DESC LIMIT 1) LIKE '<https://madevisa.com/alerts/unsubscribe?k=all&t=%', 'unsubscribe header');
 SELECT t.ok((SELECT count(*) FROM public.email_log WHERE kind = 'campaign') = 3, 'logged');
 
 \echo '5. daily cap'
+-- Everyone else was emailed minutes ago (3-day cooldown): a new contact for this campaign.
+INSERT INTO public.email_contacts (email, audience, status) VALUES ('fresh.person@gmail.com', 'seeker', 'subscribed');
 UPDATE public.outreach_settings SET daily_cap = (SELECT count(*) FROM public.email_log WHERE status <> 'skipped')::int, per_minute = 50;
 SELECT t.as('admin');
 SELECT public.admin_campaign_start((public.admin_campaign_save(NULL, 'Second', 'promo_fresh_jobs', '{"source":"contacts"}')->>'id')::uuid);
@@ -96,7 +98,7 @@ SELECT t.ok(NOT EXISTS (SELECT 1 FROM public.nurture_state WHERE user_id IN (t.i
 SELECT t.ok(public.run_auto_apply_series() = 0, 'not again the same day');
 UPDATE public.nurture_state SET last_sent_at = now() - interval '13 days';
 SELECT t.ok(public.run_auto_apply_series() = (SELECT n FROM expect), 'second email after 12 days');
-SELECT t.ok((SELECT body->>'subject' FROM net.requests_log ORDER BY id DESC LIMIT 1) LIKE 'More applications%', 'nurture_2 subject');
+SELECT t.ok((SELECT payload->>'subject' FROM public.email_log ORDER BY id DESC LIMIT 1) LIKE 'Tailoring a CV%', 'nurture_2 subject');
 UPDATE public.nurture_state SET last_sent_at = now() - interval '13 days';
 SELECT public.run_auto_apply_series();
 UPDATE public.nurture_state SET last_sent_at = now() - interval '13 days';
@@ -121,16 +123,16 @@ UPDATE public.outreach_settings SET daily_cap = 100000, reserve = 0, per_minute 
 INSERT INTO public.email_contacts (email, tags) SELECT 'p' || g || '@example.org', ARRAY['rot'] FROM generate_series(1, 4) g;
 SELECT t.as('admin');
 SELECT public.admin_campaign_start((public.admin_campaign_save(NULL, 'Rotation', 'promo_cv', '{"source":"contacts","tags":["rot"]}')->>'id')::uuid);
-SELECT t.ok(jsonb_array_length(public.admin_senders()) = 10, 'ten senders');
+SELECT t.ok(jsonb_array_length(public.admin_senders()) >= 10, 'ten senders, plus the autopilot ones');
 SELECT t.out();
 SELECT t.ok(public.run_campaign_sends() = 2, 'two senders × limit 1 = 2 sent, the rest wait');
-SELECT t.ok((SELECT count(DISTINCT body->>'from') FROM net.requests_log WHERE body->>'subject' NOT LIKE '[Test]%' AND id > (SELECT max(id) - 2 FROM net.requests_log)) = 2, 'rotated between both');
+SELECT t.ok((SELECT count(DISTINCT payload->>'from') FROM public.email_log WHERE payload->>'subject' NOT LIKE '[Test]%' AND id > (SELECT max(id) - 2 FROM public.email_log)) = 2, 'rotated between both');
 SELECT t.ok((SELECT count(*) FROM public.email_campaign_recipients q JOIN public.email_campaigns c ON c.id = q.campaign_id WHERE c.name = 'Rotation' AND q.status = 'queued') = 2, 'two still queued for tomorrow');
 SELECT t.as('admin');
 SELECT t.ok((public.admin_outreach_settings('{"per_minute": 30}')->>'per_minute')::int = 30, 'limits save');
 SELECT t.ok(public.admin_template_test('promo_cv', 'me@test.com', (SELECT (x->>'id')::uuid FROM jsonb_array_elements(public.admin_senders()) x WHERE x->>'from_email' = 'visa@news.madevisa.com')), 'test from a chosen sender');
 SELECT t.out();
-SELECT t.ok((SELECT body->>'from' FROM net.requests_log ORDER BY id DESC LIMIT 1) = 'MadeVisa Visa Guide <visa@news.madevisa.com>', 'chosen sender used');
+SELECT t.ok((SELECT payload->>'from' FROM public.email_log ORDER BY id DESC LIMIT 1) = 'MadeVisa Visa Guide <visa@news.madevisa.com>', 'chosen sender used');
 
 -- Email design: no emojis anywhere, real logo, icons
 SELECT t.ok(public.mv_no_emoji('Hi 👋 there ✈️ 1️⃣ ✓') = 'Hi there 1 ✓', 'emojis stripped, check mark kept');

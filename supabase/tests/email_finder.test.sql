@@ -31,12 +31,12 @@ SELECT t.ok(public.mv_fill_name('Thanks, {{first_name}}!', 'Anna') = 'Thanks, An
 \echo '2. rendering'
 -- Unknown name: no greeting, subject without the name, no leftover commas.
 CREATE TEMP TABLE r1 AS SELECT public.mv_render_template('nurture_1', 'info@acmecorp.de', 'Info Team') AS r;
-SELECT t.ok((SELECT r->>'subject' FROM r1) = 'Let MadeVisa apply to jobs for you this month', 'subject without a name');
+SELECT t.ok((SELECT r->>'subject' FROM r1) = 'Meet the Pro feature that does the paperwork', 'subject without a name');
 SELECT t.ok((SELECT r->>'html' FROM r1) NOT LIKE '%Hi there%' AND (SELECT r->>'html' FROM r1) NOT LIKE '%Hi Info%', 'no greeting when the name is unknown');
 SELECT t.ok((SELECT r->>'first_name' FROM r1) IS NULL, 'first_name null');
 -- Known name.
 CREATE TEMP TABLE r2 AS SELECT public.mv_render_template('nurture_1', 'x@y.com', 'ANNA LEE') AS r;
-SELECT t.ok((SELECT r->>'subject' FROM r2) = 'Anna, let MadeVisa apply to jobs for you this month', 'subject with the name');
+SELECT t.ok((SELECT r->>'subject' FROM r2) = 'Anna, meet the Pro feature that does the paperwork', 'subject with the name');
 SELECT t.ok((SELECT r->>'html' FROM r2) LIKE '%Hi Anna,%', 'greeting with the name');
 SELECT t.ok((SELECT r->>'text' FROM r2) LIKE 'Hi Anna,%', 'text version greets too');
 -- An account whose profile "name" is an email address.
@@ -45,7 +45,7 @@ SELECT t.ok(public.mv_render_template('promo_cv', 'free@example.com')->>'subject
 \echo '3. preview both ways'
 SELECT t.as('admin');
 SELECT t.ok(public.admin_template_preview('nurture_1')->>'subject' LIKE 'Oqtay, %', 'preview named (admin name, capitalised)');
-SELECT t.ok(public.admin_template_preview('nurture_1', 'unknown')->>'subject' LIKE 'Let MadeVisa%', 'preview unknown');
+SELECT t.ok(public.admin_template_preview('nurture_1', 'unknown')->>'subject' LIKE 'Meet the Pro%', 'preview unknown');
 SELECT t.out();
 
 \echo '4. find emails: job ads + company profiles'

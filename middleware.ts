@@ -15,7 +15,7 @@
 import { next, rewrite } from '@vercel/edge';
 import { fetchShareJob, jobIdFromPath, shareDescription } from './api/_jobShare';
 import { PAGES, pageKeyForPath } from './api/_pages';
-import { escHtml as esc, fetchShareCompany, fetchShareProfile } from './api/_supa';
+import { escHtml as esc, fetchShareCompany, fetchShareProfile, rpc } from './api/_supa';
 
 export const config = {
   matcher: [
@@ -33,6 +33,8 @@ export const config = {
     '/feedback',
     '/feedback/:path+',
     '/u/:path+',
+    // One-click unsubscribe (RFC 8058): mail apps POST to the List-Unsubscribe link.
+    '/alerts/unsubscribe',
   ],
 };
 
@@ -143,8 +145,23 @@ async function previewFor(url: URL): Promise<Preview | null> {
  */
 const serverHome = (request: Request, url: URL) => (url.pathname === '/' ? rewrite(new URL('/api/seo?r=home', request.url)) : next());
 
+/* Gmail, Yahoo and others unsubscribe with a POST to the link in the List-Unsubscribe header.
+   The page itself is a single-page app that only handles GET, so the POST is answered here. */
+async function oneClickUnsubscribe(url: URL): Promise<Response> {
+  const t = url.searchParams.get('t') ?? '';
+  const k = (url.searchParams.get('k') ?? '').toLowerCase();
+  const mt = url.searchParams.get('mt') ?? '';
+  if (!/^[0-9a-f-]{36}$/i.test(t)) return new Response('Bad link', { status: 400 });
+  const ok = k
+    ? await rpc<string>('email_unsubscribe', { p_token: t, p_kind: k })
+    : await rpc<string>('unsubscribe_job_alert', { p_token: t });
+  if (/^[a-f0-9]{8,40}$/.test(mt)) await rpc('email_touch_event', { p_track: mt, p_event: 'unsubscribed' });
+  return new Response(ok === null ? 'Could not unsubscribe' : 'Unsubscribed', { status: ok === null ? 502 : 200, headers: { 'content-type': 'text/plain; charset=utf-8' } });
+}
+
 export default async function middleware(request: Request) {
   const url = new URL(request.url);
+  if (url.pathname === '/alerts/unsubscribe') return request.method === 'POST' ? oneClickUnsubscribe(url) : next();
   if (!PREVIEW_BOTS.test(request.headers.get('user-agent') ?? '')) return serverHome(request, url);
   const preview = await previewFor(url).catch(() => null);
   if (!preview) return serverHome(request, url);

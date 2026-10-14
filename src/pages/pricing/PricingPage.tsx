@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { noteMilestone } from '@/lib/emailAttribution';
 import { Check, CheckCircle2, FileSignature, Lock, Minus } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
@@ -61,6 +62,7 @@ export function PricingPage({ go, onAuth }: Props) {
 
   useEffect(() => {
     trackBilling('pricing_viewed', { plan: my.plan });
+    noteMilestone('pricing_viewed');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

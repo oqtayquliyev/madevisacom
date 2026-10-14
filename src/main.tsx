@@ -8,7 +8,11 @@ import { MfaGate } from '@/components/auth/MfaGate';
 import { PersonalizationProvider } from '@/lib/personalization';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
+import { captureEmailClick } from '@/lib/emailAttribution';
 import './index.css';
+
+// Arrived from a MadeVisa email: note the click, tidy the address (mc/mt).
+captureEmailClick();
 
 // Tidy the address after a repair reload (api/seo.ts adds ?_r=).
 try {

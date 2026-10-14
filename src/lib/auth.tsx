@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { setViewedJobsOwner } from '@/lib/viewedJobs';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { claimEmailTouch } from '@/lib/emailAttribution';
 
 export type Profile = {
   id: string;
@@ -119,6 +120,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setViewedJobsOwner(session?.user.id ?? null);
       setSession(session);
+      // Came from an email: link it to this account (once).
+      claimEmailTouch(session?.user.id);
       hasRestoredInitialSession.current = true;
       if (session?.user) {
         loadProfile(session.user.id).finally(() => setLoading(false));
@@ -130,6 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setViewedJobsOwner(session?.user.id ?? null);
       setSession(session);
+      // Came from an email: link it to this account (once).
+      claimEmailTouch(session?.user.id);
 
       // 'SIGNED_IN' fires for a fresh sign-in/sign-up/OAuth completion
       // AND for the initial session restore on some clients, so we only

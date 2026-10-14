@@ -106,8 +106,8 @@ SELECT t.ok((public.admin_auto_apply_update((SELECT id FROM public.auto_apply_re
 SELECT t.out();
 SELECT t.ok(t.mails('application') = 2, 'one email per applied job (2)');
 SELECT t.ok((SELECT count(*) FROM public.notifications WHERE user_id = t.id('pro') AND kind = 'auto_apply_applied') = 2, 'two bells');
-SELECT t.ok((SELECT body->>'subject' FROM net.requests_log ORDER BY id DESC LIMIT 1) LIKE 'You applied: Analyst at Other Co', 'subject');
-SELECT t.ok((SELECT body->>'html' FROM net.requests_log ORDER BY id DESC LIMIT 1) LIKE '%Unsubscribe from all%', 'footer has unsubscribe');
+SELECT t.ok((SELECT payload->>'subject' FROM public.email_log ORDER BY id DESC LIMIT 1) LIKE 'You applied: Analyst at Other Co', 'subject');
+SELECT t.ok((SELECT payload->>'html' FROM public.email_log ORDER BY id DESC LIMIT 1) LIKE '%Unsubscribe from all%', 'footer has unsubscribe');
 
 \echo '6. applications email off → no email, still a bell'
 SELECT t.as('pro');
@@ -129,7 +129,7 @@ SELECT t.out();
 \echo '8. Jobs that match your skills + job alerts: new design, logged'
 UPDATE public.sponsored_jobs SET awaiting_release = false;
 SELECT t.ok(public.run_for_you_emails('daily') >= 1, 'for-you sent');
-SELECT t.ok((SELECT body->>'html' FROM net.requests_log WHERE body->>'subject' LIKE '%your skills%' ORDER BY id DESC LIMIT 1) LIKE '%✓ Python%', 'shows matched skills');
+SELECT t.ok((SELECT payload->>'html' FROM public.email_log WHERE payload->>'subject' LIKE '%your skills%' ORDER BY id DESC LIMIT 1) LIKE '%✓ Python%', 'shows matched skills');
 INSERT INTO public.job_alerts (user_id, keywords, country_code, label, last_checked_at, created_at) VALUES (t.id('pro'), 'Data', 'DE', 'Data · Germany', now(), now() - interval '2 days');
 SELECT t.ok(public.run_job_alert_emails() = 1, 'job alert sent');
 SELECT t.ok(t.mails('job_alert') = 1 AND t.mails('for_you') >= 1, 'both logged');

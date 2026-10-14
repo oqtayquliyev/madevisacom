@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, AtSign, Bot, Briefcase, Check, ChevronLeft, ChevronRight, Eye, FileUp, Globe, Loader2, Mail, Pause, Play, Plus, RefreshCw, Rocket, ScanSearch, Search, Send, Settings2, Sparkles, Square, Tag, Trash2, Upload, UserRound, Users, X, Zap } from 'lucide-react';
+import { AlertTriangle, AtSign, BarChart3, FlaskConical, RotateCcw, Bot, Briefcase, Check, ChevronLeft, ChevronRight, Eye, FileUp, Globe, Loader2, Mail, Pause, Play, Plus, RefreshCw, Rocket, ScanSearch, Search, Send, Settings2, Sparkles, Square, Tag, Trash2, Upload, UserRound, Users, X, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 // Admin → Outreach: emails to many people at once.
@@ -22,7 +22,7 @@ import { supabase } from '@/lib/supabase';
 //   Limits      daily cap, reserve for site emails, speed, sender.
 // Server side: migrations 20261216090000_outreach_campaigns.sql … 20261218090000_email_finder_and_names.sql.
 
-type Audience = { source: 'contacts' | 'accounts' | 'both'; accounts?: 'all' | 'no_cv' | 'cv' | 'free' | 'pro'; tags?: string[]; country?: string; skip_days?: number; limit?: number };
+type Audience = { source: 'contacts' | 'accounts' | 'both'; accounts?: AccountSeg; tags?: string[]; country?: string; skip_days?: number; limit?: number };
 type Settings = { enabled: boolean; daily_cap: number; reserve: number; per_minute: number; nurture_enabled: boolean; nurture_gap_days: number; nurture_per_day: number };
 type Campaign = {
   id: string;
@@ -60,10 +60,25 @@ type Template = { key: string; name: string; audience: 'anyone' | 'accounts' | '
 type Contact = { id: string; email: string; name: string | null; country: string | null; tags: string[]; source: string; status: 'subscribed' | 'unsubscribed' | 'bounced' | 'complained'; account: boolean; sent_count: number; last_sent_at: string | null; created_at: string; audience?: 'seeker' | 'employer' | null; role?: string | null; company?: string | null; auto_step?: number };
 type ContactList = { counts: { all: number; subscribed: number; unsubscribed: number; bounced: number; accounts: number; seekers?: number; employers?: number; with_role?: number }; tags: { tag: string; n: number }[]; roles?: { role: string; label: string; n: number }[]; countries?: { country: string; n: number }[]; total: number; rows: Contact[] };
 
-type Sub = 'autopilot' | 'campaigns' | 'contacts' | 'finder' | 'templates' | 'senders' | 'series' | 'limits';
+type AccountSeg = 'all' | 'no_cv' | 'cv' | 'free' | 'pro' | 'free_no_cv' | 'cv_not_viewed' | 'preview_free' | 'starter_pro_intent' | 'saved_no_apply';
+/** Which accounts a campaign goes to. The last five are the lifecycle segments (each has its own template). */
+const ACCOUNT_SEGS: { v: AccountSeg; t: string; hint?: string }[] = [
+  { v: 'all', t: 'All accounts' },
+  { v: 'no_cv', t: 'No CV yet' },
+  { v: 'cv', t: 'Have a CV' },
+  { v: 'free', t: 'Free plan' },
+  { v: 'pro', t: 'Pro' },
+  { v: 'free_no_cv', t: 'Lifecycle · Free, no CV', hint: 'Template: life_no_cv' },
+  { v: 'cv_not_viewed', t: 'Lifecycle · CV uploaded, matches not opened', hint: 'Template: life_cv_ready' },
+  { v: 'preview_free', t: 'Lifecycle · Free, saw the 3-match preview', hint: 'Template: life_starter_upgrade' },
+  { v: 'starter_pro_intent', t: 'Lifecycle · Starter showing interest in Pro', hint: 'Template: life_pro_upgrade' },
+  { v: 'saved_no_apply', t: 'Lifecycle · Saved jobs, no application in 14 days', hint: 'Template: life_saved_jobs' },
+];
+type Sub = 'autopilot' | 'campaigns' | 'results' | 'contacts' | 'finder' | 'templates' | 'senders' | 'series' | 'limits';
 const SUBS: { key: Sub; label: string; icon: typeof Mail }[] = [
   { key: 'autopilot', label: 'Autopilot', icon: Bot },
   { key: 'campaigns', label: 'Campaigns', icon: Rocket },
+  { key: 'results', label: 'Results', icon: BarChart3 },
   { key: 'contacts', label: 'Contacts', icon: Users },
   { key: 'finder', label: 'Find emails', icon: ScanSearch },
   { key: 'templates', label: 'Templates', icon: Mail },
@@ -154,6 +169,7 @@ export function OutreachSection() {
 
       {sub === 'autopilot' && <Autopilot senders={senders} onContacts={() => setSub('contacts')} onSenders={() => setSub('senders')} onTemplates={() => setSub('templates')} />}
       {sub === 'campaigns' && <Campaigns ov={ov} templates={templates} senders={senders} onChange={load} />}
+      {sub === 'results' && <Results />}
       {sub === 'contacts' && <Contacts onFind={() => setSub('finder')} />}
       {sub === 'finder' && <EmailFinder onContacts={() => setSub('contacts')} />}
       {sub === 'templates' && <Templates templates={templates} senders={senders} onSaved={load} />}
@@ -658,7 +674,7 @@ function StartDraft({ id, onDone }: { id: string; onDone: () => void }) {
 
 function audienceLabel(a: Audience): string {
   const who = a.source === 'contacts' ? 'Imported contacts' : a.source === 'accounts' ? 'Accounts' : 'Contacts + accounts';
-  const acc = a.source !== 'contacts' && a.accounts && a.accounts !== 'all' ? ` (${{ no_cv: 'no CV', cv: 'with CV', free: 'free', pro: 'Pro', all: '' }[a.accounts]})` : '';
+  const acc = a.source !== 'contacts' && a.accounts && a.accounts !== 'all' ? ` (${ACCOUNT_SEGS.find((x) => x.v === a.accounts)?.t ?? a.accounts})` : '';
   return [who + acc, a.tags?.length ? `tags: ${a.tags.join(', ')}` : '', a.country ? a.country : '', a.skip_days ? `skip emailed in ${a.skip_days} d` : '', a.limit ? `max ${nf(a.limit)}` : ''].filter(Boolean).join(' · ');
 }
 
@@ -771,7 +787,15 @@ function NewCampaign({ templates, senders, ov, onClose, onDone }: { templates: T
           {aud.source !== 'contacts' && (
             <div>
               <p className="mb-1.5 text-[12px] font-semibold text-ink-700">Which accounts</p>
-              <Seg value={aud.accounts ?? 'all'} onChange={(v) => setAud({ ...aud, accounts: v })} options={[{ v: 'all', t: 'All' }, { v: 'no_cv', t: 'No CV yet' }, { v: 'cv', t: 'Have a CV' }, { v: 'free', t: 'Free' }, { v: 'pro', t: 'Pro' }]} />
+              <select value={aud.accounts ?? 'all'} onChange={(e) => setAud({ ...aud, accounts: e.target.value as AccountSeg })} className={input} aria-label="Which accounts">
+                {ACCOUNT_SEGS.map((x) => (
+                  <option key={x.v} value={x.v}>
+                    {x.t}
+                    {x.hint ? ` (${x.hint})` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11.5px] text-ink-500">Everyone a campaign, the series or the autopilot emailed in the last 3 days is left out automatically.</p>
             </div>
           )}
           {aud.source !== 'accounts' && tags.length > 0 && (
@@ -1803,6 +1827,7 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
         ))}
       </ul>
       <div className="grid min-w-0 gap-4">
+        <TemplateExtras k={key} onChanged={onSaved} />
         <div className="space-y-3 rounded-xl bg-white p-4 ring-1 ring-ink-200">
           <L label="Subject">
             <input value={draft.subject} onChange={(e) => set('subject', e.target.value)} className={input} />
@@ -1849,7 +1874,7 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
             </L>
           </div>
           <p className="rounded-lg bg-ink-50 p-2.5 text-[11.5px] leading-5 text-ink-600">
-            <b>Placeholders:</b> {'{{first_name}} {{jobs_live}} {{jobs_today}} {{jobs_visa}} {{matches}} {{cv_line}} {{country}}'}. <b>When the name isn’t known</b> (or is “info”, “HR Team”, a company…), {'{{first_name}}'} is taken out of the sentence and the “Hi …,” line is left out — “{'{{first_name}}'}, 12 new jobs” becomes “12 new jobs”, “Thanks, {'{{first_name}}'}!” becomes “Thanks!”. Check both with the preview switch. <b>Body:</b> blank line = new paragraph, a line starting with “- ” = list item, **bold**. List lines: “- [target] text” shows an icon, “- 1. text” a numbered step, “- text” a check. Emojis are removed when sending — use icons instead.
+            <b>Placeholders:</b> {'{{first_name}} {{jobs_live}} {{jobs_today}} {{jobs_visa}} {{matches}} {{cv_line}} {{country}}'}, and {'[[saved_jobs]]'} on its own line for up to 3 of the person’s saved jobs. Autopilot templates also have {'{{role}} {{role_title}} {{role_a}} {{role_jobs}} {{role_visa}} {{company}}'} and {'[[jobs]]'}. <b>When the name isn’t known</b> (or is “info”, “HR Team”, a company…), {'{{first_name}}'} is taken out of the sentence and the “Hi …,” line is left out — “{'{{first_name}}'}, 12 new jobs” becomes “12 new jobs”, “Thanks, {'{{first_name}}'}!” becomes “Thanks!”. Check both with the preview switch. <b>Body:</b> blank line = new paragraph, a line starting with “- ” = list item, **bold**. List lines: “- [target] text” shows an icon, “- 1. text” a numbered step, “- text” a check. Emojis are removed when sending — use icons instead.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Btn onClick={() => void save()} busy={busy === 'save'} icon={Check} tone="green">Save</Btn>
@@ -1882,6 +1907,296 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
           {html ? <iframe title="Email preview" srcDoc={html} sandbox="" className="h-[720px] w-full rounded-lg border border-ink-100 bg-[#f1f4f9]" /> : <Spin />}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ----------------------------------------------- MadeVisa version, A/B variant */
+
+type LibraryItem = {
+  key: string;
+  version: number;
+  state: 'current' | 'customized' | 'missing';
+  has_backup: boolean;
+  meta: { goal?: string; audience?: string; conversion?: string; exclusions?: string; ab_test?: string };
+  library: { subject: string; preheader: string | null; headline: string; body: string; cta_label: string; cta_url: string };
+};
+type Variant = {
+  key: string;
+  subject: string | null;
+  preheader: string | null;
+  eyebrow: string | null;
+  headline: string | null;
+  body: string | null;
+  cta_label: string | null;
+  active: boolean;
+  share: number;
+  hypothesis: string | null;
+  primary_metric: string | null;
+  guardrails: string | null;
+  started_at: string | null;
+};
+
+function TemplateExtras({ k, onChanged }: { k: string; onChanged: () => void }) {
+  const [lib, setLib] = useState<LibraryItem[] | null>(null);
+  const [vars, setVars] = useState<Variant[]>([]);
+  const [draft, setDraft] = useState<Variant | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    const [a, b] = await Promise.all([supabase.rpc('admin_template_library'), supabase.rpc('admin_template_variants')]);
+    setLib(a.error ? [] : ((a.data ?? []) as LibraryItem[]));
+    setVars(b.error ? [] : ((b.data ?? []) as Variant[]));
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  useEffect(() => {
+    setDraft(vars.find((v) => v.key === k) ?? null);
+    setMsg(null);
+  }, [k, vars]);
+
+  const item = lib?.find((x) => x.key === k);
+  const act = async (name: 'admin_template_use_library' | 'admin_template_restore', label: string) => {
+    if (name === 'admin_template_use_library' && !window.confirm('Replace this template with the MadeVisa version? Your current text is kept as a backup you can restore.')) return;
+    setBusy(name);
+    const { error } = await supabase.rpc(name, { p_key: k });
+    setBusy(null);
+    setMsg(error ? friendly(error.message) : label);
+    await load();
+    onChanged();
+  };
+  const saveVariant = async (p: Partial<Variant>) => {
+    setBusy('variant');
+    const { error } = await supabase.rpc('admin_template_variant_save', { p: { key: k, ...p } });
+    setBusy(null);
+    setMsg(error ? friendly(error.message) : p.active === true ? 'Test started: variant B is now sent to its share of recipients.' : p.active === false ? 'Test stopped: everyone gets A.' : 'Variant saved.');
+    await load();
+  };
+  if (!lib) return null;
+  const v = draft ?? { key: k, subject: null, preheader: null, eyebrow: null, headline: null, body: null, cta_label: null, active: false, share: 50, hypothesis: null, primary_metric: null, guardrails: null, started_at: null };
+  const setV = <K extends keyof Variant>(f: K, val: Variant[K]) => setDraft({ ...v, [f]: val });
+
+  return (
+    <div className="space-y-3">
+      {item && (
+        <div className="rounded-xl bg-white p-4 text-[12.5px] leading-5 text-ink-700 ring-1 ring-ink-200">
+          <p className="text-[13px] font-bold text-ink-950">What this email is for</p>
+          <dl className="mt-1.5 grid gap-x-4 gap-y-1 sm:grid-cols-[110px_minmax(0,1fr)]">
+            {([
+              ['Goal', item.meta.goal],
+              ['Audience', item.meta.audience],
+              ['Counts as success', item.meta.conversion],
+              ['Left out', item.meta.exclusions],
+              ['A/B idea', item.meta.ab_test],
+            ] as const)
+              .filter(([, x]) => x)
+              .map(([a, b]) => (
+                <div key={a} className="contents">
+                  <dt className="font-semibold text-ink-500">{a}</dt>
+                  <dd>{b}</dd>
+                </div>
+              ))}
+          </dl>
+          {item.state === 'customized' && (
+            <div className="mt-3 rounded-lg bg-amber-50 p-3 text-amber-950 ring-1 ring-amber-200">
+              <p>
+                <b>A newer MadeVisa version is available.</b> This template was edited here, so it was not replaced automatically.
+              </p>
+              <details className="mt-1.5">
+                <summary className="cursor-pointer font-semibold">Show the MadeVisa version</summary>
+                <p className="mt-1.5">
+                  <b>Subject:</b> {item.library.subject}
+                </p>
+                <p>
+                  <b>Headline:</b> {item.library.headline}
+                </p>
+                <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-2 font-sans text-[12px] text-ink-800">{item.library.body}</pre>
+                <p>
+                  <b>Button:</b> {item.library.cta_label} → {item.library.cta_url}
+                </p>
+              </details>
+              <div className="mt-2">
+                <Btn onClick={() => void act('admin_template_use_library', 'Now using the MadeVisa version. Your text is kept as a backup.')} busy={busy === 'admin_template_use_library'} icon={Check} tone="green">
+                  Use the MadeVisa version
+                </Btn>
+              </div>
+            </div>
+          )}
+          {item.has_backup && (
+            <div className="mt-2">
+              <Btn onClick={() => void act('admin_template_restore', 'Previous version restored.')} busy={busy === 'admin_template_restore'} icon={RotateCcw}>
+                Restore the previous version
+              </Btn>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="rounded-xl bg-white p-4 ring-1 ring-ink-200">
+        <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center justify-between gap-2 text-left">
+          <span className="flex items-center gap-2 text-[13px] font-bold text-ink-950">
+            <FlaskConical className="h-4 w-4 text-brand-600" /> A/B test
+            {v.active ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">Running · {v.share}% get B</span> : <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-600">Off</span>}
+          </span>
+          <span className="text-[12px] text-brand-700">{open ? 'Hide' : draft ? 'Edit variant B' : 'Write a variant B'}</span>
+        </button>
+        {open && (
+          <div className="mt-3 space-y-3">
+            <p className="text-[12px] leading-5 text-ink-600">
+              Variant B only replaces the fields you fill in. Each person always gets the same variant. Change one thing at a time, and judge it in <b>Results</b> on clicks, sign-ups, CV uploads and purchases — never on opens alone — with unsubscribes and complaints as the guardrail.
+            </p>
+            {v.hypothesis && (
+              <p className="rounded-lg bg-ink-50 p-2.5 text-[12px] text-ink-700">
+                <b>Hypothesis:</b> {v.hypothesis} {v.primary_metric && <><b> Measure:</b> {v.primary_metric}.</>} {v.guardrails && <><b> Guardrail:</b> {v.guardrails}.</>}
+              </p>
+            )}
+            <L label="B · Subject">
+              <input value={v.subject ?? ''} onChange={(e) => setV('subject', e.target.value)} className={input} placeholder="Same as A" />
+            </L>
+            <L label="B · Preview text">
+              <input value={v.preheader ?? ''} onChange={(e) => setV('preheader', e.target.value)} className={input} placeholder="Same as A" />
+            </L>
+            <L label="B · Headline">
+              <input value={v.headline ?? ''} onChange={(e) => setV('headline', e.target.value)} className={input} placeholder="Same as A" />
+            </L>
+            <L label="B · Body">
+              <textarea value={v.body ?? ''} onChange={(e) => setV('body', e.target.value)} rows={6} placeholder="Same as A" className="w-full rounded-lg border border-ink-200 p-2.5 text-[13px] leading-5 outline-none focus:border-brand-500" />
+            </L>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <L label="B · Button">
+                <input value={v.cta_label ?? ''} onChange={(e) => setV('cta_label', e.target.value)} className={input} placeholder="Same as A" />
+              </L>
+              <NumberSetting label="Share that gets B (%)" value={v.share} min={1} max={99} onSave={(n) => setV('share', n)} />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Btn onClick={() => void saveVariant({ subject: v.subject ?? '', preheader: v.preheader ?? '', headline: v.headline ?? '', body: v.body ?? '', cta_label: v.cta_label ?? '', share: v.share })} busy={busy === 'variant'} icon={Check}>
+                Save variant B
+              </Btn>
+              <Btn onClick={() => void saveVariant({ active: !v.active })} busy={busy === 'variant'} icon={v.active ? Pause : Play} tone={v.active ? 'rose' : 'green'}>
+                {v.active ? 'Stop the test' : 'Start the test'}
+              </Btn>
+            </div>
+            {v.started_at && <p className="text-[11.5px] text-ink-500">Started {when(v.started_at)}.</p>}
+          </div>
+        )}
+        {msg && <p className="mt-2 text-[12.5px] text-ink-700">{msg}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------- Results */
+
+type ReportRow = {
+  template: string;
+  variant: string;
+  segment: 'cold' | 'lifecycle';
+  sent: number;
+  accepted: number;
+  delivered: number;
+  bounced: number;
+  complained: number;
+  clicked: number;
+  landed: number;
+  unsubscribed: number;
+  listings: number;
+  plan_requests: number;
+  registered: number;
+  cv_uploaded: number;
+  cv_viewed: number;
+  checkout_started: number;
+  starter_purchases: number;
+  pro_purchases: number;
+  revenue_cents: number;
+  still_active: number;
+  revenue_per_delivered_cents: number | null;
+  low_sample: boolean;
+};
+
+const pct = (a: number, b: number) => (b > 0 ? `${((100 * a) / b).toFixed(a / b < 0.1 ? 1 : 0)}%` : '—');
+const usd = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+function Results() {
+  const [days, setDays] = useState<'7' | '30' | '90'>('30');
+  const [data, setData] = useState<{ rows: ReportRow[]; note: string; provider_events: number } | null | undefined>(undefined);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    setData(undefined);
+    void supabase.rpc('admin_email_report', { p_days: Number(days) }).then(({ data: d, error }) => {
+      if (error) {
+        setErr(/admin_email_report|does not exist|schema cache/i.test(error.message) ? 'Run migration 20261223090000_email_growth_system.sql first.' : error.message);
+        setData(null);
+      } else setData(d as { rows: ReportRow[]; note: string; provider_events: number });
+    });
+  }, [days]);
+
+  if (data === undefined) return <Spin />;
+  if (!data) return <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{err}</p>;
+  const groups: ['cold' | 'lifecycle', string][] = [
+    ['cold', 'Cold outreach (people without an account)'],
+    ['lifecycle', 'Lifecycle (MadeVisa accounts)'],
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="max-w-3xl text-[12.5px] leading-5 text-ink-600">
+          Emails sent in the period, and what the people who clicked did within 30 days. Each sign-up, CV upload and purchase is credited once, to the last email clicked before it. Purchases are Gumroad payments Gumroad confirmed. This shows what came after an email, not what the email caused.
+          {data.provider_events === 0 && <> <b>Delivered, bounces and complaints stay at 0 until the Resend webhook is set up</b> (supabase/functions/resend-webhook).</>}
+        </p>
+        <Seg value={days} onChange={setDays} options={[{ v: '7', t: '7 days' }, { v: '30', t: '30 days' }, { v: '90', t: '90 days' }]} />
+      </div>
+      {groups.map(([seg, title]) => {
+        const rows = data.rows.filter((r) => r.segment === seg);
+        return (
+          <div key={seg} className="overflow-x-auto rounded-xl bg-white ring-1 ring-ink-200">
+            <p className="px-4 pt-3 text-sm font-bold text-ink-950">{title}</p>
+            {rows.length === 0 ? (
+              <p className="px-4 pb-4 pt-1 text-[13px] text-ink-500">No tracked emails in this period yet.</p>
+            ) : (
+              <table className="mt-2 w-full min-w-[980px] text-[12.5px]">
+                <thead className="text-left text-[11px] uppercase tracking-wide text-ink-500">
+                  <tr className="border-b border-ink-100">
+                    {['Template', 'Sent', 'Bounced', 'Complaints', 'Unsub.', 'Clicked', seg === 'cold' ? 'Sign-ups' : 'CV viewed', 'CV uploads', 'Checkouts', 'Starter', 'Pro', 'Revenue', 'Per delivered', seg === 'cold' ? 'Listings' : 'Active now'].map((h) => (
+                      <th key={h} className="px-3 py-2 font-semibold">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const base = Math.max(r.delivered, r.accepted, 1);
+                    return (
+                      <tr key={r.template + r.variant} className="border-b border-ink-50 tabular-nums">
+                        <td className="px-3 py-2 font-semibold text-ink-900">
+                          {r.template} <span className="rounded bg-ink-100 px-1 text-[10.5px] font-semibold uppercase text-ink-600">{r.variant}</span>
+                          {r.low_sample && <span className="ml-1 text-[10.5px] font-normal text-amber-700" title="Fewer than 200 sent or 20 clicks: differences are likely chance.">small sample</span>}
+                        </td>
+                        <td className="px-3 py-2">{nf(r.sent)}</td>
+                        <td className={`px-3 py-2 ${r.bounced / base > 0.03 ? 'font-semibold text-rose-700' : ''}`}>{nf(r.bounced)} · {pct(r.bounced, r.sent)}</td>
+                        <td className={`px-3 py-2 ${r.complained / base > 0.001 ? 'font-semibold text-rose-700' : ''}`}>{nf(r.complained)}</td>
+                        <td className="px-3 py-2">{nf(r.unsubscribed)} · {pct(r.unsubscribed, base)}</td>
+                        <td className="px-3 py-2">{nf(r.clicked)} · {pct(r.clicked, base)}</td>
+                        <td className="px-3 py-2">{nf(seg === 'cold' ? r.registered : r.cv_viewed)}</td>
+                        <td className="px-3 py-2">{nf(r.cv_uploaded)}</td>
+                        <td className="px-3 py-2">{nf(r.checkout_started)}</td>
+                        <td className="px-3 py-2">{nf(r.starter_purchases)}</td>
+                        <td className="px-3 py-2">{nf(r.pro_purchases)}</td>
+                        <td className="px-3 py-2">{usd(r.revenue_cents)}</td>
+                        <td className="px-3 py-2">{r.revenue_per_delivered_cents == null ? '—' : usd(r.revenue_per_delivered_cents)}</td>
+                        <td className="px-3 py-2">{nf(seg === 'cold' ? r.listings : r.still_active)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
