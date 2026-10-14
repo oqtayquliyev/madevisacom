@@ -83,7 +83,7 @@ const STATUS: Record<Campaign['status'], string> = {
   cancelled: 'bg-ink-100 text-ink-500',
 };
 
-/** Icons in public/email/icons (t-*.png), usable in template list lines as “- [name] …”. */
+/** Icons in public/icons (t-*.png), usable in template list lines as “- [name] …”. */
 const EMAIL_ICONS = ['target', 'zap', 'globe', 'plane', 'mail', 'pause', 'file', 'bell', 'sparkles', 'chart', 'clock', 'check', 'trending', 'briefcase', 'dashboard', 'search', 'send', 'puzzle', 'user', 'rocket', 'badge', 'list', 'calendar', 'shield', 'new', 'star', 'heart', 'inbox', 'award', 'map'];
 
 export function OutreachSection() {
@@ -166,11 +166,12 @@ export function OutreachSection() {
 
 /* --------------------------------------------------------------- Autopilot */
 
-type AutoSettings = { enabled: boolean; seeker_per_day: number; employer_per_day: number; seeker_steps: number; employer_steps: number; gap_days: number; hour_from: number; hour_to: number; paused_reason: string | null; last_run_at: string | null; last_note: string | null };
+type AutoSettings = { enabled: boolean; max_mode?: boolean; seeker_per_day: number; employer_per_day: number; seeker_steps: number; employer_steps: number; gap_days: number; hour_from: number; hour_to: number; paused_reason: string | null; last_run_at: string | null; last_note: string | null };
 type AudienceStats = { contacts: number; new: number; in_progress: number; done: number; unsubscribed: number; bounced: number };
 type AutoOverview = {
   settings: AutoSettings;
   budget_today: number;
+  capacity?: { total: number; left: number; seeker: number; employer: number; hours_left: number; next_part: number };
   today: { seeker: number; employer: number; failed: number };
   days: { d: string; seeker: number; employer: number }[];
   audiences: { seeker?: AudienceStats; employer?: AudienceStats } | null;
@@ -236,8 +237,12 @@ function Autopilot({ senders, onContacts, onSenders, onTemplates }: { senders: S
     const { data, error } = await supabase.rpc('admin_autopilot_run');
     setBusy(null);
     if (error) return setMsg(error.message);
-    const d = data as { sent?: { seeker?: number; employer?: number }; skipped?: string; senders_full?: boolean };
-    setMsg(d.skipped ? `Not sent: ${d.skipped}.` : `Sent ${nf(d.sent?.seeker)} to job seekers and ${nf(d.sent?.employer)} to employers${d.senders_full ? ' — senders are full for today' : ''}. They leave the outbox over the next minutes.`);
+    const d = data as { sent?: { seeker?: number; employer?: number }; skipped?: string; senders_full?: boolean; unused?: number; cap_reached?: boolean };
+    setMsg(
+      d.skipped
+        ? `Not sent: ${d.skipped}.`
+        : `Sent ${nf(d.sent?.seeker)} to job seekers and ${nf(d.sent?.employer)} to employers${d.senders_full ? ' — every address is at its limit for today' : ''}${d.cap_reached ? ' — the daily cap is reached' : ''}${d.unused ? ` · ${nf(d.unused)} slots unused: no contacts due, import more` : ''}. They leave the outbox over the next minutes.`,
+    );
     void load();
   };
   const test = async () => {
@@ -256,8 +261,12 @@ function Autopilot({ senders, onContacts, onSenders, onTemplates }: { senders: S
   const usedToday = ov.senders.filter((x) => x.active).reduce((a, x) => a + x.today, 0);
   const daysLeft = (n: number | undefined, perDay: number) => (perDay > 0 && n != null ? Math.floor(n / perDay) : null);
   const maxDay = Math.max(1, ...ov.days.map((d) => d.seeker + d.employer));
-  const seekerDays = daysLeft(sk?.new, s.seeker_per_day);
-  const employerDays = daysLeft(em?.new, s.employer_per_day);
+  const maxMode = s.max_mode !== false;
+  const cap = ov.capacity;
+  // A day's need: the fixed number, or in max mode what the addresses for that audience can send.
+  const perDay = (aud: 'seeker' | 'employer') => (maxMode ? (cap?.[aud] ?? 0) : aud === 'seeker' ? s.seeker_per_day : s.employer_per_day);
+  const seekerDays = daysLeft(sk?.new, perDay('seeker'));
+  const employerDays = daysLeft(em?.new, perDay('employer'));
   const sendersFor = (aud: 'seeker' | 'employer') => senders.filter((x) => x.active && x.for_campaigns && (x.for_audience ?? 'any') !== (aud === 'seeker' ? 'employer' : 'seeker'));
 
   return (
@@ -270,7 +279,11 @@ function Autopilot({ senders, onContacts, onSenders, onTemplates }: { senders: S
         <div className="min-w-0 flex-1">
           <p className="font-bold text-ink-950">{s.enabled ? 'Autopilot is on — sending every day by itself' : 'Autopilot is paused'}</p>
           <p className="text-[13px] text-ink-600">
-            {s.paused_reason ?? `Between ${s.hour_from}:00 and ${s.hour_to}:00 UTC, every 10 minutes, within every limit.`}
+            {s.paused_reason ??
+              (maxMode
+                ? `Max: every hour (${s.hour_from}:00–${s.hour_to}:00 UTC) each address sends its share of what it has left, so all ${ov.senders.filter((x) => x.active).length} addresses reach their daily limit.${cap && cap.hours_left > 0 ? ` Next hour: ~${nf(cap.next_part)} emails.` : ''}`
+                : `Fixed numbers, every hour between ${s.hour_from}:00 and ${s.hour_to}:00 UTC, within every limit.`)}
+            {s.last_note ? ` Last round: ${s.last_note}.` : ''}
             {s.last_run_at ? ` Last round ${when(s.last_run_at)}.` : ''}
           </p>
         </div>
@@ -298,10 +311,37 @@ function Autopilot({ senders, onContacts, onSenders, onTemplates }: { senders: S
 
       {/* Numbers */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Job seekers emailed today" value={`${nf(ov.today.seeker)} / ${nf(s.seeker_per_day)}`} sub={`${nf(sk?.new)} new left${seekerDays != null ? ` · ~${seekerDays} days` : ''}`} tone={seekerDays != null && seekerDays < 3 ? 'amber' : 'ink'} />
-        <Stat label="Employers emailed today" value={`${nf(ov.today.employer)} / ${nf(s.employer_per_day)}`} sub={`${nf(em?.new)} new left${employerDays != null ? ` · ~${employerDays} days` : ''}`} tone={employerDays != null && employerDays < 3 ? 'amber' : 'ink'} />
+        <Stat label="Job seekers emailed today" value={`${nf(ov.today.seeker)} / ${nf(perDay('seeker'))}`} sub={`${nf(sk?.new)} new left${seekerDays != null ? ` · ~${seekerDays} days` : ''}`} tone={seekerDays != null && seekerDays < 3 ? 'amber' : 'ink'} />
+        <Stat label="Employers emailed today" value={`${nf(ov.today.employer)} / ${nf(perDay('employer'))}`} sub={`${nf(em?.new)} new left${employerDays != null ? ` · ~${employerDays} days` : ''}`} tone={employerDays != null && employerDays < 3 ? 'amber' : 'ink'} />
         <Stat label="Sender capacity today" value={`${nf(usedToday)} / ${nf(capacity)}`} sub={`${ov.senders.filter((x) => x.active).length} addresses`} tone={capacity && usedToday >= capacity ? 'amber' : 'ink'} />
         <Stat label="Left under the daily cap" value={nf(ov.budget_today)} sub={`${nf(ov.today.failed)} refused today`} tone={ov.today.failed ? 'amber' : 'ink'} />
+      </div>
+
+      {/* Sending mode */}
+      <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 ring-1 ring-ink-200">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-ink-950">How much to send</p>
+          <p className="text-[12.5px] text-ink-600">
+            {maxMode
+              ? 'Max — every address sends its full daily limit, split into equal parts every hour. Raise an address’s limit in Senders and the autopilot uses it.'
+              : 'Fixed — the numbers a day you set for job seekers and employers below.'}
+          </p>
+        </div>
+        <div className="inline-flex rounded-lg bg-ink-100 p-0.5">
+          {([
+            [true, 'Max (fill every address)'],
+            [false, 'Fixed numbers'],
+          ] as const).map(([v, label]) => (
+            <button
+              key={label}
+              onClick={() => void save({ max_mode: v }, 'mode')}
+              disabled={busy === 'mode'}
+              className={`rounded-md px-3 py-1.5 text-[12px] font-semibold ${maxMode === v ? 'bg-white text-ink-950 shadow-sm' : 'text-ink-500 hover:text-ink-800'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Last 14 days */}
@@ -354,7 +394,15 @@ function Autopilot({ senders, onContacts, onSenders, onTemplates }: { senders: S
               {nf(st?.unsubscribed)} unsubscribed · {nf(st?.bounced)} bounced · senders: {sendersFor(aud).map((x) => x.from_email.split('@')[0] + '@').join(', ') || 'none'}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <NumberSetting label="Emails a day" value={aud === 'seeker' ? s.seeker_per_day : s.employer_per_day} min={0} max={100000} onSave={(v) => save({ [perKey]: v } as Partial<AutoSettings>, perKey)} />
+              {maxMode ? (
+                <L label="Emails a day">
+                  <p className="rounded-lg bg-ink-50 px-3 py-2 text-[13px] text-ink-700">
+                    Max · {nf(cap?.[aud])} <span className="text-ink-500">(its addresses’ limits)</span>
+                  </p>
+                </L>
+              ) : (
+                <NumberSetting label="Emails a day" value={aud === 'seeker' ? s.seeker_per_day : s.employer_per_day} min={0} max={100000} onSave={(v) => save({ [perKey]: v } as Partial<AutoSettings>, perKey)} />
+              )}
               <NumberSetting label={`Emails each (1–${maxSteps})`} value={steps} min={1} max={maxSteps} onSave={(v) => save({ [stepKey]: v } as Partial<AutoSettings>, stepKey)} />
             </div>
           </div>
@@ -1787,7 +1835,7 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
                   onClick={() => set('body', `${draft.body.replace(/\s+$/, '')}\n- [${ic}] `)}
                   className="rounded-lg border border-ink-200 bg-white p-1 hover:border-brand-400"
                 >
-                  <img src={`/email/icons/t-${ic}.png`} alt={ic} width={24} height={24} className="h-6 w-6" />
+                  <img src={`/icons/t-${ic}.png`} alt={ic} width={24} height={24} className="h-6 w-6" />
                 </button>
               ))}
             </div>
