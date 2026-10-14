@@ -198,7 +198,7 @@ export function PricingPage({ go, onAuth }: Props) {
           className="mt-16"
         />
 
-        <section className="mt-16">
+        <section id="employers" className="mt-16 scroll-mt-24">
           <h2 className="text-2xl font-bold tracking-tight text-ink-950">For employers and companies</h2>
           <p className="mt-1 text-[15px] text-ink-600">Reach people looking for exactly your roles — including the ones ready to relocate. Paying never changes Company Scores or rankings.</p>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

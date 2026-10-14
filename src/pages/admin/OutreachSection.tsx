@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AtSign, Check, ChevronLeft, ChevronRight, Eye, FileUp, Globe, Loader2, Mail, Pause, Play, Plus, RefreshCw, Rocket, ScanSearch, Search, Send, Settings2, Sparkles, Square, Tag, Trash2, Upload, Users, X, Zap } from 'lucide-react';
+import { AlertTriangle, AtSign, Bot, Briefcase, Check, ChevronLeft, ChevronRight, Eye, FileUp, Globe, Loader2, Mail, Pause, Play, Plus, RefreshCw, Rocket, ScanSearch, Search, Send, Settings2, Sparkles, Square, Tag, Trash2, Upload, UserRound, Users, X, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 // Admin → Outreach: emails to many people at once.
+//
+//   Autopilot   every day by itself: job seekers get emails written for their role (live jobs for
+//               "product designer", CV match, visa-sponsored roles), employers get "find talent
+//               faster". Rotates sender addresses, keeps every limit, tells you (bell) when it needs
+//               more contacts or more senders. Migration 20261221090000_outreach_autopilot.sql.
 //
 //   Campaigns   pick a template + an audience → see how many → send yourself a test → Start.
 //               Sent a few per minute, never above the daily cap (Sending & limits).
@@ -39,7 +44,7 @@ type Campaign = {
   started_at: string | null;
   finished_at: string | null;
 };
-type Sender = { id: string; from_name: string; from_email: string; reply_to: string | null; daily_limit: number; active: boolean; for_campaigns: boolean; for_series: boolean; note: string | null; sent_today: number; sent_7d: number; failed_7d: number };
+type Sender = { id: string; from_name: string; from_email: string; reply_to: string | null; daily_limit: number; active: boolean; for_campaigns: boolean; for_series: boolean; for_audience?: 'any' | 'seeker' | 'employer'; note: string | null; sent_today: number; sent_7d: number; failed_7d: number };
 type Overview = {
   settings: Settings;
   resend?: boolean;
@@ -51,12 +56,13 @@ type Overview = {
   series: { in_series: number; finished: number; sent_7d: number };
   campaigns: Campaign[];
 };
-type Template = { key: string; name: string; audience: 'anyone' | 'accounts' | 'series'; subject: string; preheader: string | null; eyebrow: string | null; headline: string; body: string; cta_label: string; cta_url: string; show_stats: boolean; updated_at: string };
-type Contact = { id: string; email: string; name: string | null; country: string | null; tags: string[]; source: string; status: 'subscribed' | 'unsubscribed' | 'bounced' | 'complained'; account: boolean; sent_count: number; last_sent_at: string | null; created_at: string };
-type ContactList = { counts: { all: number; subscribed: number; unsubscribed: number; bounced: number; accounts: number }; tags: { tag: string; n: number }[]; total: number; rows: Contact[] };
+type Template = { key: string; name: string; audience: 'anyone' | 'accounts' | 'series' | 'autopilot'; subject: string; preheader: string | null; eyebrow: string | null; headline: string; body: string; cta_label: string; cta_url: string; show_stats: boolean; updated_at: string };
+type Contact = { id: string; email: string; name: string | null; country: string | null; tags: string[]; source: string; status: 'subscribed' | 'unsubscribed' | 'bounced' | 'complained'; account: boolean; sent_count: number; last_sent_at: string | null; created_at: string; audience?: 'seeker' | 'employer' | null; role?: string | null; company?: string | null; auto_step?: number };
+type ContactList = { counts: { all: number; subscribed: number; unsubscribed: number; bounced: number; accounts: number; seekers?: number; employers?: number; with_role?: number }; tags: { tag: string; n: number }[]; roles?: { role: string; label: string; n: number }[]; countries?: { country: string; n: number }[]; total: number; rows: Contact[] };
 
-type Sub = 'campaigns' | 'contacts' | 'finder' | 'templates' | 'senders' | 'series' | 'limits';
+type Sub = 'autopilot' | 'campaigns' | 'contacts' | 'finder' | 'templates' | 'senders' | 'series' | 'limits';
 const SUBS: { key: Sub; label: string; icon: typeof Mail }[] = [
+  { key: 'autopilot', label: 'Autopilot', icon: Bot },
   { key: 'campaigns', label: 'Campaigns', icon: Rocket },
   { key: 'contacts', label: 'Contacts', icon: Users },
   { key: 'finder', label: 'Find emails', icon: ScanSearch },
@@ -81,7 +87,7 @@ const STATUS: Record<Campaign['status'], string> = {
 const EMAIL_ICONS = ['target', 'zap', 'globe', 'plane', 'mail', 'pause', 'file', 'bell', 'sparkles', 'chart', 'clock', 'check', 'trending', 'briefcase', 'dashboard', 'search', 'send', 'puzzle', 'user', 'rocket', 'badge', 'list', 'calendar', 'shield', 'new', 'star', 'heart', 'inbox', 'award', 'map'];
 
 export function OutreachSection() {
-  const [sub, setSub] = useState<Sub>('campaigns');
+  const [sub, setSub] = useState<Sub>('autopilot');
   const [ov, setOv] = useState<Overview | null | undefined>(undefined);
   const [err, setErr] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -146,6 +152,7 @@ export function OutreachSection() {
         ))}
       </nav>
 
+      {sub === 'autopilot' && <Autopilot senders={senders} onContacts={() => setSub('contacts')} onSenders={() => setSub('senders')} onTemplates={() => setSub('templates')} />}
       {sub === 'campaigns' && <Campaigns ov={ov} templates={templates} senders={senders} onChange={load} />}
       {sub === 'contacts' && <Contacts onFind={() => setSub('finder')} />}
       {sub === 'finder' && <EmailFinder onContacts={() => setSub('contacts')} />}
@@ -153,6 +160,347 @@ export function OutreachSection() {
       {sub === 'senders' && <Senders senders={senders} onChange={load} />}
       {sub === 'series' && <Series ov={ov} templates={templates} onChange={load} onEdit={() => setSub('templates')} />}
       {sub === 'limits' && <Limits ov={ov} onChange={load} />}
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------- Autopilot */
+
+type AutoSettings = { enabled: boolean; seeker_per_day: number; employer_per_day: number; seeker_steps: number; employer_steps: number; gap_days: number; hour_from: number; hour_to: number; paused_reason: string | null; last_run_at: string | null; last_note: string | null };
+type AudienceStats = { contacts: number; new: number; in_progress: number; done: number; unsubscribed: number; bounced: number };
+type AutoOverview = {
+  settings: AutoSettings;
+  budget_today: number;
+  today: { seeker: number; employer: number; failed: number };
+  days: { d: string; seeker: number; employer: number }[];
+  audiences: { seeker?: AudienceStats; employer?: AudienceStats } | null;
+  roles: { role: string; label: string; contacts: number; emailed: number; waiting: number; jobs: number | null }[];
+  senders: { id: string; name: string; email: string; audience: 'any' | 'seeker' | 'employer'; limit: number; today: number; active: boolean }[];
+  alerts: { title: string; body: string; at: string }[];
+  recent: { at: string; to: string; kind: string; subject: string; status: string; error: string | null; from: string | null }[];
+};
+const AUTO_KEYS: { key: string; label: string; aud: 'seeker' | 'employer' }[] = [
+  { key: 'auto_seeker_1', label: 'Seekers 1 · jobs for their role', aud: 'seeker' },
+  { key: 'auto_seeker_2', label: 'Seekers 2 · CV match', aud: 'seeker' },
+  { key: 'auto_seeker_3', label: 'Seekers 3 · visa sponsorship', aud: 'seeker' },
+  { key: 'auto_employer_1', label: 'Employers 1 · find talent faster', aud: 'employer' },
+  { key: 'auto_employer_2', label: 'Employers 2 · sponsored listing', aud: 'employer' },
+];
+
+function Autopilot({ senders, onContacts, onSenders, onTemplates }: { senders: Sender[]; onContacts: () => void; onSenders: () => void; onTemplates: () => void }) {
+  const [ov, setOv] = useState<AutoOverview | null | undefined>(undefined);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [pv, setPv] = useState<{ key: string; role: string; name: string; company: string }>({ key: 'auto_seeker_1', role: 'Senior Product Designer', name: 'Anna Lee', company: '' });
+  const [html, setHtml] = useState<string | null>(null);
+  const [subject, setSubject] = useState('');
+  const [testTo, setTestTo] = useState('');
+
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.rpc('admin_autopilot');
+    if (error) {
+      setErr(/admin_autopilot|schema cache|does not exist/i.test(error.message) ? 'Run migration 20261221090000_outreach_autopilot.sql first.' : error.message);
+      setOv(null);
+      return;
+    }
+    setErr(null);
+    setOv(data as AutoOverview);
+  }, []);
+  useEffect(() => {
+    void load();
+    void supabase.auth.getUser().then(({ data }) => setTestTo(data.user?.email ?? ''));
+    const t = window.setInterval(() => void load(), 60_000);
+    return () => window.clearInterval(t);
+  }, [load]);
+  useEffect(() => {
+    const t = window.setTimeout(async () => {
+      const { data } = await supabase.rpc('admin_autopilot_preview', { p: { key: pv.key, role: pv.role, name: pv.name, company: pv.company, email: pv.key.startsWith('auto_employer') ? `jobs@${(pv.company || 'bosch').toLowerCase().replace(/[^a-z0-9]+/g, '')}.com` : 'anna.lee@example.com' } });
+      const d = data as { html: string; subject: string } | null;
+      setHtml(d?.html ?? null);
+      setSubject(d?.subject ?? '');
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [pv]);
+
+  const save = async (p: Partial<AutoSettings>, key: string) => {
+    setBusy(key);
+    const { error } = await supabase.rpc('admin_autopilot_set', { p });
+    setBusy(null);
+    if (error) setErr(error.message);
+    void load();
+  };
+  const runNow = async () => {
+    setBusy('run');
+    setMsg(null);
+    const { data, error } = await supabase.rpc('admin_autopilot_run');
+    setBusy(null);
+    if (error) return setMsg(error.message);
+    const d = data as { sent?: { seeker?: number; employer?: number }; skipped?: string; senders_full?: boolean };
+    setMsg(d.skipped ? `Not sent: ${d.skipped}.` : `Sent ${nf(d.sent?.seeker)} to job seekers and ${nf(d.sent?.employer)} to employers${d.senders_full ? ' — senders are full for today' : ''}. They leave the outbox over the next minutes.`);
+    void load();
+  };
+  const test = async () => {
+    setBusy('test');
+    const { error } = await supabase.rpc('admin_autopilot_test', { p: { key: pv.key, to: testTo, role: pv.role, name: pv.name, company: pv.company } });
+    setBusy(null);
+    setMsg(error ? error.message : `Test sent to ${testTo}.`);
+  };
+
+  if (ov === undefined) return <Spin />;
+  if (!ov) return <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{err}</p>;
+  const s = ov.settings;
+  const sk = ov.audiences?.seeker;
+  const em = ov.audiences?.employer;
+  const capacity = ov.senders.filter((x) => x.active).reduce((a, x) => a + x.limit, 0);
+  const usedToday = ov.senders.filter((x) => x.active).reduce((a, x) => a + x.today, 0);
+  const daysLeft = (n: number | undefined, perDay: number) => (perDay > 0 && n != null ? Math.floor(n / perDay) : null);
+  const maxDay = Math.max(1, ...ov.days.map((d) => d.seeker + d.employer));
+  const seekerDays = daysLeft(sk?.new, s.seeker_per_day);
+  const employerDays = daysLeft(em?.new, s.employer_per_day);
+  const sendersFor = (aud: 'seeker' | 'employer') => senders.filter((x) => x.active && x.for_campaigns && (x.for_audience ?? 'any') !== (aud === 'seeker' ? 'employer' : 'seeker'));
+
+  return (
+    <div className="space-y-4">
+      {/* Status */}
+      <div className={`flex flex-wrap items-center gap-3 rounded-xl p-4 ring-1 ${s.enabled ? 'bg-emerald-50 ring-emerald-200' : 'bg-amber-50 ring-amber-200'}`}>
+        <span className={`grid h-10 w-10 place-items-center rounded-full ${s.enabled ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'}`}>
+          <Bot className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-ink-950">{s.enabled ? 'Autopilot is on — sending every day by itself' : 'Autopilot is paused'}</p>
+          <p className="text-[13px] text-ink-600">
+            {s.paused_reason ?? `Between ${s.hour_from}:00 and ${s.hour_to}:00 UTC, every 10 minutes, within every limit.`}
+            {s.last_run_at ? ` Last round ${when(s.last_run_at)}.` : ''}
+          </p>
+        </div>
+        <Btn onClick={() => void runNow()} busy={busy === 'run'} icon={Send}>Send a round now</Btn>
+        <Btn onClick={() => void save({ enabled: !s.enabled }, 'on')} busy={busy === 'on'} icon={s.enabled ? Pause : Play} tone={s.enabled ? 'ink' : 'green'}>
+          {s.enabled ? 'Pause' : 'Switch on'}
+        </Btn>
+      </div>
+      {msg && <p className="rounded-lg bg-brand-50 px-3 py-2 text-[13px] text-brand-900">{msg}</p>}
+      {err && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-800">{err}</p>}
+
+      {/* Alerts */}
+      {ov.alerts.length > 0 && (
+        <ul className="space-y-2">
+          {ov.alerts.slice(0, 3).map((a) => (
+            <li key={a.at + a.title} className="flex gap-2.5 rounded-xl bg-amber-50 px-4 py-3 text-[13px] text-amber-950 ring-1 ring-amber-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <span>
+                <b>{a.title}</b> · {a.body} <span className="text-amber-700">({when(a.at)})</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Numbers */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Job seekers emailed today" value={`${nf(ov.today.seeker)} / ${nf(s.seeker_per_day)}`} sub={`${nf(sk?.new)} new left${seekerDays != null ? ` · ~${seekerDays} days` : ''}`} tone={seekerDays != null && seekerDays < 3 ? 'amber' : 'ink'} />
+        <Stat label="Employers emailed today" value={`${nf(ov.today.employer)} / ${nf(s.employer_per_day)}`} sub={`${nf(em?.new)} new left${employerDays != null ? ` · ~${employerDays} days` : ''}`} tone={employerDays != null && employerDays < 3 ? 'amber' : 'ink'} />
+        <Stat label="Sender capacity today" value={`${nf(usedToday)} / ${nf(capacity)}`} sub={`${ov.senders.filter((x) => x.active).length} addresses`} tone={capacity && usedToday >= capacity ? 'amber' : 'ink'} />
+        <Stat label="Left under the daily cap" value={nf(ov.budget_today)} sub={`${nf(ov.today.failed)} refused today`} tone={ov.today.failed ? 'amber' : 'ink'} />
+      </div>
+
+      {/* Last 14 days */}
+      <div className="rounded-xl bg-white p-4 ring-1 ring-ink-200">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-bold text-ink-950">Sent by the autopilot, last 14 days</p>
+          <p className="flex gap-3 text-[11.5px] text-ink-500">
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-brand-500" /> Job seekers</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Employers</span>
+          </p>
+        </div>
+        <div className="mt-3 flex h-28 items-end gap-1.5">
+          {ov.days.map((d) => (
+            <div key={d.d} className="flex flex-1 flex-col justify-end" title={`${d.d}: ${d.seeker} seekers, ${d.employer} employers`}>
+              <div className="w-full rounded-t bg-amber-400" style={{ height: `${(100 * d.employer) / maxDay}%` }} />
+              <div className="w-full bg-brand-500" style={{ height: `${(100 * d.seeker) / maxDay}%` }} />
+            </div>
+          ))}
+        </div>
+        <div className="mt-1 flex justify-between text-[10.5px] text-ink-400">
+          <span>{ov.days[0]?.d.slice(5)}</span>
+          <span>today</span>
+        </div>
+      </div>
+
+      {/* Audiences */}
+      <div className="grid gap-3 md:grid-cols-2">
+        {([
+          ['seeker', 'Job seekers', UserRound, sk, s.seeker_steps, 'seeker_per_day', 'seeker_steps', 3] as const,
+          ['employer', 'Employers', Briefcase, em, s.employer_steps, 'employer_per_day', 'employer_steps', 2] as const,
+        ]).map(([aud, title, Icon, st, steps, perKey, stepKey, maxSteps]) => (
+          <div key={aud} className="rounded-xl bg-white p-4 ring-1 ring-ink-200">
+            <p className="flex items-center gap-2 text-sm font-bold text-ink-950">
+              <Icon className="h-4 w-4 text-brand-600" /> {title}
+            </p>
+            <dl className="mt-2 grid grid-cols-4 gap-2 text-center">
+              {[
+                ['Contacts', st?.contacts],
+                ['New', st?.new],
+                ['In series', st?.in_progress],
+                ['Finished', st?.done],
+              ].map(([k, v]) => (
+                <div key={k as string} className="rounded-lg bg-ink-50 py-2">
+                  <dd className="text-lg font-bold tabular-nums text-ink-950">{nf(v as number | undefined)}</dd>
+                  <dt className="text-[11px] text-ink-500">{k}</dt>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-2 text-[12px] text-ink-500">
+              {nf(st?.unsubscribed)} unsubscribed · {nf(st?.bounced)} bounced · senders: {sendersFor(aud).map((x) => x.from_email.split('@')[0] + '@').join(', ') || 'none'}
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <NumberSetting label="Emails a day" value={aud === 'seeker' ? s.seeker_per_day : s.employer_per_day} min={0} max={100000} onSave={(v) => save({ [perKey]: v } as Partial<AutoSettings>, perKey)} />
+              <NumberSetting label={`Emails each (1–${maxSteps})`} value={steps} min={1} max={maxSteps} onSave={(v) => save({ [stepKey]: v } as Partial<AutoSettings>, stepKey)} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <NumberSetting label="Days between emails to one person" value={s.gap_days} min={2} max={60} onSave={(v) => save({ gap_days: v }, 'gap')} />
+        <NumberSetting label="Send from (hour, UTC)" value={s.hour_from} min={0} max={23} onSave={(v) => save({ hour_from: v }, 'hf')} />
+        <NumberSetting label="Send until (hour, UTC)" value={s.hour_to} min={1} max={24} onSave={(v) => save({ hour_to: v }, 'ht')} />
+      </div>
+
+      {/* Senders */}
+      <div className="rounded-xl bg-white p-4 ring-1 ring-ink-200">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-bold text-ink-950">Sender addresses</p>
+          <Btn onClick={onSenders} icon={AtSign}>Manage senders</Btn>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {ov.senders.map((x) => (
+            <div key={x.id} className={`rounded-lg p-3 ring-1 ring-ink-200 ${x.active ? '' : 'opacity-50'}`}>
+              <p className="truncate text-[13px] font-semibold text-ink-900">{x.email}</p>
+              <p className="text-[11.5px] text-ink-500">{x.audience === 'any' ? 'Seekers and employers' : x.audience === 'seeker' ? 'Job seekers' : 'Employers'}</p>
+              <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-ink-100">
+                <span className="block h-full rounded-full bg-brand-500" style={{ width: `${x.limit ? Math.min(100, (100 * x.today) / x.limit) : 0}%` }} />
+              </span>
+              <p className="mt-1 text-[11.5px] tabular-nums text-ink-600">{nf(x.today)} / {nf(x.limit)} today</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-[12px] leading-5 text-ink-500">
+          Raise limits slowly (+10–20 a day per address). New addresses on a domain start low; many emails from a new address on day one is the quickest way into spam. Every email carries the sender’s name, why it was sent, a one-click unsubscribe, and MadeVisa’s address and phone.
+        </p>
+      </div>
+
+      {/* Roles */}
+      <div className="rounded-xl bg-white ring-1 ring-ink-200">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
+          <div>
+            <p className="text-sm font-bold text-ink-950">Job seekers by role</p>
+            <p className="text-[12px] text-ink-500">Each role gets its own email: its live jobs, its numbers, its link.</p>
+          </div>
+          <Btn onClick={onContacts} icon={Users}>All contacts</Btn>
+        </div>
+        {ov.roles.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-ink-500">No roles yet. Import a list with a title / role column (Contacts → Import).</p>
+        ) : (
+          <div className="max-h-80 overflow-auto">
+            <table className="w-full text-left text-[13px]">
+              <thead className="sticky top-0 bg-white text-[11px] uppercase tracking-wide text-ink-500">
+                <tr className="border-b border-ink-100">
+                  <th className="px-4 py-2">Role</th>
+                  <th className="px-2 py-2 text-right">Contacts</th>
+                  <th className="px-2 py-2 text-right">Emailed</th>
+                  <th className="px-2 py-2 text-right">Waiting</th>
+                  <th className="px-2 py-2 text-right">Live jobs</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-100">
+                {ov.roles.map((r) => (
+                  <tr key={r.role} className="hover:bg-ink-50/50">
+                    <td className="px-4 py-2 font-semibold text-ink-900">{r.label}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{nf(r.contacts)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{nf(r.emailed)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{nf(r.waiting)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{r.jobs == null ? '—' : nf(r.jobs)}</td>
+                    <td className="px-4 py-2 text-right">
+                      <button onClick={() => setPv({ ...pv, key: 'auto_seeker_1', role: r.label })} className="text-[12px] font-semibold text-brand-700 hover:underline">
+                        Preview
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Preview */}
+      <div className="rounded-xl bg-white p-4 ring-1 ring-ink-200">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-bold text-ink-950">See an email as one person gets it</p>
+          <Btn onClick={onTemplates} icon={Mail}>Edit the templates</Btn>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-4">
+          <L label="Email">
+            <select value={pv.key} onChange={(e) => setPv({ ...pv, key: e.target.value })} className={input}>
+              {AUTO_KEYS.map((k) => (
+                <option key={k.key} value={k.key}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </L>
+          <L label="Name">
+            <input value={pv.name} onChange={(e) => setPv({ ...pv, name: e.target.value })} className={input} />
+          </L>
+          {pv.key.startsWith('auto_seeker') ? (
+            <L label="Role">
+              <input value={pv.role} onChange={(e) => setPv({ ...pv, role: e.target.value })} placeholder="e.g. Accountant" className={input} />
+            </L>
+          ) : (
+            <L label="Company">
+              <input value={pv.company} onChange={(e) => setPv({ ...pv, company: e.target.value })} placeholder="e.g. Bosch" className={input} />
+            </L>
+          )}
+          <L label="Send a test to">
+            <span className="flex gap-1.5">
+              <input value={testTo} onChange={(e) => setTestTo(e.target.value)} className={input} />
+              <Btn onClick={() => void test()} busy={busy === 'test'} icon={Send}>Send</Btn>
+            </span>
+          </L>
+        </div>
+        {subject && (
+          <p className="mt-3 text-[13px] text-ink-700">
+            <span className="text-ink-500">Subject:</span> <b>{subject}</b>
+          </p>
+        )}
+        {html ? <iframe title="Autopilot email" srcDoc={html} sandbox="" className="mt-2 h-[560px] w-full rounded-lg bg-[#f1f4f9] ring-1 ring-ink-200" /> : <Spin />}
+      </div>
+
+      {/* Recent */}
+      <div className="rounded-xl bg-white ring-1 ring-ink-200">
+        <p className="border-b border-ink-100 p-4 text-sm font-bold text-ink-950">Latest autopilot emails</p>
+        {ov.recent.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-ink-500">Nothing sent yet.</p>
+        ) : (
+          <ul className="max-h-96 divide-y divide-ink-100 overflow-auto">
+            {ov.recent.map((r) => (
+              <li key={r.at + r.to} className="flex items-start gap-3 px-4 py-2.5 text-[13px]">
+                <span className="w-28 shrink-0 text-ink-500">{when(r.at)}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold text-ink-900">{r.subject}</span>
+                  <span className="block truncate text-[12px] text-ink-500">
+                    {r.to} · {r.kind === 'auto_employer' ? 'employer' : 'job seeker'}{r.from ? ` · from ${r.from}` : ''}
+                  </span>
+                  {r.error && <span className="block truncate text-[12px] text-rose-700">{r.error}</span>}
+                </span>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${r.status === 'sent' ? 'bg-emerald-50 text-emerald-700' : r.status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-ink-100 text-ink-600'}`}>{r.status}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
@@ -269,7 +617,7 @@ function audienceLabel(a: Audience): string {
 function NewCampaign({ templates, senders, ov, onClose, onDone }: { templates: Template[]; senders: Sender[]; ov: Overview; onClose: () => void; onDone: () => void }) {
   const [sender, setSender] = useState<string>('');
   const live = senders.filter((x) => x.active && x.for_campaigns);
-  const promos = templates.filter((t) => t.audience !== 'series');
+  const promos = templates.filter((t) => t.audience !== 'series' && t.audience !== 'autopilot');
   const [name, setName] = useState('');
   const [tpl, setTpl] = useState(promos[0]?.key ?? '');
   const [aud, setAud] = useState<Audience>({ source: 'contacts', accounts: 'all', tags: [], country: '', skip_days: 14 });
@@ -471,23 +819,58 @@ function clean(a: Audience): Audience {
 
 /* ---------------------------------------------------------------- Contacts */
 
-/** Paste or CSV → [{email, name, country}]. Finds the email column from a header, or the first address on each line. */
-function parseContacts(text: string): { email: string; name?: string; country?: string }[] {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+type ImportRow = { email: string; name?: string; country?: string; role?: string; company?: string };
+
+/** One CSV line → cells, with "quoted, values" kept together. */
+function csvCells(line: string, delim: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (q && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else q = !q;
+    } else if (ch === delim && !q) {
+      out.push(cur.trim());
+      cur = '';
+    } else cur += ch;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+/**
+ * Paste or CSV → contacts. Finds the columns from a header (email, name or first + last name,
+ * title / role / position, company, country / location — a Consulti or Apollo export works as it is),
+ * or takes the first address on each line.
+ */
+function parseContacts(text: string): ImportRow[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (!lines.length) return [];
   const delim = [',', ';', '\t'].find((d) => lines[0].includes(d)) ?? ',';
-  const split = (l: string) => l.split(delim).map((c) => c.trim().replace(/^"|"$/g, ''));
-  const head = split(lines[0]).map((h) => h.toLowerCase());
-  const hasHeader = head.some((h) => /e-?mail/.test(h)) && !head.some((h) => /@/.test(h));
-  const ei = hasHeader ? head.findIndex((h) => /e-?mail/.test(h)) : -1;
-  const ni = hasHeader ? head.findIndex((h) => /^(full ?)?name|first ?name/.test(h)) : -1;
-  const ci = hasHeader ? head.findIndex((h) => /country/.test(h)) : -1;
-  const out: { email: string; name?: string; country?: string }[] = [];
+  const head = csvCells(lines[0], delim).map((h) => h.toLowerCase().replace(/[^a-z ]/g, '').trim());
+  const hasHeader = head.some((h) => /e ?mail/.test(h)) && !lines[0].includes('@');
+  const col = (re: RegExp, not?: RegExp) => (hasHeader ? head.findIndex((h) => re.test(h) && !(not && not.test(h))) : -1);
+  const ei = col(/^(work |business |personal )?e ?mail( address)?$/) >= 0 ? col(/^(work |business |personal )?e ?mail( address)?$/) : col(/e ?mail/, /status|verified|type/);
+  const ni = col(/^(full )?name$|^contact name$|^person$/);
+  const fi = col(/^first ?name$/);
+  const li = col(/^last ?name$|^surname$/);
+  const ri = col(/^(job )?title$|^role$|^position$|^job ?role$|^occupation$|^headline$/);
+  const oi = col(/^company( name)?$|^organi[sz]ation( name)?$|^employer$|^account name$/);
+  const ci = col(/^country$/) >= 0 ? col(/^country$/) : col(/^location$|^city$|^person location$/);
+  const out: ImportRow[] = [];
   for (const l of hasHeader ? lines.slice(1) : lines) {
-    const cells = split(l);
     if (ei >= 0) {
-      const email = cells[ei];
-      if (email) out.push({ email, name: ni >= 0 ? cells[ni] : undefined, country: ci >= 0 ? cells[ci] : undefined });
+      const cells = csvCells(l, delim);
+      const email = (cells[ei] ?? '').replace(/^mailto:/i, '');
+      if (!/@/.test(email)) continue;
+      const name = ni >= 0 ? cells[ni] : [fi >= 0 ? cells[fi] : '', li >= 0 ? cells[li] : ''].filter(Boolean).join(' ');
+      // "Montclair, New Jersey, United States" → "United States"
+      const place = ci >= 0 ? (cells[ci] ?? '').split(',').map((x) => x.trim()).filter(Boolean).pop() : undefined;
+      out.push({ email, name: name || undefined, role: ri >= 0 ? cells[ri] || undefined : undefined, company: oi >= 0 ? cells[oi] || undefined : undefined, country: place || undefined });
       continue;
     }
     for (const m of l.match(/[A-Z0-9._%+'-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? []) out.push({ email: m });
@@ -500,6 +883,10 @@ function Contacts({ onFind }: { onFind: () => void }) {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const [tag, setTag] = useState('');
+  const [aud, setAud] = useState('');
+  const [role, setRole] = useState('');
+  const [country, setCountry] = useState('');
+  const [step, setStep] = useState('');
   const [page, setPage] = useState(0);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
@@ -508,20 +895,27 @@ function Contacts({ onFind }: { onFind: () => void }) {
   const PAGE = 50;
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase.rpc('admin_contacts_list', { p_search: q || null, p_status: status || null, p_tag: tag || null, p_limit: PAGE, p_offset: page * PAGE });
+    const { data, error } = await supabase.rpc('admin_contacts_find', { p: { search: q, status, tag, audience: aud, role, country, step, limit: PAGE, offset: page * PAGE } });
     if (error) {
-      setErr(friendly(error.message));
+      setErr(/admin_contacts_find/.test(error.message) ? 'Run migration 20261221090000_outreach_autopilot.sql first.' : friendly(error.message));
       setData(null);
     } else {
       setErr(null);
       setData(data as ContactList);
     }
-  }, [q, status, tag, page]);
+  }, [q, status, tag, aud, role, country, step, page]);
   useEffect(() => {
     const t = window.setTimeout(() => void load(), 250);
     return () => window.clearTimeout(t);
   }, [load]);
 
+  const setAudience = async (audience: 'seeker' | 'employer') => {
+    if (!picked.size) return;
+    const { error } = await supabase.rpc('admin_contacts_set', { p_ids: [...picked], p: { audience } });
+    if (error) setErr(friendly(error.message));
+    setPicked(new Set());
+    void load();
+  };
   const bulk = async (action: string) => {
     if (!picked.size) return;
     if (action === 'delete' && !window.confirm(`Delete ${picked.size} contacts?`)) return;
@@ -538,8 +932,8 @@ function Contacts({ onFind }: { onFind: () => void }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Contacts" value={nf(data.counts.all)} sub={`${nf(data.counts.accounts)} have an account`} />
-        <Stat label="Subscribed" value={nf(data.counts.subscribed)} />
+        <Stat label="Contacts" value={nf(data.counts.all)} sub={`${nf(data.counts.seekers)} job seekers · ${nf(data.counts.employers)} employers`} />
+        <Stat label="Subscribed" value={nf(data.counts.subscribed)} sub={`${nf(data.counts.with_role)} with a role`} />
         <Stat label="Unsubscribed" value={nf(data.counts.unsubscribed)} />
         <Stat label="Bounced" value={nf(data.counts.bounced)} tone={data.counts.bounced ? 'amber' : 'ink'} />
       </div>
@@ -563,8 +957,36 @@ function Contacts({ onFind }: { onFind: () => void }) {
         <div className="flex flex-wrap items-center gap-2 border-b border-ink-100 p-3">
           <label className="relative min-w-[180px] flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-400" />
-            <input value={q} onChange={(e) => (setQ(e.target.value), setPage(0))} placeholder="Email, name or country" className={`${input} pl-8`} />
+            <input value={q} onChange={(e) => (setQ(e.target.value), setPage(0))} placeholder="Email, name, role, company or country" className={`${input} pl-8`} />
           </label>
+          <select value={aud} onChange={(e) => (setAud(e.target.value), setPage(0))} className={`${input} w-auto`}>
+            <option value="">Seekers and employers</option>
+            <option value="seeker">Job seekers ({nf(data.counts.seekers)})</option>
+            <option value="employer">Employers ({nf(data.counts.employers)})</option>
+          </select>
+          <input list="mv-roles" value={role} onChange={(e) => (setRole(e.target.value), setPage(0))} placeholder="Any role" className={`${input} w-44`} />
+          <datalist id="mv-roles">
+            {(data.roles ?? []).map((r) => (
+              <option key={r.role} value={r.role}>
+                {r.label} ({nf(r.n)})
+              </option>
+            ))}
+          </datalist>
+          <select value={country} onChange={(e) => (setCountry(e.target.value), setPage(0))} className={`${input} w-auto`}>
+            <option value="">Any country</option>
+            {(data.countries ?? []).map((c) => (
+              <option key={c.country} value={c.country}>
+                {c.country} ({nf(c.n)})
+              </option>
+            ))}
+          </select>
+          <select value={step} onChange={(e) => (setStep(e.target.value), setPage(0))} className={`${input} w-auto`}>
+            <option value="">Any autopilot step</option>
+            <option value="new">Not emailed yet</option>
+            <option value="1">Got email 1</option>
+            <option value="2">Got email 2</option>
+            <option value="3">Got email 3</option>
+          </select>
           <select value={status} onChange={(e) => (setStatus(e.target.value), setPage(0))} className={`${input} w-auto`}>
             <option value="">Any status</option>
             <option value="subscribed">Subscribed</option>
@@ -588,11 +1010,13 @@ function Contacts({ onFind }: { onFind: () => void }) {
             <Btn onClick={() => void bulk('remove_tag')} icon={Tag}>Remove tag</Btn>
             <Btn onClick={() => void bulk('unsubscribe')} icon={X}>Unsubscribe</Btn>
             <Btn onClick={() => void bulk('resubscribe')} icon={Check}>Resubscribe</Btn>
+            <Btn onClick={() => void setAudience('seeker')} icon={UserRound}>Job seekers</Btn>
+            <Btn onClick={() => void setAudience('employer')} icon={Briefcase}>Employers</Btn>
             <Btn onClick={() => void bulk('delete')} icon={Trash2} tone="rose">Delete</Btn>
           </div>
         )}
         {data.rows.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-ink-500">No contacts{q || status || tag ? ' match' : ' yet — import a list to start'}.</p>
+          <p className="px-4 py-10 text-center text-sm text-ink-500">No contacts{q || status || tag || aud || role || country || step ? ' match' : ' yet — import a list to start'}.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-[13px]">
@@ -620,10 +1044,12 @@ function Contacts({ onFind }: { onFind: () => void }) {
                     </td>
                     <td className="px-2 py-2">
                       <span className="block font-semibold text-ink-900">{r.email}</span>
-                      <span className="block text-[11.5px] text-ink-500">{[r.name, r.country, r.source, r.account ? 'has account' : ''].filter(Boolean).join(' · ')}</span>
+                      <span className="block text-[11.5px] text-ink-500">{[r.name, r.role, r.company, r.country, r.source, r.account ? 'has account' : ''].filter(Boolean).join(' · ')}</span>
                     </td>
                     <td className="px-2 py-2">
                       <span className="flex flex-wrap gap-1">
+                        {r.audience && <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${r.audience === 'employer' ? 'bg-amber-50 text-amber-800' : 'bg-brand-50 text-brand-700'}`}>{r.audience === 'employer' ? 'employer' : 'job seeker'}</span>}
+                        {(r.auto_step ?? 0) > 0 && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">autopilot {r.auto_step}</span>}
                         {r.tags.map((t) => (
                           <span key={t} className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-700">
                             {t}
@@ -663,6 +1089,7 @@ function Import({ onClose, onDone }: { onClose: () => void; onDone: () => void }
   const [tags, setTags] = useState('');
   const [source, setSource] = useState('');
   const [consent, setConsent] = useState(false);
+  const [audience, setAudience] = useState<'auto' | 'seeker' | 'employer'>('auto');
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -676,7 +1103,7 @@ function Import({ onClose, onDone }: { onClose: () => void; onDone: () => void }
     const sum = { added: 0, already: 0, invalid: 0, unsubscribed: 0 };
     for (let i = 0; i < rows.length; i += 5000) {
       setProgress(`Importing ${nf(Math.min(i + 5000, rows.length))} of ${nf(rows.length)}…`);
-      const { data, error } = await supabase.rpc('admin_contacts_import', { p_rows: rows.slice(i, i + 5000), p_tags: t, p_source: source || 'import', p_consent: source || null });
+      const { data, error } = await supabase.rpc('admin_contacts_import', { p_rows: rows.slice(i, i + 5000), p_tags: t, p_source: source || 'import', p_consent: source || null, p_audience: audience });
       if (error) {
         setBusy(false);
         setProgress(null);
@@ -702,7 +1129,7 @@ function Import({ onClose, onDone }: { onClose: () => void; onDone: () => void }
           <X className="h-5 w-5" />
         </button>
       </div>
-      <p className="mt-1 text-[13px] text-ink-500">Paste addresses (one per line, or any text with addresses in it), or a CSV with an <code>email</code> column — <code>name</code> and <code>country</code> are used when present.</p>
+      <p className="mt-1 text-[13px] text-ink-500">Paste addresses (one per line, or any text with addresses in it), or a CSV with an <code>email</code> column. <code>name</code> (or first + last name), <code>title</code> / <code>role</code>, <code>company</code> and <code>country</code> / <code>location</code> are used when present — a Consulti or Apollo export works as it is. The role decides which email a job seeker gets.</p>
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} placeholder={'email,name,country\nann@gmail.com,Ann Lee,Germany\nbob@yahoo.com'} className="mt-3 w-full rounded-lg border border-ink-200 p-3 font-mono text-[12.5px] outline-none focus:border-brand-500" />
       <div className="mt-2 flex flex-wrap items-center gap-3 text-[13px]">
         <input
@@ -718,8 +1145,21 @@ function Import({ onClose, onDone }: { onClose: () => void; onDone: () => void }
         />
         <Btn onClick={() => fileRef.current?.click()} icon={FileUp}>Choose a CSV file</Btn>
         <span className="text-ink-600">
-          <b>{nf(rows.length)}</b> addresses found
+          <b>{nf(rows.length)}</b> addresses found{rows.length ? ` · ${nf(rows.filter((r) => r.role).length)} with a role · ${nf(rows.filter((r) => r.company).length)} with a company` : ''}
         </span>
+      </div>
+      <div className="mt-4">
+        <L label="Who are they?">
+          <Seg
+            value={audience}
+            onChange={setAudience}
+            options={[
+              { v: 'auto', t: 'Work it out (team inboxes and recruiters → employers)' },
+              { v: 'seeker', t: 'Job seekers' },
+              { v: 'employer', t: 'Employers' },
+            ]}
+          />
+        </L>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <L label="Tags (comma separated)">
@@ -731,7 +1171,7 @@ function Import({ onClose, onDone }: { onClose: () => void; onDone: () => void }
       </div>
       <label className="mt-4 flex items-start gap-2.5 rounded-lg bg-amber-50 p-3 text-[13px] leading-5 text-amber-950">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0" />
-        <span>These people gave me their address and agreed to hear from MadeVisa (sign-up form, event, a past conversation). It is not a bought or scraped list. Sending to bought or scraped lists gets the sending account suspended and hurts delivery for every MadeVisa email.</span>
+        <span>I may email these addresses: they agreed to hear from MadeVisa, or they are business contacts the law in their country lets MadeVisa write to with a clear way to unsubscribe. In the EU and UK, private people generally have to agree first. Lists with many dead addresses get the sending account suspended and hurt delivery for every MadeVisa email — remove unverified addresses first.</span>
       </label>
       <div className="mt-4 flex items-center gap-3">
         <button onClick={() => void run()} disabled={!rows.length || !consent || busy} className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-700 disabled:opacity-50">
@@ -1136,6 +1576,7 @@ function Senders({ senders, onChange }: { senders: Sender[]; onChange: () => voi
               <th className="px-2 py-2">Today</th>
               <th className="px-2 py-2">Campaigns</th>
               <th className="px-2 py-2">Series</th>
+              <th className="px-2 py-2">Autopilot</th>
               <th className="px-2 py-2" />
             </tr>
           </thead>
@@ -1190,6 +1631,21 @@ function SenderRow({ s, busy, onSave, onDelete }: { s: Sender; busy: string | nu
       </td>
       <td className="px-2 py-2">
         <input type="checkbox" checked={s.for_series} onChange={(e) => void onSave({ id: s.id, for_series: e.target.checked }, s.id + 's')} aria-label="Use for the Auto Apply series" />
+      </td>
+      <td className="px-2 py-2">
+        <select
+          value={s.for_audience ?? 'any'}
+          onChange={async (e) => {
+            await supabase.rpc('admin_sender_audience', { p_id: s.id, p_audience: e.target.value });
+            await onSave({ id: s.id }, s.id + 'x');
+          }}
+          className="h-8 rounded-md border border-ink-200 px-1.5 text-[12px]"
+          aria-label="Autopilot audience"
+        >
+          <option value="any">Both</option>
+          <option value="seeker">Job seekers</option>
+          <option value="employer">Employers</option>
+        </select>
       </td>
       <td className="px-2 py-2 text-right">
         <span className="inline-flex gap-1">
@@ -1253,7 +1709,12 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
   }, [key, templates]);
   useEffect(() => {
     setHtml(null);
-    void supabase.rpc('admin_template_preview', { p_key: key, p_as: as }).then(({ data }) => {
+    // Autopilot templates are written for a role: preview them as a product designer (or an employer).
+    const auto = key.startsWith('auto_');
+    const call = auto
+      ? supabase.rpc('admin_autopilot_preview', { p: { key, name: as === 'unknown' ? '' : 'Anna Lee', role: key.startsWith('auto_seeker') ? 'Senior Product Designer' : '', email: key.startsWith('auto_employer') ? 'jobs@bosch.com' : 'anna.lee@example.com' } })
+      : supabase.rpc('admin_template_preview', { p_key: key, p_as: as });
+    void call.then(({ data }) => {
       const d = data as { html: string; subject: string } | null;
       setHtml(d?.html ?? null);
       setSubject(d?.subject ?? '');
@@ -1274,7 +1735,9 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
   const test = async () => {
     if (dirty) await save();
     setBusy('test');
-    const { error } = await supabase.rpc('admin_template_test', { p_key: key, p_email: testTo, p_sender: testFrom || null });
+    const { error } = key.startsWith('auto_')
+      ? await supabase.rpc('admin_autopilot_test', { p: { key, to: testTo, name: 'Anna Lee', role: key.startsWith('auto_seeker') ? 'Senior Product Designer' : '' } })
+      : await supabase.rpc('admin_template_test', { p_key: key, p_email: testTo, p_sender: testFrom || null });
     setBusy(null);
     setMsg(error ? { ok: false, text: friendly(error.message) } : { ok: true, text: `Test sent to ${testTo}.` });
   };
@@ -1286,7 +1749,7 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
           <li key={x.key}>
             <button onClick={() => setKey(x.key)} className={`w-full rounded-lg px-3 py-2 text-left text-[13px] ${x.key === key ? 'bg-brand-50 font-semibold text-brand-800' : 'text-ink-700 hover:bg-white'}`}>
               <span className="block">{x.name}</span>
-              <span className="block text-[11px] text-ink-500">{x.audience === 'series' ? 'Auto Apply series' : 'Campaign'}</span>
+              <span className="block text-[11px] text-ink-500">{x.audience === 'series' ? 'Auto Apply series' : x.audience === 'autopilot' ? 'Autopilot' : 'Campaign'}</span>
             </button>
           </li>
         ))}
