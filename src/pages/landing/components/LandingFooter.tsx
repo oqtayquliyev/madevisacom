@@ -28,6 +28,7 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
       { label: 'Visas by Country', view: 'destinations' },
       { label: 'Recruiters', view: 'network' },
       { label: 'Pricing', href: '/pricing' },
+      { label: 'Pricing for employers', href: '/pricing/employers' },
       { label: 'Sponsorship document', href: '/offers' },
       { label: 'Programs (soon)', view: 'programs' },
       { label: 'Study (soon)', view: 'study' },

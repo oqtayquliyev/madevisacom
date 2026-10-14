@@ -49,6 +49,7 @@ const ArticlePage = lazyPage(() => import('@/pages/blog/ArticlePage').then((m) =
 const SubmitJobPage = lazyPage(() => import('@/pages/submit/SubmitJobPage').then((m) => ({ default: m.SubmitJobPage })));
 const OffersPage = lazyPage(() => import('@/pages/offers/OffersPage').then((m) => ({ default: m.OffersPage })));
 const PricingPage = lazyPage(() => import('@/pages/pricing/PricingPage').then((m) => ({ default: m.PricingPage })));
+const EmployerPricingPage = lazyPage(() => import('@/pages/pricing/EmployerPricingPage').then((m) => ({ default: m.EmployerPricingPage })));
 const CheckoutPage = lazyPage(() => import('@/pages/checkout/CheckoutPage').then((m) => ({ default: m.CheckoutPage })));
 const CheckoutCompletePage = lazyPage(() => import('@/pages/checkout/CheckoutCompletePage').then((m) => ({ default: m.CheckoutCompletePage })));
 const CvMatchPage = lazyPage(() => import('@/pages/cv/CvMatchPage').then((m) => ({ default: m.CvMatchPage })));
@@ -339,6 +340,10 @@ export default function App() {
 
   if (path === '/pricing') {
     return <PricingPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (path === '/pricing/employers' || path === '/employers/pricing') {
+    return <EmployerPricingPage go={go} onAuth={goToAuth} />;
   }
 
   // Checkout for Starter / Pro, and the page that waits for the payment to be confirmed.

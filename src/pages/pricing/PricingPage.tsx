@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { noteMilestone } from '@/lib/emailAttribution';
 import { Check, CheckCircle2, FileSignature, Lock, Minus } from 'lucide-react';
 import type { View } from '@/types';
@@ -6,13 +6,12 @@ import { useSeo } from '@/lib/seo';
 import { SEO_META } from '@/lib/seoMeta';
 import { WRAP, nav } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
-import { missingProfileFields, PLANS, priceLabel, useMyPlan, type RequestPlanId } from '@/lib/plans';
-import { EMPLOYER_PRICES } from '@/lib/pricing';
+import { missingProfileFields, PLANS, priceLabel, useMyPlan} from '@/lib/plans';
+import { PricingSwitch } from '@/pages/pricing/PricingSwitch';
 import { useCv } from '@/lib/cv/store';
 import { useCardPayments } from '@/lib/gumroad';
 import { trackBilling, useBillingCatalog } from '@/lib/billing';
 import { PlanCard } from '@/components/pro/ProPlanCard';
-import { PlanRequestDialog } from '@/components/pro/PlanRequestDialog';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { AppLink, Faq } from '@/pages/info/InfoPage';
@@ -21,12 +20,6 @@ import { PRO_TESTIMONIALS } from '@/data/testimonials';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
-const EMPLOYER: { id: RequestPlanId; name: string; price: string; unit: string; text: string; points: string[] }[] = [
-  { id: 'sponsored_job', name: 'Sponsored job', price: `$${EMPLOYER_PRICES.sponsoredJob}`, unit: 'per job · 30 days', text: 'Pinned at the top of /jobs and on the homepage, labelled Sponsored.', points: ['Reviewed within a day', 'Nothing charged before approval', 'Packs of 3+ at a discount'] },
-  { id: 'featured_social', name: 'Featured in social posts', price: `+$${EMPLOYER_PRICES.featuredSocial}`, unit: 'per job', text: 'Your role in MadeVisa’s LinkedIn, Instagram and Facebook job posts, labelled Sponsored.', points: ['Real job seekers, fresh posts', 'Direct link to your job', 'Add to any sponsored job'] },
-  { id: 'employer', name: 'Employer plan', price: `from $${EMPLOYER_PRICES.employerPlanFrom}`, unit: 'per month', text: 'Always-on sponsored slots, applicant-interest stats and your reply speed vs. similar companies.', points: ['Verified company page', 'Team access', 'Monthly hiring report'] },
-  { id: 'hiring_brief', name: 'Hiring Brief', price: `$${EMPLOYER_PRICES.hiringBrief}`, unit: 'per brief', text: 'What hiring one person from a given country involves: route, timeline, costs and who pays what.', points: ['Plain language', 'Official sources', 'Delivered in 2 working days'] },
-];
 
 type Cell = string | boolean;
 /** What each plan includes, side by side. Limits are the fair-use limits the database applies. */
@@ -52,7 +45,6 @@ export function PricingPage({ go, onAuth }: Props) {
   const catalog = useBillingCatalog();
   // Card payments on (Admin → Plans): the answers about paying and cancelling say how that works.
   const card = useCardPayments();
-  const [dialog, setDialog] = useState<{ plan: RequestPlanId; billing: 'monthly' | 'one_time'; label: string } | null>(null);
 
   useSeo({
     title: SEO_META.pricing.title,
@@ -69,6 +61,8 @@ export function PricingPage({ go, onAuth }: Props) {
   const missing = useMemo(() => (profile ? missingProfileFields(profile) : []), [profile]);
   useEffect(() => {
     const id = window.location.hash.slice(1);
+    // Older links (emails, ads) pointed at /pricing#employers.
+    if (id === 'employers') return nav(`/pricing/employers${window.location.search}`);
     if (id) window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
   }, []);
 
@@ -82,7 +76,8 @@ export function PricingPage({ go, onAuth }: Props) {
 
       <section className="border-b border-ink-200 bg-white">
         <div className={`${WRAP} py-12 text-center sm:py-16`}>
-          <p className="text-sm font-semibold text-brand-700">Pricing</p>
+          <PricingSwitch active="seekers" />
+          <p className="mt-6 text-sm font-semibold text-brand-700">Pricing for job seekers</p>
           <h1 className="mx-auto mt-2 max-w-3xl text-3xl font-bold tracking-tight text-ink-950 sm:text-5xl">Get noticed. Get hired. Keep growing.</h1>
           <p className="mx-auto mt-4 max-w-2xl text-[16px] leading-7 text-ink-600">
             Browsing jobs stays free, with 1 sponsorship document a month. Starter adds CV match on every job; Pro prepares applications for you.
@@ -200,30 +195,6 @@ export function PricingPage({ go, onAuth }: Props) {
           className="mt-16"
         />
 
-        <section id="employers" className="mt-16 scroll-mt-24">
-          <h2 className="text-2xl font-bold tracking-tight text-ink-950">For employers and companies</h2>
-          <p className="mt-1 text-[15px] text-ink-600">Reach people looking for exactly your roles — including the ones ready to relocate. Paying never changes Company Scores or rankings.</p>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {EMPLOYER.map((e) => (
-              <div key={e.id} className="flex flex-col rounded-xl border border-ink-200 bg-white p-5">
-                <p className="font-bold text-ink-950">{e.name}</p>
-                <p className="mt-2 text-2xl font-bold text-ink-950">{e.price}</p>
-                <p className="text-xs text-ink-500">{e.unit}</p>
-                <p className="mt-3 text-sm leading-6 text-ink-600">{e.text}</p>
-                <ul className="mt-3 flex-1 space-y-1.5">
-                  {e.points.map((p) => (
-                    <li key={p} className="flex gap-2 text-xs text-ink-600">
-                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-400" /> {p}
-                    </li>
-                  ))}
-                </ul>
-                <button onClick={() => setDialog({ plan: e.id, billing: e.id === 'employer' ? 'monthly' : 'one_time', label: `${e.price} ${e.unit}` })} className="mt-4 rounded-lg border border-ink-200 py-2 text-sm font-semibold text-ink-800 hover:bg-ink-50">
-                  Request
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
 
         <section className="mx-auto mt-16 max-w-3xl">
           <h2 className="text-2xl font-bold tracking-tight text-ink-950">Questions</h2>
@@ -243,14 +214,12 @@ export function PricingPage({ go, onAuth }: Props) {
                   : { q: 'How do I pay?', a: 'Choose a plan and send the short form. We email you a secure payment link within one working day, and the plan starts as soon as it’s paid. No card is needed to send the request.' },
                 { q: 'Can I cancel? Can I get a refund?', a: 'Yes. Cancel any time in Settings → Billing (it opens your membership on Gumroad) or from the link in your receipt; you keep the plan until the end of the month you paid for. Within 14 days of first starting a plan, if you haven’t used any sponsorship documents from it, you get a full refund — write to hello@madevisa.com. See the Subscription Terms.' },
                 { q: 'Can I switch between Starter and Pro?', a: 'Yes. Cancel your current plan on Gumroad (you keep it until the end of the month you paid for), then start the other one from its checkout page. Gumroad can’t move a membership between plans, so there is no automatic pro-rated switch; while both run you get the higher plan.' },
-                { q: 'Does paying change Company Scores?', a: 'Never. Scores and reply rates are calculated the same way for every company — see our Advertising Policy.' },
               ]}
             />
           </div>
         </section>
       </main>
 
-      {dialog && <PlanRequestDialog plan={dialog.plan} billing={dialog.billing} priceLabel={dialog.label} region="USD" onClose={() => setDialog(null)} onAuth={onAuth} />}
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );
