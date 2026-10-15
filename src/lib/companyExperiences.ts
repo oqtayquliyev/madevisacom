@@ -238,6 +238,18 @@ export type HiringFeedbackOverview = {
   most_silent: FeedbackCompany[];
 };
 
+/** Per company on /feedback: reports so far, and the reply rate once there are 5 from 3+ people. */
+export type FeedbackStat = { id: string; n: number; people: number; pct: number | null; days: number | null };
+/** Same rule everywhere on /feedback. */
+export const FEEDBACK_MIN_REPORTS = 5;
+export const FEEDBACK_MIN_PEOPLE = 3;
+
+export async function fetchFeedbackCompanyStats(): Promise<Record<string, FeedbackStat>> {
+  const { data, error } = await supabase.rpc('feedback_company_stats');
+  if (error || !Array.isArray(data)) return {};
+  return Object.fromEntries((data as FeedbackStat[]).map((r) => [r.id, r]));
+}
+
 export async function fetchHiringFeedbackOverview(): Promise<HiringFeedbackOverview | null> {
   const { data, error } = await supabase.rpc('hiring_feedback_overview');
   if (error || !data) return null;

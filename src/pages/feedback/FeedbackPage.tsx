@@ -6,16 +6,12 @@ import {
   Check,
   ChevronDown,
   Copy,
-  EyeOff,
-  GraduationCap,
   Lock,
   Mail,
   MessageSquarePlus,
   Scale,
   Search,
   ShieldCheck,
-
-  UserCheck,
   Users,
 } from 'lucide-react';
 import type { View } from '@/types';
@@ -31,12 +27,14 @@ import { companyPath, fetchCompaniesDirectory, fetchCompanyBySlug, type CompanyP
 import {
   EXPERIENCE_OUTCOMES,
   feedbackPath,
+  FEEDBACK_MIN_PEOPLE,
+  FEEDBACK_MIN_REPORTS,
   fetchExperienceSummary,
-
+  fetchFeedbackCompanyStats,
   scoreWord,
   type ExperienceOutcome,
   type ExperienceSummary,
-
+  type FeedbackStat,
 } from '@/lib/companyExperiences';
 
 type Props = { slug?: string; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
@@ -62,9 +60,13 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
   const [summary, setSummary] = useState<ExperienceSummary | null>(null);
   const [dialog, setDialog] = useState<{ pick: { id?: string | null; name: string; logo_url?: string | null } | null; outcome?: ExperienceOutcome | null } | null>(null);
 
+  const [stats, setStats] = useState<Record<string, FeedbackStat>>({});
   useEffect(() => {
     fetchCompaniesDirectory().then((r) => setRows(r ?? []));
   }, []);
+  useEffect(() => {
+    fetchFeedbackCompanyStats().then(setStats);
+  }, [refreshKey]);
   useEffect(() => {
     if (!slug) return setCompany(null);
     setCompany(undefined);
@@ -126,53 +128,25 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
         </div>
       )}
 
-      <main className={`${WRAP} space-y-10 py-10`}>
+      <main className={`${WRAP} space-y-16 py-14`}>
         {/* THIS COMPANY (company link) */}
         {company && <CompanyNumbers company={company} summary={summary} onShare={() => setDialog({ pick: fixed })} />}
 
         {/* COMPANIES — your own reports first, then 5 at a time */}
         <div id="companies" className="scroll-mt-24" />
-        <FeedbackCompaniesRow companies={rows} onShare={(pick) => setDialog({ pick })} refreshKey={refreshKey} />
-
-        {/* WHO IT'S FOR */}
-        <section>
-          <SectionHead title="One link, useful on both sides" sub="Why people share it — and why companies do too." />
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-            <Audience
-              icon={<UserCheck className="h-5 w-5" />}
-              title="Applicants"
-              points={['Heard nothing for weeks? Log it — it still counts.', 'Got a reply or an interview? Show others it’s worth applying.', 'Before applying, see who really answers.']}
-            />
-            <Audience
-              icon={<Building2 className="h-5 w-5" />}
-              title="Companies & HR"
-              points={[
-                'Put your link in rejection and “we received your application” emails.',
-                'Learn how candidates experienced your process — without surveys.',
-                'Responsive employers stand out on Company Scores.',
-              ]}
-            />
-            <Audience
-              icon={<GraduationCap className="h-5 w-5" />}
-              title="Career centres, coaches & communities"
-              points={['Share one link with students, clients or members.', 'Help them focus on employers that reply.', 'See the market move with real outcomes, not guesses.']}
-            />
-          </div>
-        </section>
+        <FeedbackCompaniesRow companies={rows} stats={stats} onShare={(pick) => setDialog({ pick })} refreshKey={refreshKey} />
 
         {/* FOR COMPANIES */}
         <ForCompanies companies={rows ?? []} initial={company ?? null} go={go} />
 
-        {/* FAIRNESS */}
+        {/* RULES */}
         <section>
-          <SectionHead title="Fair to applicants and to companies" />
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Rule icon={<Lock className="h-4 w-4" />} title="Private" text="Never shown with a name. Companies can’t see who shared." />
-            <Rule icon={<ShieldCheck className="h-4 w-4" />} title="Reviewed" text="Every report is checked by MadeVisa before it counts." />
-            <Rule icon={<Users className="h-4 w-4" />} title="One voice each" text="One report per company per month; each person counts once." />
-            <Rule icon={<EyeOff className="h-4 w-4" />} title="Totals from 3 people" text="A company’s breakdown shows only once 3 different people shared." />
-            <Rule icon={<Scale className="h-4 w-4" />} title="Weighted fairly" text="Offers and interviews count more — they’re rare and seldom reported. Silence after a poor match counts less." />
-            <Rule icon={<BadgeCheck className="h-4 w-4" />} title="Verified counts more" text="Reports from confirmed emails and tracked applications carry more weight." />
+          <SectionHead title="Fair rules" />
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Rule icon={<Lock className="h-4 w-4" />} title="Private" text="Never shown with your name." />
+            <Rule icon={<ShieldCheck className="h-4 w-4" />} title="Reviewed" text="Checked within 24 hours." />
+            <Rule icon={<Users className="h-4 w-4" />} title={`${FEEDBACK_MIN_REPORTS} reports, ${FEEDBACK_MIN_PEOPLE}+ people`} text="Before any score shows." />
+            <Rule icon={<Scale className="h-4 w-4" />} title="One voice each" text="One report per company a month." />
           </div>
         </section>
 
@@ -180,10 +154,9 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
         <section className="max-w-3xl">
           <SectionHead title="Questions" />
           <div className="mt-4 divide-y divide-ink-200 rounded-xl border border-ink-200 bg-white">
-            <Faq q="Can a company see who left feedback?" a="No. Companies and other visitors only see totals — never names, emails or individual reports." />
-            <Faq q="Can a company remove bad feedback?" a="No. Reports are only removed when they break the rules (fake, duplicate or abusive). Companies can improve their numbers by replying to applicants." />
-            <Faq q="Do I need to have applied through MadeVisa?" a="No — careers sites, LinkedIn, referrals and recruiters all count. Applications tracked on MadeVisa are added automatically." />
-            <Faq q="Is it free for companies?" a="Yes. Any company can share its feedback link. If your company isn’t listed yet, add it and we’ll set up its page." />
+            <Faq q="Can companies see who shared?" a="No. Only totals are shown, never names or single reports." />
+            <Faq q="Can a company remove a report?" a="No. Only fake, duplicate or abusive reports are removed." />
+            <Faq q="Do I need to have applied via MadeVisa?" a="No. Any application counts: company site, LinkedIn, referral or recruiter." />
           </div>
         </section>
       </main>
@@ -248,7 +221,8 @@ function CompanyHero({ company, onOutcome }: { company: CompanyProfile; onOutcom
 
 function CompanyNumbers({ company, summary, onShare }: { company: CompanyProfile; summary: ExperienceSummary | null; onShare: () => void }) {
   const s = summary;
-  const heard = s && !s.hidden && s.total ? Math.round(((s.total - s.no_response) / s.total) * 100) : null;
+  const few = !s || s.hidden || s.total < FEEDBACK_MIN_REPORTS;
+  const heard = s && !few && s.total ? Math.round(((s.total - s.no_response) / s.total) * 100) : null;
   return (
     <SoftPanel
       title={`What applicants shared about ${company.name}`}
@@ -268,9 +242,9 @@ function CompanyNumbers({ company, summary, onShare }: { company: CompanyProfile
     >
       {!s || s.total === 0 ? (
         <Empty text={`Nobody has shared about ${company.name} yet — yours would be the first.`} action={<CTA onClick={onShare}>Share my experience</CTA>} />
-      ) : s.hidden ? (
+      ) : few ? (
         <Empty
-          text={`${s.total} ${s.total === 1 ? 'person has' : 'people have'} shared so far. The breakdown appears once 3 different people have shared.`}
+          text={`${s.total}/${FEEDBACK_MIN_REPORTS} reports so far. The score shows at ${FEEDBACK_MIN_REPORTS} reports from ${FEEDBACK_MIN_PEOPLE}+ people.`}
           action={<CTA onClick={onShare}>Add yours</CTA>}
         />
       ) : (
@@ -318,25 +292,8 @@ function ForCompanies({ companies, initial, go }: { companies: DirectoryCompany[
           <p className="inline-flex items-center gap-1.5 rounded-full bg-[#1D4ED8]/10 px-3 py-1 text-[12px] font-bold text-[#1D4ED8]">
             <BadgeCheck className="h-3.5 w-3.5" /> For companies & HR
           </p>
-          <h2 className="mt-3 text-2xl font-bold leading-tight text-ink-950">Show candidates you care — and learn how your hiring feels.</h2>
-          <p className="mt-2 text-[15px] leading-6 text-ink-600">
-            Candidates remember how they were treated. Share your feedback link and turn every application — even the ones you say no to — into a signal that you reply.
-          </p>
-          <p className="mt-5 text-[12px] font-bold uppercase tracking-wide text-ink-400">Where teams add it</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {['Rejection emails', '“Application received” auto-reply', 'After interviews', 'Careers page footer', 'Job ads', 'Recruiting events & QR'].map((w) => (
-              <span key={w} className="rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-ink-700 ring-1 ring-ink-200">
-                {w}
-              </span>
-            ))}
-          </div>
-          <ul className="mt-5 space-y-2 text-[14px] text-ink-700">
-            {['Free — no account needed to share the link', 'Candidates stay anonymous, so answers are honest', 'Replying to applicants lifts your Company Score'].map((t) => (
-              <li key={t} className="flex items-start gap-2">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#1D4ED8]" /> {t}
-              </li>
-            ))}
-          </ul>
+          <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight text-ink-950">Get your company’s feedback link</h2>
+          <p className="mt-2 text-[15px] leading-6 text-ink-600">Add it to rejection and “application received” emails. Free, and replying lifts your score.</p>
         </div>
 
         <div className="p-6 sm:p-8">
@@ -419,24 +376,8 @@ function ForCompanies({ companies, initial, go }: { companies: DirectoryCompany[
 function SectionHead({ title, sub }: { title: string; sub?: string }) {
   return (
     <div>
-      <h2 className="text-[22px] font-medium text-ink-900">{title}</h2>
-      {sub && <p className="mt-0.5 text-[14px] text-ink-500">{sub}</p>}
-    </div>
-  );
-}
-
-function Audience({ icon, title, points }: { icon: ReactNode; title: string; points: string[] }) {
-  return (
-    <div className="rounded-xl border border-ink-200 bg-white p-5 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
-      <span className="grid h-10 w-10 place-items-center rounded-full bg-[#1D4ED8]/10 text-[#1D4ED8]">{icon}</span>
-      <p className="mt-3 text-[16px] font-bold text-ink-950">{title}</p>
-      <ul className="mt-2 space-y-1.5 text-[14px] text-ink-600">
-        {points.map((p) => (
-          <li key={p} className="flex items-start gap-2">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#1D4ED8]" /> {p}
-          </li>
-        ))}
-      </ul>
+      <h2 className="text-[28px] font-bold tracking-tight text-ink-950">{title}</h2>
+      {sub && <p className="mt-1 text-[15px] text-ink-500">{sub}</p>}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Building2, CheckCircle2, ChevronRight, Clock, Ghost, Hourglass, Meh, MessageSquarePlus, Plus, Search, Smile, Sparkles, Timer, Warehouse, XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { companyPath, type DirectoryCompany } from '@/lib/companies';
-import { EXPERIENCE_OUTCOMES, fetchMyExperienceReports, type ExperienceStatus, type MyExperienceReport } from '@/lib/companyExperiences';
+import { EXPERIENCE_OUTCOMES, FEEDBACK_MIN_PEOPLE, FEEDBACK_MIN_REPORTS, fetchMyExperienceReports, type ExperienceStatus, type FeedbackStat, type MyExperienceReport } from '@/lib/companyExperiences';
 
 const PAGE = 5;
 
@@ -19,7 +19,17 @@ type Pick = { id?: string | null; name: string; logo_url?: string | null };
  * more" at the end, plus search. The visitor's own recent reports come
  * first, with their review status.
  */
-export function FeedbackCompaniesRow({ companies, onShare, refreshKey }: { companies: DirectoryCompany[] | null; onShare: (pick: Pick) => void; refreshKey: number }) {
+export function FeedbackCompaniesRow({
+  companies,
+  stats,
+  onShare,
+  refreshKey,
+}: {
+  companies: DirectoryCompany[] | null;
+  stats: Record<string, FeedbackStat>;
+  onShare: (pick: Pick) => void;
+  refreshKey: number;
+}) {
   const { session } = useAuth();
   const [q, setQ] = useState('');
   const [limit, setLimit] = useState(PAGE);
@@ -38,8 +48,11 @@ export function FeedbackCompaniesRow({ companies, onShare, refreshKey }: { compa
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
     const list = companies ?? [];
-    return t ? list.filter((c) => c.name.toLowerCase().includes(t) || (c.country_name ?? '').toLowerCase().includes(t)) : list;
-  }, [companies, q]);
+    const hits = t ? list.filter((c) => c.name.toLowerCase().includes(t) || (c.country_name ?? '').toLowerCase().includes(t)) : list;
+    // Companies with a score first, then the ones with most reports; otherwise as listed.
+    const rank = (c: DirectoryCompany) => (stats[c.id]?.pct != null ? 100000 : 0) + (stats[c.id]?.n ?? 0);
+    return hits.map((c, i) => ({ c, i })).sort((a, b) => rank(b.c) - rank(a.c) || a.i - b.i).map((x) => x.c);
+  }, [companies, q, stats]);
 
   const shown = filtered.slice(0, limit);
   const left = filtered.length - shown.length;
@@ -55,8 +68,8 @@ export function FeedbackCompaniesRow({ companies, onShare, refreshKey }: { compa
     <section>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-[22px] font-medium text-ink-900">Companies</h2>
-          <p className="mt-0.5 text-[14px] text-ink-500">Pick a company to share how your application went — or see how it replies.</p>
+          <h2 className="text-[28px] font-bold tracking-tight text-ink-950">How companies reply</h2>
+          <p className="mt-1 text-[15px] text-ink-500">From people who applied. A score shows at {FEEDBACK_MIN_REPORTS} reports from {FEEDBACK_MIN_PEOPLE}+ people.</p>
         </div>
         <label className="flex h-11 w-full items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 focus-within:border-[#1D4ED8] sm:w-80">
           <Search className="h-4 w-4 shrink-0 text-ink-400" />
@@ -82,13 +95,13 @@ export function FeedbackCompaniesRow({ companies, onShare, refreshKey }: { compa
         {!q.trim() && EXAMPLES.map((e) => <ExampleCard key={e.name} e={e} />)}
 
         {companies === null
-          ? Array.from({ length: PAGE }, (_, i) => <div key={i} className="skeleton-shimmer h-[248px] w-[240px] shrink-0 rounded-xl" />)
-          : shown.map((c) => <CompanyCard key={c.id} c={c} onShare={() => onShare({ id: c.id, name: c.name, logo_url: c.logo_url })} />)}
+          ? Array.from({ length: PAGE }, (_, i) => <div key={i} className="skeleton-shimmer h-[268px] w-[272px] shrink-0 rounded-xl" />)
+          : shown.map((c) => <CompanyCard key={c.id} c={c} stat={stats[c.id]} onShare={() => onShare({ id: c.id, name: c.name, logo_url: c.logo_url })} />)}
 
         {companies !== null && left > 0 && (
           <button
             onClick={loadMore}
-            className="flex min-h-[248px] w-[180px] shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-300 bg-white text-ink-600 transition hover:border-[#1D4ED8] hover:text-[#1D4ED8]"
+            className="flex min-h-[268px] w-[180px] shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-300 bg-white text-ink-600 transition hover:border-[#1D4ED8] hover:text-[#1D4ED8]"
           >
             <span className="grid h-10 w-10 place-items-center rounded-full bg-[#1D4ED8]/10 text-[#1D4ED8]">
               <Plus className="h-5 w-5" />
@@ -99,7 +112,7 @@ export function FeedbackCompaniesRow({ companies, onShare, refreshKey }: { compa
         )}
 
         {companies !== null && filtered.length === 0 && (
-          <div className="flex min-h-[248px] w-full min-w-[280px] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-ink-300 bg-white px-6 text-center">
+          <div className="flex min-h-[268px] w-full min-w-[280px] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-ink-300 bg-white px-6 text-center">
             <p className="text-[15px] font-semibold text-ink-800">No company called “{q.trim()}” yet</p>
             <p className="mt-1 text-[13px] text-ink-500">You can still share — we'll check it and add the company.</p>
             <button onClick={() => onShare({ name: q.trim() })} className="mt-3 rounded-lg bg-[#1D4ED8] px-4 py-2 text-[14px] font-semibold text-white hover:bg-brand-800">
@@ -122,12 +135,14 @@ function Logo({ url, size = 44 }: { url: string | null | undefined; size?: numbe
   );
 }
 
-function CompanyCard({ c, onShare }: { c: DirectoryCompany; onShare: () => void }) {
-  const rate = c.response_rate;
+/** Logo, name (2 lines max) and country in a fixed-height block, so every card's score starts at the same line. */
+const HEAD = 'flex h-[64px] items-start gap-3';
+
+function CompanyCard({ c, stat, onShare }: { c: DirectoryCompany; stat?: FeedbackStat; onShare: () => void }) {
   const href = companyPath({ id: c.id, name: c.name });
   return (
-    <article className="flex min-h-[248px] w-[240px] shrink-0 snap-start flex-col rounded-xl border border-ink-200 bg-white p-4">
-      <div className="flex items-start gap-3">
+    <article className="flex min-h-[268px] w-[272px] shrink-0 snap-start flex-col rounded-2xl border border-ink-200 bg-white p-5 transition hover:border-ink-300 hover:shadow-[0_6px_24px_rgba(15,23,42,0.06)]">
+      <div className={HEAD}>
         <Logo url={c.logo_url} />
         <div className="min-w-0">
           <a
@@ -143,10 +158,8 @@ function CompanyCard({ c, onShare }: { c: DirectoryCompany; onShare: () => void 
           {c.country_name && <p className="mt-0.5 truncate text-[12px] text-ink-500">{c.country_name}</p>}
         </div>
       </div>
-      <ReplyMeter rate={rate} days={c.avg_response_days} reports={c.tracked} />
-      {c.active_jobs > 0 && (
-        <p className="mt-2 text-[12px] font-semibold text-[#1D4ED8]">{c.active_jobs.toLocaleString()} open jobs</p>
-      )}
+      <ReplyMeter rate={stat?.pct ?? null} days={stat?.days ?? null} reports={stat?.n ?? 0} people={stat?.people ?? 0} />
+      <p className="mt-2.5 h-4 text-[12px] font-semibold text-[#1D4ED8]">{c.active_jobs > 0 ? `${c.active_jobs.toLocaleString()} open jobs` : ''}</p>
       <div className="mt-auto flex items-center gap-2 pt-3">
         <button onClick={onShare} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#1D4ED8] px-3 py-2 text-[13px] font-semibold text-white hover:bg-brand-800">
           <MessageSquarePlus className="h-4 w-4" /> Share
@@ -175,23 +188,24 @@ function mood(rate: number): Mood {
   return { icon: Ghost, label: 'Mostly ghosts', ink: 'text-rose-700', chip: 'bg-rose-500/10 text-rose-600 ring-rose-500/20', on: 'bg-rose-500' };
 }
 
-const MIN_REPORTS = 5;
+const MIN_REPORTS = FEEDBACK_MIN_REPORTS;
 const STEPS = 10;
 
-function ReplyMeter({ rate, days, reports }: { rate: number | null; days: number | null; reports: number }) {
+function ReplyMeter({ rate, days, reports, people }: { rate: number | null; days: number | null; reports: number; people: number }) {
   if (rate == null) {
-    const have = Math.min(Math.max(reports ?? 0, 0), MIN_REPORTS - 1);
+    const have = Math.min(Math.max(reports, 0), MIN_REPORTS);
+    const needPeople = have >= MIN_REPORTS && people < FEEDBACK_MIN_PEOPLE;
     return (
-      <div className="mt-3 rounded-xl border border-ink-100 bg-ink-50/60 p-3">
+      <div className="mt-4 rounded-xl border border-ink-100 bg-ink-50/60 p-3">
         <div className="flex items-center gap-2.5">
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-ink-400 ring-1 ring-ink-200">
             <Hourglass className="h-4 w-4" />
           </span>
-          <div className="min-w-0">
-            <p className="text-[12.5px] font-semibold leading-4 text-ink-800">Fewer than {MIN_REPORTS} reports</p>
-            <p className="text-[11px] leading-4 text-ink-500">Score unlocks at {MIN_REPORTS}</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-semibold leading-4 text-ink-800">{needPeople ? 'Needs more people' : 'Not enough reports'}</p>
+            <p className="truncate text-[11px] leading-4 text-ink-500">Score at {MIN_REPORTS} reports</p>
           </div>
-          <span className="ml-auto text-[11px] font-semibold tabular-nums text-ink-400">
+          <span className="text-[12px] font-semibold tabular-nums text-ink-400">
             {have}/{MIN_REPORTS}
           </span>
         </div>
@@ -200,6 +214,7 @@ function ReplyMeter({ rate, days, reports }: { rate: number | null; days: number
             <span key={i} className={`h-1 rounded-full ${i < have ? 'bg-[#1D4ED8]' : 'bg-ink-200'}`} />
           ))}
         </div>
+        <p className="mt-2 text-[11px] text-ink-400">&nbsp;</p>
       </div>
     );
   }
@@ -208,13 +223,13 @@ function ReplyMeter({ rate, days, reports }: { rate: number | null; days: number
   const r = Math.round(rate);
   const lit = Math.max(1, Math.round((r / 100) * STEPS));
   return (
-    <div className="mt-3 rounded-xl border border-ink-100 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className="mt-4 rounded-xl border border-ink-100 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <div className="flex items-center gap-2.5">
         <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ring-1 ${m.chip}`}>
           <Icon className="h-4 w-4" strokeWidth={2.25} />
         </span>
         <div className="min-w-0">
-          <p className={`text-[12.5px] font-semibold leading-4 ${m.ink}`}>{m.label}</p>
+          <p className={`text-[13px] font-semibold leading-4 ${m.ink}`}>{m.label}</p>
           <p className="text-[11px] leading-4 text-ink-500">reply rate</p>
         </div>
         <span className="ml-auto text-[22px] font-bold leading-none tracking-tight tabular-nums text-ink-950">
@@ -244,11 +259,11 @@ const EXAMPLES: Example[] = [
 function ExampleCard({ e }: { e: Example }) {
   const Icon = e.icon;
   return (
-    <article className="flex min-h-[248px] w-[240px] shrink-0 snap-start flex-col rounded-xl border border-dashed border-ink-300 bg-white/70 p-4">
-      <span className="mb-2.5 inline-flex items-center gap-1 self-start rounded-md bg-ink-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+    <article className="relative flex min-h-[268px] w-[272px] shrink-0 snap-start flex-col rounded-2xl border border-dashed border-ink-300 bg-white/70 p-5">
+      <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md bg-ink-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
         <Sparkles className="h-2.5 w-2.5" /> Example
       </span>
-      <div className="flex items-start gap-3">
+      <div className={`${HEAD} pr-16`}>
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500 ring-1 ring-ink-200">
           <Icon className="h-5 w-5" />
         </span>
@@ -257,8 +272,8 @@ function ExampleCard({ e }: { e: Example }) {
           <p className="mt-0.5 truncate text-[12px] text-ink-500">{e.country}</p>
         </div>
       </div>
-      <ReplyMeter rate={e.rate} days={e.days} reports={MIN_REPORTS} />
-      <p className="mt-auto pt-3 text-[11px] leading-4 text-ink-400">Not a real company, just how a score looks.</p>
+      <ReplyMeter rate={e.rate} days={e.days} reports={MIN_REPORTS} people={FEEDBACK_MIN_PEOPLE} />
+      <p className="mt-2.5 h-4 text-[12px] text-ink-400">Not a real company</p>
     </article>
   );
 }
@@ -275,7 +290,7 @@ function MyReportCard({ r }: { r: MyExperienceReport }) {
   const outcome = EXPERIENCE_OUTCOMES.find((o) => o.value === r.outcome)?.label ?? r.outcome;
   const applied = new Date(r.applied_on).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
   return (
-    <article className={`flex min-h-[248px] w-[240px] shrink-0 snap-start flex-col rounded-xl border-2 p-4 ${s.cls}`}>
+    <article className={`flex min-h-[268px] w-[272px] shrink-0 snap-start flex-col rounded-xl border-2 p-4 ${s.cls}`}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-bold uppercase tracking-wide text-ink-500">Your report</span>
         <span

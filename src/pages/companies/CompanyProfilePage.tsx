@@ -26,7 +26,7 @@ import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { HireCountries } from '@/components/companies/HireCountries';
 import { ShareExperienceDialog } from '@/components/companies/ShareExperienceDialog';
-import { feedbackPath, fetchExperienceSummary, scoreWord, type ExperienceSummary } from '@/lib/companyExperiences';
+import { FEEDBACK_MIN_PEOPLE, FEEDBACK_MIN_REPORTS, feedbackPath, fetchExperienceSummary, scoreWord, type ExperienceSummary } from '@/lib/companyExperiences';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { companyPath, fetchCompanyBySlug, fetchCompanyInsights, type CompanyInsights, type CompanyProfile } from '@/lib/companies';
 import { fetchPublishedJobsByPublisher, sponsoredJobToBoardJob } from '@/lib/sponsoredJobs';
@@ -516,10 +516,10 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
                 Get your feedback link for candidates
               </a>
             </p>
-            {shared && shared.total > 0 && !shared.hidden ? (
+            {shared && shared.total >= FEEDBACK_MIN_REPORTS && !shared.hidden ? (
               <SharedOutcomes s={shared} />
             ) : shared && shared.total > 0 ? (
-              <EmptyNote text={`${shared.total} ${shared.total === 1 ? 'person has' : 'people have'} shared so far. The breakdown appears once 3 different people have shared — applied to ${company.name}? Add yours.`} />
+              <EmptyNote text={`${shared.total}/${FEEDBACK_MIN_REPORTS} reports so far. The score shows at ${FEEDBACK_MIN_REPORTS} reports from ${FEEDBACK_MIN_PEOPLE}+ people — applied to ${company.name}? Add yours.`} />
             ) : (
               <EmptyNote text={`No shared experiences yet. Applied to ${company.name}? Be the first to tell others how it went.`} />
             )}
