@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Building2, ChevronDown, MessageSquarePlus, Search } from 'lucide-react';
 import type { DirectoryCompany } from '@/lib/companies';
+import { GhostMascot } from '@/components/companies/Ghost';
 
 /**
  * "Applied and heard nothing?" — invites people to share how an application
@@ -76,6 +77,7 @@ export function SharePromo({
     };
     return (
       <section className={`relative z-20 flex min-h-[calc(100svh-72px)] flex-col items-center justify-center px-4 pb-16 pt-10 text-center ${className}`}>
+        <GhostMascot size={112} className="mb-4" />
         <p className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-ink-600 shadow-sm ring-1 ring-ink-200">
           <MessageSquarePlus className="h-3.5 w-3.5 text-[#1D4ED8]" /> 20 seconds · private
         </p>

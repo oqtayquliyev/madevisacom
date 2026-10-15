@@ -118,6 +118,21 @@
   .offer-flash { animation: none; }
 }
 
+/* Feedback mascot: floats gently; its shadow breathes with it. */
+@keyframes ghost-float {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-10px) rotate(2deg); }
+}
+@keyframes ghost-shadow {
+  0%, 100% { transform: scaleX(1); opacity: 0.18; }
+  50% { transform: scaleX(0.8); opacity: 0.1; }
+}
+.ghost-float { animation: ghost-float 4.5s ease-in-out infinite; }
+.ghost-shadow { animation: ghost-shadow 4.5s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .ghost-float, .ghost-shadow { animation: none; }
+}
+
 /* Sponsor offer → "Save as PDF" prints only the document, on A4. */
 @media print {
   @page { size: A4; margin: 16mm 16mm 18mm; }

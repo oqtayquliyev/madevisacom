@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Building2, CheckCircle2, ChevronDown, Clock, Loader2, Lock, Mail, MessageSquarePlus, Plus, Search, X } from 'lucide-react';
+import { Bell, Building2, ChevronDown, Clock, Loader2, Lock, Mail, MessageSquarePlus, Plus, Search, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { confirmEmailVerified } from '@/lib/emailVerification';
 import { useCaptcha } from '@/components/auth/Turnstile';
 import { useAuth } from '@/lib/auth';
+import { GhostMascot } from '@/components/companies/Ghost';
 import {
   APPLIED_WHEN,
   EXPERIENCE_CHANNELS,
@@ -292,9 +293,7 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
         {done ? (
           <div className="px-5 pb-7 pt-5">
             <div className="text-center">
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-50 ring-1 ring-emerald-200">
-                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-              </span>
+              <GhostMascot size={88} />
               <p className="mt-3 text-base font-bold text-ink-950">
                 {sent.length > 1 ? `Thank you — ${sent.length} companies shared` : 'Thank you — that helps the next applicant'}
               </p>

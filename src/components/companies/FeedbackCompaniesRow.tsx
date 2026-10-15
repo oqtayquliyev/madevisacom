@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Building2, CheckCircle2, ChevronRight, Clock, Ghost, Hourglass, Meh, MessageSquarePlus, Plus, Search, Smile, Sparkles, Timer, Warehouse, XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { GHOST_SRC } from '@/components/companies/Ghost';
 import { companyPath, type DirectoryCompany } from '@/lib/companies';
 import { EXPERIENCE_OUTCOMES, FEEDBACK_MIN_PEOPLE, FEEDBACK_MIN_REPORTS, fetchMyExperienceReports, type ExperienceStatus, type FeedbackStat, type MyExperienceReport } from '@/lib/companyExperiences';
 
@@ -226,7 +227,7 @@ function ReplyMeter({ rate, days, reports, people }: { rate: number | null; days
     <div className="mt-4 rounded-xl border border-ink-100 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <div className="flex items-center gap-2.5">
         <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ring-1 ${m.chip}`}>
-          <Icon className="h-4 w-4" strokeWidth={2.25} />
+          {m.icon === Ghost ? <img src={GHOST_SRC} alt="" className="h-6 w-6" /> : <Icon className="h-4 w-4" strokeWidth={2.25} />}
         </span>
         <div className="min-w-0">
           <p className={`text-[13px] font-semibold leading-4 ${m.ink}`}>{m.label}</p>
@@ -250,10 +251,10 @@ function ReplyMeter({ rate, days, reports, people }: { rate: number | null; days
 }
 
 /** Made-up companies, clearly marked, so a first visitor sees what a score looks like. */
-type Example = { name: string; country: string; rate: number; days: number; icon: typeof Smile };
+type Example = { name: string; country: string; rate: number; days: number; icon: typeof Smile; mascot?: boolean };
 const EXAMPLES: Example[] = [
   { name: 'Sunny Logistics GmbH', country: 'Germany', rate: 86, days: 3, icon: Warehouse },
-  { name: 'Ghostly Corp Ltd', country: 'United Kingdom', rate: 9, days: 41, icon: Building2 },
+  { name: 'Ghostly Corp Ltd', country: 'United Kingdom', rate: 9, days: 41, icon: Building2, mascot: true },
 ];
 
 function ExampleCard({ e }: { e: Example }) {
@@ -265,7 +266,7 @@ function ExampleCard({ e }: { e: Example }) {
       </span>
       <div className={`${HEAD} pr-16`}>
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500 ring-1 ring-ink-200">
-          <Icon className="h-5 w-5" />
+          {e.mascot ? <img src={GHOST_SRC} alt="" className="h-9 w-9" /> : <Icon className="h-5 w-5" />}
         </span>
         <div className="min-w-0">
           <p className="line-clamp-2 text-[15px] font-bold leading-snug text-ink-950">{e.name}</p>
