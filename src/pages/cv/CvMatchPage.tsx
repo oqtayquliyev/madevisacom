@@ -15,6 +15,7 @@ import { MatchLevels } from '@/components/cv/MatchShowcase';
 import { ENCOURAGEMENT, SearchProgress, TopMatchesList } from '@/components/cv/TopMatches';
 import { ProPlanCard } from '@/components/pro/ProPlanCard';
 import { CvInsights, CvMatchLocked, CvPersonCard } from '@/components/cv/CvInsights';
+import { GuestUnlock } from '@/components/cv/GuestUnlock';
 import { useAuth } from '@/lib/auth';
 import { useMyPlan } from '@/lib/plans';
 import { usePersonalization } from '@/lib/personalization';
@@ -159,7 +160,10 @@ export function CvMatchPage({ go, onAuth }: Props) {
         )}
 
         {/* Starter and Pro: the matches and the charts. Everyone else: the count, and what unlocks it. */}
-        {cv && !searching && !my.loading && !paid && <CvMatchLocked result={result} guest={!session} onAuth={onAuth} from={(visitor.currentLocation ?? visitor.citizenship ?? '').toUpperCase() || null} />}
+        {/* No account yet: the results wait behind one email field and a code (which also makes the free account). */}
+        {cv && !searching && !session && cvReady && <GuestUnlock cv={cv} result={result} />}
+
+        {cv && !searching && session && !my.loading && !paid && <CvMatchLocked result={result} guest={!session} onAuth={onAuth} from={(visitor.currentLocation ?? visitor.citizenship ?? '').toUpperCase() || null} />}
 
         {cv && !searching && paid && result && <TopMatchesList result={result} onAuth={onAuth} onAgain={top.start} />}
 
