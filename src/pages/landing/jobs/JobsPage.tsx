@@ -632,6 +632,12 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
   // Guests sign up right here, in a dialog — then the next jobs appear.
   const [authOpen, setAuthOpen] = useState(false);
 
+  // Guests see a limited set of jobs, so filter counts would mislead: the filters invite them to sign up first.
+  const askToSignUpForFilters = () => {
+    rememberAuthIntent({ reason: 'filters', next: window.location.pathname + window.location.search });
+    setAuthOpen(true);
+  };
+
   const handleShowMore = () => {
     // Guests see the first page; more pages need a (free, email-code) account.
     if (!session) {
@@ -793,7 +799,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
             </div>
             <button
               type="button"
-              onClick={() => setShowFilters((v) => !v)}
+              onClick={() => (session ? setShowFilters((v) => !v) : askToSignUpForFilters())}
               className="flex h-12 items-center justify-center gap-2 rounded-md border border-white/30 bg-white/10 px-5 text-sm font-semibold text-white transition hover:bg-white/20"
             >
               <SlidersHorizontal className="h-4 w-4" />
@@ -805,7 +811,15 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
           </div>
 
           {/* Date posted · Country · Category — desktop; on mobile they're in the Filters panel */}
-          <div className="mt-4 hidden grid-cols-3 gap-3 sm:grid">
+          <div className="relative mt-4 hidden grid-cols-3 gap-3 sm:grid">
+            {!session && (
+              <button
+                type="button"
+                onClick={askToSignUpForFilters}
+                aria-label="Create a free account to filter jobs by date, country and category"
+                className="absolute inset-0 z-10 cursor-pointer rounded-md"
+              />
+            )}
             <FilterCombo
               label="Date posted"
               icon={CalendarClock}

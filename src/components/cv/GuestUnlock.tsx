@@ -87,27 +87,14 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
 
   return (
     <section className="mx-auto max-w-2xl space-y-3">
-      {/* What's waiting: the scores, the rest blurred. */}
-      <div aria-hidden className="space-y-3">
-        {(items.length ? items.slice(0, 3) : [null, null, null]).map((m, i) => (
-          <div key={m?.id ?? i} className="flex items-center gap-4 rounded-2xl bg-white p-4 ring-1 ring-ink-200 sm:p-5">
-            <MatchRing score={m?.score ?? null} size={56} pending={!m} />
-            <div className="pointer-events-none min-w-0 flex-1 select-none blur-[6px]">
-              <span className="block h-3 w-1/3 rounded bg-ink-200" />
-              <span className="mt-2 block h-4 w-3/4 rounded bg-ink-300" />
-              <span className="mt-2 block h-3 w-1/2 rounded bg-ink-200" />
-            </div>
-          </div>
-        ))}
-      </div>
-
       <div className="rounded-3xl bg-white px-6 py-6 ring-2 ring-brand-200 sm:px-8">
         <p className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-700">
-          <Lock className="h-3 w-3" aria-hidden /> Your results are ready
+          <Lock className="h-3 w-3" aria-hidden /> Results ready
         </p>
-        <h2 className="mt-3 text-[22px] font-bold leading-tight tracking-tight text-ink-950">
-          {items.length ? `${items.length} ${items.length === 1 ? 'job matches' : 'jobs match'} your CV. Where should we send the code?` : 'Where should we send the code?'}
+        <h2 className="mt-3 text-[24px] font-bold leading-tight tracking-tight text-ink-950">
+          {items.length ? `${items.length} ${items.length === 1 ? 'job' : 'jobs'} found for your CV` : 'Your matches are ready'}
         </h2>
+        <p className="mt-1 text-[14.5px] text-ink-600">{step === 'email' ? 'Get your code to see them.' : 'Enter your code to see them.'}</p>
 
         {step === 'email' ? (
           <form
@@ -135,7 +122,7 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
                 />
               </span>
               <button type="submit" disabled={busy} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 text-[15px] font-bold text-white hover:bg-brand-700 disabled:opacity-60">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} See my matches <ArrowRight className="h-4 w-4" />
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Get my code <ArrowRight className="h-4 w-4" />
               </button>
             </div>
             {captcha.element}
@@ -149,7 +136,7 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
             }}
           >
             <label htmlFor="guest-code" className="text-[13px] font-semibold text-ink-700">
-              Code sent to {clean}
+              6-digit code sent to {clean}
             </label>
             <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
               <input
@@ -202,6 +189,20 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
           .
         </p>
       </div>
+      {/* What's waiting: the scores, the rest blurred until the code is in. */}
+      <div aria-hidden className="space-y-3">
+        {(items.length ? items.slice(0, 3) : [null, null, null]).map((m, i) => (
+          <div key={m?.id ?? i} className="flex items-center gap-4 rounded-2xl bg-white p-4 ring-1 ring-ink-200 sm:p-5">
+            <MatchRing score={m?.score ?? null} size={56} pending={!m} />
+            <div className="pointer-events-none min-w-0 flex-1 select-none blur-[6px]">
+              <span className="block h-3 w-1/3 rounded bg-ink-200" />
+              <span className="mt-2 block h-4 w-3/4 rounded bg-ink-300" />
+              <span className="mt-2 block h-3 w-1/2 rounded bg-ink-200" />
+            </div>
+          </div>
+        ))}
+      </div>
+
     </section>
   );
 }

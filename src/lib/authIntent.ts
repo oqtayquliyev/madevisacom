@@ -1,7 +1,7 @@
 // Why the visitor was sent to sign in, and where to go afterwards.
 // Kept in sessionStorage so it survives the Google redirect too.
 
-export type AuthIntent = { reason?: 'more-jobs' | 'save' | 'track' | 'share' | 'offer' | 'alert' | 'match'; next?: string };
+export type AuthIntent = { reason?: 'more-jobs' | 'filters' | 'save' | 'track' | 'share' | 'offer' | 'alert' | 'match'; next?: string };
 
 const KEY = 'mv:authIntent';
 
@@ -39,6 +39,7 @@ export function safeNext(next: string | undefined | null): string {
 
 export const AUTH_REASON_TEXT: Record<NonNullable<AuthIntent['reason']>, string> = {
   'more-jobs': 'To see more than one page of jobs, create an account or sign in.',
+  filters: 'Filter every job by date, country and category with a free account. It takes a minute, no password.',
   save: 'Sign in to save jobs.',
   track: 'Sign in to track your applications.',
   share: 'Sign in to share your experience.',

@@ -161,7 +161,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
 
         {/* Starter and Pro: the matches and the charts. Everyone else: the count, and what unlocks it. */}
         {/* No account yet: the results wait behind one email field and a code (which also makes the free account). */}
-        {cv && !searching && !session && cvReady && <GuestUnlock cv={cv} result={result} />}
+        {cv && !searching && !session && cvReady && status !== 'error' && <GuestUnlock cv={cv} result={result} />}
 
         {cv && !searching && session && !my.loading && !paid && <CvMatchLocked result={result} guest={!session} onAuth={onAuth} from={(visitor.currentLocation ?? visitor.citizenship ?? '').toUpperCase() || null} />}
 
