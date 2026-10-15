@@ -57,6 +57,10 @@
       "destination": "/api/seo?r=page&s=:s"
     },
     {
+      "source": "/assets/:path*",
+      "destination": "/api/missing-asset"
+    },
+    {
       "source": "/:p((?!api/|assets/).*)",
       "destination": "/api/seo?r=spa&p=:p"
     }

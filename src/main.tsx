@@ -53,7 +53,7 @@ else window.addEventListener('load', () => window.setTimeout(ensureStyles, 200))
 // A tab opened before a deploy asks for page files that no longer exist:
 // reload once to get the new ones instead of showing a broken page.
 window.addEventListener('vite:preloadError', (event) => {
-  if (reloadForNewVersion()) event.preventDefault();
+  if (reloadForNewVersion((event as Event & { payload?: unknown }).payload)) event.preventDefault();
 });
 
 createRoot(document.getElementById('root')!).render(

@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { isChunkLoadError } from '@/lib/lazyPage';
+import { isChunkLoadError, loadAgain } from '@/lib/lazyPage';
 
 /**
  * Last line of defence: instead of a blank white page, a short message and
@@ -19,11 +19,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { error
   render() {
     if (!this.state.error) return this.props.children;
     const update = isChunkLoadError(this.state.error);
-    const reload = () => {
-      const u = new URL(window.location.href);
-      u.searchParams.set('_r', String(Date.now()));
-      window.location.replace(u.toString());
-    };
+    const reload = () => void loadAgain(this.state.error);
     return (
       <div className="grid min-h-screen place-items-center bg-[#f8fafc] px-5 text-center">
         <div className="max-w-sm">

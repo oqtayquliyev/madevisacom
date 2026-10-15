@@ -179,7 +179,7 @@ function withBootGuard(html: string): string {
   // Only for the app's own script failing to load. At most one reload every
   // 2 minutes (localStorage), so it can never loop. Stylesheet problems are
   // repaired inside the app without reloading (src/main.tsx).
-  const guard = `<script>(function(){var k='mv-boot-retry-at';function again(){try{var last=+(localStorage.getItem(k)||0);if(Date.now()-last<120000)return;localStorage.setItem(k,String(Date.now()));var u=new URL(location.href);u.searchParams.set('_r',String(Date.now()));location.replace(u.toString());}catch(e){}}window.addEventListener('error',function(e){var t=e&&e.target;if(t&&t.tagName==='SCRIPT'&&t.type==='module'&&/\\/assets\\//.test(t.src||''))again();},true);})();</script>`;
+  const guard = `<script>(function(){var k='mv-boot-retry-at';function again(){try{var last=+(localStorage.getItem(k)||0);if(Date.now()-last<120000)return;localStorage.setItem(k,String(Date.now()));var u=new URL(location.href);u.searchParams.set('_r',String(Date.now()));var go=function(){location.replace(u.toString());};var p=[];for(var i=0;i<arguments.length;i++){p.push(fetch(arguments[i],{cache:'reload'}).catch(function(){}));}setTimeout(go,4000);Promise.all(p).then(go,go);}catch(e){}}window.addEventListener('error',function(e){var t=e&&e.target;if(t&&t.tagName==='SCRIPT'&&t.type==='module'&&/\\/assets\\//.test(t.src||''))again(t.src,'/index.html');},true);})();</script>`;
   return html.replace('<head>', `<head>\n${guard}`);
 }
 
