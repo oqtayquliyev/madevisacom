@@ -1,5 +1,8 @@
 /** The /feedback mascot: a friendly ghost (as in "ghosted" by a company). */
 export const GHOST_SRC = '/brand/ghost.webp';
+/** Replies well (green tick) / mostly ghosts (red cross). */
+export const GHOST_GOOD_SRC = '/brand/ghost-good.webp';
+export const GHOST_BAD_SRC = '/brand/ghost-bad.webp';
 
 export function GhostMascot({ size = 120, float = true, className = '' }: { size?: number; float?: boolean; className?: string }) {
   return (

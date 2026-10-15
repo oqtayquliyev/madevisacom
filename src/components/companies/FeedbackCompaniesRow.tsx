@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Building2, CheckCircle2, ChevronRight, Clock, Ghost, Hourglass, Meh, MessageSquarePlus, Plus, Search, Smile, Sparkles, Timer, Warehouse, XCircle } from 'lucide-react';
+import { Building2, CheckCircle2, ChevronRight, Clock, MessageSquarePlus, Plus, Search, Sparkles, Star, Timer, Warehouse, XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { GHOST_SRC } from '@/components/companies/Ghost';
+import { GHOST_BAD_SRC, GHOST_GOOD_SRC, GHOST_SRC } from '@/components/companies/Ghost';
 import { companyPath, type DirectoryCompany } from '@/lib/companies';
 import { EXPERIENCE_OUTCOMES, FEEDBACK_MIN_PEOPLE, FEEDBACK_MIN_REPORTS, fetchMyExperienceReports, type ExperienceStatus, type FeedbackStat, type MyExperienceReport } from '@/lib/companyExperiences';
 
@@ -96,13 +96,13 @@ export function FeedbackCompaniesRow({
         {!q.trim() && EXAMPLES.map((e) => <ExampleCard key={e.name} e={e} />)}
 
         {companies === null
-          ? Array.from({ length: PAGE }, (_, i) => <div key={i} className="skeleton-shimmer h-[268px] w-[272px] shrink-0 rounded-xl" />)
+          ? Array.from({ length: PAGE }, (_, i) => <div key={i} className="skeleton-shimmer h-[340px] w-[310px] shrink-0 rounded-xl" />)
           : shown.map((c) => <CompanyCard key={c.id} c={c} stat={stats[c.id]} onShare={() => onShare({ id: c.id, name: c.name, logo_url: c.logo_url })} />)}
 
         {companies !== null && left > 0 && (
           <button
             onClick={loadMore}
-            className="flex min-h-[268px] w-[180px] shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-300 bg-white text-ink-600 transition hover:border-[#1D4ED8] hover:text-[#1D4ED8]"
+            className="flex min-h-[340px] w-[180px] shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-300 bg-white text-ink-600 transition hover:border-[#1D4ED8] hover:text-[#1D4ED8]"
           >
             <span className="grid h-10 w-10 place-items-center rounded-full bg-[#1D4ED8]/10 text-[#1D4ED8]">
               <Plus className="h-5 w-5" />
@@ -113,7 +113,7 @@ export function FeedbackCompaniesRow({
         )}
 
         {companies !== null && filtered.length === 0 && (
-          <div className="flex min-h-[268px] w-full min-w-[280px] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-ink-300 bg-white px-6 text-center">
+          <div className="flex min-h-[340px] w-full min-w-[280px] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-ink-300 bg-white px-6 text-center">
             <p className="text-[15px] font-semibold text-ink-800">No company called “{q.trim()}” yet</p>
             <p className="mt-1 text-[13px] text-ink-500">You can still share — we'll check it and add the company.</p>
             <button onClick={() => onShare({ name: q.trim() })} className="mt-3 rounded-lg bg-[#1D4ED8] px-4 py-2 text-[14px] font-semibold text-white hover:bg-brand-800">
@@ -126,23 +126,24 @@ export function FeedbackCompaniesRow({
   );
 }
 
-function Logo({ url, size = 44 }: { url: string | null | undefined; size?: number }) {
+function Logo({ url, size = 52 }: { url: string | null | undefined; size?: number }) {
   return url ? (
-    <img src={url} alt="" className="shrink-0 rounded-lg border border-ink-100 bg-white object-contain p-1" style={{ width: size, height: size }} loading="lazy" />
+    <img src={url} alt="" className="shrink-0 rounded-xl border border-ink-100 bg-white object-contain p-1.5" style={{ width: size, height: size }} loading="lazy" />
   ) : (
-    <span className="grid shrink-0 place-items-center rounded-lg bg-[#1D4ED8]/10" style={{ width: size, height: size }}>
-      <Building2 className="h-5 w-5 text-[#1D4ED8]/60" />
+    <span className="grid shrink-0 place-items-center rounded-xl bg-[#1D4ED8]/10" style={{ width: size, height: size }}>
+      <Building2 className="h-6 w-6 text-[#1D4ED8]/60" />
     </span>
   );
 }
 
 /** Logo, name (2 lines max) and country in a fixed-height block, so every card's score starts at the same line. */
-const HEAD = 'flex h-[64px] items-start gap-3';
+const HEAD = 'flex h-[72px] items-start gap-3.5';
+const CARD = 'flex min-h-[340px] w-[310px] shrink-0 snap-start flex-col rounded-2xl p-6';
 
 function CompanyCard({ c, stat, onShare }: { c: DirectoryCompany; stat?: FeedbackStat; onShare: () => void }) {
   const href = companyPath({ id: c.id, name: c.name });
   return (
-    <article className="flex min-h-[268px] w-[272px] shrink-0 snap-start flex-col rounded-2xl border border-ink-200 bg-white p-5 transition hover:border-ink-300 hover:shadow-[0_6px_24px_rgba(15,23,42,0.06)]">
+    <article className={`${CARD} border border-ink-200 bg-white transition hover:border-ink-300 hover:shadow-[0_8px_28px_rgba(15,23,42,0.07)]`}>
       <div className={HEAD}>
         <Logo url={c.logo_url} />
         <div className="min-w-0">
@@ -152,17 +153,17 @@ function CompanyCard({ c, stat, onShare }: { c: DirectoryCompany; stat?: Feedbac
               e.preventDefault();
               go(href);
             }}
-            className="line-clamp-2 text-[15px] font-bold leading-snug text-ink-950 hover:text-[#1D4ED8]"
+            className="line-clamp-2 text-[17px] font-bold leading-snug text-ink-950 hover:text-[#1D4ED8]"
           >
             {c.name}
           </a>
-          {c.country_name && <p className="mt-0.5 truncate text-[12px] text-ink-500">{c.country_name}</p>}
+          {c.country_name && <p className="mt-0.5 truncate text-[13px] text-ink-500">{c.country_name}</p>}
         </div>
       </div>
-      <ReplyMeter rate={stat?.pct ?? null} days={stat?.days ?? null} reports={stat?.n ?? 0} people={stat?.people ?? 0} />
-      <p className="mt-2.5 h-4 text-[12px] font-semibold text-[#1D4ED8]">{c.active_jobs > 0 ? `${c.active_jobs.toLocaleString()} open jobs` : ''}</p>
-      <div className="mt-auto flex items-center gap-2 pt-3">
-        <button onClick={onShare} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#1D4ED8] px-3 py-2 text-[13px] font-semibold text-white hover:bg-brand-800">
+      <ReplyScore score={stat?.score ?? null} pct={stat?.pct ?? null} days={stat?.days ?? null} reports={stat?.n ?? 0} people={stat?.people ?? 0} />
+      <p className="mt-3 h-5 text-[13px] font-semibold text-[#1D4ED8]">{c.active_jobs > 0 ? `${c.active_jobs.toLocaleString()} open jobs` : ''}</p>
+      <div className="mt-auto flex items-center gap-2 pt-4">
+        <button onClick={onShare} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-3 text-[15px] font-semibold text-white hover:bg-brand-800">
           <MessageSquarePlus className="h-4 w-4" /> Share
         </button>
         <a
@@ -172,109 +173,128 @@ function CompanyCard({ c, stat, onShare }: { c: DirectoryCompany; stat?: Feedbac
             go(href);
           }}
           aria-label={`Open ${c.name}`}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-ink-200 text-ink-600 hover:border-[#1D4ED8]/40 hover:text-[#1D4ED8]"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-ink-200 text-ink-600 hover:border-[#1D4ED8]/40 hover:text-[#1D4ED8]"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-5 w-5" />
         </a>
       </div>
     </article>
   );
 }
 
-/** How it replies, at a glance: an icon, the rate and a ten-step meter. */
-type Mood = { icon: typeof Smile; label: string; ink: string; chip: string; on: string };
-function mood(rate: number): Mood {
-  if (rate >= 60) return { icon: Smile, label: 'Usually replies', ink: 'text-emerald-700', chip: 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20', on: 'bg-emerald-500' };
-  if (rate >= 30) return { icon: Meh, label: 'Hit or miss', ink: 'text-amber-700', chip: 'bg-amber-500/10 text-amber-600 ring-amber-500/20', on: 'bg-amber-400' };
-  return { icon: Ghost, label: 'Mostly ghosts', ink: 'text-rose-700', chip: 'bg-rose-500/10 text-rose-600 ring-rose-500/20', on: 'bg-rose-500' };
+/** The responsiveness score (0–100, from every report: replies, interviews, offers, timing) as 1–5 stars. */
+function scoreStars(score: number): number {
+  return Math.max(1, Math.min(5, Math.round((score / 20) * 10) / 10));
+}
+
+/** Good, so-so or poor: which ghost, which colours, which words. */
+function verdict(stars: number) {
+  if (stars >= 3.5) return { ghost: GHOST_GOOD_SRC, label: 'Great at replying', ink: 'text-emerald-700', box: 'border-emerald-200 bg-emerald-50/60', star: 'text-emerald-500' };
+  if (stars >= 2.5) return { ghost: GHOST_SRC, label: 'Hit or miss', ink: 'text-amber-700', box: 'border-amber-200 bg-amber-50/60', star: 'text-amber-500' };
+  return { ghost: GHOST_BAD_SRC, label: 'Mostly ghosts', ink: 'text-rose-700', box: 'border-rose-200 bg-rose-50/60', star: 'text-rose-500' };
+}
+
+/** "Replies in about…" in words, not numbers to the decimal. */
+function replyTiming(days: number | null, pct: number | null): string {
+  if (days == null) return pct != null && pct < 30 ? 'Rarely replies' : 'Reply time not known yet';
+  if (days <= 2) return 'Replies in 1–2 days';
+  if (days <= 7) return 'Replies within a week';
+  if (days <= 14) return 'Replies in 1–2 weeks';
+  if (days <= 30) return 'Replies in 2–4 weeks';
+  return 'Replies after a month or more';
+}
+
+function Stars({ value, cls }: { value: number; cls: string }) {
+  return (
+    <span className="relative inline-flex" aria-label={`${value.toFixed(1)} out of 5 stars`}>
+      <span className="flex gap-0.5 text-ink-200">
+        {Array.from({ length: 5 }, (_, i) => (
+          <Star key={i} className="h-[18px] w-[18px] fill-current" />
+        ))}
+      </span>
+      <span className={`absolute inset-0 flex gap-0.5 overflow-hidden ${cls}`} style={{ width: `${(value / 5) * 100}%` }}>
+        {Array.from({ length: 5 }, (_, i) => (
+          <Star key={i} className="h-[18px] w-[18px] shrink-0 fill-current" />
+        ))}
+      </span>
+    </span>
+  );
 }
 
 const MIN_REPORTS = FEEDBACK_MIN_REPORTS;
-const STEPS = 10;
 
-function ReplyMeter({ rate, days, reports, people }: { rate: number | null; days: number | null; reports: number; people: number }) {
-  if (rate == null) {
+function ReplyScore({ score, pct, days, reports, people }: { score: number | null; pct: number | null; days: number | null; reports: number; people: number }) {
+  if (score == null) {
     const have = Math.min(Math.max(reports, 0), MIN_REPORTS);
     const needPeople = have >= MIN_REPORTS && people < FEEDBACK_MIN_PEOPLE;
     return (
-      <div className="mt-4 rounded-xl border border-ink-100 bg-ink-50/60 p-3">
-        <div className="flex items-center gap-2.5">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-ink-400 ring-1 ring-ink-200">
-            <Hourglass className="h-4 w-4" />
-          </span>
+      <div className="mt-5 rounded-2xl border border-ink-100 bg-ink-50/70 p-4">
+        <div className="flex items-center gap-3">
+          <img src={GHOST_SRC} alt="" className="h-14 w-14 shrink-0 opacity-50 grayscale" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-semibold leading-4 text-ink-800">{needPeople ? 'Needs more people' : 'Not enough reports'}</p>
-            <p className="truncate text-[11px] leading-4 text-ink-500">Score at {MIN_REPORTS} reports</p>
+            <p className="text-[15px] font-bold leading-5 text-ink-800">{needPeople ? 'Needs more people' : 'No score yet'}</p>
+            <p className="mt-0.5 text-[13px] leading-5 text-ink-500">
+              {have}/{MIN_REPORTS} reports so far
+            </p>
           </div>
-          <span className="text-[12px] font-semibold tabular-nums text-ink-400">
-            {have}/{MIN_REPORTS}
-          </span>
         </div>
-        <div className="mt-2.5 grid grid-cols-5 gap-1" aria-hidden>
+        <div className="mt-3 grid grid-cols-5 gap-1.5" aria-hidden>
           {Array.from({ length: MIN_REPORTS }, (_, i) => (
-            <span key={i} className={`h-1 rounded-full ${i < have ? 'bg-[#1D4ED8]' : 'bg-ink-200'}`} />
+            <span key={i} className={`h-1.5 rounded-full ${i < have ? 'bg-[#1D4ED8]' : 'bg-ink-200'}`} />
           ))}
         </div>
-        <p className="mt-2 text-[11px] text-ink-400">&nbsp;</p>
+        <p className="mt-3 flex items-center gap-1.5 text-[13px] text-ink-500">
+          <Timer className="h-3.5 w-3.5" /> Score shows at {MIN_REPORTS} reports
+        </p>
       </div>
     );
   }
-  const m = mood(rate);
-  const Icon = m.icon;
-  const r = Math.round(rate);
-  const lit = Math.max(1, Math.round((r / 100) * STEPS));
+  const stars = scoreStars(score);
+  const v = verdict(stars);
   return (
-    <div className="mt-4 rounded-xl border border-ink-100 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="flex items-center gap-2.5">
-        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ring-1 ${m.chip}`}>
-          {m.icon === Ghost ? <img src={GHOST_SRC} alt="" className="h-6 w-6" /> : <Icon className="h-4 w-4" strokeWidth={2.25} />}
-        </span>
-        <div className="min-w-0">
-          <p className={`text-[13px] font-semibold leading-4 ${m.ink}`}>{m.label}</p>
-          <p className="text-[11px] leading-4 text-ink-500">reply rate</p>
+    <div className={`mt-5 rounded-2xl border p-4 ${v.box}`}>
+      <div className="flex items-center gap-3">
+        <img src={v.ghost} alt="" className="h-14 w-14 shrink-0 drop-shadow-sm" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[24px] font-bold leading-none tracking-tight tabular-nums text-ink-950">{stars.toFixed(1)}</span>
+            <Stars value={stars} cls={v.star} />
+          </div>
+          <p className={`mt-1 text-[15px] font-bold leading-5 ${v.ink}`}>{v.label}</p>
         </div>
-        <span className="ml-auto text-[22px] font-bold leading-none tracking-tight tabular-nums text-ink-950">
-          {r}
-          <span className="text-[13px] font-semibold text-ink-400">%</span>
-        </span>
       </div>
-      <div className="mt-2.5 grid grid-cols-10 gap-[3px]" aria-label={`Replies to ${r}% of applicants`}>
-        {Array.from({ length: STEPS }, (_, i) => (
-          <span key={i} className={`h-1 rounded-full ${i < lit ? m.on : 'bg-ink-100'}`} />
-        ))}
-      </div>
-      <p className="mt-2 flex items-center gap-1 text-[11px] text-ink-500">
-        <Timer className="h-3 w-3" /> {days != null ? `Answers in ~${days} days` : 'Reply time not known yet'}
+      <p className="mt-3 flex items-center gap-1.5 text-[14px] font-medium text-ink-700">
+        <Timer className="h-4 w-4 text-ink-400" /> {replyTiming(days, pct)}
       </p>
     </div>
   );
 }
 
 /** Made-up companies, clearly marked, so a first visitor sees what a score looks like. */
-type Example = { name: string; country: string; rate: number; days: number; icon: typeof Smile; mascot?: boolean };
+type Example = { name: string; country: string; score: number; pct: number; days: number | null; icon: typeof Building2 };
 const EXAMPLES: Example[] = [
-  { name: 'Sunny Logistics GmbH', country: 'Germany', rate: 86, days: 3, icon: Warehouse },
-  { name: 'Ghostly Corp Ltd', country: 'United Kingdom', rate: 9, days: 41, icon: Building2, mascot: true },
+  { name: 'Sunny Logistics GmbH', country: 'Germany', score: 92, pct: 88, days: 3, icon: Warehouse },
+  { name: 'Ghostly Corp Ltd', country: 'United Kingdom', score: 24, pct: 9, days: null, icon: Building2 },
 ];
 
 function ExampleCard({ e }: { e: Example }) {
   const Icon = e.icon;
   return (
-    <article className="relative flex min-h-[268px] w-[272px] shrink-0 snap-start flex-col rounded-2xl border border-dashed border-ink-300 bg-white/70 p-5">
-      <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md bg-ink-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
-        <Sparkles className="h-2.5 w-2.5" /> Example
+    <article className={`${CARD} relative border border-dashed border-ink-300 bg-white/70`}>
+      <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-md bg-ink-900 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-white">
+        <Sparkles className="h-3 w-3" /> Example
       </span>
-      <div className={`${HEAD} pr-16`}>
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-500 ring-1 ring-ink-200">
-          {e.mascot ? <img src={GHOST_SRC} alt="" className="h-9 w-9" /> : <Icon className="h-5 w-5" />}
+      <div className={`${HEAD} pr-20`}>
+        <span className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-xl bg-ink-50 text-ink-500 ring-1 ring-ink-200">
+          <Icon className="h-6 w-6" />
         </span>
         <div className="min-w-0">
-          <p className="line-clamp-2 text-[15px] font-bold leading-snug text-ink-950">{e.name}</p>
-          <p className="mt-0.5 truncate text-[12px] text-ink-500">{e.country}</p>
+          <p className="line-clamp-2 text-[17px] font-bold leading-snug text-ink-950">{e.name}</p>
+          <p className="mt-0.5 truncate text-[13px] text-ink-500">{e.country}</p>
         </div>
       </div>
-      <ReplyMeter rate={e.rate} days={e.days} reports={MIN_REPORTS} people={FEEDBACK_MIN_PEOPLE} />
-      <p className="mt-2.5 h-4 text-[12px] text-ink-400">Not a real company</p>
+      <ReplyScore score={e.score} pct={e.pct} days={e.days} reports={MIN_REPORTS} people={FEEDBACK_MIN_PEOPLE} />
+      <p className="mt-3 h-5 text-[13px] text-ink-400">Not a real company</p>
     </article>
   );
 }
@@ -291,7 +311,7 @@ function MyReportCard({ r }: { r: MyExperienceReport }) {
   const outcome = EXPERIENCE_OUTCOMES.find((o) => o.value === r.outcome)?.label ?? r.outcome;
   const applied = new Date(r.applied_on).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
   return (
-    <article className={`flex min-h-[268px] w-[272px] shrink-0 snap-start flex-col rounded-xl border-2 p-4 ${s.cls}`}>
+    <article className={`flex min-h-[340px] w-[310px] shrink-0 snap-start flex-col rounded-xl border-2 p-4 ${s.cls}`}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-bold uppercase tracking-wide text-ink-500">Your report</span>
         <span

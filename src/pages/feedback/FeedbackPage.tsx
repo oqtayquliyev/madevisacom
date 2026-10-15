@@ -82,6 +82,7 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
       ? `Applied to ${company.name}? Share in 20 seconds how it went — privately. It helps the next applicants and ${company.name}'s hiring team.`
       : 'Share how your job application went — no response, rejection, interview or offer. Private, reviewed, and it shows which companies really reply.',
     path: slug ? `/feedback/${slug}` : '/feedback',
+    ogImage: 'https://madevisa.com/og/feedback.jpg',
     // One feedback form per company is a near-copy of the company page: keep those out of the index.
     noindex: Boolean(slug),
   });
@@ -112,7 +113,7 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
           </div>
         </section>
       ) : (
-        <div className="bg-[radial-gradient(ellipse_at_top,rgba(29,78,216,0.08),transparent_60%)]">
+        <div className="bg-white bg-[radial-gradient(circle_at_12%_45%,rgba(16,185,129,0.07),transparent_32%),radial-gradient(circle_at_88%_45%,rgba(244,63,94,0.07),transparent_32%)]">
           <SharePromo
             hero
             companies={rows ?? []}
@@ -290,10 +291,10 @@ function ForCompanies({ companies, initial, go }: { companies: DirectoryCompany[
       <div className="grid lg:grid-cols-[1fr_1.1fr]">
         <div className="bg-[#1D4ED8]/5 p-6 sm:p-8">
           <p className="inline-flex items-center gap-1.5 rounded-full bg-[#1D4ED8]/10 px-3 py-1 text-[12px] font-bold text-[#1D4ED8]">
-            <BadgeCheck className="h-3.5 w-3.5" /> For companies & HR
+            <BadgeCheck className="h-3.5 w-3.5" /> For employers
           </p>
-          <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight text-ink-950">Get your company’s feedback link</h2>
-          <p className="mt-2 text-[15px] leading-6 text-ink-600">Add it to rejection and “application received” emails. Free, and replying lifts your score.</p>
+          <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight text-ink-950">Are you a company or employer?</h2>
+          <p className="mt-2 text-[16px] leading-7 text-ink-600">Manage your feedback: get your own link, add it to rejection and “application received” emails, and watch your score. Free — replying to applicants lifts your stars.</p>
         </div>
 
         <div className="p-6 sm:p-8">

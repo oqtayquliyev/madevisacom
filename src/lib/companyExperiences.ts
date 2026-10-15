@@ -239,7 +239,7 @@ export type HiringFeedbackOverview = {
 };
 
 /** Per company on /feedback: reports so far, and the reply rate once there are 5 from 3+ people. */
-export type FeedbackStat = { id: string; n: number; people: number; pct: number | null; days: number | null };
+export type FeedbackStat = { id: string; n: number; people: number; pct: number | null; days: number | null; score: number | null };
 /** Same rule everywhere on /feedback. */
 export const FEEDBACK_MIN_REPORTS = 5;
 export const FEEDBACK_MIN_PEOPLE = 3;

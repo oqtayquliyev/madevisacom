@@ -738,7 +738,7 @@ async function staticPage(slug: string): Promise<Page | null> {
         ? `<ul class="links">${visaGuides.map((g) => `<li>${link(`/destinations/${g.slug}`, `${g.name} — visas, jobs and companies hiring`)}</li>`).join('')}</ul>`
         : '';
     const noindex = (key === 'programs' || key === 'study') && COMING_SOON_NOINDEX[key];
-    return { title: m.title, description: m.description, noindex, path, image: `${SITE}/api/og/page?p=${key}`, jsonld: [crumbsLd([['MadeVisa', '/'], [m.label ?? m.headline, path]])], body: `<h1>${esc(m.headline)}</h1><p>${esc(m.description)}</p>${extra}${footerLinks()}`, maxAge: 1800 };
+    return { title: m.title, description: m.description, noindex, path, image: key === 'feedback' ? `${SITE}/og/feedback.jpg` : `${SITE}/api/og/page?p=${key}`, jsonld: [crumbsLd([['MadeVisa', '/'], [m.label ?? m.headline, path]])], body: `<h1>${esc(m.headline)}</h1><p>${esc(m.description)}</p>${extra}${footerLinks()}`, maxAge: 1800 };
   }
   return null;
 }

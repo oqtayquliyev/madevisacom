@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Building2, ChevronDown, MessageSquarePlus, Search } from 'lucide-react';
+import { Building2, ChevronDown, ChevronRight, Clock, HandHeart, MailX, MessageSquarePlus, MessagesSquare, Search, type LucideIcon } from 'lucide-react';
 import type { DirectoryCompany } from '@/lib/companies';
-import { GhostMascot } from '@/components/companies/Ghost';
+import { GHOST_BAD_SRC, GHOST_GOOD_SRC, GhostMascot } from '@/components/companies/Ghost';
 
 /**
  * "Applied and heard nothing?" — invites people to share how an application
@@ -77,14 +77,29 @@ export function SharePromo({
     };
     return (
       <section className={`relative z-20 flex min-h-[calc(100svh-72px)] flex-col items-center justify-center px-4 pb-16 pt-10 text-center ${className}`}>
-        <GhostMascot size={112} className="mb-4" />
+        <HeroBoard />
+        <GhostMascot size={104} className="mb-4 xl:hidden" />
         <p className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-ink-600 shadow-sm ring-1 ring-ink-200">
           <MessageSquarePlus className="h-3.5 w-3.5 text-[#1D4ED8]" /> 20 seconds · private
         </p>
-        <h1 className="mt-5 max-w-3xl text-[34px] font-bold leading-[1.1] tracking-tight text-ink-950 sm:text-[52px]">{title}</h1>
-        <p className="mt-4 max-w-2xl text-[15px] leading-7 text-ink-500 sm:text-[17px]">{text}</p>
+        <h1 className="relative z-10 mt-5 max-w-3xl text-[34px] font-extrabold leading-[1.08] tracking-tight text-ink-950 sm:text-[56px]">
+          {title.includes('?') ? (
+            <>
+              {title.slice(0, title.indexOf('?') + 1)}{' '}
+              <span className="relative inline-block whitespace-nowrap text-emerald-600">
+                {title.slice(title.indexOf('?') + 1).trim()}
+                <svg viewBox="0 0 300 14" preserveAspectRatio="none" className="absolute -bottom-2 left-[6%] h-3 w-[88%]" aria-hidden>
+                  <path d="M3 10 C 80 2, 220 2, 297 9" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
+                </svg>
+              </span>
+            </>
+          ) : (
+            title
+          )}
+        </h1>
+        <p className="relative z-10 mt-4 max-w-2xl text-[15px] leading-7 text-ink-500 sm:text-[17px]">{text}</p>
 
-        <div className="relative mt-9 w-full max-w-3xl text-left">
+        <div className="relative z-20 mt-9 w-full max-w-3xl text-left">
           <div
             className={`flex h-16 items-center gap-3 rounded-full border bg-white pl-6 pr-2 shadow-[0_6px_30px_rgba(15,23,42,0.08)] transition sm:h-[72px] ${
               open ? 'border-[#1D4ED8]/40 shadow-[0_10px_40px_rgba(29,78,216,0.15)]' : 'border-ink-200 hover:shadow-[0_8px_34px_rgba(15,23,42,0.12)]'
@@ -284,3 +299,59 @@ function MiniLogo({ url }: { url: string | null }) {
   );
 }
 
+/**
+ * /feedback header decoration (wide screens): the good ghost and its green
+ * cards on the left, the ghosting ghost and its red cards on the right.
+ */
+function HeroBoard() {
+  return (
+    <div className="pointer-events-none absolute inset-0 hidden select-none overflow-hidden xl:block" aria-hidden>
+      <div className="relative mx-auto h-full max-w-[1500px]">
+        {/* Left: replies well */}
+        <div className="absolute left-[3%] top-[30%] w-[210px] 2xl:w-[240px]">
+          <div className="absolute inset-6 rounded-full bg-emerald-400/25 blur-3xl" />
+          <img src={GHOST_GOOD_SRC} alt="" className="ghost-float relative w-full" />
+        </div>
+        <BoardCard tone="good" icon={Building2} title="Company" sub="Quick response" className="left-[5%] top-[10%] -rotate-6" />
+        <BoardCard tone="good" icon={MessagesSquare} title="Clear communication" className="bottom-[12%] left-[2%] rotate-[5deg]" />
+        <BoardCard tone="good" icon={HandHeart} title="Respectful process" className="bottom-[2%] left-[20%] hidden -rotate-[4deg] 2xl:flex" />
+        <Swirl className="left-[2%] top-[27%] text-emerald-500" />
+
+        {/* Right: ghosts */}
+        <div className="absolute right-[3%] top-[32%] w-[210px] 2xl:w-[240px]">
+          <div className="absolute inset-6 rounded-full bg-rose-400/25 blur-3xl" />
+          <img src={GHOST_BAD_SRC} alt="" className="ghost-float relative w-full [animation-delay:-2s]" />
+        </div>
+        <BoardCard tone="bad" icon={Building2} title="Company" sub="No response" className="right-[5%] top-[10%] rotate-6" />
+        <BoardCard tone="bad" icon={MailX} title="Ghosted" className="bottom-[12%] right-[2%] -rotate-[5deg]" />
+        <BoardCard tone="bad" icon={Clock} title="Long waiting time" className="bottom-[2%] right-[20%] hidden rotate-[4deg] 2xl:flex" />
+        <Swirl className="bottom-[30%] right-[17%] text-rose-500" />
+      </div>
+    </div>
+  );
+}
+
+function BoardCard({ tone, icon: Icon, title, sub, className }: { tone: 'good' | 'bad'; icon: LucideIcon; title: string; sub?: string; className: string }) {
+  const good = tone === 'good';
+  return (
+    <div className={`absolute flex min-w-[220px] items-center gap-3 rounded-2xl bg-white/95 p-3.5 pr-3 text-left shadow-[0_12px_32px_rgba(15,23,42,0.10)] ring-1 ring-ink-100 ${className}`}>
+      <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-white ${good ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="flex-1 pr-2">
+        <span className="block whitespace-nowrap text-[14px] font-bold text-ink-900">{title}</span>
+        {sub && <span className="block whitespace-nowrap text-[12.5px] text-ink-500">{sub}</span>}
+        <span className={`mt-1.5 block h-2 w-24 rounded-full ${good ? 'bg-emerald-200' : 'bg-rose-200'}`} />
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-ink-300" />
+    </div>
+  );
+}
+
+function Swirl({ className }: { className: string }) {
+  return (
+    <svg viewBox="0 0 60 40" className={`absolute h-8 w-12 ${className}`}>
+      <path d="M4 34 C 14 6, 34 4, 30 20 C 27 32, 44 30, 56 12" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
+    </svg>
+  );
+}
