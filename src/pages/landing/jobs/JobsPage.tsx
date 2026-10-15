@@ -1,4 +1,5 @@
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
+import { NEW_TAB } from '@/lib/navLink';
 import { AlertSignup } from '@/components/jobs/AlertSignup';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -52,6 +53,7 @@ type JobsPageProps = {
   go: (view: View) => void;
   onAuth?: (page: 'login' | 'register') => void;
   /** Receives the job's public path (see jobPath in src/lib/jobUrl.ts). */
+  /** No longer used: job cards open the job in a new tab. Kept so callers still compile. */
   goToJob?: (path: string) => void;
 };
 
@@ -196,7 +198,7 @@ function withClosedLast(jobs: Job[]): Job[] {
   return [...jobs.filter((j) => !j.closed), ...jobs.filter((j) => j.closed)];
 }
 
-function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void }) {
+function JobCard({ job }: { job: Job }) {
   const isExternal = job.sourceType === 'live_feed';
   const viewed = isJobViewed(job.id);
   const closed = Boolean(job.closed);
@@ -280,12 +282,8 @@ function JobCard({ job, goToJob }: { job: Job; goToJob?: (id: string) => void })
   return (
     <a
       href={href}
-      onClick={(e) => {
-        markJobViewed(job.id, { id: job.id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url });
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0 || !goToJob) return;
-        e.preventDefault();
-        goToJob(href);
-      }}
+      {...NEW_TAB}
+      onClick={() => markJobViewed(job.id, { id: job.id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url })}
       className={`${cardClass} cursor-pointer`}
     >
       {inner}
@@ -371,7 +369,7 @@ function TextField({ label, value, onChange, placeholder }: { label: string; val
   );
 }
 
-export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
+export function JobsPage({ go, onAuth }: JobsPageProps) {
   // Filtered views (/jobs?country=…) all point their canonical at /jobs.
   useSeo({ ...SEO_META.jobs, path: '/jobs', ogImage: 'https://madevisa.com/api/og/page?p=jobs' });
 
@@ -1083,7 +1081,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
                   {directJobs.slice(0, 2).map((job) => (
-                    <JobCard key={`direct-${job.id}`} job={job} goToJob={goToJob} />
+                    <JobCard key={`direct-${job.id}`} job={job} />
                   ))}
                 </div>
               </div>
@@ -1097,7 +1095,7 @@ export function JobsPage({ go, onAuth, goToJob }: JobsPageProps) {
                       <p className="text-xs text-ink-500">Other roles in the same field, newest first.</p>
                     </div>
                   )}
-                  <JobCard job={job} goToJob={goToJob} />
+                  <JobCard job={job} />
                 </Fragment>
               ))}
               {loadingMore && Array.from({ length: 2 }).map((_, i) => <JobCardSkeleton key={`more-${i}`} />)}

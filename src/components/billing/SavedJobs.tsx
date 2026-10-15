@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
+import { NEW_TAB } from '@/lib/navLink';
 import { Bookmark, BookmarkCheck, Loader2, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { jobPath } from '@/lib/jobUrl';
-import { handleNavClick } from '@/lib/navLink';
-import { nav } from '@/lib/pageLayout';
 import { useMyPlan } from '@/lib/plans';
 import { loadSavedJobs, saveJob, unsaveJob, useIsSaved, type SavedJob } from '@/lib/billing';
 import { UpgradePrompt } from '@/components/pro/UpgradePrompt';
@@ -89,7 +88,7 @@ export function SavedJobsSection() {
           return (
             <li key={j.id} className="flex items-center gap-3 py-2.5">
               {j.logo ? <img src={j.logo} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-md border border-ink-100 object-contain" /> : <span className="h-7 w-7 shrink-0 rounded-md bg-ink-100" />}
-              <a href={href} onClick={(e) => handleNavClick(e, () => nav(href))} className="min-w-0 flex-1">
+              <a href={href} {...NEW_TAB} className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-ink-900 hover:text-brand-700">{j.title}</span>
                 <span className="block truncate text-xs text-ink-500">{[j.company, j.city, j.country].filter(Boolean).join(' · ')}{j.open ? '' : ' · closed'}</span>
               </a>

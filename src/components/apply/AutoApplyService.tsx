@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { NEW_TAB } from '@/lib/navLink';
 import { ArrowRight, Check, CheckCircle2, Clock, Loader2, Mail, Pause, Pencil, Play, ShieldCheck, Sparkles, Square, Zap } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useCv } from '@/lib/cv/store';
@@ -327,7 +328,7 @@ function Row({ item }: { item: AutoApplyItem }) {
       )}
       <span className="min-w-0 flex-1">
         {href ? (
-          <a href={href} className="block truncate text-[14px] font-semibold text-ink-950 hover:text-brand-700">
+          <a href={href} {...NEW_TAB} className="block truncate text-[14px] font-semibold text-ink-950 hover:text-brand-700">
             {item.title}
           </a>
         ) : (

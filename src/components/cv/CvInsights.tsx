@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { NEW_TAB } from '@/lib/navLink';
 import { ArrowRight, Briefcase, FileCheck2, GraduationCap, Languages, Lock, MapPin, Sparkles, Timer } from 'lucide-react';
 import type { StoredCv } from '@/lib/cv/store';
 import type { TopMatch, TopResult } from '@/lib/cv/topMatches';
@@ -284,10 +285,7 @@ export function CvMatchLocked({ result, guest, onAuth, from = null }: { result: 
         <article key={m.id} className="overflow-hidden rounded-2xl bg-white ring-1 ring-ink-200">
           <a
             href={jobHref(m)}
-            onClick={(e) => {
-              e.preventDefault();
-              nav(jobHref(m));
-            }}
+            {...NEW_TAB}
             className="flex items-center gap-4 p-4 hover:bg-ink-50/60 sm:p-5"
           >
             <MatchRing score={m.score} size={60} />

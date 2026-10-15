@@ -13,3 +13,6 @@ export function handleNavClick(event: MouseEvent, action: () => void) {
   event.preventDefault();
   action();
 }
+
+/** Job links from lists (/jobs, CV match, saved jobs, company pages…) open the job in a new tab, so the list stays where it was. */
+export const NEW_TAB = { target: '_blank', rel: 'noopener' } as const;

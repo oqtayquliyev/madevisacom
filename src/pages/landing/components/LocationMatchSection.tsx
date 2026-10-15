@@ -1,4 +1,5 @@
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
+import { NEW_TAB } from '@/lib/navLink';
 import { boardJobDates, jobTime } from '@/lib/jobTime';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { jobPath } from '@/lib/jobUrl';
@@ -387,6 +388,7 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
     <div className="relative h-[360px]">
       <a
         href={href}
+        {...NEW_TAB}
         className={`group relative flex h-full flex-col rounded-lg border p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg ${
           viewed ? 'border-ink-200 bg-ink-100/70 opacity-75 grayscale-[40%] hover:opacity-100' : 'border-ink-900/20 bg-white'
         }`}

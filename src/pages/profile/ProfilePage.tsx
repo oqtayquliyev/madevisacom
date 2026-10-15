@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { NEW_TAB } from '@/lib/navLink';
 import { SoonChip } from '@/components/common/SoonChip';
 import { jobPath } from '@/lib/jobUrl';
 import {
@@ -785,7 +786,7 @@ function AppliedJobsSection({ onBrowse }: { onBrowse: () => void }) {
               const link = href(r);
               return (
                 <li key={`${r.job_id ?? r.title}-${i}`}>
-                  <a href={link} className="flex items-center gap-3 px-4 py-3 transition hover:bg-ink-50/70">
+                  <a href={link} {...NEW_TAB} className="flex items-center gap-3 px-4 py-3 transition hover:bg-ink-50/70">
                     {r.logo ? (
                       <img src={r.logo} alt="" loading="lazy" className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain ring-1 ring-ink-200" />
                     ) : (
@@ -881,6 +882,7 @@ function RecentlyViewedSection({ items, onBrowse }: { items: ViewedJobSnapshot[]
             <a
               key={item.id}
               href={jobPath({ id: item.id, title: item.title, company: item.organization })}
+              {...NEW_TAB}
               className="flex items-start justify-between gap-3 border border-ink-200 bg-white p-4 transition hover:border-brand-300"
             >
               <div className="min-w-0">

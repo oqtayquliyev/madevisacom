@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { NEW_TAB } from '@/lib/navLink';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import {
   ArrowLeft,
@@ -572,10 +573,7 @@ export function CompanyProfilePage({ slug, go, onAuth }: Props) {
                   <a
                     key={j.id}
                     href={jobPath(j)}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      nav(jobPath(j));
-                    }}
+                    {...NEW_TAB}
                     className="group rounded-xl border border-ink-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#1D4ED8]/40 hover:shadow-[0_8px_24px_rgba(37,99,235,0.10)]"
                   >
                     <p className="line-clamp-2 text-[17px] font-semibold leading-snug text-ink-950 group-hover:text-[#1D4ED8]">{j.title}</p>

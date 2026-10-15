@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { NEW_TAB } from '@/lib/navLink';
 import { ArrowRight, BadgeCheck, Check, ChevronRight, Download, FileSignature, Languages, Lock, MapPin, PencilLine, Plane, RefreshCw, Sparkles, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
@@ -269,7 +270,7 @@ function MatchCard({ m, place, doc, missingOpen, guest, onAuth }: { m: TopMatch;
   const tone = toneFor(m.score);
   return (
     <article className="group overflow-hidden rounded-2xl bg-white ring-1 ring-ink-200 transition hover:shadow-soft-lg hover:ring-brand-300">
-      <a href={href} onClick={go(href)} className="block p-4 sm:p-5">
+      <a href={href} {...NEW_TAB} className="block p-4 sm:p-5">
         <div className="flex items-start gap-3.5">
           <Logo m={m} />
           <div className="min-w-0 flex-1">
@@ -447,7 +448,7 @@ function Roadmap({ lead, place, doc, from, step, fresh, missingOpen, onAuth }: {
   );
   return (
     <div id="best-match" className="mt-6 scroll-mt-24 overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-ink-200">
-      <a href={href} onClick={go(href)} className="group flex items-center gap-3.5 px-4 pt-4 sm:px-6 sm:pt-5">
+      <a href={href} {...NEW_TAB} className="group flex items-center gap-3.5 px-4 pt-4 sm:px-6 sm:pt-5">
         <Logo m={lead} size={48} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-xs font-semibold text-ink-500">{lead.company}</span>
@@ -568,7 +569,7 @@ function Roadmap({ lead, place, doc, from, step, fresh, missingOpen, onAuth }: {
                 {lead.cc && <CircleFlag countryCode={lead.cc} label={lead.country ?? undefined} size={24} />}
                 {place.kind === 'here' ? 'In your country' : place.kind === 'free' ? 'No visa needed' : lead.country}
               </p>
-              <a href={href} onClick={go(href)} className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-brand-600 px-4 py-2.5 text-[13.5px] font-bold text-white hover:bg-brand-700">
+              <a href={href} {...NEW_TAB} className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-brand-600 px-4 py-2.5 text-[13.5px] font-bold text-white hover:bg-brand-700">
                 Open the job <ArrowRight className="h-4 w-4" />
               </a>
             </>
@@ -877,7 +878,7 @@ export function OtherMatchesPopup({ currentId, onAuth }: { currentId: string | n
             const href = hrefOf(m);
             return (
               <li key={m.id}>
-                <a href={href} onClick={go(href)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-brand-50/60">
+                <a href={href} {...NEW_TAB} className="flex items-center gap-3 px-3 py-2.5 hover:bg-brand-50/60">
                   <MatchRing score={m.score} size={36} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13.5px] font-semibold text-ink-950">{m.title}</span>
@@ -948,7 +949,7 @@ export function RecommendedJobs({ currentId, onAuth, className = '' }: { current
           const href = hrefOf(m);
           return (
             <li key={m.id}>
-              <a href={href} onClick={go(href)} className="flex h-full items-center gap-3 rounded-xl p-3 ring-1 ring-ink-200 transition hover:bg-brand-50/50 hover:ring-brand-200">
+              <a href={href} {...NEW_TAB} className="flex h-full items-center gap-3 rounded-xl p-3 ring-1 ring-ink-200 transition hover:bg-brand-50/50 hover:ring-brand-200">
                 <MatchRing score={m.score} size={44} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[14px] font-semibold text-ink-950">{m.title}</span>
@@ -1017,7 +1018,7 @@ export function TopMatchesStrip({ className = '' }: { className?: string }) {
           const href = hrefOf(m);
           return (
             <li key={m.id}>
-              <a href={href} onClick={go(href)} className="flex items-center gap-3 rounded-xl bg-white p-3 ring-1 ring-ink-200 hover:ring-brand-300">
+              <a href={href} {...NEW_TAB} className="flex items-center gap-3 rounded-xl bg-white p-3 ring-1 ring-ink-200 hover:ring-brand-300">
                 <MatchRing score={m.score} size={40} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13.5px] font-semibold text-ink-950">{m.title}</span>
