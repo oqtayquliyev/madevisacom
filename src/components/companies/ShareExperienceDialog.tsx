@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Building2, CheckCircle2, ChevronDown, Loader2, Lock, Mail, MessageSquarePlus, Search, X } from 'lucide-react';
+import { Bell, Building2, CheckCircle2, ChevronDown, Clock, Loader2, Lock, Mail, MessageSquarePlus, Plus, Search, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { confirmEmailVerified } from '@/lib/emailVerification';
 import { useCaptcha } from '@/components/auth/Turnstile';
@@ -16,8 +16,16 @@ import {
   submitCompanyExperience,
   type CountryOption,
   type ExperienceChannel,
+  type ExperienceInput,
   type ExperienceOutcome,
 } from '@/lib/companyExperiences';
+
+/** Most companies one person can share in a day (the database allows the same). */
+const MAX_BATCH = 10;
+
+/** A company already filled in, waiting to be sent with the others. */
+type Queued = { key: string; label: string; logo?: string | null; outcomeLabel: string; whenLabel: string; input: Omit<ExperienceInput, 'formMs'> };
+
 
 /** Must match Supabase → Authentication → Email → "Email OTP length" (same as the sign-in page). */
 const OTP_LENGTH = Number(import.meta.env.VITE_OTP_LENGTH) || 6;
@@ -77,6 +85,9 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [queue, setQueue] = useState<Queued[]>([]);
+  const [sent, setSent] = useState<string[]>([]);
+  const [failed, setFailed] = useState<{ label: string; error: string }[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Not signed in: the report is confirmed with a one-time email code in
@@ -119,6 +130,9 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
     openedAt.current = Date.now();
     if (initialOutcome) setOutcome(initialOutcome);
     setDone(false);
+    setQueue([]);
+    setSent([]);
+    setFailed([]);
     const start = company ?? (initial?.id ? { id: initial.id, name: initial.name, logo_url: initial.logo_url } : null);
     setPicked(start);
     setTyped(start ? '' : initial?.name ?? '');
@@ -144,7 +158,48 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
   const tooSoon = outcome === 'no_response' && whenDays != null && whenDays < 7;
   const name = picked?.name ?? typed.trim();
   const websiteOk = !website || /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(\/\S*)?$/i.test(website);
-  const canSend = name.length >= 2 && whenDays != null && outcome && !tooSoon && websiteOk && !busy;
+  const currentOk = Boolean(name.length >= 2 && whenDays != null && outcome && !tooSoon && websiteOk);
+  const keyOf = (n: string, id?: string | null) => id ?? n.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  const dupe = currentOk && queue.some((q) => q.key === keyOf(name, picked?.id));
+  /** Sent together: the queued companies, plus the one on screen if it is filled in. */
+  const total = queue.length + (currentOk && !dupe ? 1 : 0);
+  const canSend = !busy && !dupe && total > 0;
+  /** Something typed for the next company, but not finished: it would be left out. */
+  const halfDone = queue.length > 0 && !currentOk && Boolean(picked || typed.trim() || outcome);
+  const canAddMore = currentOk && !dupe && !company && queue.length + 1 < MAX_BATCH;
+
+  const currentInput = (): Omit<ExperienceInput, 'formMs'> => ({
+    companyName: name,
+    companyWebsite: picked ? undefined : website,
+    countryId: countryId || null,
+    roleTitle: role,
+    appliedOn: isoDaysAgo(whenDays ?? 0),
+    channel: channel || 'other',
+    outcome: outcome as ExperienceOutcome,
+    replyDays: REPLY_AFTER.find((x) => x.key === reply)?.days ?? null,
+    publisherId: picked?.id ?? null,
+    matchPct: match,
+  });
+  const currentQueued = (): Queued => ({
+    key: keyOf(name, picked?.id),
+    label: name,
+    logo: picked?.logo_url,
+    outcomeLabel: EXPERIENCE_OUTCOMES.find((o) => o.value === outcome)?.label ?? '',
+    whenLabel: APPLIED_WHEN.find((w) => w.key === when)?.label ?? '',
+    input: currentInput(),
+  });
+
+  /** "+ Add another company": keep this one, clear the form for the next (when you applied stays). */
+  const addAnother = () => {
+    if (!canAddMore) return;
+    setQueue((q) => [...q, currentQueued()]);
+    const keepWhen = when;
+    reset();
+    setWhen(keepWhen);
+    setPicked(null);
+    setTyped('');
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  };
 
   const emailOk = EMAIL_RE.test(email.trim());
 
@@ -188,26 +243,27 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
 
   const send = async (afterCode = false) => {
     if (!canSend && !afterCode) return;
-    if (!outcome || whenDays == null) return;
     if (trap) return setDone(true); // bot filled the hidden field — pretend it worked
+    const all = [...queue, ...(currentOk && !dupe ? [currentQueued()] : [])];
+    if (!all.length) return;
     setBusy(true);
     setError(null);
-    const r = await submitCompanyExperience({
-      companyName: name,
-      companyWebsite: picked ? undefined : website,
-      countryId: countryId || null,
-      roleTitle: role,
-      appliedOn: isoDaysAgo(whenDays),
-      channel: channel || 'other',
-      outcome,
-      replyDays: REPLY_AFTER.find((x) => x.key === reply)?.days ?? null,
-      publisherId: picked?.id ?? null,
-      matchPct: match,
-      formMs: Date.now() - openedAt.current,
-    });
+    const ok: string[] = [];
+    const bad: { label: string; error: string }[] = [];
+    for (const item of all) {
+      const r = await submitCompanyExperience({ ...item.input, formMs: Date.now() - openedAt.current });
+      if (r.ok) ok.push(item.label);
+      else bad.push({ label: item.label, error: r.error ?? 'Something went wrong.' });
+    }
     setBusy(false);
-    if (!r.ok) setError(r.error ?? 'Something went wrong.');
-    else setDone(true);
+    if (!ok.length) {
+      setError(bad.length === 1 ? bad[0].error : bad.map((b) => `${b.label}: ${b.error}`).join(' · '));
+      return;
+    }
+    setSent(ok);
+    setFailed(bad);
+    setQueue([]);
+    setDone(true);
   };
 
   const chip = (active: boolean) =>
@@ -234,12 +290,45 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
         </div>
 
         {done ? (
-          <div className="px-5 pb-8 pt-6 text-center">
-            <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
-            <p className="mt-3 text-base font-bold text-ink-950">Thank you — that helps the next applicant</p>
-            <p className="mx-auto mt-1 max-w-sm text-sm text-ink-500">We review every report. Once approved it adds to {name}'s totals — never with your name.</p>
+          <div className="px-5 pb-7 pt-5">
+            <div className="text-center">
+              <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-50 ring-1 ring-emerald-200">
+                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+              </span>
+              <p className="mt-3 text-base font-bold text-ink-950">
+                {sent.length > 1 ? `Thank you — ${sent.length} companies shared` : 'Thank you — that helps the next applicant'}
+              </p>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3.5">
+              <p className="flex items-center gap-2 text-[13px] font-bold text-amber-900">
+                <Clock className="h-4 w-4" /> In review
+              </p>
+              <p className="mt-1 text-[13px] leading-5 text-amber-900/80">
+                We check every report by hand. {sent.length > 1 ? 'They are' : 'It is'} usually approved within <b>24 hours</b>, then {sent.length > 1 ? 'they count' : 'it counts'} in the company’s reply rate — never with your name.
+              </p>
+              <p className="mt-2 flex items-center gap-2 text-[12px] font-semibold text-amber-900/80">
+                <Bell className="h-3.5 w-3.5" /> We’ll email you when {sent.length > 1 ? 'each one is' : 'it’s'} published.
+              </p>
+            </div>
+
+            {sent.length > 1 && (
+              <ul className="mt-3 flex flex-wrap gap-1.5">
+                {sent.map((n) => (
+                  <li key={n} className="rounded-full bg-ink-50 px-2.5 py-1 text-[12px] font-semibold text-ink-700 ring-1 ring-ink-200">
+                    {n}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {failed.length > 0 && (
+              <div className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-[12px] leading-5 text-rose-700">
+                <b>Not sent:</b>{' '}
+                {failed.map((f) => `${f.label} (${f.error})`).join(' · ')}
+              </div>
+            )}
             {newlySignedIn && (
-              <p className="mx-auto mt-3 max-w-sm rounded-lg bg-ink-50 px-3 py-2 text-[12px] leading-5 text-ink-500">
+              <p className="mt-3 rounded-lg bg-ink-50 px-3 py-2 text-[12px] leading-5 text-ink-500">
                 You're signed in as {email.trim()} — share about other companies without a code, or track your applications from your profile.
               </p>
             )}
@@ -254,7 +343,7 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
                   }}
                   className="rounded-lg border border-ink-200 px-4 py-2 text-sm font-semibold text-ink-700 hover:bg-ink-50"
                 >
-                  Another company
+                  Share more
                 </button>
               )}
               <button onClick={onClose} className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">
@@ -264,9 +353,33 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
           </div>
         ) : (
           <div className="space-y-5 px-5 pb-5 pt-3">
+            {queue.length > 0 && (
+              <div>
+                <span className="mb-2 flex items-center justify-between text-[12px] font-bold uppercase tracking-wide text-ink-500">
+                  Ready to share <span className="tabular-nums text-ink-400">{queue.length}/{MAX_BATCH}</span>
+                </span>
+                <ul className="space-y-1.5">
+                  {queue.map((q) => (
+                    <li key={q.key} className="flex items-center gap-2.5 rounded-lg border border-ink-100 bg-ink-50/60 px-2.5 py-2">
+                      <Logo url={q.logo} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold text-ink-900">{q.label}</p>
+                        <p className="truncate text-[11px] text-ink-500">
+                          {q.outcomeLabel} · {q.whenLabel}
+                        </p>
+                      </div>
+                      <button onClick={() => setQueue((all) => all.filter((x) => x.key !== q.key))} className="rounded-md p-1 text-ink-400 hover:bg-white hover:text-rose-600" aria-label={`Remove ${q.label}`}>
+                        <X className="h-4 w-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* 1. COMPANY */}
             <div>
-              <span className={label}>Company</span>
+              <span className={label}>{queue.length ? 'Next company' : 'Company'}</span>
               {picked ? (
                 <div className="flex h-11 items-center gap-2.5 rounded-lg bg-[#1D4ED8]/5 px-3">
                   <Logo url={picked.logo_url} />
@@ -431,18 +544,32 @@ export function ShareExperienceDialog({ open, onClose, company, initial, compani
               )}
             </div>
 
+            {!company && (
+              <button
+                type="button"
+                onClick={addAnother}
+                disabled={!canAddMore}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#1D4ED8]/40 py-2.5 text-[13px] font-semibold text-[#1D4ED8] transition hover:bg-[#1D4ED8]/5 disabled:border-ink-200 disabled:text-ink-400 disabled:hover:bg-transparent"
+              >
+                <Plus className="h-4 w-4" /> Add another company
+                {!currentOk && <span className="font-normal">· answer the questions above first</span>}
+              </button>
+            )}
+            {dupe && <p className="text-[12px] text-amber-700">{name} is already in your list.</p>}
+            {halfDone && <p className="text-[12px] text-amber-700">The company above isn’t finished, so only the {queue.length} in your list will be shared.</p>}
+
             {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
             {session ? (
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] leading-4 text-ink-400">Checked by MadeVisa before it counts. One report per company per month.</p>
+                <p className="text-[11px] leading-4 text-ink-400">Reviewed within 24 hours before it counts. One report per company per month.</p>
                 <button
                   onClick={() => void send()}
                   disabled={!canSend}
                   className="flex shrink-0 items-center gap-2 rounded-lg bg-[#1D4ED8] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-40"
                 >
                   {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Share
+                  {total > 1 ? `Share ${total} companies` : 'Share'}
                 </button>
               </div>
             ) : !codeStep ? (
