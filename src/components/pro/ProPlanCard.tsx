@@ -102,6 +102,14 @@ export function PlanCard({
           Get {info.name} <ArrowRight className="h-4 w-4" aria-hidden />
         </a>
       )}
+      {!mine && !covered && plan !== 'free' && (
+        <p className="mt-2 text-center text-[11.5px] leading-4 text-ink-500">
+          Starts right away. Refundable within 14 days until you use a paid feature.{' '}
+          <a href="/subscription-terms" onClick={(e) => handleNavClick(e, () => nav('/subscription-terms'))} className="underline hover:text-ink-700">
+            Terms
+          </a>
+        </p>
+      )}
     </div>
   );
 }

@@ -279,7 +279,7 @@ export function CheckoutPage({ go, onAuth }: Props) {
                 )}
 
                 <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[12.5px] text-ink-500">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden /> Secure payment by Gumroad · Cancel any time ·{' '}
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden /> Secure payment by Gumroad · Starts right away · Cancel any time · Refundable within 14 days until you use a paid feature ·{' '}
                   <AppLink href="/subscription-terms" className="font-semibold text-brand-700 hover:underline">
                     Terms
                   </AppLink>

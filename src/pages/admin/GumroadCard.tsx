@@ -33,6 +33,8 @@ type Member = {
 };
 type PlanRow = { plan: 'starter' | 'pro'; name: string; price_cents: number; product_url: string | null; product_name: string | null; provider_price_cents: number | null; connected_at: string | null; members: number };
 type Event = { id: number; at: string; resource: string; email: string | null; ok: boolean | null; note: string | null };
+type Usage = { subscription_id: string; started_at: string | null; used_at: string | null; what: string | null; refundable_until: string | null };
+
 type State = {
   enabled: boolean;
   connected: boolean;
@@ -83,8 +85,11 @@ export function GumroadCard() {
   const [err, setErr] = useState<string | null>(null);
   const [notes, setNotes] = useState<string[]>([]);
 
+  // Refund terms: has the member used a paid feature yet? (migration 20261226090000_refund_usage.sql)
+  const [usage, setUsage] = useState<Record<string, Usage>>({});
   const load = useCallback(async () => {
-    const { data, error } = await supabase.rpc('gumroad_admin');
+    const [{ data, error }, u] = await Promise.all([supabase.rpc('gumroad_admin'), supabase.rpc('admin_plan_usage')]);
+    if (!u.error && Array.isArray(u.data)) setUsage(Object.fromEntries((u.data as Usage[]).map((x) => [x.subscription_id, x])));
     if (error) return setMissing(/function|schema cache|does not exist/i.test(error.message));
     setMissing(false);
     setState(data as State);
@@ -264,6 +269,23 @@ export function GumroadCard() {
                     </span>
                   )}
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.tone}`}>{st.label}</span>
+                  {(() => {
+                    const u = usage[m.subscription_id];
+                    if (!u || m.ended_at) return null;
+                    if (u.used_at)
+                      return (
+                        <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-700" title={`First paid feature used: ${u.what ?? 'a paid feature'}, ${day(u.used_at)}. Under the Subscription Terms this month is not refundable.`}>
+                          Used {day(u.used_at)} · no refund
+                        </span>
+                      );
+                    if (u.refundable_until && new Date(u.refundable_until) > new Date())
+                      return (
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800" title="No paid feature used yet: a full refund is due if they ask before this date (Subscription Terms).">
+                          Not used · refundable until {day(u.refundable_until)}
+                        </span>
+                      );
+                    return null;
+                  })()}
                   <span className="ml-auto text-right text-xs tabular-nums text-ink-500 sm:ml-0 sm:w-36">{m.ended_at ? `ended ${day(m.ended_at)}` : m.cancel_at ? `until ${day(m.cancel_at)}` : `paid until ${day(m.paid_until)}`}</span>
                   <a href={manageUrl(m.subscription_id)} target="_blank" rel="noopener noreferrer" className="text-ink-400 hover:text-brand-700" title="Open on Gumroad" aria-label="Open on Gumroad">
                     <ExternalLink className="h-3.5 w-3.5" />

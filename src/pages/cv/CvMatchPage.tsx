@@ -72,7 +72,9 @@ export function CvMatchPage({ go, onAuth }: Props) {
   const searchingNow = status === 'running';
   useEffect(() => {
     if (cv && result && !searchingNow && session) noteMilestone('cv_match_viewed');
-  }, [cv, result, searchingNow, session]);
+    // The ranked list of all matches is a paid feature (refund terms).
+    if (cv && result && !searchingNow && paid) noteMilestone('paid_feature_used');
+  }, [cv, result, searchingNow, session, paid]);
   const firstName = (profile?.full_name ?? '').trim().split(/\s+/)[0] ?? '';
   useSeo({
     title: SEO_META.cvMatch.title,

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, ChevronDown, Loader2, Lock, ScanSearch, Sparkles, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
@@ -11,6 +11,7 @@ import { MatchLabel, MatchRing, PartBar, ProPrice, Row, toneFor } from '@/compon
 import { SponsorDocRow } from '@/components/cv/SponsorDocRow';
 import { UpgradePrompt } from '@/components/pro/UpgradePrompt';
 import { useMyPlan } from '@/lib/plans';
+import { noteMilestone } from '@/lib/emailAttribution';
 import { checkoutHref, trackBilling } from '@/lib/billing';
 
 type Props = {
@@ -35,6 +36,10 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
   const { plan, isPaid, loading: planLoading } = useMyPlan();
   const { cv, result, busy, unlocked, full, quota } = match;
   const [open, setOpen] = useState<string | null>(null);
+  // A paying member seeing the full report has used the plan (refund terms). The server only counts paying members.
+  useEffect(() => {
+    if (isPaid && cv && result) noteMilestone('paid_feature_used');
+  }, [isPaid, cv, result]);
 
   const signUp = () => {
     rememberAuthIntent({ reason: 'match', next: `${window.location.pathname}${window.location.search}#cv-match` });

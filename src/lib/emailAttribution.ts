@@ -107,7 +107,7 @@ export function noteEmailEvent(event: 'listing_submitted' | 'plan_request' | 'un
 
 const noted = new Set<string>();
 /** For the lifecycle segments; signed-in people only, once per page load. */
-export function noteMilestone(key: 'cv_match_viewed' | 'pricing_viewed' | 'pro_prompt_clicked' | 'auto_apply_viewed'): void {
+export function noteMilestone(key: 'cv_match_viewed' | 'pricing_viewed' | 'pro_prompt_clicked' | 'auto_apply_viewed' | 'paid_feature_used'): void {
   if (noted.has(key)) return;
   noted.add(key);
   void supabase.auth.getSession().then(({ data }) => {

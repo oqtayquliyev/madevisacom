@@ -532,7 +532,7 @@ export const legalPages: Record<string, LegalPageContent> = {
       'Billed monthly until you cancel. Cancel any time: you keep the plan until the end of the month you paid for.',
       'Payments are taken by Gumroad, the seller named on your receipt. MadeVisa never sees your card.',
       'Every limit is listed below and on the checkout page before you pay.',
-      'Full refund within 14 days of first starting a plan if you haven’t used any sponsorship documents from it.',
+      'Full refund within 14 days of first starting a plan, as long as you haven’t used any of its paid features yet.',
     ],
     sections: [
       {
@@ -576,10 +576,15 @@ export const legalPages: Record<string, LegalPageContent> = {
       },
       {
         heading: 'Refunds',
-        paragraphs: ['Payments are refunded through Gumroad. Write to us with your receipt and we arrange it.'],
+        paragraphs: [
+          'Payments are refunded through Gumroad. Write to us with your receipt and we arrange it.',
+          'Your plan starts as soon as the payment is confirmed, and you ask us to start it straight away. The paid features are digital and are used up as soon as you see them, so once you have used one, the payment for that month is not refundable. This applies to everyone, including in countries with a legal right to cancel online purchases: by starting the plan you agree to it starting at once, and that the right to cancel ends when you first use a paid feature.',
+        ],
         bullets: [
-          'Within 14 days of first starting Starter or Pro, if you haven’t used any sponsorship documents from the plan: a full refund.',
-          'Double charges: always refunded.',
+          'Within 14 days of first starting Starter or Pro, if you haven’t used any of its paid features yet: a full refund.',
+          'Paid features are: the full CV match report on a job, your ranked list of all matches, a sponsorship document beyond the free one, and (Pro) Auto Apply preparing or sending an application. Browsing jobs, saving jobs and alerts don’t count.',
+          'Once you have used a paid feature, that month is not refunded. You can still cancel any time, and you keep the plan until the end of the month you paid for.',
+          'Double charges, or a payment taken after you cancelled: always refunded.',
           'After a refund, or if a payment is disputed with your bank, the plan ends straight away.',
         ],
       },
