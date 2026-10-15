@@ -79,6 +79,8 @@ export function FeedbackCompaniesRow({ companies, onShare, refreshKey }: { compa
           <MyReportCard key={r.id} r={r} />
         ))}
 
+        {!q.trim() && EXAMPLES.map((e) => <ExampleCard key={e.name} e={e} />)}
+
         {companies === null
           ? Array.from({ length: PAGE }, (_, i) => <div key={i} className="skeleton-shimmer h-[228px] w-[232px] shrink-0 rounded-xl" />)
           : shown.map((c) => <CompanyCard key={c.id} c={c} onShare={() => onShare({ id: c.id, name: c.name, logo_url: c.logo_url })} />)}
@@ -122,7 +124,6 @@ function Logo({ url, size = 44 }: { url: string | null | undefined; size?: numbe
 
 function CompanyCard({ c, onShare }: { c: DirectoryCompany; onShare: () => void }) {
   const rate = c.response_rate;
-  const tone = rate == null ? 'bg-ink-100 text-ink-600' : rate >= 60 ? 'bg-emerald-50 text-emerald-700' : rate >= 30 ? 'bg-amber-50 text-amber-800' : 'bg-rose-50 text-rose-700';
   const href = companyPath({ id: c.id, name: c.name });
   return (
     <article className="flex h-[228px] w-[232px] shrink-0 snap-start flex-col rounded-xl border border-ink-200 bg-white p-4">
@@ -142,10 +143,10 @@ function CompanyCard({ c, onShare }: { c: DirectoryCompany; onShare: () => void 
           {c.country_name && <p className="mt-0.5 truncate text-[12px] text-ink-500">{c.country_name}</p>}
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        <span className={`rounded-md px-2 py-0.5 text-[12px] font-semibold ${tone}`}>{rate == null ? 'No reply data yet' : `Replies to ${Math.round(rate)}%`}</span>
-        {c.active_jobs > 0 && <span className="rounded-md bg-[#1D4ED8]/5 px-2 py-0.5 text-[12px] font-semibold text-[#1D4ED8]">{c.active_jobs.toLocaleString()} open jobs</span>}
-      </div>
+      <ReplyMeter rate={rate} days={c.avg_response_days} reports={c.tracked} />
+      {c.active_jobs > 0 && (
+        <p className="mt-2 text-[12px] font-semibold text-[#1D4ED8]">{c.active_jobs.toLocaleString()} open jobs</p>
+      )}
       <div className="mt-auto flex items-center gap-2 pt-3">
         <button onClick={onShare} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#1D4ED8] px-3 py-2 text-[13px] font-semibold text-white hover:bg-brand-800">
           <MessageSquarePlus className="h-4 w-4" /> Share
@@ -162,6 +163,69 @@ function CompanyCard({ c, onShare }: { c: DirectoryCompany; onShare: () => void 
           <ChevronRight className="h-4 w-4" />
         </a>
       </div>
+    </article>
+  );
+}
+
+/** How it replies, at a glance: a face, the rate and a bar (green part = replied). */
+function mood(rate: number) {
+  if (rate >= 60) return { emoji: '😄', label: 'Usually replies', text: 'text-emerald-700', bg: 'bg-emerald-50', bar: 'bg-emerald-500' };
+  if (rate >= 30) return { emoji: '😐', label: 'Hit or miss', text: 'text-amber-800', bg: 'bg-amber-50', bar: 'bg-amber-400' };
+  return { emoji: '👻', label: 'Mostly ghosts', text: 'text-rose-700', bg: 'bg-rose-50', bar: 'bg-rose-500' };
+}
+
+const MIN_REPORTS = 5;
+
+function ReplyMeter({ rate, days, reports }: { rate: number | null; days: number | null; reports: number }) {
+  if (rate == null) {
+    const have = Math.min(Math.max(reports ?? 0, 0), MIN_REPORTS - 1);
+    return (
+      <div className="mt-3 rounded-lg bg-ink-50 px-2.5 py-2">
+        <p className="text-[12px] font-semibold text-ink-700">🤔 Fewer than {MIN_REPORTS} reports</p>
+        <p className="mt-0.5 text-[11px] leading-4 text-ink-500">The score shows after {MIN_REPORTS}. Yours could be next.</p>
+        <div className="mt-1.5 flex gap-1" aria-label={`${have} of ${MIN_REPORTS} reports`}>
+          {Array.from({ length: MIN_REPORTS }, (_, i) => (
+            <span key={i} className={`h-1.5 flex-1 rounded-full ${i < have ? 'bg-[#1D4ED8]' : 'bg-ink-200'}`} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  const m = mood(rate);
+  const r = Math.round(rate);
+  return (
+    <div className={`mt-3 rounded-lg px-2.5 py-2 ${m.bg}`}>
+      <p className={`flex items-center gap-1.5 text-[12px] font-bold ${m.text}`}>
+        <span className="text-[16px] leading-none" aria-hidden>{m.emoji}</span> {m.label} · {r}%
+      </p>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/80">
+        <div className={`h-full rounded-full ${m.bar}`} style={{ width: `${Math.max(r, 3)}%` }} />
+      </div>
+      <p className="mt-1 text-[11px] text-ink-500">{days != null ? `Answers in ~${days} days` : 'Reply time not known yet'}</p>
+    </div>
+  );
+}
+
+/** Made-up companies, clearly marked, so a first visitor sees what a score looks like. */
+type Example = { name: string; country: string; rate: number; days: number; emoji: string };
+const EXAMPLES: Example[] = [
+  { name: 'Sunny Logistics GmbH', country: 'Germany', rate: 86, days: 3, emoji: '☀️' },
+  { name: 'Ghostly Corp Ltd', country: 'United Kingdom', rate: 9, days: 41, emoji: '🏚️' },
+];
+
+function ExampleCard({ e }: { e: Example }) {
+  return (
+    <article className="relative flex h-[228px] w-[232px] shrink-0 snap-start flex-col rounded-xl border-2 border-dashed border-ink-300 bg-white p-4">
+      <span className="absolute -top-2.5 left-3 rounded-full bg-ink-800 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Example</span>
+      <div className="flex items-start gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-ink-50 text-[22px]" aria-hidden>{e.emoji}</span>
+        <div className="min-w-0">
+          <p className="line-clamp-2 text-[15px] font-bold leading-snug text-ink-950">{e.name}</p>
+          <p className="mt-0.5 truncate text-[12px] text-ink-500">{e.country}</p>
+        </div>
+      </div>
+      <ReplyMeter rate={e.rate} days={e.days} reports={MIN_REPORTS} />
+      <p className="mt-auto pt-2 text-[11px] leading-4 text-ink-400">Not a real company. This is how a score looks once people share.</p>
     </article>
   );
 }
