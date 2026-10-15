@@ -147,6 +147,8 @@ export async function run(deps: { rpc: Rpc; fetch: Fetch; googleKey: string | un
     const items = ((b.data as { items?: Item[] })?.items ?? []) as Item[];
     let ok = 0;
     let lastError: string | null = null;
+    if (b.error) lastError = `queue: ${b.error.message}`;
+    else if (!items.length) lastError = `nothing to send (quota left today: ${(b.data as { left?: number })?.left ?? '?'})`;
     if (items.length) {
       try {
         const token = await googleToken(key, deps.fetch, deps.nowSec ?? Math.floor(Date.now() / 1000));
