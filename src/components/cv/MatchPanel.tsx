@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, ChevronDown, Loader2, Lock, ScanSearch, Sparkles, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Lock, PartyPopper, ScanSearch, Sparkles, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
 import { FREE_DAILY_CHECKS } from '@/lib/pricing';
@@ -10,7 +10,8 @@ import { CvReplaceButton, CvUpload } from '@/components/cv/CvUpload';
 import { MatchLabel, MatchRing, PartBar, ProPrice, Row, toneFor } from '@/components/cv/MatchBits';
 import { SponsorDocRow } from '@/components/cv/SponsorDocRow';
 import { UpgradePrompt } from '@/components/pro/UpgradePrompt';
-import { useMyPlan } from '@/lib/plans';
+import { priceLabel, useMyPlan } from '@/lib/plans';
+import { QuickSignup } from '@/components/cv/QuickSignup';
 import { noteMilestone } from '@/lib/emailAttribution';
 import { checkoutHref, trackBilling } from '@/lib/billing';
 
@@ -71,6 +72,32 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
 
   // ---- CV match is part of Starter and Pro ----
   if (!isPaid && !planLoading) {
+    // No account yet: the email from their CV and a code is all it takes (a free account). Then CV match is Starter.
+    if (!session) {
+      return (
+        <section id="cv-match" aria-labelledby="cv-match-title" className="scroll-mt-24 rounded-2xl border border-ink-200 bg-white p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+            <span aria-hidden className="pointer-events-none select-none blur-[4px]">
+              <MatchRing score={82} size={72} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 id="cv-match-title" className="flex items-center gap-2 text-[18px] font-bold leading-tight text-ink-950">
+                <Lock className="h-4 w-4 text-brand-700" /> Your match with this job is ready
+              </h2>
+              <p className="mt-1 text-[13px] leading-5 text-ink-600">Get a code by email to save your CV and see how it fits {company}. No password, takes a minute.</p>
+              <div className="mt-1">
+                <QuickSignup cv={cv} back={`${window.location.pathname}#cv-match`} />
+              </div>
+              <p className="mt-3 flex flex-wrap items-center gap-x-1.5 text-[13px] text-ink-700">
+                <Sparkles className="h-3.5 w-3.5 text-brand-600" aria-hidden />
+                Full CV match on every job — your score, missing skills and what to change: <b className="text-ink-950">{priceLabel('starter')}</b> with Starter.
+              </p>
+            </div>
+          </div>
+          {doc && <SponsorBonus company={company} />}
+        </section>
+      );
+    }
     return (
       <section id="cv-match" aria-labelledby="cv-match-title" className="scroll-mt-24 rounded-2xl border border-ink-200 bg-white p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -82,7 +109,7 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
               <Lock className="h-4 w-4 text-brand-700" /> Your match with this job
             </h2>
             <p className="mt-1 text-[13px] leading-5 text-ink-600">
-              CV match is part of Starter and Pro: your score, the skills {company} asks for that {cv.name} doesn’t show, and what to change before you apply.
+              Your score, the skills {company} asks for that {cv.name} doesn’t show, and what to change before you apply: <b className="text-ink-900">{priceLabel('starter')}</b> with Starter.
             </p>
           </div>
           <button
@@ -359,6 +386,40 @@ function FullReport({ parts, open, setOpen, fixes, health }: { parts: Part[]; op
             </li>
           ))}
         </ul>
+      </div>
+    </div>
+  );
+}
+
+/** The sponsorship document, shown as the bonus that comes with Starter: the proposal to send along with the CV. */
+function SponsorBonus({ company }: { company: string }) {
+  const href = checkoutHref('starter', 'job_doc_bonus');
+  return (
+    <div className="relative mt-5 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-amber-50 p-4 ring-1 ring-emerald-200 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-emerald-600 shadow-sm ring-1 ring-emerald-200">
+          <PartyPopper className="h-5 w-5" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="flex flex-wrap items-center gap-2 text-[15px] font-bold text-ink-950">
+            Bonus: your sponsorship document
+            <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-white">Included with Starter</span>
+          </p>
+          <p className="mt-1 text-[13px] leading-5 text-ink-700">
+            Send it along with your CV: a short proposal that shows {company} the visa route that may apply, what it asks of them and the costs you offer to share. <b className="text-ink-900">20 a month</b>, ready in seconds.
+          </p>
+        </div>
+        <a
+          href={href}
+          onClick={(e) => {
+            e.preventDefault();
+            trackBilling('plan_selected', { plan: 'starter', source: 'job_doc_bonus' });
+            nav(href);
+          }}
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-emerald-600 px-5 py-2.5 text-[14px] font-bold text-white shadow-sm hover:bg-emerald-700"
+        >
+          Get Starter · {priceLabel('starter')}
+        </a>
       </div>
     </div>
   );
