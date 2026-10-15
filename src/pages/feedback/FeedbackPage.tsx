@@ -91,44 +91,47 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="companies" />
 
-      {/* HERO */}
-      <section className="bg-brand-700 text-white">
-        <div className={`${WRAP} pb-10 pt-8 sm:pb-12`}>
-          {slug && company === undefined ? (
-            <div className="h-48 animate-pulse rounded-xl bg-white/10" />
-          ) : company ? (
-            <CompanyHero company={company} onOutcome={(o) => setDialog({ pick: fixed, outcome: o })} />
-          ) : (
-            <SharePromo
-              bare
-              className=""
-              companies={rows ?? []}
-              onPick={(c) => setDialog({ pick: c })}
-              title="Applied and heard nothing? Make it count."
-              text="Share how your application went — silence, rejection, interview or offer. It takes 20 seconds, stays private, and shows everyone which companies really reply."
-              footer={
-                <a href="#for-companies" className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/90 underline decoration-white/40 underline-offset-4 hover:decoration-white">
-                  Hiring? Get your company's feedback link <ArrowRight className="h-3.5 w-3.5" />
-                </a>
-              }
-            />
-          )}
-          {slug && company === null && (
-            <p className="mt-4 rounded-lg bg-white/10 px-4 py-3 text-sm">
-              We couldn't find that company — pick it below or type its name.{' '}
-              <button onClick={() => nav('/feedback')} className="font-semibold underline">
-                Open the feedback page
-              </button>
-            </p>
-          )}
+      {/* HERO: a company's own link keeps the blue header; the /feedback home is search-first. */}
+      {slug ? (
+        <section className="bg-brand-700 text-white">
+          <div className={`${WRAP} pb-10 pt-8 sm:pb-12`}>
+            {company === undefined ? (
+              <div className="h-48 animate-pulse rounded-xl bg-white/10" />
+            ) : company ? (
+              <CompanyHero company={company} onOutcome={(o) => setDialog({ pick: fixed, outcome: o })} />
+            ) : (
+              <p className="rounded-lg bg-white/10 px-4 py-3 text-sm">
+                We couldn't find that company — pick it below or type its name.{' '}
+                <button onClick={() => nav('/feedback')} className="font-semibold underline">
+                  Open the feedback page
+                </button>
+              </p>
+            )}
+          </div>
+        </section>
+      ) : (
+        <div className="bg-[radial-gradient(ellipse_at_top,rgba(29,78,216,0.08),transparent_60%)]">
+          <SharePromo
+            hero
+            companies={rows ?? []}
+            onPick={(c) => setDialog({ pick: c })}
+            title="Applied and heard nothing? Make it count."
+            text="Share how your application went — silence, rejection, interview or offer. 20 seconds, private, and it shows everyone which companies really reply."
+            footer={
+              <a href="#for-companies" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1D4ED8] hover:underline">
+                Hiring? Get your company's feedback link <ArrowRight className="h-3.5 w-3.5" />
+              </a>
+            }
+          />
         </div>
-      </section>
+      )}
 
       <main className={`${WRAP} space-y-10 py-10`}>
         {/* THIS COMPANY (company link) */}
         {company && <CompanyNumbers company={company} summary={summary} onShare={() => setDialog({ pick: fixed })} />}
 
         {/* COMPANIES — your own reports first, then 5 at a time */}
+        <div id="companies" className="scroll-mt-24" />
         <FeedbackCompaniesRow companies={rows} onShare={(pick) => setDialog({ pick })} refreshKey={refreshKey} />
 
         {/* WHO IT'S FOR */}

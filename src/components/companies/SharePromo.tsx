@@ -14,6 +14,7 @@ export function SharePromo({
   footer,
   className = 'mb-8',
   bare = false,
+  hero = false,
 }: {
   companies: DirectoryCompany[];
   onPick: (c: { id?: string | null; name: string; logo_url?: string | null } | null) => void;
@@ -23,6 +24,8 @@ export function SharePromo({
   className?: string;
   /** No card background — for use inside a blue page header. */
   bare?: boolean;
+  /** Full-screen, search-first layout (the /feedback home): one long search bar in the middle. */
+  hero?: boolean;
 }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
@@ -56,6 +59,122 @@ export function SharePromo({
     setQ('');
     setOpen(false);
   };
+  const [active, setActive] = useState(-1);
+
+  if (hero) {
+    const typedOnly = q.trim().length >= 2;
+    const choose = () => {
+      if (active >= 0 && matches[active]) return pick(matches[active]);
+      if (!typedOnly) return onPick(null);
+      const exact = matches.find((m) => m.name.toLowerCase() === q.trim().toLowerCase());
+      if (exact) pick(exact);
+      else {
+        onPick({ name: q.trim() });
+        setQ('');
+        setOpen(false);
+      }
+    };
+    return (
+      <section className={`relative z-20 flex min-h-[calc(100svh-72px)] flex-col items-center justify-center px-4 pb-16 pt-10 text-center ${className}`}>
+        <p className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-ink-600 shadow-sm ring-1 ring-ink-200">
+          <MessageSquarePlus className="h-3.5 w-3.5 text-[#1D4ED8]" /> 20 seconds · private
+        </p>
+        <h1 className="mt-5 max-w-3xl text-[34px] font-bold leading-[1.1] tracking-tight text-ink-950 sm:text-[52px]">{title}</h1>
+        <p className="mt-4 max-w-2xl text-[15px] leading-7 text-ink-500 sm:text-[17px]">{text}</p>
+
+        <div className="relative mt-9 w-full max-w-3xl text-left">
+          <div
+            className={`flex h-16 items-center gap-3 rounded-full border bg-white pl-6 pr-2 shadow-[0_6px_30px_rgba(15,23,42,0.08)] transition sm:h-[72px] ${
+              open ? 'border-[#1D4ED8]/40 shadow-[0_10px_40px_rgba(29,78,216,0.15)]' : 'border-ink-200 hover:shadow-[0_8px_34px_rgba(15,23,42,0.12)]'
+            }`}
+          >
+            <Search className="h-5 w-5 shrink-0 text-ink-400" />
+            <input
+              value={q}
+              autoFocus={typeof window !== 'undefined' && window.innerWidth >= 768}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setOpen(true);
+                setActive(-1);
+              }}
+              onFocus={() => setOpen(true)}
+              onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setOpen(true);
+                  setActive((i) => Math.min(i + 1, matches.length - 1));
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setActive((i) => Math.max(i - 1, -1));
+                } else if (e.key === 'Enter') choose();
+                else if (e.key === 'Escape') setOpen(false);
+              }}
+              placeholder="Which company did you apply to?"
+              aria-label="Which company did you apply to?"
+              className="h-full min-w-0 flex-1 bg-transparent text-[16px] text-ink-900 outline-none placeholder:text-ink-400 sm:text-[18px]"
+            />
+            <button onClick={choose} className="flex h-12 shrink-0 items-center gap-2 rounded-full bg-[#1D4ED8] px-5 text-[15px] font-semibold text-white transition hover:bg-brand-800 sm:h-14 sm:px-7">
+              Share <span className="hidden sm:inline">experience</span>
+            </button>
+          </div>
+          {open && (matches.length > 0 || typedOnly) && (
+            <ul className="absolute inset-x-0 top-full z-30 mt-2 max-h-80 overflow-y-auto overscroll-contain rounded-2xl border border-ink-200 bg-white py-2 shadow-2xl">
+              {matches.map((c, i) => (
+                <li key={c.id}>
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setActive(i)}
+                    onClick={() => pick(c)}
+                    className={`flex w-full items-center gap-3 px-5 py-2.5 text-left text-[15px] ${active === i ? 'bg-[#1D4ED8]/5' : ''}`}
+                  >
+                    <MiniLogo url={c.logo_url} />
+                    <span className="min-w-0 flex-1 truncate font-medium text-ink-900">{c.name}</span>
+                    <span className="text-[12px] text-ink-400">{c.country_name ?? ''}</span>
+                  </button>
+                </li>
+              ))}
+              {typedOnly && !matches.some((m) => m.name.toLowerCase() === q.trim().toLowerCase()) && (
+                <li className="mt-1 border-t border-ink-100 pt-1">
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => (onPick({ name: q.trim() }), setQ(''), setOpen(false))}
+                    className="w-full px-5 py-2.5 text-left text-[14px] font-semibold text-[#1D4ED8] hover:bg-[#1D4ED8]/5"
+                  >
+                    Not listed? Share about “{q.trim()}”
+                  </button>
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+
+        {quick.length > 0 && (
+          <div className="mt-8 w-full max-w-3xl" ref={pickRef}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Or pick one</p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2.5">
+              {quick.slice(0, 12).map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => pick(c)}
+                  title={c.name}
+                  className="grid h-12 w-12 place-items-center rounded-2xl border border-ink-200 bg-white p-2 shadow-sm transition hover:-translate-y-0.5 hover:border-[#1D4ED8]/40 hover:shadow-md"
+                >
+                  <img src={c.logo_url!} alt={c.name} className="max-h-full max-w-full object-contain" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {footer && <div className="mt-8">{footer}</div>}
+
+        <a href="#companies" className="absolute bottom-6 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1 text-[12px] font-medium text-ink-400 hover:text-ink-600">
+          See how companies reply
+          <ChevronDown className="h-4 w-4 animate-bounce" />
+        </a>
+      </section>
+    );
+  }
 
   return (
     <section className={`relative z-20 text-white ${bare ? '' : 'rounded-xl bg-brand-700 p-5 sm:p-7'} ${className}`}>
