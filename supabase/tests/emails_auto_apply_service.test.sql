@@ -131,7 +131,10 @@ UPDATE public.sponsored_jobs SET awaiting_release = false;
 SELECT t.ok(public.run_for_you_emails('daily') >= 1, 'for-you sent');
 SELECT t.ok((SELECT payload->>'html' FROM public.email_log WHERE payload->>'subject' LIKE '%your skills%' ORDER BY id DESC LIMIT 1) LIKE '%✓ Python%', 'shows matched skills');
 INSERT INTO public.job_alerts (user_id, keywords, country_code, label, last_checked_at, created_at) VALUES (t.id('pro'), 'Data', 'DE', 'Data · Germany', now(), now() - interval '2 days');
-SELECT t.ok(public.run_job_alert_emails() = 1, 'job alert sent');
+-- One job email a day per person (20261228130000): the alert waits while "jobs for you" went out today.
+SELECT t.ok(public.run_job_alert_emails() = 0, 'job alert waits: already got a job email today');
+UPDATE public.email_log SET created_at = created_at - interval '1 day' WHERE kind = 'for_you';
+SELECT t.ok(public.run_job_alert_emails() = 1, 'job alert sent the next day');
 SELECT t.ok(t.mails('job_alert') = 1 AND t.mails('for_you') >= 1, 'both logged');
 
 \echo '9. admin email dashboard'

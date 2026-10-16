@@ -54,9 +54,9 @@ export const SEO_META = {
     description: '', // built from live numbers
   },
   network: {
-    title: 'Companies That Sponsor Visas — Contact Emails',
+    title: 'Company Hiring Contacts — Emails of Companies That Hire',
     description:
-      'Companies with live jobs that offer visa sponsorship, with their contact emails and how many jobs they have open on MadeVisa.',
+      'Companies and their hiring emails, with the ones that sponsor visas first, and how many jobs they have open on MadeVisa.',
   },
   feedback: {
     title: 'GhostGood — How Companies Really Respond to Applicants',

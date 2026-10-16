@@ -33,7 +33,7 @@ export function NetworkPage({ go, onAuth }: Props) {
     const list = rows ?? [];
     return t ? list.filter((c) => c.name.toLowerCase().includes(t) || (c.country ?? '').toLowerCase().includes(t) || c.emails.some((e) => e.includes(t))) : list;
   }, [rows, q]);
-  const sponsoredTotal = useMemo(() => (rows ?? []).reduce((n, c) => n + c.sponsored, 0), [rows]);
+  const sponsoringCompanies = useMemo(() => (rows ?? []).filter((c) => c.sponsored > 0).length, [rows]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
@@ -43,13 +43,13 @@ export function NetworkPage({ go, onAuth }: Props) {
         <div className={`${WRAP} pb-10 pt-10 sm:pb-12 sm:pt-12`}>
           <div className="max-w-3xl">
             <p className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[12px] font-semibold">
-              <ShieldCheck className="h-3.5 w-3.5" /> Companies that sponsor visas
+              <ShieldCheck className="h-3.5 w-3.5" /> Company contacts
             </p>
-            <h1 className="mt-4 text-[32px] font-bold leading-[1.1] tracking-tight sm:text-[44px]">Reach the companies that hire from abroad</h1>
-            <p className="mt-4 text-[16px] leading-7 text-white/85">Every company here has live jobs with visa sponsorship. Contact them directly by email.</p>
+            <h1 className="mt-4 text-[32px] font-bold leading-[1.1] tracking-tight sm:text-[44px]">Reach the companies that hire</h1>
+            <p className="mt-4 text-[16px] leading-7 text-white/85">Companies and their hiring emails, with the ones that sponsor visas first. Contact them directly.</p>
             <div className="mt-6 flex flex-wrap gap-x-8 gap-y-3">
               <Figure label="Companies" value={rows === undefined ? '…' : (rows?.length ?? 0).toLocaleString()} />
-              <Figure label="Jobs with visa sponsorship" value={rows === undefined ? '…' : sponsoredTotal.toLocaleString()} />
+              <Figure label="Sponsor visas" value={rows === undefined ? '…' : sponsoringCompanies.toLocaleString()} />
             </div>
           </div>
         </div>
@@ -107,7 +107,7 @@ export function NetworkPage({ go, onAuth }: Props) {
 }
 
 function CompanyContactCard({ c }: { c: RecruiterCompany }) {
-  const href = companyPath({ id: c.id, name: c.name });
+  const href = c.publisher_id ? companyPath({ id: c.publisher_id, name: c.name }) : null;
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (email: string) => {
     try {
@@ -129,16 +129,21 @@ function CompanyContactCard({ c }: { c: RecruiterCompany }) {
           </span>
         )}
         <div className="min-w-0 flex-1">
-          <a
-            href={href}
-            onClick={(e) => {
-              e.preventDefault();
-              nav(href);
-            }}
-            className="line-clamp-2 text-[17px] font-bold leading-snug text-ink-950 hover:text-[#1D4ED8]"
-          >
-            {c.name}
-          </a>
+          {href ? (
+            <a
+              href={href}
+              onClick={(e) => {
+                e.preventDefault();
+                nav(href);
+              }}
+              className="line-clamp-2 text-[17px] font-bold leading-snug text-ink-950 hover:text-[#1D4ED8]"
+            >
+              {c.name}
+            </a>
+          ) : (
+            <p className="line-clamp-2 text-[17px] font-bold leading-snug text-ink-950">{c.name}</p>
+          )}
+          {!c.country && c.website && <p className="mt-1 truncate text-[13px] text-ink-500">{c.website.replace(/^https?:\/\//, '')}</p>}
           {c.country && (
             <p className="mt-1 flex items-center gap-1.5 text-[13px] text-ink-500">
               <CircleFlag countryCode={c.country_code} label={c.country} size={14} /> {c.country}
@@ -147,13 +152,17 @@ function CompanyContactCard({ c }: { c: RecruiterCompany }) {
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-1.5">
-        <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-[13px] font-semibold text-emerald-700">
-          {c.sponsored.toLocaleString()} with visa sponsorship
-        </span>
-        <span className="rounded-lg bg-[#1D4ED8]/5 px-2.5 py-1 text-[13px] font-semibold text-[#1D4ED8]">
-          {c.jobs.toLocaleString()} {c.jobs === 1 ? 'job' : 'jobs'} on MadeVisa
-        </span>
+      <div className="mt-4 flex min-h-[28px] flex-wrap gap-1.5">
+        {c.sponsored > 0 && (
+          <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-[13px] font-semibold text-emerald-700">{c.sponsored.toLocaleString()} with visa sponsorship</span>
+        )}
+        {c.jobs > 0 ? (
+          <span className="rounded-lg bg-[#1D4ED8]/5 px-2.5 py-1 text-[13px] font-semibold text-[#1D4ED8]">
+            {c.jobs.toLocaleString()} {c.jobs === 1 ? 'job' : 'jobs'} on MadeVisa
+          </span>
+        ) : (
+          <span className="rounded-lg bg-ink-100 px-2.5 py-1 text-[13px] font-semibold text-ink-600">No open jobs listed yet</span>
+        )}
       </div>
 
       <ul className="mt-4 space-y-1.5">
@@ -174,16 +183,22 @@ function CompanyContactCard({ c }: { c: RecruiterCompany }) {
         <a href={`mailto:${c.emails[0]}`} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-[15px] font-semibold text-white hover:bg-brand-800">
           <Mail className="h-4 w-4" /> Contact
         </a>
-        <a
-          href={href}
-          onClick={(e) => {
-            e.preventDefault();
-            nav(href);
-          }}
-          className="flex h-11 items-center justify-center rounded-xl border border-ink-200 px-4 text-[14px] font-semibold text-ink-700 hover:bg-ink-50"
-        >
-          See jobs
-        </a>
+        {href && c.jobs > 0 ? (
+          <a
+            href={href}
+            onClick={(e) => {
+              e.preventDefault();
+              nav(href);
+            }}
+            className="flex h-11 items-center justify-center rounded-xl border border-ink-200 px-4 text-[14px] font-semibold text-ink-700 hover:bg-ink-50"
+          >
+            See jobs
+          </a>
+        ) : c.website ? (
+          <a href={c.website} target="_blank" rel="noopener noreferrer nofollow" className="flex h-11 items-center justify-center rounded-xl border border-ink-200 px-4 text-[14px] font-semibold text-ink-700 hover:bg-ink-50">
+            Website
+          </a>
+        ) : null}
       </div>
     </article>
   );
