@@ -113,16 +113,53 @@ export async function fetchCompanyInsights(publisherId: string): Promise<Company
   return data as CompanyInsights;
 }
 
+/**
+ * The API returns at most 1,000 rows per request, so the full list is read in pages.
+ * (Before, only the first 1,000 companies — sorted by open jobs — ever loaded, so new
+ * companies without jobs, e.g. ones added from GhostGood reports, never showed up in search.)
+ */
+const DIR_PAGE = 1000;
+const DIR_MAX_PAGES = 30;
+
+async function directoryPage(fn: string, page: number) {
+  return supabase.rpc(fn).range(page * DIR_PAGE, page * DIR_PAGE + DIR_PAGE - 1);
+}
+
+async function fetchAllPages(fn: string): Promise<{ rows: DirectoryCompany[] | null; error: string | null }> {
+  const first = await directoryPage(fn, 0);
+  if (first.error) return { rows: null, error: first.error.message };
+  const rows = (first.data ?? []) as DirectoryCompany[];
+  let page = 1;
+  let last = rows.length;
+  // Next pages a few at a time, until a page comes back short.
+  while (last === DIR_PAGE && page < DIR_MAX_PAGES) {
+    const batch = await Promise.all([0, 1, 2].map((i) => directoryPage(fn, page + i)));
+    page += 3;
+    for (const r of batch) {
+      const got = (r.data ?? []) as DirectoryCompany[];
+      rows.push(...got);
+      last = got.length;
+      if (r.error || got.length < DIR_PAGE) {
+        last = 0;
+        break;
+      }
+    }
+  }
+  // Pages can overlap if the list changed while loading: one row per company.
+  const seen = new Set<string>();
+  return { rows: rows.filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true))), error: null };
+}
+
 export async function fetchCompaniesDirectory(): Promise<DirectoryCompany[] | null> {
-  const v2 = await supabase.rpc('companies_directory_v2');
-  if (!v2.error) return (v2.data ?? []) as DirectoryCompany[];
-  console.warn('companies_directory_v2 unavailable (run the 20261019090000 migration)', v2.error.message);
-  const { data, error } = await supabase.rpc('companies_directory');
-  if (error) {
-    console.warn('companies_directory unavailable (run the 20260928090000 migration)', error.message);
+  const v2 = await fetchAllPages('companies_directory_v2');
+  if (!v2.error) return v2.rows ?? [];
+  console.warn('companies_directory_v2 unavailable (run the 20261019090000 migration)', v2.error);
+  const v1 = await fetchAllPages('companies_directory');
+  if (v1.error) {
+    console.warn('companies_directory unavailable (run the 20260928090000 migration)', v1.error);
     return null;
   }
-  return (data ?? []) as DirectoryCompany[];
+  return v1.rows ?? [];
 }
 
 // ---------------------------------------------------------------------------
