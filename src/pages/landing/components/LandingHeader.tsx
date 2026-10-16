@@ -1,7 +1,22 @@
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useEffect, useState } from "react";
 import { SoonChip, SOON_VIEWS } from "@/components/common/SoonChip";
-import { ChevronDown, Building2, Briefcase, GraduationCap, LayoutDashboard, LogIn, LogOut, ScanSearch, ShieldCheck, UserPlus, Users, X, BarChart3 } from "lucide-react";
+import {
+  BarChart3,
+  Briefcase,
+  Building2,
+  ChevronDown,
+  Ghost,
+  GraduationCap,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
+  ScanSearch,
+  ShieldCheck,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useCv } from "@/lib/cv/store";
 import { CvRequiredDialog } from "@/components/cv/CvGate";
@@ -20,7 +35,7 @@ type LandingHeaderProps = {
   active?: View;
 };
 
-// Main menu: Jobs · CV match · Company Insights · Recruiters.
+// Main menu: Jobs · CV match · GhostGood · Company Insights · Recruiters.
 // Programs and Study are "soon" — they live in the footer until they launch.
 const primaryLinks: {
   view: View;
@@ -29,6 +44,7 @@ const primaryLinks: {
   icon: typeof Briefcase;
 }[] = [
   { view: "jobs", href: "/jobs", label: "Jobs", icon: Briefcase },
+  { view: "feedback", href: "/ghostgood", label: "GhostGood", icon: Ghost },
   { view: "companies", href: "/companies", label: "Company Insights", icon: BarChart3 },
   { view: "network", href: "/network", label: "Recruiters", icon: Users },
 ];

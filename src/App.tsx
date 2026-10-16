@@ -76,7 +76,7 @@ const pathForView: Partial<Record<View, string>> = {
   admin: '/admin',
   company: '/company',
   companies: '/companies',
-  feedback: '/feedback',
+  feedback: '/ghostgood',
   'official-partners': '/official-sources',
 };
 
@@ -293,9 +293,15 @@ export default function App() {
     return <CompanyProfilePage slug={path.slice('/companies/'.length)} go={go} onAuth={goToAuth} />;
   }
 
-  // Hiring Feedback — /feedback, and a company's own link /feedback/<company>.
+  // GhostGood (hiring feedback) — /ghostgood, and a company's own link /ghostgood/<company>.
+  // Old /feedback links still work: the address is swapped to /ghostgood.
   if (path === '/feedback' || path.startsWith('/feedback/')) {
-    const fslug = path.startsWith('/feedback/') ? path.slice('/feedback/'.length).replace(/\/$/, '') : '';
+    const next = path.replace(/^\/feedback/, '/ghostgood');
+    window.history.replaceState(window.history.state, '', next + window.location.search + window.location.hash);
+  }
+  if (path === '/ghostgood' || path.startsWith('/ghostgood/') || path === '/feedback' || path.startsWith('/feedback/')) {
+    const rest = path.replace(/^\/(ghostgood|feedback)\/?/, '');
+    const fslug = rest.replace(/\/$/, '');
     return <FeedbackPage key={fslug || 'all'} slug={fslug || undefined} go={go} onAuth={goToAuth} />;
   }
 

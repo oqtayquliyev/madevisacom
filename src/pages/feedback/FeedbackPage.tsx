@@ -81,7 +81,7 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
     description: company
       ? `Applied to ${company.name}? Share in 20 seconds how it went — privately. It helps the next applicants and ${company.name}'s hiring team.`
       : 'Share how your job application went — no response, rejection, interview or offer. Private, reviewed, and it shows which companies really reply.',
-    path: slug ? `/feedback/${slug}` : '/feedback',
+    path: slug ? `/ghostgood/${slug}` : '/ghostgood',
     ogImage: 'https://madevisa.com/og/feedback.jpg',
     // One feedback form per company is a near-copy of the company page: keep those out of the index.
     noindex: Boolean(slug),
@@ -92,7 +92,7 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
-      <LandingHeader go={go} onAuth={onAuth} active="companies" />
+      <LandingHeader go={go} onAuth={onAuth} active="feedback" />
 
       {/* HERO: a company's own link keeps the blue header; the /feedback home is search-first. */}
       {slug ? (
@@ -105,7 +105,7 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
             ) : (
               <p className="rounded-lg bg-white/10 px-4 py-3 text-sm">
                 We couldn't find that company — pick it below or type its name.{' '}
-                <button onClick={() => nav('/feedback')} className="font-semibold underline">
+                <button onClick={() => nav('/ghostgood')} className="font-semibold underline">
                   Open the feedback page
                 </button>
               </p>
@@ -118,7 +118,8 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
             hero
             companies={rows ?? []}
             onPick={(c) => setDialog({ pick: c })}
-            title="Applied and heard nothing? Make it count."
+            title="Let’s clean up the job market."
+            subtitle="Applied and heard nothing? Make it count."
             text="Share how your application went — silence, rejection, interview or offer. 20 seconds, private, and it shows everyone which companies really reply."
             footer={
               <a href="#for-companies" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1D4ED8] hover:underline">

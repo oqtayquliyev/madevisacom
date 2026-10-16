@@ -72,7 +72,7 @@ export default async function handler(req: Request): Promise<Response> {
       ['/offers', 'monthly', '0.7', false],
       ['/cv-match', 'monthly', '0.7', false],
       ['/blog', 'daily', '0.7', false],
-      ['/feedback', 'daily', '0.6', false],
+      ['/ghostgood', 'daily', '0.6', false],
       ['/network', 'daily', '0.5', false],
       ['/about', 'monthly', '0.6', false],
       ['/how-it-works', 'monthly', '0.6', false],

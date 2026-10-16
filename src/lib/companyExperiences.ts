@@ -258,7 +258,7 @@ export async function fetchHiringFeedbackOverview(): Promise<HiringFeedbackOverv
 
 /** A company's own feedback link — companies/HR share it with applicants. */
 export function feedbackPath(c: { id: string; name: string }): string {
-  return companyPath(c).replace(/^\/companies\//, '/feedback/');
+  return companyPath(c).replace(/^\/companies\//, '/ghostgood/');
 }
 
 /** The word shown on the "how well did you match?" slider. */

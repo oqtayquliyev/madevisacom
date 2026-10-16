@@ -756,12 +756,12 @@ const SPA_EXACT = new Set<string>([
   '/', '/index.html', '/login', '/register', '/reset-password', '/verify-email',
   '/jobs', '/programs', '/study', '/sponsored-programs', '/submit-job', '/submit-program',
   '/profile', '/dashboard', '/admin', '/company', '/companies', '/network', '/experts',
-  '/destinations', '/feedback', '/official-sources', '/official-partners',
+  '/destinations', '/ghostgood', '/official-sources', '/official-partners',
   '/alerts/unsubscribe', '/employers/inbox', '/about', '/how-it-works', '/offers',
   '/pricing', '/cv-match', '/cv', '/job-market', '/blog',
   ...legalPageOrder.map((s) => `/${s}`),
 ]);
-const SPA_PREFIXES = ['/jobs/', '/companies/', '/destinations/', '/programs/', '/feedback/', '/brief/', '/admin/', '/u/', '/blog/'];
+const SPA_PREFIXES = ['/jobs/', '/companies/', '/destinations/', '/programs/', '/ghostgood/', '/brief/', '/admin/', '/u/', '/blog/'];
 
 export function isKnownAppPath(rawPath: string): boolean {
   const p = (`/${rawPath.replace(/^\/+/, '')}`).replace(/\/+$/, '') || '/';

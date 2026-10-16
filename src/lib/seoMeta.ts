@@ -54,12 +54,12 @@ export const SEO_META = {
     description: '', // built from live numbers
   },
   network: {
-    title: 'Recruiter Emails & Hiring Contacts From Live Job Ads',
+    title: 'Companies That Sponsor Visas — Contact Emails',
     description:
-      'Recruiter emails and contact people taken from live job ads, with the company and the role they hire for — plus the employers that sponsor visas, with live sponsorship rates.',
+      'Companies with live jobs that offer visa sponsorship, with their contact emails and how many jobs they have open on MadeVisa.',
   },
   feedback: {
-    title: 'Hiring Feedback — How Companies Really Respond to Applicants',
+    title: 'GhostGood — How Companies Really Respond to Applicants',
     description:
       'Share how your job application went — no reply, rejection, interview or offer. Private, reviewed, and it shows which companies really reply.',
   },

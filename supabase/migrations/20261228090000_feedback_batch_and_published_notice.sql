@@ -94,7 +94,7 @@ BEGIN
 
   INSERT INTO public.notifications (user_id, kind, title, body, link)
   VALUES (NEW.user_id, 'feedback_published', 'Your report on ' || company || ' is live',
-          'Thanks! It now counts in ' || company || '’s reply rate on MadeVisa.', '/feedback');
+          'Thanks! It now counts in ' || company || '’s reply rate on MadeVisa.', '/ghostgood');
 
   to_email := (SELECT email FROM auth.users WHERE id = NEW.user_id);
   IF coalesce(to_email, '') <> '' THEN
@@ -104,13 +104,13 @@ BEGIN
       || '<p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#475569">Applied somewhere else lately? Every report helps the next applicant decide where to spend their time.</p>';
     PERFORM public.mv_send_email(
       to_email, 'Your report on ' || company || ' is live',
-      public.mv_email_html('Your report on ' || company || ' now counts in its reply rate.', 'Hiring feedback',
+      public.mv_email_html('Your report on ' || company || ' now counts in its reply rate.', 'GhostGood',
         'Your report is live', 'Hi ' || mv_esc(coalesce(first, 'there')) || ', thanks for sharing how your application went.',
-        body, 'Share another company', 'https://madevisa.com/feedback?s=fbpub',
+        body, 'Share another company', 'https://madevisa.com/ghostgood?s=fbpub',
         'You get this because you shared an application experience on MadeVisa.', NULL, public.mv_unsub_url(NEW.user_id, 'all')),
       'Your report on ' || company || ' is live.' || E'\n\n'
         || 'It now counts in ' || company || '''s reply rate on MadeVisa, only as part of the total, never with your name.'
-        || E'\n\nShare another company: https://madevisa.com/feedback',
+        || E'\n\nShare another company: https://madevisa.com/ghostgood',
       'feedback_published', NEW.user_id, NULL, 'madevisa-fb-live-' || NEW.id);
   END IF;
   RETURN NEW;

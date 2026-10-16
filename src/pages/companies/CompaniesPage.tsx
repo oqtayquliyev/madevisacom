@@ -290,8 +290,8 @@ export function CompaniesPage({ go, onAuth }: Props) {
             onPick={(c) => { setSharePick(c); setShareOpen(true); }}
             footer={
               <a
-                href="/feedback"
-                onClick={(e) => { e.preventDefault(); nav('/feedback'); }}
+                href="/ghostgood"
+                onClick={(e) => { e.preventDefault(); nav('/ghostgood'); }}
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/90 underline decoration-white/40 underline-offset-4 hover:decoration-white"
               >
                 See what everyone reports · Hiring? Get your feedback link <ArrowRight className="h-3.5 w-3.5" />

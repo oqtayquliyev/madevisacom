@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Building2, ChevronDown, ChevronRight, Clock, HandHeart, MailX, MessageSquarePlus, MessagesSquare, Search, type LucideIcon } from 'lucide-react';
 import type { DirectoryCompany } from '@/lib/companies';
-import { GHOST_BAD_SRC, GHOST_GOOD_SRC, GhostMascot } from '@/components/companies/Ghost';
+import { GHOST_BAD_SRC, GHOST_GOOD_SRC, GHOST_SRC } from '@/components/companies/Ghost';
 
 /**
  * "Applied and heard nothing?" — invites people to share how an application
@@ -16,6 +16,7 @@ export function SharePromo({
   className = 'mb-8',
   bare = false,
   hero = false,
+  subtitle,
 }: {
   companies: DirectoryCompany[];
   onPick: (c: { id?: string | null; name: string; logo_url?: string | null } | null) => void;
@@ -27,6 +28,8 @@ export function SharePromo({
   bare?: boolean;
   /** Full-screen, search-first layout (the /feedback home): one long search bar in the middle. */
   hero?: boolean;
+  /** Hero only: second line under the title; the part after "?" is underlined in green. */
+  subtitle?: string;
 }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
@@ -78,26 +81,31 @@ export function SharePromo({
     return (
       <section className={`relative z-20 flex min-h-[calc(100svh-72px)] flex-col items-center justify-center px-4 pb-16 pt-10 text-center ${className}`}>
         <HeroBoard />
-        <GhostMascot size={104} className="mb-4 xl:hidden" />
         <p className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-ink-600 shadow-sm ring-1 ring-ink-200">
           <MessageSquarePlus className="h-3.5 w-3.5 text-[#1D4ED8]" /> 20 seconds · private
         </p>
-        <h1 className="relative z-10 mt-5 max-w-3xl text-[34px] font-extrabold leading-[1.08] tracking-tight text-ink-950 sm:text-[56px]">
-          {title.includes('?') ? (
-            <>
-              {title.slice(0, title.indexOf('?') + 1)}{' '}
-              <span className="relative inline-block whitespace-nowrap text-emerald-600">
-                {title.slice(title.indexOf('?') + 1).trim()}
-                <svg viewBox="0 0 300 14" preserveAspectRatio="none" className="absolute -bottom-2 left-[6%] h-3 w-[88%]" aria-hidden>
-                  <path d="M3 10 C 80 2, 220 2, 297 9" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
-                </svg>
-              </span>
-            </>
-          ) : (
-            title
-          )}
+        <h1 className="relative z-10 mt-5 max-w-4xl text-[36px] font-extrabold leading-[1.05] tracking-tight text-ink-950 sm:text-[60px]">
+          {title}
+          <img src={GHOST_SRC} alt="" aria-hidden className="ml-2 inline-block h-[0.9em] w-auto -translate-y-[0.08em] align-middle" />
         </h1>
-        <p className="relative z-10 mt-4 max-w-2xl text-[15px] leading-7 text-ink-500 sm:text-[17px]">{text}</p>
+        {subtitle && (
+          <p className="relative z-10 mt-4 max-w-3xl text-[24px] font-bold leading-tight tracking-tight text-ink-800 sm:text-[32px]">
+            {subtitle.includes('?') ? (
+              <>
+                {subtitle.slice(0, subtitle.indexOf('?') + 1)}{' '}
+                <span className="relative inline-block whitespace-nowrap text-emerald-600">
+                  {subtitle.slice(subtitle.indexOf('?') + 1).trim()}
+                  <svg viewBox="0 0 300 14" preserveAspectRatio="none" className="absolute -bottom-2 left-[4%] h-2.5 w-[92%]" aria-hidden>
+                    <path d="M3 10 C 80 2, 220 2, 297 9" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
+                  </svg>
+                </span>
+              </>
+            ) : (
+              subtitle
+            )}
+          </p>
+        )}
+        <p className="relative z-10 mt-5 max-w-2xl text-[15px] leading-7 text-ink-500 sm:text-[17px]">{text}</p>
 
         <div className="relative z-20 mt-9 w-full max-w-3xl text-left">
           <div
