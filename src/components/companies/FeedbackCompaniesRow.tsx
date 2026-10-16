@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Building2, CheckCircle2, ChevronRight, Clock, MessageSquarePlus, Plus, Search, Sparkles, Star, Timer, Warehouse, XCircle } from 'lucide-react';
+import { Building2, CheckCircle2, ChevronRight, Clock, MessageSquarePlus, Plus, Search, Sparkles, Star, Timer, XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { GHOST_BAD_SRC, GHOST_GOOD_SRC, GHOST_SRC } from '@/components/companies/Ghost';
 import { companyPath, type DirectoryCompany } from '@/lib/companies';
@@ -271,30 +271,28 @@ function ReplyScore({ score, pct, days, reports, people }: { score: number | nul
 }
 
 /** Made-up companies, clearly marked, so a first visitor sees what a score looks like. */
-type Example = { name: string; country: string; score: number; pct: number; days: number | null; icon: typeof Building2 };
+type Example = { name: string; tagline: string; score: number; pct: number; days: number | null; ghost: string };
 const EXAMPLES: Example[] = [
-  { name: 'Sunny Logistics GmbH', country: 'Germany', score: 92, pct: 88, days: 3, icon: Warehouse },
-  { name: 'Ghostly Corp Ltd', country: 'United Kingdom', score: 24, pct: 9, days: null, icon: Building2 },
+  { name: 'Sunny Replies Co.', tagline: 'Replies before you blink', score: 92, pct: 88, days: 3, ghost: GHOST_GOOD_SRC },
+  { name: 'Boo & Ghost Ltd', tagline: 'Seen… then silence', score: 24, pct: 9, days: null, ghost: GHOST_BAD_SRC },
 ];
 
 function ExampleCard({ e }: { e: Example }) {
-  const Icon = e.icon;
   return (
-    <article className={`${CARD} relative border border-dashed border-ink-300 bg-white/70`}>
-      <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-md bg-ink-900 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-white">
-        <Sparkles className="h-3 w-3" /> Example
-      </span>
-      <div className={`${HEAD} pr-20`}>
-        <span className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-xl bg-ink-50 text-ink-500 ring-1 ring-ink-200">
-          <Icon className="h-6 w-6" />
-        </span>
+    <article className={`${CARD} relative overflow-hidden border-2 border-dashed border-ink-300 bg-[repeating-linear-gradient(135deg,#ffffff_0px,#ffffff_14px,#f8fafc_14px,#f8fafc_28px)]`}>
+      {/* Corner ribbon: impossible to mistake for a real company. */}
+      <span className="absolute -right-9 top-4 rotate-45 bg-ink-900 px-10 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white shadow">Example</span>
+      <div className={`${HEAD} pr-14`}>
+        <img src={e.ghost} alt="" className="h-[52px] w-[52px] shrink-0" />
         <div className="min-w-0">
           <p className="line-clamp-2 text-[17px] font-bold leading-snug text-ink-950">{e.name}</p>
-          <p className="mt-0.5 truncate text-[13px] text-ink-500">{e.country}</p>
+          <p className="mt-0.5 line-clamp-2 text-[13px] italic leading-snug text-ink-500">“{e.tagline}”</p>
         </div>
       </div>
       <ReplyScore score={e.score} pct={e.pct} days={e.days} reports={MIN_REPORTS} people={FEEDBACK_MIN_PEOPLE} />
-      <p className="mt-3 h-5 text-[13px] text-ink-400">Not a real company</p>
+      <p className="mt-3 flex h-5 items-center gap-1.5 text-[13px] font-semibold text-ink-500">
+        <Sparkles className="h-3.5 w-3.5" /> Just an example, not a real company
+      </p>
     </article>
   );
 }

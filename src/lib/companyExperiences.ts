@@ -340,3 +340,50 @@ export async function fetchMyExperienceReports(limit = 6): Promise<MyExperienceR
   if (res.error) return [];
   return ((res.data ?? []) as unknown as MyExperienceReport[]).map((r) => ({ ...r, publisher: r.publisher ?? null }));
 }
+
+// ---------------------------------------------------------------------------
+// GhostGood monthly rankings (server-side, see 20261228120000_ghostgood_monthly_rankings.sql)
+// ---------------------------------------------------------------------------
+
+export type RankedCompany = {
+  publisher_id: string;
+  name: string;
+  logo_url: string | null;
+  country_code: string | null;
+  /** 0–100, confidence-adjusted; stars = score / 20. */
+  score: number;
+  stars: number;
+  /** People whose experience is scored (one per person). */
+  voices: number;
+  positive: number;
+  neutral: number;
+  negative: number;
+  /** Tracked applications with no update yet: shown, never scored as negative. */
+  unanswered: number;
+  /** Jobs the company published that month (cross-posts counted once). */
+  jobs: number;
+  /** Scored reports per 100 jobs published that month; null without jobs. */
+  per100: number | null;
+};
+
+export type GhostGoodRankings = {
+  month: string;
+  final: boolean;
+  method: string;
+  computed_at: string | null;
+  prior_mean: number;
+  companies_ranked: number;
+  companies_with_reports: number;
+  voices: number;
+  countries: string[];
+  best: RankedCompany[];
+  worst: RankedCompany[];
+  most: RankedCompany[];
+  months: string[];
+};
+
+export async function fetchGhostGoodRankings(month?: string | null, country?: string | null): Promise<GhostGoodRankings | null> {
+  const { data, error } = await supabase.rpc('ghostgood_rankings', { p_month: month || null, p_country: country || null });
+  if (error || !data) return null;
+  return data as GhostGoodRankings;
+}

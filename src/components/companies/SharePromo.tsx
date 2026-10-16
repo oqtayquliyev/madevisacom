@@ -46,14 +46,24 @@ export function SharePromo({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const quick = useMemo(
-    () =>
-      companies
-        .filter((c) => c.logo_url)
-        .sort((a, b) => b.active_jobs + b.active_programs - (a.active_jobs + a.active_programs))
-        .slice(0, perRow * 2),
-    [companies, perRow],
-  );
+  // Most open jobs first; one tile per brand (same logo, or the same name with a different
+  // country suffix — "Amazon.co.jp" / "Amazon", "Bosch-Gruppe Österreich" / "Bosch").
+  const quick = useMemo(() => {
+    const seenLogo = new Set<string>();
+    const seenBrand = new Set<string>();
+    const out: DirectoryCompany[] = [];
+    const sorted = companies.filter((c) => c.logo_url && c.active_jobs > 0).sort((a, b) => b.active_jobs - a.active_jobs);
+    for (const c of sorted) {
+      const logo = (c.logo_url ?? '').split('?')[0].toLowerCase();
+      const brand = brandKey(c.name);
+      if (seenLogo.has(logo) || (brand && seenBrand.has(brand))) continue;
+      seenLogo.add(logo);
+      if (brand) seenBrand.add(brand);
+      out.push(c);
+      if (out.length >= perRow * 2) break;
+    }
+    return out;
+  }, [companies, perRow]);
   const matches = useMemo(() => {
     const t = q.trim().toLowerCase();
     return (t ? companies.filter((c) => c.name.toLowerCase().includes(t)) : companies).slice(0, 8);
@@ -361,5 +371,18 @@ function Swirl({ className }: { className: string }) {
     <svg viewBox="0 0 60 40" className={`absolute h-8 w-12 ${className}`}>
       <path d="M4 34 C 14 6, 34 4, 30 20 C 27 32, 44 30, 56 12" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
     </svg>
+  );
+}
+
+/** "Amazon.co.jp" → "amazon", "Bosch-Gruppe Österreich" → "bosch", "Tesco Metro" → "tesco". */
+function brandKey(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\.(com|co|de|fr|jp|uk|nl|es|it|ca|au|in)(\.[a-z]{2})?\b/g, ' ')
+      .split(/[^a-z0-9]+/)
+      .find((w) => w.length > 1 && !['the', 'group', 'gruppe', 'inc', 'ltd', 'gmbh', 'llc', 'sa', 'ag', 'plc'].includes(w)) ?? ''
   );
 }

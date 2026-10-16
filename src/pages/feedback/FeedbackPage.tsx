@@ -22,6 +22,7 @@ import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 import { SharePromo } from '@/components/companies/SharePromo';
 import { ShareExperienceDialog } from '@/components/companies/ShareExperienceDialog';
 import { FeedbackCompaniesRow } from '@/components/companies/FeedbackCompaniesRow';
+import { GhostGoodRankings } from '@/components/companies/GhostGoodRankings';
 import { SoftCard, SoftPanel } from '@/components/charts/SoftCharts';
 import { companyPath, fetchCompaniesDirectory, fetchCompanyBySlug, type CompanyProfile, type DirectoryCompany } from '@/lib/companies';
 import {
@@ -135,6 +136,8 @@ export function FeedbackPage({ slug, go, onAuth }: Props) {
         {company && <CompanyNumbers company={company} summary={summary} onShare={() => setDialog({ pick: fixed })} />}
 
         {/* COMPANIES — your own reports first, then 5 at a time */}
+        {!slug && <GhostGoodRankings />}
+
         <div id="companies" className="scroll-mt-24" />
         <FeedbackCompaniesRow companies={rows} stats={stats} onShare={(pick) => setDialog({ pick })} refreshKey={refreshKey} />
 
@@ -266,6 +269,13 @@ function ForCompanies({ companies, initial, go }: { companies: DirectoryCompany[
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(initial ? { id: initial.id, name: initial.name } : null);
   const [copied, setCopied] = useState<string | null>(null);
+  // Closed by default; opens on click or from the "Get your company's feedback link" link (#for-companies).
+  const [expanded, setExpanded] = useState(() => typeof window !== 'undefined' && window.location.hash === '#for-companies');
+  useEffect(() => {
+    const onHash = () => window.location.hash === '#for-companies' && setExpanded(true);
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   useEffect(() => {
     if (initial) setPicked({ id: initial.id, name: initial.name });
   }, [initial]);
@@ -273,7 +283,7 @@ function ForCompanies({ companies, initial, go }: { companies: DirectoryCompany[
     const t = q.trim().toLowerCase();
     return (t ? companies.filter((c) => c.name.toLowerCase().includes(t)) : companies).slice(0, 8);
   }, [companies, q]);
-  const link = picked ? `${SITE}${feedbackPath(picked)}` : `${SITE}/feedback`;
+  const link = picked ? `${SITE}${feedbackPath(picked)}` : `${SITE}/ghostgood`;
   const email = picked
     ? `Thank you for applying to ${picked.name}. We'd value 20 seconds of your time: how did our hiring process feel? Share it privately here: ${link}`
     : `How did your job applications go? Share it privately in 20 seconds — it helps everyone see which companies reply: ${link}`;
@@ -288,17 +298,32 @@ function ForCompanies({ companies, initial, go }: { companies: DirectoryCompany[
   };
 
   return (
-    <section id="for-companies" className="scroll-mt-28 overflow-hidden rounded-xl border border-ink-200 bg-white">
-      <div className="grid lg:grid-cols-[1fr_1.1fr]">
-        <div className="bg-[#1D4ED8]/5 p-6 sm:p-8">
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-[#1D4ED8]/10 px-3 py-1 text-[12px] font-bold text-[#1D4ED8]">
-            <BadgeCheck className="h-3.5 w-3.5" /> For employers
+    <section id="for-companies" className="scroll-mt-28 overflow-hidden rounded-2xl border border-ink-200 bg-white">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        aria-controls="for-companies-panel"
+        className="flex w-full items-center gap-4 bg-[#1D4ED8]/5 p-5 text-left transition hover:bg-[#1D4ED8]/10 sm:p-6"
+      >
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#1D4ED8] text-white">
+          <BadgeCheck className="h-6 w-6" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[20px] font-bold leading-tight tracking-tight text-ink-950 sm:text-[24px]">Are you a company or employer?</span>
+          <span className="mt-1 block text-[14px] leading-6 text-ink-600 sm:text-[15px]">Manage your feedback: get your own link and watch your score. Free.</span>
+        </span>
+        <ChevronDown className={`h-5 w-5 shrink-0 text-ink-500 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+
+      <div id="for-companies-panel" className={`${expanded ? 'grid' : 'hidden'} border-t border-ink-100 lg:grid-cols-[1fr_1.1fr]`}>
+        <div className="min-w-0 bg-[#1D4ED8]/[0.03] p-5 sm:p-8">
+          <p className="text-[15px] leading-7 text-ink-600">
+            Add your link to rejection and “application received” emails. Applicants share in 20 seconds, and replying to them lifts your stars.
           </p>
-          <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight text-ink-950">Are you a company or employer?</h2>
-          <p className="mt-2 text-[16px] leading-7 text-ink-600">Manage your feedback: get your own link, add it to rejection and “application received” emails, and watch your score. Free — replying to applicants lifts your stars.</p>
         </div>
 
-        <div className="p-6 sm:p-8">
+        <div className="min-w-0 p-5 sm:p-8">
           <p className="text-[13px] font-bold text-ink-800">1. Find your company</p>
           <div className="relative mt-2">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
@@ -349,7 +374,7 @@ function ForCompanies({ companies, initial, go }: { companies: DirectoryCompany[
 
           <p className="mt-5 text-[13px] font-bold text-ink-800">2. Copy your link</p>
           <div className="mt-2 flex gap-2">
-            <code className="flex h-11 min-w-0 flex-1 items-center truncate rounded-lg bg-ink-50 px-3 text-[13px] text-ink-800">{link}</code>
+            <code className="block h-11 min-w-0 flex-1 truncate rounded-lg bg-ink-50 px-3 text-[13px] leading-[44px] text-ink-800">{link}</code>
             <button onClick={() => copy('link', link)} className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#1D4ED8] px-4 text-sm font-semibold text-white hover:bg-brand-800">
               {copied === 'link' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               {copied === 'link' ? 'Copied' : 'Copy'}
