@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { parseCv, type CvProfile } from '@/lib/cv/cvProfile';
 import { CV_MAX_CHARS, CV_MIME, cvExt, extractCvText, tidy } from '@/lib/cv/extract';
+import { extractCvPhoto } from '@/lib/cv/photo';
 
 export type StoredCv = {
   name: string;
@@ -24,6 +25,8 @@ export type StoredCv = {
   at: string;
   /** Account it belongs to; null while the visitor is a guest. */
   owner: string | null;
+  /** The photo on the CV, if it has one: a small square JPEG data URL. Kept in this browser only. */
+  photo?: string | null;
 };
 
 const KEY = 'mv:cv';
@@ -178,7 +181,7 @@ async function currentUserId(): Promise<string | null> {
   return data.session?.user.id ?? null;
 }
 
-async function saveText(text: string, name: string, size: number, file?: File): Promise<SaveResult> {
+async function saveText(text: string, name: string, size: number, file?: File, photo: string | null = null): Promise<SaveResult> {
   const clean = tidy(text);
   const words = clean.split(/\s+/).filter(Boolean).length;
   if (words < 60) return { ok: false, error: 'That’s too short to be a CV. Paste the whole thing: your roles with dates, education and skills.' };
@@ -186,7 +189,7 @@ async function saveText(text: string, name: string, size: number, file?: File): 
   const signals = [profile.has.email || profile.has.phone, profile.has.dates, profile.has.experience || profile.has.education, Object.keys(profile.skills).length >= 3, profile.titles.length > 0];
   if (signals.filter(Boolean).length < 2) return { ok: false, error: 'This doesn’t look like a CV — we found no roles, dates, education or skills in it. Check you picked the right file.' };
   const userId = await currentUserId();
-  const cv: StoredCv = { name, size, text: clean, profile, at: new Date().toISOString(), owner: userId };
+  const cv: StoredCv = { name, size, text: clean, profile, at: new Date().toISOString(), owner: userId, ...(photo ? { photo } : {}) };
   if (userId) {
     // Wait for the account's answer: the server allows 15 CV changes a day.
     const refused = await pushRemote(cv, userId, file, true);
@@ -202,9 +205,10 @@ async function saveText(text: string, name: string, size: number, file?: File): 
 
 /** Read a CV file, check it is one, keep it. */
 export async function saveCvFile(file: File): Promise<SaveResult> {
-  const res = await extractCvText(file);
+  // The text and the photo are read at the same time; a CV without a photo (or one we can't read) is fine.
+  const [res, photo] = await Promise.all([extractCvText(file), extractCvPhoto(file).catch(() => null)]);
   if (!res.ok) return res;
-  return saveText(res.text, file.name.slice(0, 200), file.size, file);
+  return saveText(res.text, file.name.slice(0, 200), file.size, file, photo);
 }
 
 /** Same, for text pasted in (no file on a phone, or a scanned PDF). */

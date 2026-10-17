@@ -16,6 +16,7 @@ import { ENCOURAGEMENT, SearchProgress, TopMatchesList } from '@/components/cv/T
 import { ProPlanCard } from '@/components/pro/ProPlanCard';
 import { CvInsights, CvMatchLocked, CvPersonCard } from '@/components/cv/CvInsights';
 import { GuestUnlock } from '@/components/cv/GuestUnlock';
+import { CvScoreCard } from '@/components/cv/CvScoreCard';
 import { useAuth } from '@/lib/auth';
 import { useMyPlan } from '@/lib/plans';
 import { usePersonalization } from '@/lib/personalization';
@@ -42,8 +43,8 @@ const STEPS: { icon: typeof Upload; title: string; text: string }[] = [
   { icon: ListChecks, title: 'Open your best matches', text: 'Highest score first: where each job is, what it pays if the ad says, whether you need a visa — and what your CV is missing.' },
 ];
 
-/** The search is quick; the waiting screen stays this long so it can be read. */
-const MIN_WAIT_MS = 2600;
+/** The search is quick; the waiting screen stays this long so the roles it found can be read one by one. */
+const MIN_WAIT_MS = 5200;
 
 /** A closed section that opens on a click — keeps the page short. */
 function More({ title, children, open = false }: { title: string; children: React.ReactNode; open?: boolean }) {
@@ -149,7 +150,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
           </>
         )}
 
-        {searching && <SearchProgress state={status === 'running' ? top : { stage: 'scoring', progress: 1 }} />}
+        {searching && <SearchProgress state={status === 'running' ? top : { stage: 'scoring', progress: 1, live: top.live }} cv={cv} name={profile?.full_name} />}
 
         {cv && !searching && status === 'error' && (
           <section className="mx-auto max-w-2xl rounded-3xl bg-white px-6 py-8 text-center ring-1 ring-ink-200">
@@ -178,6 +179,9 @@ export function CvMatchPage({ go, onAuth }: Props) {
             </button>
           </p>
         )}
+
+        {/* The end of the results: one score for the whole CV, and what to add. */}
+        {cv && !searching && result && result.items.length > 0 && status !== 'error' && (!session || !my.loading) && <CvScoreCard cv={cv} result={result} name={profile?.full_name} />}
 
         <div className="mx-auto max-w-3xl space-y-3">
           {p && paid && (

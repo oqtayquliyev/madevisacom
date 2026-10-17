@@ -69,7 +69,7 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
 
       {/* What's waiting: score, role, country, what's missing and the document. Company and title stay hidden. */}
       {preview.length
-        ? preview.map((m, i) => <PreviewCard key={m.id} m={m} best={i === 0} from={from} first={first} />)
+        ? preview.map((m, i) => <PreviewCard key={m.id} m={m} best={i === 0} from={from} first={first} delay={(i + 1) * 320} />)
         : [0, 1, 2].map((i) => (
             <div key={i} aria-hidden className="flex items-center gap-4 rounded-2xl bg-white p-4 ring-1 ring-ink-200 sm:p-5">
               <MatchRing score={null} size={56} pending />
@@ -83,14 +83,17 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
   );
 }
 
-function PreviewCard({ m, best, from, first }: { m: TopMatch; best: boolean; from: string | null; first: string }) {
+function PreviewCard({ m, best, from, first, delay = 0 }: { m: TopMatch; best: boolean; from: string | null; first: string; delay?: number }) {
   const role = m.role?.replace(/\s*\(other\)/i, '') || 'Matching';
   const place = m.country ?? (m.remote ? 'Remote' : null);
   const docReady = abroad(m, from);
   const missing = m.missing ?? [];
   const wanted = m.wanted ?? [];
   return (
-    <article className={`overflow-hidden rounded-2xl bg-white ${best ? 'ring-2 ring-brand-500 shadow-[0_0_0_4px_rgba(37,99,235,0.08)]' : 'ring-1 ring-ink-200'}`}>
+    <article
+      className={`animate-fade-up overflow-hidden rounded-2xl bg-white motion-reduce:animate-none ${best ? 'ring-2 ring-brand-500 shadow-[0_0_0_4px_rgba(37,99,235,0.08)]' : 'ring-1 ring-ink-200'}`}
+      style={{ animationDelay: `${delay}ms` }}
+    >
       {best && (
         <p className="flex items-center gap-1.5 bg-brand-600 px-4 py-2 text-[13px] font-bold text-white sm:px-5">
           <Sparkles className="h-4 w-4 shrink-0" aria-hidden />

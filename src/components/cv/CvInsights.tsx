@@ -55,6 +55,19 @@ const initials = (name: string) =>
     .map((w) => w[0]!.toUpperCase())
     .join('');
 
+/** The photo from the CV in a circle — or the initials when it has none. */
+export function CvAvatar({ cv, name, size = 56, className = '' }: { cv: StoredCv; name?: string | null; size?: number; className?: string }) {
+  const who = (name?.trim() || nameFromCv(cv.text) || 'CV').replace(/\s+/g, ' ');
+  if (cv.photo) {
+    return <img src={cv.photo} alt="" width={size} height={size} className={`shrink-0 rounded-full object-cover ring-2 ring-brand-100 ${className}`} style={{ width: size, height: size }} />;
+  }
+  return (
+    <span className={`grid shrink-0 place-items-center rounded-full bg-brand-50 font-bold text-brand-700 ring-2 ring-brand-100 ${className}`} style={{ width: size, height: size, fontSize: Math.round(size / 3.1) }}>
+      {initials(who)}
+    </span>
+  );
+}
+
 /** Name, occupation, place and the main facts from the CV — right after it is uploaded. */
 export function CvPersonCard({ cv, person }: { cv: StoredCv; person: Person }) {
   const p = cv.profile;
@@ -73,7 +86,7 @@ export function CvPersonCard({ cv, person }: { cv: StoredCv; person: Person }) {
 
   return (
     <div className="mx-auto flex max-w-xl items-start gap-4 rounded-2xl bg-white p-4 text-left text-ink-900 shadow-soft sm:p-5">
-      <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-brand-50 text-[18px] font-bold text-brand-700 ring-2 ring-brand-100">{initials(name)}</span>
+      <CvAvatar cv={cv} name={name} size={56} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-[20px] font-bold leading-tight tracking-tight text-ink-950">{name}</p>
         {occupation && (
@@ -260,7 +273,7 @@ export function CvMatchLocked({ result, guest, onAuth, from = null }: { result: 
   return (
     <section className="mx-auto max-w-2xl space-y-3">
       {best && (
-        <article className="overflow-hidden rounded-2xl bg-white ring-2 ring-brand-200">
+        <article className="animate-fade-up overflow-hidden rounded-2xl bg-white ring-2 ring-brand-200 motion-reduce:animate-none">
           <div className="flex items-center gap-4 p-4 sm:p-5">
             <MatchRing score={best.score} size={60} />
             <div className="min-w-0 flex-1">
@@ -282,8 +295,8 @@ export function CvMatchLocked({ result, guest, onAuth, from = null }: { result: 
         </article>
       )}
 
-      {open.map((m) => (
-        <article key={m.id} className="overflow-hidden rounded-2xl bg-white ring-1 ring-ink-200">
+      {open.map((m, i) => (
+        <article key={m.id} className="animate-fade-up overflow-hidden rounded-2xl bg-white ring-1 ring-ink-200 motion-reduce:animate-none" style={{ animationDelay: `${(i + 1) * 260}ms` }}>
           <a
             href={jobHref(m)}
             {...NEW_TAB}

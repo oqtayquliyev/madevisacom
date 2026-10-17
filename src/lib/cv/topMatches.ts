@@ -85,6 +85,16 @@ export type TopResult = {
 };
 
 export type Stage = 'jobs' | 'reading' | 'translating' | 'scoring';
+/** What the search has found so far — real numbers and real jobs, for the waiting screen. */
+export type LivePick = { role: string; country: string | null; cc: string | null };
+export type Live = {
+  /** Live jobs with a title like the CV's. */
+  found: number;
+  /** Ads being read and scored. */
+  reading: number;
+  /** One per kind of role and country among the ads being read, best first (at most 12). */
+  picks: LivePick[];
+};
 export type TopState = {
   status: 'idle' | 'running' | 'done' | 'error';
   stage: Stage | null;
@@ -92,6 +102,7 @@ export type TopState = {
   progress: number;
   result: TopResult | null;
   error: string | null;
+  live?: Live | null;
 };
 
 const KEY = 'mv:cvTop';
@@ -218,6 +229,21 @@ function choose(rows: Light[], p: CvProfile, n: number): Light[] {
   return out;
 }
 
+/** "UX/UI designer role in the Netherlands": one line per kind of role and country, for the waiting screen. */
+function livePicks(rows: Light[]): LivePick[] {
+  const seen = new Set<string>();
+  const out: LivePick[] = [];
+  for (const r of rows) {
+    const role = (classifyJob(r.title, r.job_function)?.label ?? r.title).replace(/\s*\(other\)/i, '').trim().slice(0, 48);
+    const key = `${role.toLowerCase()}|${r.cc ?? ''}`;
+    if (!role || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ role, country: r.country, cc: r.cc });
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
 // --- The search ------------------------------------------------------------------
 
 const isTimeout = (msg: string) => /statement timeout|canceling statement|57014|timed? ?out/i.test(msg);
@@ -245,7 +271,7 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
   // A job page only searches the light way (the server's shortlist); the full job list is too much to load there.
   if (light && rpcMissing) return;
   runningFor = cv.at;
-  set({ status: 'running', stage: 'jobs', progress: 0.05, error: null });
+  set({ status: 'running', stage: 'jobs', progress: 0.05, error: null, live: null });
   try {
     // The CV in English (translated for accounts when it is in another language).
     const me: EnglishCv = await cvInEnglish(cv, userId);
@@ -272,7 +298,7 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
     if (!pool) pool = await localShortlist(words, 160);
     if (runningFor !== cv.at) return;
     const chosen = choose(pool, me.profile, READ);
-    set({ stage: 'reading', progress: 0.2 });
+    set({ stage: 'reading', progress: 0.2, live: { found: pool.length, reading: chosen.length, picks: livePicks(chosen) } });
 
     // The ads themselves, twelve at a time — as the job page shows them (the cleaned
     // text saved by the job-facts detector), so the score here and there is the same.
