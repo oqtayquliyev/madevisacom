@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Briefcase, Mail } from 'lucide-react';
+import { Briefcase, ChevronDown, Mail } from 'lucide-react';
 import { QuickSignup } from '@/components/cv/QuickSignup';
 import { CATEGORIES_BY_GROUP } from '@/lib/jobTaxonomy';
 import { rememberAlertWish } from '@/lib/jobAlerts';
@@ -14,12 +14,33 @@ const clean = (label: string) => label.replace(/\s*\(other\)/i, '').trim();
 export function NoCvSignup() {
   const [field, setField] = useState('');
   const [step, setStep] = useState<'email' | 'code'>('email');
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="mx-auto flex w-full max-w-xl items-center gap-3 rounded-2xl bg-white/10 px-5 py-4 text-left text-white ring-1 ring-white/25 transition hover:bg-white/15"
+      >
+        <Mail className="h-5 w-5 shrink-0 text-white/80" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-bold">You don’t have a CV / Resume? No worries!</span>
+          <span className="mt-0.5 block text-[13px] text-white/75">Get sponsored jobs abroad by email</span>
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[13px] font-bold text-brand-700">
+          Start <ChevronDown className="h-4 w-4" aria-hidden />
+        </span>
+      </button>
+    );
+  }
+
   return (
-    <section className="mx-auto max-w-xl rounded-3xl bg-white px-5 py-6 text-left text-ink-900 shadow-soft ring-1 ring-ink-200 sm:px-7">
+    <section className="mx-auto max-w-xl animate-fade-up rounded-3xl bg-white px-5 py-6 text-left text-ink-900 shadow-soft ring-1 ring-ink-200 motion-reduce:animate-none sm:px-7">
       <h2 className="flex items-center gap-2 text-[19px] font-bold leading-tight tracking-tight text-ink-950">
         <Mail className="h-5 w-5 text-brand-600" aria-hidden />
-        {step === 'code' ? 'Write your code to get your jobs abroad' : 'No CV / Resume? Get jobs abroad by email'}
+        {step === 'code' ? 'Write your code to get your jobs abroad' : 'No CV / Resume? No worries!'}
       </h2>
+      {step === 'email' && <p className="mt-1 text-[14px] text-ink-600">Tell us your field — we’ll send you sponsored jobs abroad.</p>}
 
       {step === 'email' && (
         <label className="mt-4 block">

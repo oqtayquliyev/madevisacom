@@ -171,7 +171,7 @@ export function CvUpload({ tone = 'card', compact = false, onDone, allowRemove =
           {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
         </span>
         <span className="min-w-0">
-          <span className={`block font-bold ${compact ? 'text-[14px]' : 'text-[16px]'}`}>{busy ? 'Reading your CV…' : 'Upload your CV'}</span>
+          <span className={`block font-bold ${compact ? 'text-[14px]' : 'text-[16px]'}`}>{busy ? 'Reading your CV…' : 'Upload your CV / Resume'}</span>
           <span className={`mt-0.5 block text-[13px] ${light ? 'text-white/75' : 'text-ink-500'}`}>PDF or Word, up to 5 MB. Drop it here or tap to choose.</span>
         </span>
       </button>

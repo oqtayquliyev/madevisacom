@@ -142,12 +142,22 @@ export function CvMatchPage({ go, onAuth }: Props) {
               <CvPersonCard cv={cv} person={{ fullName: profile?.full_name, occupation: profile?.occupation, countryCode: visitor.currentLocation ?? null }} />
             </div>
           )}
-          <div className="mx-auto mt-4 max-w-xl text-left">
-            <CvUpload tone="light" allowRemove />
-          </div>
-          {!focus && <p className="mt-2 text-[12px] text-white/65">Read on your device; sent to an employer only when you ask.</p>}
+          {cv ? (
+            <>
+              <div className="mx-auto mt-4 max-w-xl text-left">
+                <CvUpload tone="light" allowRemove />
+              </div>
+              {!focus && <p className="mt-2 text-[12px] text-white/65">Read on your device; sent to an employer only when you ask.</p>}
+            </>
+          ) : (
+            // No CV yet: the upload in a white box — the one thing to do on this page.
+            <div className="mx-auto mt-6 max-w-xl rounded-3xl bg-white p-5 text-left text-ink-900 shadow-soft sm:p-6">
+              <CvUpload allowRemove />
+              <p className="mt-2 text-[12px] text-ink-500">Read on your device; sent to an employer only when you ask.</p>
+            </div>
+          )}
           {!cv && cvReady && !session && (
-            <div className="mt-6">
+            <div className="mt-3">
               <NoCvSignup />
             </div>
           )}
