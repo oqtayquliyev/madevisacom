@@ -113,7 +113,7 @@ export function CvScoreCard({ cv, result, locked = false }: { cv: StoredCv; resu
                   <Shapes rows={['92%', '70%', '84%', '58%', '76%']} />
                   <div className="absolute inset-0 grid place-items-center bg-white/40 p-3">
                     <button onClick={unlock} className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-4 py-2 text-[13px] font-bold text-white shadow-sm hover:bg-brand-700">
-                      <Lock className="h-3.5 w-3.5" aria-hidden /> See all {total} fixes — get your code
+                      <Lock className="h-3.5 w-3.5" aria-hidden /> See all {total} fixes — approve your email
                     </button>
                   </div>
                 </div>

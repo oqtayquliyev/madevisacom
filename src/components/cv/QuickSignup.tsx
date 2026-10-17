@@ -20,7 +20,7 @@ function friendly(message: string): string {
 
 /**
  * Quick sign-up without feeling like one: the email from the visitor's CV is already filled in,
- * "Get my code", then the 6-digit code. The code signs them in (a free account is made the first
+ * "Approve your email", then the 6-digit code. The code signs them in (a free account is made the first
  * time) and the CV from this browser is attached to it. Used on /cv-match and on job pages.
  */
 /** The webmail for an address, so "Open Gmail" takes them straight to the code. */
@@ -40,7 +40,7 @@ export function QuickSignup({
   onStep,
   back = '/cv-match',
   beforeSend,
-  sendLabel = 'Get my code',
+  sendLabel = 'Approve your email',
 }: {
   cv?: StoredCv | null;
   onStep?: (step: 'email' | 'code') => void;

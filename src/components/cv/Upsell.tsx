@@ -100,7 +100,7 @@ export function AutoApplyEstimate({ jobs, guest, onGuest }: { jobs: number; gues
           }}
           className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-[15px] font-bold text-ink-950 hover:bg-brand-50"
         >
-          {guest ? 'Get my code first' : `Start Pro · ${priceLabel('pro')}`} <ArrowRight className="h-4 w-4" aria-hidden />
+          {guest ? 'Approve your email first' : `Start Pro · ${priceLabel('pro')}`} <ArrowRight className="h-4 w-4" aria-hidden />
         </button>
         {guest && <span className="text-[13px] text-white/70">Pro · {priceLabel('pro')}</span>}
       </div>

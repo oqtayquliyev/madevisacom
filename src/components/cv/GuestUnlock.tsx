@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Check, FileCheck2 } from 'lucide-react';
+import { Check, FileCheck2, Stamp } from 'lucide-react';
 import { QuickSignup } from '@/components/cv/QuickSignup';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CvAvatar, nameFromCv } from '@/components/cv/CvInsights';
 import { ExampleJourney } from '@/components/cv/ExampleJourney';
 import { FlagStack, countriesOf } from '@/components/cv/Upsell';
 import { Num, useFromCountry } from '@/components/cv/DocReady';
-import { countryName } from '@/lib/visaFit';
+import { countryName, visaFitFor } from '@/lib/visaFit';
+import { usePersonalization } from '@/lib/personalization';
 import type { StoredCv } from '@/lib/cv/store';
 import type { TopResult } from '@/lib/cv/topMatches';
 
@@ -29,9 +30,18 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
   const rest = countries.length - shown.length;
   const fromName = from ? countryName(from) ?? from : null;
   const local = items.length - countries.reduce((a, c) => a + c.n, 0);
+  // The visa the destination's page gives for this person's passport (their country when no passport is set).
+  const { profile: visitor } = usePersonalization();
+  const passport = (visitor.citizenship ?? visitor.currentLocation ?? '').toUpperCase() || null;
+  const visaFor = (cc: string): { free: boolean; label: string } | null => {
+    if (!passport) return null;
+    const fit = visaFitFor(cc, passport);
+    if (!fit) return { free: true, label: '' };
+    return fit.kind === 'permit' ? { free: false, label: fit.label.replace(/\s\+\d+$/, '') } : null;
+  };
 
   return (
-    <section className="mx-auto max-w-2xl">
+    <section className="mx-auto max-w-2xl space-y-3">
       <div className="animate-fade-up rounded-3xl bg-white px-5 py-6 shadow-soft ring-2 ring-brand-200 motion-reduce:animate-none sm:px-8 sm:py-7">
         <div className="flex items-center gap-3.5">
           <CvAvatar cv={cv} size={52} />
@@ -40,7 +50,7 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
               <>Write your code{first ? `, ${first}` : ''} — start your career abroad</>
             ) : countries.length ? (
               <>
-                {first ? `${first}, you` : 'You'} have {countries.length === 1 ? 'a route' : 'routes'} to <Num className="text-[28px] sm:text-[32px]">{countries.length}</Num> {countries.length === 1 ? 'country' : 'countries'}
+                {first ? `${first}, your` : 'Your'} CV opens doors in <Num className="text-[28px] sm:text-[32px]">{countries.length}</Num> {countries.length === 1 ? 'country' : 'countries'}
               </>
             ) : (
               <>
@@ -50,49 +60,75 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
           </h2>
         </div>
 
-        {step === 'code' && countries.length > 0 && (
-          <p className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-[15px] font-semibold text-emerald-900 ring-1 ring-emerald-100">
-            {from && <CircleFlag countryCode={from} size={22} label={fromName ?? from} />}
-            {from && <span aria-hidden>→</span>}
-            <FlagStack countries={countries} max={6} size={22} />
-            <span>Your documents are ready</span>
+        {step === 'email' && countries.length > 0 && (
+          <p className="mt-3 text-[15px] leading-6 text-ink-700">
+            For each one we’ve prepared your sponsorship document and checked the visa you’d need. Have a look — MadeVisa takes care of the paperwork side with you.
           </p>
         )}
 
+        {step === 'code' && countries.length > 0 && (
+          <div className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-100">
+            <p className="flex flex-nowrap items-center gap-2 overflow-hidden">
+              {from && <CircleFlag countryCode={from} size={22} label={fromName ?? from} />}
+              {from && (
+                <span aria-hidden className="text-emerald-700">
+                  →
+                </span>
+              )}
+              <FlagStack countries={countries} max={5} size={22} />
+            </p>
+            <p className="mt-1.5 text-[15px] font-semibold text-emerald-900">Your documents are ready and waiting.</p>
+          </div>
+        )}
+
         {step === 'email' && shown.length > 0 && (
-          <ul className="mt-5 space-y-2.5">
-            {shown.map((c, i) => (
-              <li
-                key={c.cc}
-                className="animate-fade-up rounded-2xl bg-ink-50 px-4 py-3 motion-reduce:animate-none"
-                style={{ animationDelay: `${150 + i * 140}ms` }}
-              >
-                <p className="flex items-center gap-2 text-[16px] font-bold text-ink-950">
-                  {from && <CircleFlag countryCode={from} size={20} label={fromName ?? from} />}
-                  {from && (
-                    <span aria-hidden className="text-ink-400">
-                      →
+          <ul className="mt-4 space-y-2.5">
+            {shown.map((c, i) => {
+              const visa = visaFor(c.cc);
+              return (
+                <li
+                  key={c.cc}
+                  className="animate-fade-up rounded-2xl bg-ink-50 px-4 py-3 motion-reduce:animate-none"
+                  style={{ animationDelay: `${150 + i * 140}ms` }}
+                >
+                  <p className="flex flex-nowrap items-center gap-2 text-[16px] font-bold text-ink-950">
+                    {from && <CircleFlag countryCode={from} size={20} label={fromName ?? from} />}
+                    {from && (
+                      <span aria-hidden className="shrink-0 text-ink-400">
+                        →
+                      </span>
+                    )}
+                    <CircleFlag countryCode={c.cc} size={20} label={c.name} />
+                    <span className="truncate">{c.name}</span>
+                  </p>
+                  <p className="mt-2 flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[12.5px] font-bold text-emerald-800">
+                      <FileCheck2 className="h-3.5 w-3.5" aria-hidden /> Sponsorship document ready
                     </span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2.5 py-1 text-[12.5px] font-bold text-brand-800">
+                      <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden /> {c.n} {c.n === 1 ? 'job fits' : 'jobs fit'} you · up to {best(c.cc)}%
+                    </span>
+                  </p>
+                  {visa && (
+                    <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-ink-700">
+                      <Stamp className="h-3.5 w-3.5 shrink-0 text-ink-400" aria-hidden />
+                      {visa.free ? (
+                        <span>No visa needed for you</span>
+                      ) : (
+                        <span>
+                          Visa you’d need: <b className="font-semibold text-ink-950">{visa.label}</b>
+                        </span>
+                      )}
+                    </p>
                   )}
-                  <CircleFlag countryCode={c.cc} size={20} label={c.name} />
-                  <span>{c.name}</span>
-                </p>
-                <p className="mt-2 flex flex-wrap gap-1.5">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[12.5px] font-bold text-emerald-800">
-                    <FileCheck2 className="h-3.5 w-3.5" aria-hidden /> Sponsorship document ready
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2.5 py-1 text-[12.5px] font-bold text-brand-800">
-                    <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden /> You match {c.n} {c.n === 1 ? 'job' : 'jobs'}
-                  </span>
-                  <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[12.5px] font-bold text-amber-900">Up to {best(c.cc)}% match</span>
-                </p>
-              </li>
-            ))}
+                </li>
+              );
+            })}
             {(rest > 0 || local > 0) && (
               <li className="px-1 text-[14px] font-semibold text-ink-600">
                 {rest > 0 && (
                   <>
-                    + <Num className="text-[15px]">{rest}</Num> more {rest === 1 ? 'country' : 'countries'}
+                    + <Num className="text-[15px]">{rest}</Num> more {rest === 1 ? 'country' : 'countries'} waiting for you
                   </>
                 )}
                 {rest > 0 && local > 0 && ' · '}
@@ -109,9 +145,9 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
         <div className="mt-2">
           <QuickSignup cv={cv} onStep={setStep} />
         </div>
-
-        <ExampleJourney className="mt-5 border-t border-ink-100 pt-4" />
       </div>
+
+      <ExampleJourney rotate boxed />
     </section>
   );
 }
