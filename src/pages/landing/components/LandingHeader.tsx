@@ -199,6 +199,21 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             })}
             <div className="my-1 h-px bg-ink-100 md:hidden" />
 
+            {!profile && (
+              <a
+                href="/submit-job"
+                onClick={(event) =>
+                  handleNavClick(event, () => {
+                    go("submit-job" as View);
+                    setOpenMenu(false);
+                  })
+                }
+                className="mx-3.5 my-1 block rounded-md border border-[#2563EB] px-3.5 py-2 text-center text-[14px] font-semibold text-[#2563EB] hover:bg-brand-50 sm:hidden"
+              >
+                Post a Job
+              </a>
+            )}
+
             <div className="flex items-center gap-1.5 px-3.5 py-1 text-xs text-ink-400 md:hidden">
               <GraduationCap className="h-3.5 w-3.5" />
               <Briefcase className="h-3.5 w-3.5" />
@@ -208,7 +223,22 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
 
           <div className="flex items-center gap-2.5">
             {!profile && (
-              // Guests get one clear action. It opens sign-in, which links on
+              // Employers: post a job (outlined, the quieter of the two).
+              <a
+                href="/submit-job"
+                onClick={(event) =>
+                  handleNavClick(event, () => {
+                    go("submit-job" as View);
+                    setOpenMenu(false);
+                  })
+                }
+                className="hidden whitespace-nowrap rounded-md border border-[#2563EB] bg-white px-3.5 py-[7px] text-[14px] font-semibold text-[#2563EB] transition-colors hover:bg-brand-50 sm:block sm:px-5 sm:py-[9px] sm:text-[15px]"
+              >
+                Post a Job
+              </a>
+            )}
+            {!profile && (
+              // Job-seekers: the main action. It opens sign-in, which links on
               // to "Create account" for people who don't have one yet.
               <a
                 href="/login"
@@ -217,7 +247,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                 }
                 className="block whitespace-nowrap rounded-md bg-[#2563EB] px-3.5 py-2 text-[14px] font-semibold text-white transition-colors hover:bg-brand-700 sm:px-5 sm:py-2.5 sm:text-[15px]"
               >
-                Get started
+                Start your Career
               </a>
             )}
 

@@ -10,6 +10,7 @@ import { skillName } from '@/lib/cv/skills';
 import { allCountries } from '@/data/allCountries';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { MatchRing } from '@/components/cv/MatchBits';
+import { DocReadyTitle, SendWithCvNote, VisaRouteLine } from '@/components/cv/DocReady';
 import { checkoutHref, trackBilling } from '@/lib/billing';
 import { priceLabel } from '@/lib/plans';
 import { nav } from '@/lib/pageLayout';
@@ -218,29 +219,29 @@ export function CvInsights({ result }: { result: TopResult }) {
   );
 }
 
-/** "Sponsorship document from 🇦🇿 to 🇩🇪 ready" — when the job is in another country than the seeker's. */
+/** "Your sponsorship document from 🇦🇿 to 🇩🇪 is ready" + the visa route (Starter) — when the job is in another country than the seeker's. */
 function DocLine({ from, m }: { from: string | null; m: TopMatch }) {
   if (!m.cc || (from && from.toUpperCase() === m.cc.toUpperCase())) return null;
   const href = `/brief/new?job=${m.id}&country=${m.cc.toUpperCase()}`;
   return (
-    <a
-      href={href}
-      onClick={(e) => {
-        e.preventDefault();
-        nav(href);
-      }}
-      className="flex items-center gap-2 border-t border-ink-100 bg-emerald-50/60 px-4 py-2.5 text-[13px] font-semibold text-emerald-900 hover:bg-emerald-50"
-    >
-      <FileCheck2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
-      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-        Sponsorship document from
-        {from ? <CircleFlag countryCode={from} size={16} label={from} /> : <span>you</span>}
-        to
-        <CircleFlag countryCode={m.cc} size={16} label={m.country ?? m.cc} />
-        ready
-      </span>
-      <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
-    </a>
+    <div className="border-t border-ink-100 bg-emerald-50/60 px-4 py-2.5">
+      <a
+        href={href}
+        onClick={(e) => {
+          e.preventDefault();
+          nav(href);
+        }}
+        className="flex items-center gap-2 text-[13px] font-semibold text-emerald-900 hover:underline"
+      >
+        <FileCheck2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+        <DocReadyTitle from={from ? from.toUpperCase() : null} to={m.cc.toUpperCase()} className="min-w-0 flex-1" />
+        <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+      </a>
+      <div className="mt-1 pl-6">
+        <VisaRouteLine dest={m.cc} source="cv_match_visa_route" />
+        <SendWithCvNote company={m.company} className="mt-0.5" />
+      </div>
+    </div>
   );
 }
 

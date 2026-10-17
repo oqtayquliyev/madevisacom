@@ -333,7 +333,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // Taken down from the company's careers page: shown greyed for 24 h, no applying.
   const closed = Boolean(job.closed);
   const closedAgo = job.closedAt ? formatRelativeTime(job.closedAt, '').toLowerCase() : null;
-  const docFor = offerOk && raw ? { jobId: raw.id, country: offerCountry, visaOffered: visa === 'offered' } : null;
+  const docFor = offerOk && raw ? { jobId: raw.id, country: offerCountry, dest: offerEl?.ok && !offerEl.picked ? offerEl.code : null, visaOffered: visa === 'offered' } : null;
 
   const applyButton = (extra = '') =>
     closed ? (
@@ -518,7 +518,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       <main className="mx-auto flex max-w-4xl flex-col px-5 py-8 sm:px-8 sm:py-10 md:block">
         {matchJob && !closed && (
           <div className="mb-5 md:-mt-4 md:mb-6">
-            <MatchPanel match={match} jobTitle={job.title} company={job.company} doc={docFor} onAuth={onAuth} />
+            <MatchPanel match={match} jobId={matchKey} jobTitle={job.title} company={job.company} doc={docFor} onAuth={onAuth} />
           </div>
         )}
         {raw && !closed && <SaveJobButton jobId={raw.id} onAuth={onAuth} className="mb-5" />}

@@ -14,13 +14,16 @@ import { priceLabel, useMyPlan } from '@/lib/plans';
 import { QuickSignup } from '@/components/cv/QuickSignup';
 import { noteMilestone } from '@/lib/emailAttribution';
 import { checkoutHref, trackBilling } from '@/lib/billing';
+import { previewScore } from '@/lib/cv/topMatches';
 
 type Props = {
   match: JobMatch;
+  /** This job's id: a score /cv-match already showed for it is shown here too. */
+  jobId?: string | null;
   jobTitle: string;
   company: string;
   /** Sponsorship document for this job: shown as part of the application when it applies. */
-  doc?: { jobId: string; country?: string | null; visaOffered: boolean } | null;
+  doc?: { jobId: string; country?: string | null; dest?: string | null; visaOffered: boolean } | null;
   closed?: boolean;
   onAuth?: (p: 'login' | 'register') => void;
 };
@@ -32,11 +35,13 @@ type Props = {
  * Below it, the application as a checklist — where the sponsorship
  * document shows up as the missing piece.
  */
-export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAuth }: Props) {
+export function MatchPanel({ match, jobId = null, jobTitle, company, doc, closed = false, onAuth }: Props) {
   const { session } = useAuth();
   const { plan, isPaid, loading: planLoading } = useMyPlan();
   const { cv, result, busy, unlocked, full, quota } = match;
   const [open, setOpen] = useState<string | null>(null);
+  // Free plan: a job among the matches /cv-match showed with their score keeps that same score here (details stay in Starter).
+  const shown = previewScore(cv, jobId ?? doc?.jobId ?? null);
   // A paying member seeing the full report has used the plan (refund terms). The server only counts paying members.
   useEffect(() => {
     if (isPaid && cv && result) noteMilestone('paid_feature_used');
@@ -77,12 +82,16 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
       return (
         <section id="cv-match" aria-labelledby="cv-match-title" className="scroll-mt-24 rounded-2xl border border-ink-200 bg-white p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <span aria-hidden className="pointer-events-none select-none blur-[4px]">
-              <MatchRing score={82} size={72} />
-            </span>
+            {shown != null ? (
+              <MatchRing score={shown} size={72} />
+            ) : (
+              <span aria-hidden className="pointer-events-none select-none blur-[4px]">
+                <MatchRing score={82} size={72} />
+              </span>
+            )}
             <div className="min-w-0 flex-1">
               <h2 id="cv-match-title" className="flex items-center gap-2 text-[18px] font-bold leading-tight text-ink-950">
-                <Lock className="h-4 w-4 text-brand-700" /> Your match with this job is ready
+                {shown != null ? <>Your match with this job: {shown}%</> : <><Lock className="h-4 w-4 text-brand-700" /> Your match with this job is ready</>}
               </h2>
               <p className="mt-1 text-[13px] leading-5 text-ink-600">Get a code by email to save your CV and see how it fits {company}. No password, takes a minute.</p>
               <div className="mt-1">
@@ -101,15 +110,23 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
     return (
       <section id="cv-match" aria-labelledby="cv-match-title" className="scroll-mt-24 rounded-2xl border border-ink-200 bg-white p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <span aria-hidden className="pointer-events-none select-none blur-[4px]">
-            <MatchRing score={82} size={72} />
-          </span>
+          {shown != null ? (
+            <MatchRing score={shown} size={72} />
+          ) : (
+            <span aria-hidden className="pointer-events-none select-none blur-[4px]">
+              <MatchRing score={82} size={72} />
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             <h2 id="cv-match-title" className="flex items-center gap-2 text-[18px] font-bold leading-tight text-ink-950">
-              <Lock className="h-4 w-4 text-brand-700" /> Your match with this job
+              {shown != null ? <>Your match with this job: {shown}%</> : <><Lock className="h-4 w-4 text-brand-700" /> Your match with this job</>}
             </h2>
             <p className="mt-1 text-[13px] leading-5 text-ink-600">
-              Your score, the skills {company} asks for that {cv.name} doesn’t show, and what to change before you apply: <b className="text-ink-900">{priceLabel('starter')}</b> with Starter.
+              {shown != null ? (
+                <>The skills {company} asks for that {cv.name} doesn’t show, and what to change before you apply: <b className="text-ink-900">{priceLabel('starter')}</b> with Starter.</>
+              ) : (
+                <>Your score, the skills {company} asks for that {cv.name} doesn’t show, and what to change before you apply: <b className="text-ink-900">{priceLabel('starter')}</b> with Starter.</>
+              )}
             </p>
           </div>
           <button
@@ -119,12 +136,12 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
             }}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-brand-600 px-6 py-3 text-[15px] font-bold text-white shadow-sm hover:bg-brand-700"
           >
-            <Sparkles className="h-4 w-4" /> Unlock with Starter
+            <Sparkles className="h-4 w-4" /> {shown != null ? 'See what’s missing' : 'Unlock with Starter'}
           </button>
         </div>
         {doc && (
           <div className="mt-4">
-            <SponsorDocRow jobId={doc.jobId} company={company} country={doc.country} visaOffered={doc.visaOffered} onAuth={onAuth} />
+            <SponsorDocRow jobId={doc.jobId} company={company} country={doc.country} dest={doc.dest} visaOffered={doc.visaOffered} onAuth={onAuth} />
           </div>
         )}
       </section>
@@ -322,7 +339,7 @@ export function MatchPanel({ match, jobTitle, company, doc, closed = false, onAu
             text={`${cv.name} · ${cv.profile.words} words. You send your own file on ${company}’s site; MadeVisa never passes it on.`}
             action={<CvReplaceButton />}
           />
-          {doc && <SponsorDocRow jobId={doc.jobId} company={company} country={doc.country} visaOffered={doc.visaOffered} onAuth={onAuth} />}
+          {doc && <SponsorDocRow jobId={doc.jobId} company={company} country={doc.country} dest={doc.dest} visaOffered={doc.visaOffered} onAuth={onAuth} />}
         </div>
       </div>
     </section>

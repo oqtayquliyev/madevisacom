@@ -49,7 +49,7 @@ type Props = {
   company: string;
   match: JobMatch;
   /** Set when a sponsorship document makes sense for this job (not a local job). */
-  doc?: { jobId: string; country?: string | null; visaOffered: boolean } | null;
+  doc?: { jobId: string; country?: string | null; dest?: string | null; visaOffered: boolean } | null;
   /** True once Apply was pressed on this page. */
   armed: boolean;
   onAuth?: (p: 'login' | 'register') => void;
@@ -125,7 +125,7 @@ export function ApplySheet({ jobKey, company, match, doc, armed, onAuth }: Props
             }
           />
         )}
-        {doc && <SponsorDocRow compact jobId={doc.jobId} company={company} country={doc.country} visaOffered={doc.visaOffered} onAuth={onAuth} />}
+        {doc && <SponsorDocRow compact jobId={doc.jobId} company={company} country={doc.country} dest={doc.dest} visaOffered={doc.visaOffered} onAuth={onAuth} />}
       </div>
 
       <div className="mt-2 flex justify-end">

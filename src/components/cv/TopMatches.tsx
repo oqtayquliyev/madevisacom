@@ -17,6 +17,7 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
 import { MatchRing, toneFor } from '@/components/cv/MatchBits';
+import { DocReadyTitle, SendWithCvNote, useFromCountry, VisaRouteLine } from '@/components/cv/DocReady';
 import { FREE_DAILY_CHECKS } from '@/lib/pricing';
 
 // The pieces that show "the jobs you match most":
@@ -266,6 +267,7 @@ function MissingLine({ m, open, guest, onAuth }: { m: TopMatch; open: boolean; g
 
 /** One match: logo, title, place, pay, score, the skills the CV is missing — and one line for the document when the job is abroad. */
 function MatchCard({ m, place, doc, missingOpen, guest, onAuth }: { m: TopMatch; place: Place; doc: DocAction; missingOpen: boolean; guest: boolean; onAuth?: OnAuth }) {
+  const from = useFromCountry();
   const href = hrefOf(m);
   const tone = toneFor(m.score);
   return (
@@ -306,14 +308,20 @@ function MatchCard({ m, place, doc, missingOpen, guest, onAuth }: { m: TopMatch;
       <MissingLine m={m} open={missingOpen} guest={guest} onAuth={onAuth} />
 
       {place.doc && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-ink-100 bg-brand-50/50 px-4 py-2.5 sm:px-5">
-          <p className="min-w-0 flex-1 basis-44 text-[13px] font-semibold leading-5 text-ink-900">
-            <FileSignature className="mr-1 inline h-3.5 w-3.5 -translate-y-px text-brand-700" />
-            {doc.made.has(m.id) ? 'Sponsorship document saved' : 'Sponsorship document ready'}
-          </p>
-          <button onClick={() => doc.go(m)} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-bold text-brand-700 ring-1 ring-brand-200 hover:bg-white">
-            <Download className="h-3.5 w-3.5" /> {docLabel(m, doc)}
-          </button>
+        <div className="border-t border-ink-100 bg-brand-50/50 px-4 py-2.5 sm:px-5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <p className="flex min-w-0 flex-1 basis-44 items-start gap-1.5 text-[13px] font-semibold leading-5 text-ink-900">
+              <FileSignature className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-700" />
+              <DocReadyTitle from={from} to={m.cc ? m.cc.toUpperCase() : null} />
+            </p>
+            <button onClick={() => doc.go(m)} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-bold text-brand-700 ring-1 ring-brand-200 hover:bg-white">
+              <Download className="h-3.5 w-3.5" /> {docLabel(m, doc)}
+            </button>
+          </div>
+          <div className="mt-1 pl-5">
+            <VisaRouteLine dest={m.cc} source="top_matches_visa_route" />
+            <SendWithCvNote company={m.company} className="mt-0.5" />
+          </div>
         </div>
       )}
     </article>

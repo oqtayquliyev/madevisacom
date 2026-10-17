@@ -220,6 +220,16 @@ function choose(rows: Light[], p: CvProfile, n: number): Light[] {
 
 // --- The search ------------------------------------------------------------------
 
+const isTimeout = (msg: string) => /statement timeout|canceling statement|57014|timed? ?out/i.test(msg);
+
+/** What went wrong, in words a job-seeker can act on — never the database's own message. */
+function friendlyError(msg: string): string {
+  if (isTimeout(msg)) return 'The job list was busy and took too long to answer.';
+  if (/too many searches/i.test(msg)) return 'You’ve searched a lot in the last hour — try again a little later.';
+  if (/failed to fetch|network|load failed/i.test(msg)) return 'The connection dropped while we were searching.';
+  return 'Something went wrong while we were searching.';
+}
+
 let state: TopState = { status: 'idle', stage: null, progress: 0, result: null, error: null };
 const listeners = new Set<() => void>();
 const set = (next: Partial<TopState>) => {
@@ -248,7 +258,12 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
 
     let pool: Light[] | null = null;
     if (!rpcMissing) {
-      const { data, error } = await supabase.rpc('cv_job_shortlist', { p_title_words: words.title, p_skill_words: words.skill, p_limit: 160 });
+      let { data, error } = await supabase.rpc('cv_job_shortlist', { p_title_words: words.title, p_skill_words: words.skill, p_limit: 160 });
+      // The database took too long (a busy moment, or a CV with many common words): once more with the strongest words only.
+      if (error && isTimeout(error.message)) {
+        if (runningFor !== cv.at) return;
+        ({ data, error } = await supabase.rpc('cv_job_shortlist', { p_title_words: words.title.slice(0, 8), p_skill_words: words.skill.slice(0, 6), p_limit: 160 }));
+      }
       if (error) rpcMissing = /function|schema cache|does not exist|not find/i.test(error.message);
       else pool = (data ?? []) as Light[];
       if (error && !rpcMissing) throw new Error(error.message);
@@ -330,7 +345,9 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
     writeSaved(result);
     set({ status: 'done', stage: null, progress: 1, result });
   } catch (e) {
-    set({ status: 'error', stage: null, error: e instanceof Error ? e.message : 'The search could not be finished.' });
+    // A search for an earlier CV (replaced while it ran) never shows its error over the new one.
+    if (runningFor !== cv.at) return;
+    set({ status: 'error', stage: null, error: friendlyError(e instanceof Error ? e.message : '') });
   } finally {
     if (runningFor === cv.at) runningFor = null;
   }
@@ -380,4 +397,17 @@ export function useTopMatches(opts: { auto?: boolean; autoDelayMs?: number; ligh
 export function topScore(cv: StoredCv | null, jobId: string): number | null {
   const r = state.result?.cvAt === cv?.at ? state.result : readSaved(cv);
   return r?.items.find((x) => x.id === jobId)?.score ?? null;
+}
+
+/** Matches a free account sees with their score on /cv-match (the best one, and the two after it). */
+export const FREE_PREVIEW = 3;
+
+/**
+ * The score /cv-match already showed this person for one job (one of the first {@link FREE_PREVIEW}
+ * matches), or null. The job page shows the same number, so the two pages never disagree.
+ */
+export function previewScore(cv: StoredCv | null, jobId: string | null | undefined): number | null {
+  if (!cv || !jobId) return null;
+  const r = state.result?.cvAt === cv.at ? state.result : readSaved(cv);
+  return r?.items.slice(0, FREE_PREVIEW).find((x) => x.id === jobId)?.score ?? null;
 }
