@@ -4,7 +4,7 @@ import { MatchRing } from '@/components/cv/MatchBits';
 import { QuickSignup } from '@/components/cv/QuickSignup';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { nameFromCv } from '@/components/cv/CvInsights';
-import { useFromCountry } from '@/components/cv/DocReady';
+import { Num, useFromCountry } from '@/components/cv/DocReady';
 import { countryName } from '@/lib/visaFit';
 import type { StoredCv } from '@/lib/cv/store';
 import type { TopMatch, TopResult } from '@/lib/cv/topMatches';
@@ -50,7 +50,7 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
           <p className="mt-2 flex flex-wrap items-center gap-1.5 text-[14.5px] font-semibold text-emerald-800">
             <FileCheck2 className="h-4 w-4 text-emerald-600" aria-hidden />
             <span>
-              <span className="font-extrabold">{docs}</span> sponsorship {docs === 1 ? 'document' : 'documents'} and visa {docs === 1 ? 'route' : 'routes'} ready for you{from ? ' from' : ''}
+              <Num tone="green" className="text-[17px]">{docs}</Num> sponsorship {docs === 1 ? 'document' : 'documents'} and visa {docs === 1 ? 'route' : 'routes'} ready for you{from ? ' from' : ''}
             </span>
             {from && (
               <>
@@ -98,7 +98,7 @@ function PreviewCard({ m, best, from, first, delay = 0 }: { m: TopMatch; best: b
         <p className="flex items-center gap-1.5 bg-brand-600 px-4 py-2 text-[13px] font-bold text-white sm:px-5">
           <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
           <span>
-            It’s {m.score}% matching for you{first ? `, ${first}` : ''}! Your sponsorship document and visa route are ready!
+            It’s <b className="rounded bg-white/20 px-1 text-[15px] font-extrabold tabular-nums">{m.score}%</b> matching for you{first ? `, ${first}` : ''}! Your sponsorship document and visa route are ready!
           </span>
         </p>
       )}

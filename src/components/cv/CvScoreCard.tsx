@@ -4,6 +4,7 @@ import type { StoredCv } from '@/lib/cv/store';
 import type { TopResult } from '@/lib/cv/topMatches';
 import { cvScore, fixCount } from '@/lib/cv/cvScore';
 import { MatchRing } from '@/components/cv/MatchBits';
+import { Num } from '@/components/cv/DocReady';
 
 const scoreVerdict = (score: number) =>
   score >= 80 ? 'Strong — employers can see what you do.' : score >= 65 ? 'Good — a few additions will lift it.' : 'Worth improving — the list below shows where to start.';
@@ -41,12 +42,12 @@ export function CvScoreCard({ cv, result, locked = false }: { cv: StoredCv; resu
         <MatchRing score={s.score} size={76} />
         <div className="min-w-0 flex-1">
           <h2 id="cv-score-title" className="text-[18px] font-bold leading-tight tracking-tight text-ink-950">
-            Your CV score · {s.score}/100
+            Your CV score · <Num className="text-[22px]">{s.score}</Num>/100
           </h2>
           <p className="mt-0.5 text-[14px] text-ink-600">{scoreVerdict(s.score)}</p>
           {total > 0 && (
             <p className="mt-1 text-[13px] font-semibold text-amber-800">
-              {total} {total === 1 ? 'thing' : 'things'} to add or fix on your CV
+              <Num tone="amber" className="text-[16px]">{total}</Num> {total === 1 ? 'thing' : 'things'} to add or fix on your CV
             </p>
           )}
         </div>
@@ -61,7 +62,7 @@ export function CvScoreCard({ cv, result, locked = false }: { cv: StoredCv; resu
                 <p className="flex justify-between text-[13px] text-ink-700">
                   <span>{p.label}</span>
                   <span className="font-bold tabular-nums text-ink-950">
-                    {p.got}/{p.max}
+                    <Num className="text-[14px]">{p.got}</Num>/{p.max}
                   </span>
                 </p>
                 <span className="mt-1 block h-2 overflow-hidden rounded-full bg-ink-100">

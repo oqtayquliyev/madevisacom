@@ -35,20 +35,28 @@ export function DocReadyTitle({ from, to, className = '' }: { from: string | nul
   const same = from && to && from === to;
   return (
     <span className={`inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 ${className}`}>
-      Your sponsorship document
+      <span>Your sponsorship document</span>
       {from && !same && (
         <>
-          from <CircleFlag countryCode={from} size={16} label={countryName(from) ?? from} />
+          <span>from</span>
+          <CircleFlag countryCode={from} size={16} label={countryName(from) ?? from} />
         </>
       )}
       {to && (
         <>
-          to <CircleFlag countryCode={to} size={16} label={countryName(to) ?? to} />
+          <span>to</span>
+          <CircleFlag countryCode={to} size={16} label={countryName(to) ?? to} />
         </>
       )}
-      is ready
+      <span>is ready</span>
     </span>
   );
+}
+
+/** A number that should stand out: bold, tabular, in one of a few colours. */
+export function Num({ children, tone = 'blue', className = '' }: { children: React.ReactNode; tone?: 'blue' | 'green' | 'amber' | 'white'; className?: string }) {
+  const color = { blue: 'text-brand-600', green: 'text-emerald-600', amber: 'text-amber-600', white: 'text-white' }[tone];
+  return <b className={`font-extrabold tabular-nums ${color} ${className}`}>{children}</b>;
 }
 
 /**

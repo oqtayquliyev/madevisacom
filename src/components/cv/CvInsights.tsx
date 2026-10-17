@@ -10,7 +10,7 @@ import { skillName } from '@/lib/cv/skills';
 import { allCountries } from '@/data/allCountries';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { MatchRing } from '@/components/cv/MatchBits';
-import { DocReadyTitle, SendWithCvNote, VisaRouteLine } from '@/components/cv/DocReady';
+import { DocReadyTitle, Num, SendWithCvNote, VisaRouteLine } from '@/components/cv/DocReady';
 import { checkoutHref, trackBilling } from '@/lib/billing';
 import { priceLabel } from '@/lib/plans';
 import { nav } from '@/lib/pageLayout';
@@ -262,20 +262,53 @@ function DocLine({ from, m }: { from: string | null; m: TopMatch }) {
  * Free accounts: three of their matches. The best one keeps its score and country but hides the role and the
  * company; the next two are shown in full. Every one shows its sponsorship document. The rest is Starter.
  */
-export function CvMatchLocked({ result, guest, onAuth, from = null }: { result: TopResult | null; guest: boolean; onAuth?: (p: 'login' | 'register') => void; from?: string | null }) {
+export function CvMatchLocked({ result, guest, onAuth, from = null, name = null }: { result: TopResult | null; guest: boolean; onAuth?: (p: 'login' | 'register') => void; from?: string | null; name?: string | null }) {
   const items = result?.items ?? [];
+  const strong = items.filter((m) => m.score >= 80).length;
+  const docs = items.filter((m) => m.cc && (!from || m.cc.toUpperCase() !== from.toUpperCase())).length;
+  const best = items[0]?.score ?? null;
+  const first = (name ?? '').trim().split(/\s+/)[0] ?? '';
   const countries = new Set(items.map((m) => m.country).filter(Boolean)).size;
   const href = checkoutHref('starter', 'cv_match_locked');
-  const [best, ...rest] = items;
+  const [top, ...rest] = items;
   const open = rest.slice(0, 2);
   const jobHref = (m: TopMatch) => `${jobPath({ id: `sponsored-${m.id}`, title: m.title, company: m.company })}`;
   const where = (m: TopMatch) => [m.remote && !m.city ? 'Remote' : m.city, m.country].filter(Boolean).join(', ');
   return (
     <section className="mx-auto max-w-2xl space-y-3">
-      {best && (
+      {items.length > 0 && (
+        <div className="animate-fade-up rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 p-5 text-white shadow-soft motion-reduce:animate-none sm:p-6">
+          <p className="text-[19px] font-bold leading-snug sm:text-[21px]">
+            {first ? `${first}, you’re` : 'You’re'} a strong match for <Num tone="white" className="rounded-md bg-white/15 px-1.5 text-[24px]">{strong || items.length}</Num> {(strong || items.length) === 1 ? 'job' : 'jobs'}
+            {docs > 0 && (
+              <>
+                {' '}
+                — with <Num className="rounded-md bg-emerald-400/20 px-1.5 text-[24px] !text-emerald-300">{docs}</Num> sponsorship {docs === 1 ? 'document' : 'documents'} already prepared
+              </>
+            )}
+            .
+          </p>
+          <ul className="mt-3 grid gap-2 text-[13.5px] sm:grid-cols-3">
+            {best != null && (
+              <li className="rounded-xl bg-white/10 px-3 py-2">
+                <Num tone="white" className="text-[20px]">{best}%</Num> <span className="text-white/80">your best match</span>
+              </li>
+            )}
+            <li className="rounded-xl bg-white/10 px-3 py-2">
+              <Num tone="white" className="text-[20px]">{items.length}</Num> <span className="text-white/80">jobs that fit your CV</span>
+            </li>
+            <li className="rounded-xl bg-white/10 px-3 py-2">
+              <Num className="text-[20px] !text-emerald-300">{docs}</Num> <span className="text-white/80">ready to send with your CV</span>
+            </li>
+          </ul>
+          <p className="mt-3 text-[12.5px] leading-5 text-white/75">The sponsorship document answers an employer’s first question about hiring from abroad: which visa, what it asks of them, and who pays what.</p>
+        </div>
+      )}
+
+      {top && (
         <article className="animate-fade-up overflow-hidden rounded-2xl bg-white ring-2 ring-brand-200 motion-reduce:animate-none">
           <div className="flex items-center gap-4 p-4 sm:p-5">
-            <MatchRing score={best.score} size={60} />
+            <MatchRing score={top.score} size={60} />
             <div className="min-w-0 flex-1">
               <p className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-brand-700">
                 <Lock className="h-3 w-3" aria-hidden /> Your best match
@@ -284,14 +317,14 @@ export function CvMatchLocked({ result, guest, onAuth, from = null }: { result: 
                 <span className="block h-4 w-3/4 rounded bg-ink-300" />
                 <span className="mt-2 block h-3 w-1/2 rounded bg-ink-200" />
               </div>
-              {best.cc && (
+              {top.cc && (
                 <p className="mt-2 flex items-center gap-1.5 text-[13px] font-semibold text-ink-700">
-                  <CircleFlag countryCode={best.cc} size={15} label={best.country ?? best.cc} /> {best.country}
+                  <CircleFlag countryCode={top.cc} size={15} label={top.country ?? top.cc} /> {top.country}
                 </p>
               )}
             </div>
           </div>
-          <DocLine from={from} m={best} />
+          <DocLine from={from} m={top} />
         </article>
       )}
 
@@ -319,7 +352,18 @@ export function CvMatchLocked({ result, guest, onAuth, from = null }: { result: 
 
       <div className="rounded-3xl bg-white px-6 py-6 text-center ring-1 ring-ink-200 sm:px-10">
         <h2 className="text-[22px] font-bold leading-tight tracking-tight text-ink-950">
-          {items.length ? `${items.length} ${items.length === 1 ? 'job fits' : 'jobs fit'} your CV${countries > 1 ? `, in ${countries} countries` : ''}` : 'See the jobs your CV matches'}
+          {items.length ? (
+            <>
+              <Num>{items.length}</Num> {items.length === 1 ? 'job fits' : 'jobs fit'} your CV
+              {countries > 1 && (
+                <>
+                  , in <Num tone="green">{countries}</Num> countries
+                </>
+              )}
+            </>
+          ) : (
+            'See the jobs your CV matches'
+          )}
         </h2>
         <p className="mx-auto mt-1.5 max-w-md text-[14px] leading-6 text-ink-600">See every match, your best one, and the skills your CV is missing.</p>
         <a

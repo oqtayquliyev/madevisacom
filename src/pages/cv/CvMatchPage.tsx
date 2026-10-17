@@ -123,7 +123,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
           </p>
           <h1 className="mx-auto mt-3 max-w-3xl text-[30px] font-bold leading-[1.1] tracking-tight sm:text-[46px]">
             {summary
-              ? `${who ? `${who}, your` : 'Your'} CV scores ${summary.score} out of 100`
+              ? <>{who ? `${who}, your` : 'Your'} CV scores <span className="text-amber-300">{summary.score}</span> out of 100</>
               : cv
                 ? `${who ? `${who}, here` : 'Here'} are the jobs you match most`
                 : 'Upload your CV. See the jobs you match most.'}
@@ -131,9 +131,9 @@ export function CvMatchPage({ go, onAuth }: Props) {
           {summary && (
             <ul className="mx-auto mt-5 flex max-w-3xl flex-wrap justify-center gap-2.5">
               {[
-                { n: summary.jobs, text: summary.jobs === 1 ? 'job found for you' : 'jobs found for you', icon: Briefcase },
-                ...(summary.docs ? [{ n: summary.docs, text: summary.docs === 1 ? 'sponsorship document prepared' : 'sponsorship documents prepared', icon: FileCheck2 }] : []),
-                ...(summary.fixes ? [{ n: summary.fixes, text: summary.fixes === 1 ? 'thing to fix on your CV' : 'things to fix on your CV', icon: Wrench }] : []),
+                { n: summary.jobs, text: summary.jobs === 1 ? 'job found for you' : 'jobs found for you', icon: Briefcase, tone: 'text-white' },
+                ...(summary.docs ? [{ n: summary.docs, text: summary.docs === 1 ? 'sponsorship document prepared' : 'sponsorship documents prepared', icon: FileCheck2, tone: 'text-emerald-300' }] : []),
+                ...(summary.fixes ? [{ n: summary.fixes, text: summary.fixes === 1 ? 'thing to fix on your CV' : 'things to fix on your CV', icon: Wrench, tone: 'text-amber-300' }] : []),
               ].map((x, i) => (
                 <li
                   key={x.text}
@@ -141,7 +141,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
                   style={{ animationDelay: `${i * 180}ms` }}
                 >
                   <x.icon className="h-4 w-4 text-white/80" aria-hidden />
-                  <span className="text-[17px] font-extrabold tabular-nums">{x.n}</span> {x.text}
+                  <span className={`text-[19px] font-extrabold tabular-nums ${x.tone}`}>{x.n}</span> {x.text}
                 </li>
               ))}
             </ul>
@@ -200,7 +200,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
         {/* No account yet: the results wait behind one email field and a code (which also makes the free account). */}
         {cv && !searching && !session && cvReady && status !== 'error' && <GuestUnlock cv={cv} result={result} />}
 
-        {cv && !searching && session && !my.loading && !paid && <CvMatchLocked result={result} guest={!session} onAuth={onAuth} from={(visitor.currentLocation ?? visitor.citizenship ?? '').toUpperCase() || null} />}
+        {cv && !searching && session && !my.loading && !paid && <CvMatchLocked result={result} guest={!session} onAuth={onAuth} from={(visitor.currentLocation ?? visitor.citizenship ?? '').toUpperCase() || null} name={who} />}
 
         {cv && !searching && paid && result && <TopMatchesList result={result} onAuth={onAuth} onAgain={top.start} />}
 
