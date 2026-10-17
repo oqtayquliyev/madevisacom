@@ -112,7 +112,7 @@ export function QuickSignup({ cv, onStep, back = '/cv-match' }: { cv: StoredCv; 
             {fromCv && email === fromCv ? 'Your email, from your CV' : 'Your email'}
           </label>
           <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
-            <span className="relative flex-1">
+            <span className="relative block w-full sm:flex-1">
               <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden />
               <input
                 id="guest-email"
@@ -156,7 +156,7 @@ export function QuickSignup({ cv, onStep, back = '/cv-match' }: { cv: StoredCv; 
                 if (v.length === OTP_LENGTH) void verify(v);
               }}
               placeholder={'•'.repeat(OTP_LENGTH)}
-              className="h-12 flex-1 rounded-xl border border-ink-200 bg-white px-4 text-center text-[20px] font-bold tracking-[0.4em] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="h-14 min-h-[56px] w-full shrink-0 rounded-xl border-2 border-brand-300 bg-white px-4 text-center text-[24px] font-bold tracking-[0.4em] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 sm:h-12 sm:min-h-[48px] sm:flex-1 sm:text-[20px]"
             />
             <button type="submit" disabled={busy} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 text-[15px] font-bold text-white hover:bg-brand-700 disabled:opacity-60">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Show results

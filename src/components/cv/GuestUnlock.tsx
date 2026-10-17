@@ -4,7 +4,7 @@ import { QuickSignup } from '@/components/cv/QuickSignup';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CvAvatar, nameFromCv } from '@/components/cv/CvInsights';
 import { ExampleJourney } from '@/components/cv/ExampleJourney';
-import { countriesOf } from '@/components/cv/Upsell';
+import { FlagStack, countriesOf } from '@/components/cv/Upsell';
 import { Num, useFromCountry } from '@/components/cv/DocReady';
 import { countryName } from '@/lib/visaFit';
 import type { StoredCv } from '@/lib/cv/store';
@@ -37,7 +37,7 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
           <CvAvatar cv={cv} size={52} />
           <h2 className="text-[23px] font-bold leading-tight tracking-tight text-ink-950 sm:text-[27px]">
             {step === 'code' ? (
-              <>Check your inbox{first ? `, ${first}` : ''}</>
+              <>Write your code{first ? `, ${first}` : ''} — start your career abroad</>
             ) : countries.length ? (
               <>
                 {first ? `${first}, you` : 'You'} have {countries.length === 1 ? 'a route' : 'routes'} to <Num className="text-[28px] sm:text-[32px]">{countries.length}</Num> {countries.length === 1 ? 'country' : 'countries'}
@@ -49,6 +49,15 @@ export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | 
             )}
           </h2>
         </div>
+
+        {step === 'code' && countries.length > 0 && (
+          <p className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-[15px] font-semibold text-emerald-900 ring-1 ring-emerald-100">
+            {from && <CircleFlag countryCode={from} size={22} label={fromName ?? from} />}
+            {from && <span aria-hidden>→</span>}
+            <FlagStack countries={countries} max={6} size={22} />
+            <span>Your documents are ready</span>
+          </p>
+        )}
 
         {step === 'email' && shown.length > 0 && (
           <ul className="mt-5 space-y-2.5">
