@@ -23,7 +23,7 @@ type Person = { fullName?: string | null; occupation?: string | null; countryCod
 const NAME_LINE = /^[A-ZÀ-ÝƏÜÖĞÇŞİ][\p{L}'’.-]+(?:\s+[A-ZÀ-ÝƏÜÖĞÇŞİ][\p{L}'’.-]+){1,3}$/u;
 
 /** The name at the top of a CV: the first short line of capitalised words (no digits, no @). */
-function nameFromCv(text: string): string | null {
+export function nameFromCv(text: string): string | null {
   for (const raw of text.split(/\n/).slice(0, 8)) {
     const line = raw.replace(/\s+/g, ' ').trim();
     if (!line || line.length > 40 || /[\d@|/:]/.test(line)) continue;
