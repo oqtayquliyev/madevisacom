@@ -3,7 +3,7 @@
 // at the members' request. Keep each member's original message and consent on
 // file, and change the text here only with their agreement.
 
-import { JOURNEYS } from '@/data/journeys';
+import { JOURNEYS } from './journeys';
 
 export type Testimonial = {
   id: string;
