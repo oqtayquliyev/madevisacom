@@ -21,11 +21,36 @@ export type CvScore = {
   experience: { name: string; n: number }[];
 };
 
+/** "Design system", "Design systems" and "design System" are one skill: same words, any case, singular or plural. */
+const keyOf = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9+#]+/g, ' ')
+    .trim()
+    .split(' ')
+    .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w))
+    .join(' ');
+
 function countBy(items: TopMatch[], pick: (m: TopMatch) => string[] | undefined): { name: string; n: number }[] {
-  const map = new Map<string, number>();
-  for (const m of items) for (const s of new Set(pick(m) ?? [])) map.set(s, (map.get(s) ?? 0) + 1);
-  return [...map.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+  const map = new Map<string, { name: string; n: number; names: Map<string, number> }>();
+  for (const m of items) {
+    const keys = new Map<string, string>();
+    for (const s of pick(m) ?? []) if (!keys.has(keyOf(s))) keys.set(keyOf(s), s);
+    for (const [k, s] of keys) {
+      const row = map.get(k) ?? { name: s, n: 0, names: new Map() };
+      row.n += 1;
+      row.names.set(s, (row.names.get(s) ?? 0) + 1);
+      map.set(k, row);
+    }
+  }
+  // Shown under the spelling the ads use most.
+  return [...map.values()]
+    .map((r) => ({ name: [...r.names.entries()].sort((a, b) => b[1] - a[1])[0][0], n: r.n }))
+    .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
 }
+
+/** How many things there are to add or fix: failed checks, missing skills, experience to mention. */
+export const fixCount = (s: CvScore) => s.checks.filter((c) => !c.ok).length + s.skills.length + s.experience.length;
 
 export function cvScore(p: CvProfile, items: TopMatch[]): CvScore {
   const checks: CvCheck[] = [

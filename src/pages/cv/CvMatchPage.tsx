@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ArrowRight, Briefcase, ChevronDown, FileSearch, GraduationCap, Languages, ListChecks, ScanSearch, Timer, Upload } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, Briefcase, ChevronDown, FileCheck2, FileSearch, Wrench, GraduationCap, Languages, ListChecks, ScanSearch, Timer, Upload } from 'lucide-react';
 import type { View } from '@/types';
 import { noteMilestone } from '@/lib/emailAttribution';
 import { useSeo } from '@/lib/seo';
@@ -14,7 +14,9 @@ import { CvUpload } from '@/components/cv/CvUpload';
 import { MatchLevels } from '@/components/cv/MatchShowcase';
 import { ENCOURAGEMENT, SearchProgress, TopMatchesList } from '@/components/cv/TopMatches';
 import { ProPlanCard } from '@/components/pro/ProPlanCard';
-import { CvInsights, CvMatchLocked, CvPersonCard } from '@/components/cv/CvInsights';
+import { CvInsights, CvMatchLocked, CvPersonCard, nameFromCv } from '@/components/cv/CvInsights';
+import { useFromCountry } from '@/components/cv/DocReady';
+import { cvScore, fixCount } from '@/lib/cv/cvScore';
 import { GuestUnlock } from '@/components/cv/GuestUnlock';
 import { CvScoreCard } from '@/components/cv/CvScoreCard';
 import { useAuth } from '@/lib/auth';
@@ -97,6 +99,16 @@ export function CvMatchPage({ go, onAuth }: Props) {
   }, [until]);
   const searching = Boolean(cv) && (status === 'running' || (status === 'done' && Date.now() < until));
 
+  // The final result, in the page header: the CV score and three counts from this person's own matches.
+  const who = firstName || (cv ? (nameFromCv(cv.text) ?? '').split(/\s+/)[0] : '') || '';
+  const from = useFromCountry();
+  const summary = useMemo(() => {
+    if (!cv || !result || searching || status === 'error' || !result.items.length) return null;
+    const sc = cvScore(cv.profile, result.items);
+    const docs = result.items.filter((m) => m.cc && (!from || m.cc.toUpperCase() !== from)).length;
+    return { score: sc.score, jobs: result.items.length, docs, fixes: fixCount(sc) };
+  }, [cv, result, searching, status, from]);
+
   const p = cv?.profile;
   const skills = p ? Object.entries(p.skills).sort((a, b) => b[1] - a[1]).map(([id]) => skillName(id)) : [];
 
@@ -110,8 +122,30 @@ export function CvMatchPage({ go, onAuth }: Props) {
             <ScanSearch className="h-4 w-4" /> CV match
           </p>
           <h1 className="mx-auto mt-3 max-w-3xl text-[30px] font-bold leading-[1.1] tracking-tight sm:text-[46px]">
-            {cv ? `${firstName ? `${firstName}, here` : 'Here'} are the jobs you match most` : 'Upload your CV. See the jobs you match most.'}
+            {summary
+              ? `${who ? `${who}, your` : 'Your'} CV scores ${summary.score} out of 100`
+              : cv
+                ? `${who ? `${who}, here` : 'Here'} are the jobs you match most`
+                : 'Upload your CV. See the jobs you match most.'}
           </h1>
+          {summary && (
+            <ul className="mx-auto mt-5 flex max-w-3xl flex-wrap justify-center gap-2.5">
+              {[
+                { n: summary.jobs, text: summary.jobs === 1 ? 'job found for you' : 'jobs found for you', icon: Briefcase },
+                ...(summary.docs ? [{ n: summary.docs, text: summary.docs === 1 ? 'sponsorship document prepared' : 'sponsorship documents prepared', icon: FileCheck2 }] : []),
+                ...(summary.fixes ? [{ n: summary.fixes, text: summary.fixes === 1 ? 'thing to fix on your CV' : 'things to fix on your CV', icon: Wrench }] : []),
+              ].map((x, i) => (
+                <li
+                  key={x.text}
+                  className="inline-flex animate-fade-up items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[14px] font-semibold text-white ring-1 ring-white/25 motion-reduce:animate-none"
+                  style={{ animationDelay: `${i * 180}ms` }}
+                >
+                  <x.icon className="h-4 w-4 text-white/80" aria-hidden />
+                  <span className="text-[17px] font-extrabold tabular-nums">{x.n}</span> {x.text}
+                </li>
+              ))}
+            </ul>
+          )}
           {!cv && (
             <p className="mx-auto mt-4 max-w-xl text-[16px] leading-7 text-white/85">
               We compare it with {site?.publishedJobs ? `${site.publishedJobs.toLocaleString('en-US')} live jobs` : 'the live jobs'} from company career pages and put your best matches first — with the visa step for each one abroad. It takes a few seconds.
@@ -181,7 +215,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
         )}
 
         {/* The end of the results: one score for the whole CV, and what to add. */}
-        {cv && !searching && result && result.items.length > 0 && status !== 'error' && (!session || !my.loading) && <CvScoreCard cv={cv} result={result} name={profile?.full_name} />}
+        {cv && !searching && result && result.items.length > 0 && status !== 'error' && (!session || !my.loading) && <CvScoreCard cv={cv} result={result} locked={!session} />}
 
         <div className="mx-auto max-w-3xl space-y-3">
           {p && paid && (
