@@ -198,8 +198,9 @@ export function SearchProgress({ state, cv, name }: { state: Pick<TopState, 'sta
         </ul>
       )}
 
+      {/* One testimonial for the whole wait — it stays put so it can be read. */}
       <div className="mt-5 border-t border-ink-100 pt-4">
-        <TestimonialTicker />
+        <TestimonialTicker every={3_600_000} />
       </div>
     </section>
   );

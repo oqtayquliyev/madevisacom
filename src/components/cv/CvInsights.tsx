@@ -11,6 +11,7 @@ import { allCountries } from '@/data/allCountries';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { MatchRing } from '@/components/cv/MatchBits';
 import { DocReadyTitle, Num, SendWithCvNote, VisaRouteLine } from '@/components/cv/DocReady';
+import { AutoApplyEstimate, FlagStack, MoreMatches, countriesOf } from '@/components/cv/Upsell';
 import { checkoutHref, trackBilling } from '@/lib/billing';
 import { priceLabel } from '@/lib/plans';
 import { nav } from '@/lib/pageLayout';
@@ -27,6 +28,8 @@ export function nameFromCv(text: string): string | null {
   for (const raw of text.split(/\n/).slice(0, 8)) {
     const line = raw.replace(/\s+/g, ' ').trim();
     if (!line || line.length > 40 || /[\d@|/:]/.test(line)) continue;
+    // Headings and taglines that look like names: "Open To Work", "Curriculum Vitae", "Product Designer".
+    if (/\b(open|work|curriculum|vitae|resume|résumé|cv|profile|contact|summary|about|personal|designer|developer|engineer|manager|consultant|specialist|analyst|portfolio|page)\b/i.test(line)) continue;
     const t = line.toLowerCase() === line || line.toUpperCase() === line ? line.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase()) : line;
     if (NAME_LINE.test(t)) return t;
   }
@@ -268,7 +271,6 @@ export function CvMatchLocked({ result, guest, onAuth, from = null, name = null 
   const docs = items.filter((m) => m.cc && (!from || m.cc.toUpperCase() !== from.toUpperCase())).length;
   const best = items[0]?.score ?? null;
   const first = (name ?? '').trim().split(/\s+/)[0] ?? '';
-  const countries = new Set(items.map((m) => m.country).filter(Boolean)).size;
   const href = checkoutHref('starter', 'cv_match_locked');
   const [top, ...rest] = items;
   const open = rest.slice(0, 2);
@@ -288,6 +290,14 @@ export function CvMatchLocked({ result, guest, onAuth, from = null, name = null 
             )}
             .
           </p>
+          {countriesOf(items, from ? from.toUpperCase() : null).length > 0 && (
+            <p className="mt-3 flex flex-wrap items-center gap-2 text-[14px] font-semibold text-white/90">
+              {from && <CircleFlag countryCode={from} size={20} label={from} />}
+              {from && <span aria-hidden>→</span>}
+              <FlagStack countries={countriesOf(items, from ? from.toUpperCase() : null)} max={6} size={20} />
+              <span>your documents are ready</span>
+            </p>
+          )}
           <ul className="mt-3 grid gap-2 text-[13.5px] sm:grid-cols-3">
             {best != null && (
               <li className="rounded-xl bg-white/10 px-3 py-2">
@@ -301,7 +311,6 @@ export function CvMatchLocked({ result, guest, onAuth, from = null, name = null 
               <Num className="text-[20px] !text-emerald-300">{docs}</Num> <span className="text-white/80">ready to send with your CV</span>
             </li>
           </ul>
-          <p className="mt-3 text-[12.5px] leading-5 text-white/75">The sponsorship document answers an employer’s first question about hiring from abroad: which visa, what it asks of them, and who pays what.</p>
         </div>
       )}
 
@@ -350,42 +359,33 @@ export function CvMatchLocked({ result, guest, onAuth, from = null, name = null 
         </article>
       ))}
 
-      <div className="rounded-3xl bg-white px-6 py-6 text-center ring-1 ring-ink-200 sm:px-10">
-        <h2 className="text-[22px] font-bold leading-tight tracking-tight text-ink-950">
-          {items.length ? (
-            <>
-              <Num>{items.length}</Num> {items.length === 1 ? 'job fits' : 'jobs fit'} your CV
-              {countries > 1 && (
-                <>
-                  , in <Num tone="green">{countries}</Num> countries
-                </>
-              )}
-            </>
-          ) : (
-            'See the jobs your CV matches'
-          )}
-        </h2>
-        <p className="mx-auto mt-1.5 max-w-md text-[14px] leading-6 text-ink-600">See every match, your best one, and the skills your CV is missing.</p>
-        <a
-          href={href}
-          onClick={(e) => {
-            e.preventDefault();
-            trackBilling('plan_selected', { plan: 'starter', source: 'cv_match_locked' });
-            nav(href);
-          }}
-          className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-brand-600 px-6 py-3.5 text-[15px] font-bold text-white hover:bg-brand-700"
-        >
-          <Sparkles className="h-4 w-4" /> Unlock all matches · {priceLabel('starter')} <ArrowRight className="h-4 w-4" />
-        </a>
-        {guest && (
-          <p className="mt-3 text-[13px] text-ink-600">
-            Already on a plan?{' '}
-            <button onClick={() => onAuth?.('login')} className="font-semibold text-brand-700 hover:underline">
-              Sign in
-            </button>
-          </p>
-        )}
-      </div>
+      {(() => {
+        const more = items.length - 1 - open.length;
+        const rest = countriesOf(items.slice(1 + open.length), from ? from.toUpperCase() : null);
+        const goStarter = () => {
+          trackBilling('plan_selected', { plan: 'starter', source: 'cv_match_locked' });
+          nav(href);
+        };
+        return (
+          <>
+            <MoreMatches count={more} countries={rest} action={goStarter} label={`Unlock all · ${priceLabel('starter')}`} />
+            {more <= 0 && (
+              <button onClick={goStarter} className="mx-auto flex items-center justify-center gap-2 rounded-full bg-brand-600 px-6 py-3.5 text-[15px] font-bold text-white hover:bg-brand-700">
+                <Sparkles className="h-4 w-4" /> Unlock your best match · {priceLabel('starter')} <ArrowRight className="h-4 w-4" />
+              </button>
+            )}
+            <AutoApplyEstimate jobs={items.length} guest={false} />
+            {guest && (
+              <p className="text-center text-[13px] text-ink-600">
+                Already on a plan?{' '}
+                <button onClick={() => onAuth?.('login')} className="font-semibold text-brand-700 hover:underline">
+                  Sign in
+                </button>
+              </p>
+            )}
+          </>
+        );
+      })()}
     </section>
   );
 }

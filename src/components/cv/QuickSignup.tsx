@@ -23,6 +23,18 @@ function friendly(message: string): string {
  * "Get my code", then the 6-digit code. The code signs them in (a free account is made the first
  * time) and the CV from this browser is attached to it. Used on /cv-match and on job pages.
  */
+/** The webmail for an address, so "Open Gmail" takes them straight to the code. */
+function inboxFor(email: string): { name: string; href: string } | null {
+  const d = email.split('@')[1]?.toLowerCase() ?? '';
+  if (/^(gmail|googlemail)\.com$/.test(d)) return { name: 'Gmail', href: 'https://mail.google.com/mail/u/0/#search/madevisa' };
+  if (/^(outlook|hotmail|live|msn)\.[a-z.]+$/.test(d)) return { name: 'Outlook', href: 'https://outlook.live.com/mail/0/' };
+  if (/^(yahoo|ymail)\.[a-z.]+$/.test(d)) return { name: 'Yahoo Mail', href: 'https://mail.yahoo.com/' };
+  if (/^(icloud|me|mac)\.com$/.test(d)) return { name: 'iCloud Mail', href: 'https://www.icloud.com/mail' };
+  if (/^(proton\.me|protonmail\.com)$/.test(d)) return { name: 'Proton Mail', href: 'https://mail.proton.me/' };
+  if (/^(mail|bk|inbox|list)\.ru$|^yandex\.[a-z]+$/.test(d)) return { name: 'your mailbox', href: `https://${d.startsWith('yandex') ? 'mail.yandex.ru' : 'e.mail.ru'}/` };
+  return null;
+}
+
 export function QuickSignup({ cv, onStep, back = '/cv-match' }: { cv: StoredCv; onStep?: (step: 'email' | 'code') => void; back?: string }) {
   const fromCv = useMemo(() => emailFromCv(cv.text), [cv.text]);
   const [email, setEmail] = useState(fromCv);
@@ -52,6 +64,7 @@ export function QuickSignup({ cv, onStep, back = '/cv-match' }: { cv: StoredCv; 
   }, [step]);
 
   const clean = email.trim().toLowerCase();
+  const inbox = inboxFor(clean);
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(clean);
 
   const send = async () => {
@@ -149,8 +162,18 @@ export function QuickSignup({ cv, onStep, back = '/cv-match' }: { cv: StoredCv; 
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Show results
             </button>
           </div>
+          {inbox && (
+            <a
+              href={inbox.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-ink-950 px-4 py-2.5 text-[14px] font-bold text-white hover:bg-ink-800"
+            >
+              <Mail className="h-4 w-4" aria-hidden /> Open {inbox.name}
+            </a>
+          )}
           <p className="mt-2 text-[12.5px] text-ink-500">
-            Not there? Check spam, or{' '}
+            Not there? Check spam and Promotions, or{' '}
             <button type="button" disabled={resendIn > 0 || busy} onClick={() => void send()} className="font-semibold text-brand-700 hover:underline disabled:text-ink-400 disabled:no-underline">
               {resendIn > 0 ? `send a new code in ${resendIn}s` : 'send a new code'}
             </button>
@@ -168,8 +191,8 @@ export function QuickSignup({ cv, onStep, back = '/cv-match' }: { cv: StoredCv; 
           {error}
         </p>
       )}
-      <p className="mt-4 text-[12px] leading-5 text-ink-500">
-        The code also keeps your CV and results in a free MadeVisa account, so you can come back to them. No password. By continuing you accept the{' '}
+      <p className="mt-3 text-[12px] leading-5 text-ink-500">
+        Free account, no password. By continuing you accept the{' '}
         <a href="/terms" className="underline hover:text-ink-700">
           Terms
         </a>{' '}

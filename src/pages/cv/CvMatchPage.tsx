@@ -109,6 +109,9 @@ export function CvMatchPage({ go, onAuth }: Props) {
     return { score: sc.score, jobs: result.items.length, docs, fixes: fixCount(sc) };
   }, [cv, result, searching, status, from]);
 
+  // Results in front of someone not on a plan yet: keep the page on the one next step (no extra small print).
+  const focus = Boolean(cv && result && !searching && !paid && status !== 'error');
+
   const p = cv?.profile;
   const skills = p ? Object.entries(p.skills).sort((a, b) => b[1] - a[1]).map(([id]) => skillName(id)) : [];
 
@@ -159,7 +162,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
           <div className="mx-auto mt-4 max-w-xl text-left">
             <CvUpload tone="light" allowRemove />
           </div>
-          <p className="mt-2 text-[12px] text-white/65">Read on your device; sent to an employer only when you ask.</p>
+          {!focus && <p className="mt-2 text-[12px] text-white/65">Read on your device; sent to an employer only when you ask.</p>}
         </div>
       </section>
 
@@ -245,6 +248,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
             </More>
           )}
 
+          {!focus && (
           <More title="How the score works">
             <p className="text-[14px] leading-6 text-ink-600">The same six checks on every job, 100 points in all. A part the ad doesn’t ask about is left out, and the rest share its points. No AI guesswork, and nothing about your age, gender, nationality or photo.</p>
             <ol className="mt-4 grid gap-2.5 sm:grid-cols-2">
@@ -260,6 +264,9 @@ export function CvMatchPage({ go, onAuth }: Props) {
             </ol>
           </More>
 
+          )}
+
+          {!focus && (
           <More title="What’s free, and what’s in the plan">
             <p className="text-[14px] leading-6 text-ink-600">
               CV match is part of Starter and Pro: your score on every job, the skills your CV is missing, the experience employers also want, the full report and all your matches. Sponsorship documents each month: Free 1, Starter 20, Pro 50.
@@ -269,9 +276,10 @@ export function CvMatchPage({ go, onAuth }: Props) {
               <ProPlanCard plan="starter" source="cv_match_page" onAuth={onAuth} compact />
             </div>
           </More>
+          )}
         </div>
 
-        {!searching && (
+        {!searching && !focus && (
           <TestimonialsSection
             id="cv-match-feedback"
             eyebrow="From MadeVisa Pro members"
