@@ -35,8 +35,21 @@ function inboxFor(email: string): { name: string; href: string } | null {
   return null;
 }
 
-export function QuickSignup({ cv, onStep, back = '/cv-match' }: { cv: StoredCv; onStep?: (step: 'email' | 'code') => void; back?: string }) {
-  const fromCv = useMemo(() => emailFromCv(cv.text), [cv.text]);
+export function QuickSignup({
+  cv,
+  onStep,
+  back = '/cv-match',
+  beforeSend,
+  sendLabel = 'Get my code',
+}: {
+  cv?: StoredCv | null;
+  onStep?: (step: 'email' | 'code') => void;
+  back?: string;
+  /** Checked before the code is sent; a message stops it (e.g. "Choose your field"). */
+  beforeSend?: () => string | null;
+  sendLabel?: string;
+}) {
+  const fromCv = useMemo(() => (cv ? emailFromCv(cv.text) : ''), [cv]);
   const [email, setEmail] = useState(fromCv);
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [code, setCode] = useState('');
@@ -68,6 +81,8 @@ export function QuickSignup({ cv, onStep, back = '/cv-match' }: { cv: StoredCv; 
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(clean);
 
   const send = async () => {
+    const stop = beforeSend?.();
+    if (stop) return setError(stop);
     if (!emailOk) return setError('Please check the email address.');
     if (!captcha.ready) return setError('One moment — finishing a quick security check. Try again in a second.');
     setBusy(true);
@@ -126,7 +141,7 @@ export function QuickSignup({ cv, onStep, back = '/cv-match' }: { cv: StoredCv; 
               />
             </span>
             <button type="submit" disabled={busy} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 text-[15px] font-bold text-white hover:bg-brand-700 disabled:opacity-60">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Get my code <ArrowRight className="h-4 w-4" />
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {sendLabel} <ArrowRight className="h-4 w-4" />
             </button>
           </div>
           {captcha.element}

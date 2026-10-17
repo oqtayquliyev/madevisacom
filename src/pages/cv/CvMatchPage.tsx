@@ -19,6 +19,7 @@ import { useFromCountry } from '@/components/cv/DocReady';
 import { cvScore, fixCount } from '@/lib/cv/cvScore';
 import { GuestUnlock } from '@/components/cv/GuestUnlock';
 import { CvScoreCard } from '@/components/cv/CvScoreCard';
+import { NoCvSignup } from '@/components/cv/NoCvSignup';
 import { useAuth } from '@/lib/auth';
 import { useMyPlan } from '@/lib/plans';
 import { usePersonalization } from '@/lib/personalization';
@@ -129,13 +130,13 @@ export function CvMatchPage({ go, onAuth }: Props) {
               ? <>{who ? `${who}, your` : 'Your'} CV scores <span className="text-amber-300">{summary.score}</span> out of 100</>
               : cv
                 ? `${who ? `${who}, here` : 'Here'} are the jobs you match most`
-                : 'Upload your CV. See the jobs you match most.'}
+                : 'Upload your CV / Resume to find sponsored job opportunities abroad'}
           </h1>
-          {!cv && (
-            <p className="mx-auto mt-4 max-w-xl text-[16px] leading-7 text-white/85">
-              We compare it with {site?.publishedJobs ? `${site.publishedJobs.toLocaleString('en-US')} live jobs` : 'the live jobs'} from company career pages and put your best matches first — with the visa step for each one abroad. It takes a few seconds.
+          {!cv && site?.publishedJobs ? (
+            <p className="mx-auto mt-4 max-w-xl text-[18px] font-semibold text-white">
+              <span className="text-[24px] font-extrabold tabular-nums text-amber-300">{site.publishedJobs.toLocaleString('en-US')}</span> opportunities for you abroad
             </p>
-          )}
+          ) : null}
           {cv && (
             <div className="mt-6">
               <CvPersonCard cv={cv} person={{ fullName: profile?.full_name, occupation: profile?.occupation, countryCode: visitor.currentLocation ?? null }} />
@@ -145,6 +146,11 @@ export function CvMatchPage({ go, onAuth }: Props) {
             <CvUpload tone="light" allowRemove />
           </div>
           {!focus && <p className="mt-2 text-[12px] text-white/65">Read on your device; sent to an employer only when you ask.</p>}
+          {!cv && cvReady && !session && (
+            <div className="mt-6">
+              <NoCvSignup />
+            </div>
+          )}
         </div>
       </section>
 
