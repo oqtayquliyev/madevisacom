@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Check, Lock, Plus, Sparkles } from 'lucide-react';
+import { Check, ChevronDown, Lock, Plus, Sparkles } from 'lucide-react';
 import type { StoredCv } from '@/lib/cv/store';
 import type { TopResult } from '@/lib/cv/topMatches';
 import { cvScore, fixCount } from '@/lib/cv/cvScore';
@@ -37,8 +37,8 @@ export function CvScoreCard({ cv, result, locked = false }: { cv: StoredCv; resu
   };
 
   return (
-    <section aria-labelledby="cv-score-title" className="mx-auto max-w-3xl animate-fade-up overflow-hidden rounded-3xl bg-white ring-1 ring-ink-200 motion-reduce:animate-none">
-      <div className="flex items-center gap-4 bg-gradient-to-br from-brand-50 to-white p-5 sm:p-6">
+    <details aria-labelledby="cv-score-title" className="group mx-auto max-w-3xl animate-fade-up overflow-hidden rounded-3xl bg-white ring-1 ring-ink-200 motion-reduce:animate-none">
+      <summary className="flex cursor-pointer list-none items-center gap-4 bg-gradient-to-br from-brand-50 to-white p-5 sm:p-6 [&::-webkit-details-marker]:hidden">
         <MatchRing score={s.score} size={76} />
         <div className="min-w-0 flex-1">
           <h2 id="cv-score-title" className="text-[18px] font-bold leading-tight tracking-tight text-ink-950">
@@ -51,7 +51,13 @@ export function CvScoreCard({ cv, result, locked = false }: { cv: StoredCv; resu
             </p>
           )}
         </div>
-      </div>
+        <span className="hidden shrink-0 items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[13px] font-bold text-brand-700 ring-1 ring-brand-200 sm:inline-flex">
+          <span className="group-open:hidden">See how to improve it</span>
+          <span className="hidden group-open:inline">Hide</span>
+          <ChevronDown className="h-4 w-4 transition group-open:rotate-180" aria-hidden />
+        </span>
+        <ChevronDown className="h-5 w-5 shrink-0 text-brand-700 transition group-open:rotate-180 sm:hidden" aria-hidden />
+      </summary>
 
       <div className="grid gap-6 p-5 sm:p-6 md:grid-cols-2">
         <div>
@@ -152,6 +158,6 @@ export function CvScoreCard({ cv, result, locked = false }: { cv: StoredCv; resu
           )}
         </div>
       </div>
-    </section>
+    </details>
   );
 }

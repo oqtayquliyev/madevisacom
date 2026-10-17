@@ -1,155 +1,108 @@
 import { useState } from 'react';
-import { FileCheck2, Sparkles } from 'lucide-react';
+import { Check, FileCheck2 } from 'lucide-react';
 import { QuickSignup } from '@/components/cv/QuickSignup';
-import { MatchRing } from '@/components/cv/MatchBits';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CvAvatar, nameFromCv } from '@/components/cv/CvInsights';
-import { TestimonialTicker } from '@/components/common/Testimonials';
-import { AutoApplyEstimate, FlagStack, MoreMatches, countriesOf, focusSignup } from '@/components/cv/Upsell';
+import { ExampleJourney } from '@/components/cv/ExampleJourney';
+import { countriesOf } from '@/components/cv/Upsell';
 import { Num, useFromCountry } from '@/components/cv/DocReady';
 import { countryName } from '@/lib/visaFit';
 import type { StoredCv } from '@/lib/cv/store';
-import type { TopMatch, TopResult } from '@/lib/cv/topMatches';
+import type { TopResult } from '@/lib/cv/topMatches';
 
-const abroad = (m: TopMatch, from: string | null) => Boolean(m.cc) && (!from || m.cc!.toUpperCase() !== from);
+/** Routes shown by name; the rest are counted. */
+const ROUTES = 4;
 
 /**
- * /cv-match for someone without an account: the results are ready, partly shown.
- * Each match shows its score, the kind of role and the country, the skills and experience the CV is
- * missing, and that the sponsorship document is ready — only the company and the exact title wait
- * behind one email field and a 6-digit code (which also makes the free account).
+ * /cv-match for someone without an account: one box, one action.
+ * "Oqtay, you have routes to France, Germany…" — each country with its tags (sponsorship document
+ * ready, how many jobs match, the best score) — then the email field. Nothing else competes with it.
  */
 export function GuestUnlock({ cv, result }: { cv: StoredCv; result: TopResult | null }) {
   const [step, setStep] = useState<'email' | 'code'>('email');
   const from = useFromCountry();
   const items = result?.items ?? [];
-  const docs = items.filter((m) => abroad(m, from)).length;
   const first = (nameFromCv(cv.text) ?? '').split(' ')[0] ?? '';
   const countries = countriesOf(items, from);
-  const best = items[0] ?? null;
+  const best = (cc: string) => Math.max(...items.filter((m) => m.cc?.toUpperCase() === cc).map((m) => m.score));
+  const shown = countries.slice(0, ROUTES);
+  const rest = countries.length - shown.length;
   const fromName = from ? countryName(from) ?? from : null;
+  const local = items.length - countries.reduce((a, c) => a + c.n, 0);
 
   return (
-    <section className="mx-auto max-w-2xl space-y-3">
-      <div className="rounded-3xl bg-white px-5 py-6 shadow-soft ring-2 ring-brand-200 sm:px-8">
-        <div className="flex items-start gap-3.5">
-          <CvAvatar cv={cv} size={52} className="hidden sm:grid" />
-          <h2 className="text-[24px] font-bold leading-tight tracking-tight text-ink-950 sm:text-[27px]">
+    <section className="mx-auto max-w-2xl">
+      <div className="animate-fade-up rounded-3xl bg-white px-5 py-6 shadow-soft ring-2 ring-brand-200 motion-reduce:animate-none sm:px-8 sm:py-7">
+        <div className="flex items-center gap-3.5">
+          <CvAvatar cv={cv} size={52} />
+          <h2 className="text-[23px] font-bold leading-tight tracking-tight text-ink-950 sm:text-[27px]">
             {step === 'code' ? (
-              <>Check your inbox{first ? `, ${first}` : ''} — your code is on its way</>
-            ) : items.length ? (
+              <>Check your inbox{first ? `, ${first}` : ''}</>
+            ) : countries.length ? (
               <>
-                {first ? `${first}, you’re` : 'You’re'} one step away from <Num className="text-[30px] sm:text-[34px]">{items.length}</Num> {items.length === 1 ? 'job' : 'jobs'}
-                {countries.length ? ' abroad' : ''}
+                {first ? `${first}, you` : 'You'} have {countries.length === 1 ? 'a route' : 'routes'} to <Num className="text-[28px] sm:text-[32px]">{countries.length}</Num> {countries.length === 1 ? 'country' : 'countries'}
               </>
             ) : (
-              'Your matches are ready'
+              <>
+                {first ? `${first}, your` : 'Your'} <Num className="text-[28px] sm:text-[32px]">{items.length}</Num> matches are ready
+              </>
             )}
           </h2>
         </div>
 
-        {step === 'email' && countries.length > 0 && (
-          <div className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-100">
-            <p className="flex flex-wrap items-center gap-2 text-[15px] font-semibold text-emerald-900">
-              {from && <CircleFlag countryCode={from} size={20} label={fromName ?? from} />}
-              {from && <span aria-hidden>→</span>}
-              <FlagStack countries={countries} max={6} size={20} />
-            </p>
-            <p className="mt-1.5 text-[15px] font-semibold text-emerald-900">
-              <FileCheck2 className="mr-1 inline h-4 w-4 -translate-y-px text-emerald-600" aria-hidden />
-              <Num tone="green" className="text-[18px]">{docs}</Num> sponsorship {docs === 1 ? 'document' : 'documents'}
-              {fromName ? ` from ${fromName}` : ''} {docs === 1 ? 'is' : 'are'} ready.
-            </p>
-          </div>
+        {step === 'email' && shown.length > 0 && (
+          <ul className="mt-5 space-y-2.5">
+            {shown.map((c, i) => (
+              <li
+                key={c.cc}
+                className="animate-fade-up rounded-2xl bg-ink-50 px-4 py-3 motion-reduce:animate-none"
+                style={{ animationDelay: `${150 + i * 140}ms` }}
+              >
+                <p className="flex items-center gap-2 text-[16px] font-bold text-ink-950">
+                  {from && <CircleFlag countryCode={from} size={20} label={fromName ?? from} />}
+                  {from && (
+                    <span aria-hidden className="text-ink-400">
+                      →
+                    </span>
+                  )}
+                  <CircleFlag countryCode={c.cc} size={20} label={c.name} />
+                  <span>{c.name}</span>
+                </p>
+                <p className="mt-2 flex flex-wrap gap-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[12.5px] font-bold text-emerald-800">
+                    <FileCheck2 className="h-3.5 w-3.5" aria-hidden /> Sponsorship document ready
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2.5 py-1 text-[12.5px] font-bold text-brand-800">
+                    <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden /> You match {c.n} {c.n === 1 ? 'job' : 'jobs'}
+                  </span>
+                  <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[12.5px] font-bold text-amber-900">Up to {best(c.cc)}% match</span>
+                </p>
+              </li>
+            ))}
+            {(rest > 0 || local > 0) && (
+              <li className="px-1 text-[14px] font-semibold text-ink-600">
+                {rest > 0 && (
+                  <>
+                    + <Num className="text-[15px]">{rest}</Num> more {rest === 1 ? 'country' : 'countries'}
+                  </>
+                )}
+                {rest > 0 && local > 0 && ' · '}
+                {local > 0 && (
+                  <>
+                    <Num className="text-[15px]">{local}</Num> {local === 1 ? 'job' : 'jobs'} in {fromName ?? 'your country'}
+                  </>
+                )}
+              </li>
+            )}
+          </ul>
         )}
 
-        <QuickSignup cv={cv} onStep={setStep} />
-
-        {/* Social proof right where the decision is made. */}
-        <div className="mt-4 border-t border-ink-100 pt-4">
-          <TestimonialTicker every={9000} />
+        <div className="mt-2">
+          <QuickSignup cv={cv} onStep={setStep} />
         </div>
+
+        <ExampleJourney className="mt-5 border-t border-ink-100 pt-4" />
       </div>
-
-      {best && <PreviewCard m={best} best from={from} first={first} delay={250} />}
-
-      <MoreMatches count={items.length - 1} countries={countriesOf(items.slice(1), from)} action={focusSignup} label="See them free" />
-
-      <AutoApplyEstimate jobs={items.length} guest onGuest={focusSignup} />
     </section>
-  );
-}
-
-function PreviewCard({ m, best, from, first, delay = 0 }: { m: TopMatch; best: boolean; from: string | null; first: string; delay?: number }) {
-  const role = m.role?.replace(/\s*\(other\)/i, '') || 'Matching';
-  const place = m.country ?? (m.remote ? 'Remote' : null);
-  const docReady = abroad(m, from);
-  const missing = m.missing ?? [];
-  const wanted = m.wanted ?? [];
-  return (
-    <article
-      className={`animate-fade-up overflow-hidden rounded-2xl bg-white motion-reduce:animate-none ${best ? 'ring-2 ring-brand-500 shadow-[0_0_0_4px_rgba(37,99,235,0.08)]' : 'ring-1 ring-ink-200'}`}
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      {best && (
-        <p className="flex items-center gap-1.5 bg-brand-600 px-4 py-2 text-[13px] font-bold text-white sm:px-5">
-          <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
-          <span>
-            It’s <b className="rounded bg-white/20 px-1 text-[15px] font-extrabold tabular-nums">{m.score}%</b> matching for you{first ? `, ${first}` : ''}! Your sponsorship document and visa route are ready!
-          </span>
-        </p>
-      )}
-      <div className="flex items-start gap-4 p-4 sm:p-5">
-        <MatchRing score={m.score} size={56} />
-        <div className="min-w-0 flex-1">
-          {/* The company stays hidden until the code is in. */}
-          <span aria-hidden className="pointer-events-none block h-3 w-1/3 select-none rounded bg-ink-200 blur-[3px]" />
-          <h3 className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[16px] font-bold leading-snug text-ink-950">
-            <span>
-              {role} role{place ? ' in' : ''}
-            </span>
-            {m.cc && <CircleFlag countryCode={m.cc} size={16} label={place ?? m.cc} />}
-            {place && <span>{place}</span>}
-          </h3>
-
-          {missing.length > 0 && (
-            <p className="mt-2 text-[13px] leading-5 text-ink-700">
-              <b className="text-ink-950">Missing skills:</b>{' '}
-              {missing.slice(0, 4).map((s) => (
-                <span key={s} className="mr-1 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[12px] font-semibold text-amber-900 ring-1 ring-amber-200">
-                  {s}
-                </span>
-              ))}
-              {missing.length > 4 && <span className="text-[12px] text-ink-500">+{missing.length - 4} more</span>}
-            </p>
-          )}
-          {wanted.length > 0 && (
-            <p className="mt-1.5 text-[13px] leading-5 text-ink-700">
-              <b className="text-ink-950">Experience wanted</b> <span className="text-ink-500">(add this to your CV if you have it):</span>{' '}
-              {wanted.slice(0, 3).join(', ')}
-              {wanted.length > 3 ? ` +${wanted.length - 3} more` : ''}
-            </p>
-          )}
-          {!missing.length && !wanted.length && <p className="mt-2 text-[13px] text-emerald-700">Your CV shows every skill this ad names.</p>}
-        </div>
-      </div>
-
-      {docReady && (
-        // Shown, not clickable: the document opens once they have an account.
-        <p className="flex flex-wrap items-center gap-1.5 border-t border-ink-100 bg-emerald-50/60 px-4 py-2.5 text-[13px] font-semibold text-emerald-900 sm:px-5">
-          <FileCheck2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
-          <span>Your sponsorship document for this job</span>
-          {from && (
-            <>
-              <span>from</span>
-              <CircleFlag countryCode={from} size={15} label={countryName(from) ?? from} />
-            </>
-          )}
-          <span>to</span>
-          <CircleFlag countryCode={m.cc!} size={15} label={m.country ?? m.cc!} />
-          <span>is ready</span>
-        </p>
-      )}
-    </article>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Briefcase, ChevronDown, FileCheck2, FileSearch, Wrench, GraduationCap, Languages, ListChecks, ScanSearch, Timer, Upload } from 'lucide-react';
+import { ArrowRight, Briefcase, ChevronDown, FileSearch, GraduationCap, Languages, ListChecks, ScanSearch, Timer, Upload } from 'lucide-react';
 import type { View } from '@/types';
 import { noteMilestone } from '@/lib/emailAttribution';
 import { useSeo } from '@/lib/seo';
@@ -131,24 +131,6 @@ export function CvMatchPage({ go, onAuth }: Props) {
                 ? `${who ? `${who}, here` : 'Here'} are the jobs you match most`
                 : 'Upload your CV. See the jobs you match most.'}
           </h1>
-          {summary && (
-            <ul className="mx-auto mt-5 flex max-w-3xl flex-wrap justify-center gap-2.5">
-              {[
-                { n: summary.jobs, text: summary.jobs === 1 ? 'job found for you' : 'jobs found for you', icon: Briefcase, tone: 'text-white' },
-                ...(summary.docs ? [{ n: summary.docs, text: summary.docs === 1 ? 'sponsorship document prepared' : 'sponsorship documents prepared', icon: FileCheck2, tone: 'text-emerald-300' }] : []),
-                ...(summary.fixes ? [{ n: summary.fixes, text: summary.fixes === 1 ? 'thing to fix on your CV' : 'things to fix on your CV', icon: Wrench, tone: 'text-amber-300' }] : []),
-              ].map((x, i) => (
-                <li
-                  key={x.text}
-                  className="inline-flex animate-fade-up items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[14px] font-semibold text-white ring-1 ring-white/25 motion-reduce:animate-none"
-                  style={{ animationDelay: `${i * 180}ms` }}
-                >
-                  <x.icon className="h-4 w-4 text-white/80" aria-hidden />
-                  <span className={`text-[19px] font-extrabold tabular-nums ${x.tone}`}>{x.n}</span> {x.text}
-                </li>
-              ))}
-            </ul>
-          )}
           {!cv && (
             <p className="mx-auto mt-4 max-w-xl text-[16px] leading-7 text-white/85">
               We compare it with {site?.publishedJobs ? `${site.publishedJobs.toLocaleString('en-US')} live jobs` : 'the live jobs'} from company career pages and put your best matches first — with the visa step for each one abroad. It takes a few seconds.

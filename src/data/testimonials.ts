@@ -3,6 +3,8 @@
 // at the members' request. Keep each member's original message and consent on
 // file, and change the text here only with their agreement.
 
+import { JOURNEYS } from '@/data/journeys';
+
 export type Testimonial = {
   id: string;
   headline: string;
@@ -168,5 +170,14 @@ export const TESTIMONIALS: Testimonial[] = [
     pro: true,
   },
 ];
+
+// Newer member reviews (src/data/journeys.ts), also used on /cv-match with the visitor's country first.
+// Not counted in PRO_TESTIMONIALS: most are Starter members, and they came without a star rating
+// (that list is shown as "N Pro members, all 5 stars").
+for (const j of JOURNEYS) {
+  const id = `${j.name.toLowerCase().replace(/[^a-z]+/g, '-').replace(/-$/, '')}-${j.from.toLowerCase()}-${j.to.toLowerCase()}`;
+  if (TESTIMONIALS.some((t) => t.id === id)) continue;
+  TESTIMONIALS.push({ id, headline: j.headline, text: j.line, name: j.name, role: j.role, from: { name: j.fromName, code: j.from }, to: { name: j.toName, code: j.to }, pro: false });
+}
 
 export const PRO_TESTIMONIALS = TESTIMONIALS.filter((t) => t.pro);

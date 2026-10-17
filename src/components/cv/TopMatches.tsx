@@ -8,7 +8,6 @@ import { jobPath } from '@/lib/jobUrl';
 import { briefEligibility, briefPath, fetchMyBriefs, newOfferPath } from '@/lib/briefs';
 import { isLocalJobFor } from '@/lib/visaFit';
 import { usePersonalization } from '@/lib/personalization';
-import { TestimonialTicker } from '@/components/common/Testimonials';
 import { priceLabel, useMyPlan } from '@/lib/plans';
 import { checkoutHref } from '@/lib/billing';
 import { useOutcomes } from '@/lib/cv/outcomes';
@@ -18,6 +17,7 @@ import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
 import { MatchRing, toneFor } from '@/components/cv/MatchBits';
 import { CvAvatar } from '@/components/cv/CvInsights';
+import { ExampleJourney } from '@/components/cv/ExampleJourney';
 import type { StoredCv } from '@/lib/cv/store';
 import { DocReadyTitle, SendWithCvNote, useFromCountry, VisaRouteLine } from '@/components/cv/DocReady';
 import { FREE_DAILY_CHECKS } from '@/lib/pricing';
@@ -198,9 +198,9 @@ export function SearchProgress({ state, cv, name }: { state: Pick<TopState, 'sta
         </ul>
       )}
 
-      {/* One testimonial for the whole wait — it stays put so it can be read. */}
+      {/* One example for the whole wait — it stays put so it can be read. */}
       <div className="mt-5 border-t border-ink-100 pt-4">
-        <TestimonialTicker every={3_600_000} />
+        <ExampleJourney />
       </div>
     </section>
   );
