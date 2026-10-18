@@ -31,6 +31,7 @@ import { priceLabel } from '@/lib/plans';
 import { checkoutHref, trackBilling } from '@/lib/billing';
 import { jobPath } from '@/lib/jobUrl';
 import { nav } from '@/lib/pageLayout';
+import { quizTrack, quizView, setQuizCountry } from '@/lib/quizTrack';
 import { NEW_TAB } from '@/lib/navLink';
 import { countryName } from '@/lib/visaFit';
 
@@ -544,11 +545,13 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
     nav(checkoutHref(plan, 'cv_quiz'));
   };
   const choose = (plan: Plan) => {
+    quizTrack('plan', { plan });
     if (plan === 'free') return onExit();
     toCheckout(plan);
   };
   /** "Send all applications" (or "Complete all"): what is not prepared yet first, then confirm the email. */
   const startAuto = async (what: string) => {
+    quizTrack('auto', { what });
     trackBilling('plan_selected', { plan: 'free', source: `cv_quiz_auto_${what}` });
     if (prepRef.current.docs.state === 'idle') await runPrep('docs', items.length);
     if (missingSkills > 0 && prepRef.current.cv.state === 'idle') await runPrep('cv', items.length);
@@ -561,7 +564,11 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
     setError(null);
     const res = await saveCvText(cvFromAnswers({ name: '', field: title.trim(), years, skills: '', student, related: tags }));
     setBusy(false);
-    if (!res.ok) return setError(res.error);
+    if (!res.ok) {
+      quizTrack('cv_made_error', { error: res.error.slice(0, 120) });
+      return setError(res.error);
+    }
+    quizTrack('cv_made', { years, title: title.trim().slice(0, 80) });
     go('country');
   };
   // "Prepare documents / Add to CV automatically": a short progress over the jobs, then the result (kept for the next screens).
@@ -581,6 +588,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
   const runPrep = (key: 'docs' | 'cv', total: number) =>
     new Promise<void>((done) => {
       if (prepRef.current[key].state !== 'idle') return done();
+      quizTrack('prepare', { what: key });
       const steps = Math.max(1, total);
       const every = Math.max(25, Math.min(90, 1800 / steps));
       let n = 0;
@@ -596,7 +604,22 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
     });
   // Which plan is open (one at a time). Starter to begin with.
   const [openAsk, setOpenAsk] = useState<Plan | null>('starter');
-  const toggle = (p: Plan) => setOpenAsk((o) => (o === p ? null : p));
+  const toggle = (p: Plan) => {
+    if (openAsk !== p) quizTrack('plan_open', { plan: p });
+    setOpenAsk((o) => (o === p ? null : p));
+  };
+
+  // Admin → Quiz funnel: the screen they are on, and what the search found.
+  const screen: string = ['goal', 'cv', 'job-title', 'experience'].includes(allowed) ? allowed : searching || !result ? 'search' : allowed;
+  useEffect(() => setQuizCountry(from), [from]);
+  useEffect(() => quizView(screen), [screen]);
+  useEffect(() => {
+    if (result && !searching) quizView('results', { jobs: all.length, countries: countries.length, best: all[0]?.score ?? 0, student });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, searching]);
+  useEffect(() => {
+    if (top.status === 'error') quizTrack('search_error', { error: (top.error ?? '').slice(0, 120) });
+  }, [top.status, top.error]);
 
   const stepKey = allowed;
   const shell = (step: Step, prev: Step | null, children: React.ReactNode) => (
@@ -630,6 +653,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
             sub="Full-time work"
             onClick={() => {
               update({ goal: 'job' });
+              quizTrack('goal', { goal: 'job' });
               go('cv');
             }}
           />
@@ -639,6 +663,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
             sub="Ausbildung / practice abroad"
             onClick={() => {
               update({ goal: 'student' });
+              quizTrack('goal', { goal: 'student' });
               go('cv');
             }}
           />
@@ -659,14 +684,29 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
         </Title>
         <div className="space-y-3">
           <div className="rounded-2xl bg-white p-4 shadow-sm ring-2 ring-brand-300">
-            <CvUpload allowRemove onDone={() => go('country')} />
+            <CvUpload
+              allowRemove
+              onDone={() => {
+                quizTrack('cv_upload');
+                go('country');
+              }}
+            />
           </div>
           {cv ? (
-            <button onClick={() => go('country')} className="flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 py-3.5 text-[16px] font-bold text-white hover:bg-brand-700">
+            <button
+              onClick={() => {
+                quizTrack('cv_existing');
+                go('country');
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 py-3.5 text-[16px] font-bold text-white hover:bg-brand-700">
               Continue with this CV <ArrowRight className="h-4 w-4" aria-hidden />
             </button>
           ) : (
-            <Option icon={FileText} title="I don’t have a CV" sub="We’ll create one for you" onClick={() => go('job-title')} />
+            <Option icon={FileText} title="I don’t have a CV" sub="We’ll create one for you" onClick={() => {
+                quizTrack('no_cv');
+                go('job-title');
+              }}
+            />
           )}
         </div>
         <Cheer>You’re doing great — one more step to your matches.</Cheer>
@@ -696,6 +736,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
             e.preventDefault();
             if (title.trim().length < 2) return setError(student ? 'Write your study field.' : 'Write a job title.');
             remember(TITLE_KEY, title.trim());
+            quizTrack(student ? 'study_field' : 'job_title', { title: title.trim().slice(0, 80), tags });
             if (student) void makeCv(0);
             else go('experience');
           }}
@@ -716,7 +757,10 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
                 {tags.map((t, i) => (
                   <span key={t} className="mv-quiz-tag inline-flex items-center gap-1 rounded-full bg-brand-50 py-1.5 pl-3 pr-1.5 text-[14px] font-semibold text-brand-800 ring-1 ring-brand-200" style={{ animationDelay: `${i * 90}ms` }}>
                     {t}
-                    <button type="button" onClick={() => setDropped((d) => [...d, t])} aria-label={`Remove ${t}`} className="grid h-6 w-6 place-items-center rounded-full hover:bg-brand-100">
+                    <button type="button" onClick={() => {
+                        quizTrack('tag_removed', { tag: t });
+                        setDropped((d) => [...d, t]);
+                      }} aria-label={`Remove ${t}`} className="grid h-6 w-6 place-items-center rounded-full hover:bg-brand-100">
                       <X className="h-3.5 w-3.5" aria-hidden />
                     </button>
                   </span>
@@ -795,6 +839,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
         <button
           onClick={() => {
             update({ country: 'any' });
+            quizTrack('country', { country: 'any', jobs: all.length });
             go('plan');
           }}
           className="mb-3 flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-4 text-left shadow-sm ring-2 ring-brand-300 transition active:scale-[0.98] sm:hover:-translate-y-0.5 sm:hover:ring-brand-500"
@@ -814,6 +859,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
                 key={c.cc}
                 onClick={() => {
                   update({ country: c.cc });
+                  quizTrack('country', { country: c.cc, jobs: c.n });
                   go('plan');
                 }}
                 className="flex flex-col items-center gap-1.5 rounded-2xl bg-white px-3 pb-4 pt-5 text-center shadow-sm ring-1 ring-ink-200 transition active:scale-[0.98] sm:hover:-translate-y-0.5 sm:hover:ring-brand-400"
@@ -938,7 +984,18 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
           <Hl>Confirm your email</Hl>
         </Title>
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-2 ring-brand-200">
-          <QuickSignup cv={cv} sendLabel="Confirm your email" onVerified={() => replace('choose')} />
+          <QuickSignup
+            cv={cv}
+            sendLabel="Confirm your email"
+            beforeSend={() => {
+              quizTrack('email_sent');
+              return null;
+            }}
+            onVerified={() => {
+              quizTrack('verified');
+              replace('choose');
+            }}
+          />
         </div>
         <div className="mt-5">{needs(false)}</div>
         {list.length > 0 && (
