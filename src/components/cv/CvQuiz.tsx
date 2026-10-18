@@ -9,7 +9,7 @@
 //        choose       — Free · Starter · Pro, with the reviews
 //   then the full CV match (Free) — or checkout (Starter / Pro), coming back to the full CV match afterwards.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock, Compass, Loader2, MailCheck, Rocket, ShieldCheck, Wand2, FileText, Globe2, GraduationCap, Info, Plane, Plus, Search, Sparkles, X, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, Clock, Compass, Loader2, MailCheck, Rocket, ShieldCheck, Wand2, FileText, Globe2, GraduationCap, Info, Plane, Plus, Search, Sparkles, X, XCircle } from 'lucide-react';
 import { BrandMark } from '@/components/layout/Logo';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CvUpload } from '@/components/cv/CvUpload';
@@ -71,13 +71,9 @@ const STYLE = `
 .mv-quiz-step.back { animation-name: mvQuizBack }
 @keyframes mvTagIn { from { opacity: 0; transform: scale(.6) translate3d(0,6px,0) } 60% { opacity: 1; transform: scale(1.06) } to { opacity: 1; transform: none } }
 .mv-quiz-tag { animation: mvTagIn .42s cubic-bezier(.2,.8,.2,1) both }
-@keyframes mvShine { from { background-position: 100% 0 } to { background-position: -100% 0 } }
-.mv-shine { background-image: linear-gradient(110deg, #1d4ed8 0%, #2563eb 38%, #93c5fd 50%, #2563eb 62%, #1d4ed8 100%); background-size: 220% 100%; animation: mvShine 2.8s linear infinite }
-@keyframes mvNudge { 0%, 100% { transform: none } 50% { transform: scale(1.025) } }
-.mv-nudge { animation: mvNudge 2.2s ease-in-out infinite }
 @keyframes mvSpin { to { transform: rotate(360deg) } }
 .mv-spin { animation: mvSpin 1.6s linear infinite }
-@media (prefers-reduced-motion: reduce) { .mv-quiz-step, .mv-quiz-tag, .mv-shine, .mv-nudge, .mv-spin { animation: none } }
+@media (prefers-reduced-motion: reduce) { .mv-quiz-step, .mv-quiz-tag, .mv-spin { animation: none } }
 `;
 
 function Shell({ step, stepKey, back, onBack, children }: { step: 1 | 2 | 3 | null; stepKey: string; back: boolean; onBack?: () => void; children: React.ReactNode }) {
@@ -137,7 +133,7 @@ const amountOf = (label: string) => Number(label.replace(/[^0-9.]/g, '').replace
 
 const PLAN_LOOK = {
   free: { tile: 'bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-700 ring-emerald-200', ring: 'ring-1 ring-ink-200', name: 'text-emerald-700', btn: 'bg-white text-ink-900 ring-1 ring-ink-300 hover:bg-ink-50', tick: 'text-emerald-600' },
-  starter: { tile: 'bg-gradient-to-br from-brand-50 to-indigo-100 text-brand-700 ring-brand-200', ring: 'ring-2 ring-brand-300', name: 'text-brand-700', btn: 'mv-shine text-white', tick: 'text-brand-600' },
+  starter: { tile: 'bg-gradient-to-br from-brand-50 to-indigo-100 text-brand-700 ring-brand-200', ring: 'ring-2 ring-brand-300', name: 'text-brand-700', btn: 'bg-brand-600 text-white hover:bg-brand-700', tick: 'text-brand-600' },
   pro: { tile: 'bg-gradient-to-br from-amber-50 to-orange-100 text-amber-700 ring-amber-200', ring: 'ring-2 ring-amber-400', name: 'text-amber-700', btn: 'bg-gradient-to-r from-amber-400 to-orange-400 text-ink-950 hover:from-amber-300 hover:to-orange-300', tick: 'text-amber-600' },
 } as const;
 
@@ -191,19 +187,51 @@ function PlanCard({ plan, icon: Icon, name, title, now, was, points, cta, onClic
   );
 }
 
-/** One thing still missing before applying, and the button that does it. */
-function Need({ icon: Icon = XCircle, tone = 'missing', children, value, action, onAction, waiting }: { icon?: typeof Plane; tone?: 'missing' | 'hurry'; children: React.ReactNode; value?: React.ReactNode; action?: string; onAction?: () => void; waiting?: boolean }) {
+type Prep = { state: 'idle' | 'running' | 'done'; n: number };
+
+/** One thing still missing before applying, and the button that does it — with its progress, then the result. */
+function Need({ icon: Icon = XCircle, tone = 'missing', children, value, action, onAction, waiting, prep, total, doneText }: { icon?: typeof Plane; tone?: 'missing' | 'hurry'; children: React.ReactNode; value?: React.ReactNode; action?: string; onAction?: () => void; waiting?: boolean; prep?: Prep; total?: number; doneText?: React.ReactNode }) {
+  const running = prep?.state === 'running';
+  const done = prep?.state === 'done';
   return (
     <li className="py-3">
       <div className="flex items-center gap-3">
-        {waiting ? <Loader2 className="mv-spin h-5 w-5 shrink-0 text-brand-500" aria-hidden /> : <Icon className={`h-5 w-5 shrink-0 ${tone === 'hurry' ? 'text-amber-500' : 'text-rose-500'}`} aria-hidden />}
+        {done ? (
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
+        ) : running || waiting ? (
+          <Loader2 className="mv-spin h-5 w-5 shrink-0 text-brand-500" aria-hidden />
+        ) : (
+          <Icon className={`h-5 w-5 shrink-0 ${tone === 'hurry' ? 'text-amber-500' : 'text-rose-500'}`} aria-hidden />
+        )}
         <span className="min-w-0 flex-1 text-[15px] font-semibold leading-snug text-ink-900">{children}</span>
-        {value != null && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-extrabold tabular-nums ${waiting ? 'bg-brand-50 text-brand-700' : 'bg-rose-50 text-rose-700'}`}>{value}</span>}
+        {running && total ? (
+          <span className="shrink-0 rounded-full bg-brand-50 px-2.5 py-0.5 text-[13px] font-extrabold tabular-nums text-brand-700">
+            {prep!.n} / {total}
+          </span>
+        ) : done && total ? (
+          <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[13px] font-extrabold tabular-nums text-emerald-700">
+            {total} / {total}
+          </span>
+        ) : (
+          value != null && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-extrabold tabular-nums ${waiting ? 'bg-brand-50 text-brand-700' : 'bg-rose-50 text-rose-700'}`}>{value}</span>
+        )}
       </div>
-      {action && onAction && (
-        <button onClick={onAction} className="mv-shine mt-2.5 flex w-full items-center justify-center gap-2 rounded-full py-3 text-[14.5px] font-bold text-white shadow-sm transition active:scale-[0.98]">
-          <Wand2 className="h-4 w-4" aria-hidden /> {action}
-        </button>
+      {running && total ? (
+        <div className="ml-8 mt-2.5">
+          <div className="h-2 overflow-hidden rounded-full bg-brand-100">
+            <div className="h-full rounded-full bg-brand-600 transition-[width] duration-100 ease-linear" style={{ width: `${(prep!.n / total) * 100}%` }} />
+          </div>
+          <p className="mt-1.5 text-[13px] font-semibold text-brand-700">Preparing…</p>
+        </div>
+      ) : done && doneText ? (
+        <div className="ml-8 mt-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[13.5px] leading-snug text-emerald-900">{doneText}</div>
+      ) : (
+        action &&
+        onAction && (
+          <button onClick={onAction} className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 py-3 text-[14.5px] font-bold text-white shadow-sm hover:bg-brand-700">
+            <Wand2 className="h-4 w-4" aria-hidden /> {action}
+          </button>
+        )
       )}
     </li>
   );
@@ -520,9 +548,11 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
     if (plan === 'free') return onExit();
     toCheckout(plan);
   };
-  /** Any "do it automatically" button: confirm the email first. */
-  const startAuto = (what: string) => {
+  /** "Send all applications" (or "Complete all"): what is not prepared yet first, then confirm the email. */
+  const startAuto = async (what: string) => {
     trackBilling('plan_selected', { plan: 'free', source: `cv_quiz_auto_${what}` });
+    if (prepRef.current.docs.state === 'idle') await runPrep('docs', items.length);
+    if (missingSkills > 0 && prepRef.current.cv.state === 'idle') await runPrep('cv', items.length);
     go('email');
   };
 
@@ -535,6 +565,36 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
     if (!res.ok) return setError(res.error);
     go('country');
   };
+  // "Prepare documents / Add to CV automatically": a short progress over the jobs, then the result (kept for the next screens).
+  const PREP_KEY = 'mv:cvQuizPrep';
+  const [prep, setPrep] = useState<Record<'docs' | 'cv', Prep>>(() => {
+    try {
+      const v = JSON.parse(window.sessionStorage.getItem(PREP_KEY) ?? 'null');
+      if (v?.docs && v?.cv) return { docs: v.docs.state === 'done' ? v.docs : { state: 'idle', n: 0 }, cv: v.cv.state === 'done' ? v.cv : { state: 'idle', n: 0 } };
+    } catch {
+      /* ignore */
+    }
+    return { docs: { state: 'idle', n: 0 }, cv: { state: 'idle', n: 0 } };
+  });
+  const prepRef = useRef(prep);
+  prepRef.current = prep;
+  useEffect(() => remember(PREP_KEY, JSON.stringify(prep)), [prep]);
+  const runPrep = (key: 'docs' | 'cv', total: number) =>
+    new Promise<void>((done) => {
+      if (prepRef.current[key].state !== 'idle') return done();
+      const steps = Math.max(1, total);
+      const every = Math.max(25, Math.min(90, 1800 / steps));
+      let n = 0;
+      setPrep((p) => ({ ...p, [key]: { state: 'running', n: 0 } }));
+      const t = window.setInterval(() => {
+        n += 1;
+        if (n >= steps) {
+          window.clearInterval(t);
+          setPrep((p) => ({ ...p, [key]: { state: 'done', n: steps } }));
+          window.setTimeout(done, 350);
+        } else setPrep((p) => ({ ...p, [key]: { state: 'running', n } }));
+      }, every);
+    });
   // Which plan is open (one at a time). Starter to begin with.
   const [openAsk, setOpenAsk] = useState<Plan | null>('starter');
   const toggle = (p: Plan) => setOpenAsk((o) => (o === p ? null : p));
@@ -781,6 +841,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
   const roleJobs = role ? `${role} jobs` : 'your jobs';
   const missingSkills = new Set(items.flatMap((m) => m.missing ?? []).map((k) => k.toLowerCase())).size;
 
+  const busyPrep = prep.docs.state === 'running' || prep.cv.state === 'running';
   /** What is still missing before they can apply. `act`: each with its "do it automatically" button; otherwise waiting for the email. */
   const needs = (act: boolean) => (
     <section className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-ink-200 sm:p-5">
@@ -791,15 +852,39 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
             Apply as quickly as possible
           </Need>
         )}
-        <Need value={`0 / ${items.length}`} waiting={!act} action={act ? 'Prepare documents automatically' : undefined} onAction={() => startAuto('documents')}>
+        <Need
+          value={`0 / ${items.length}`}
+          waiting={!act && prep.docs.state !== 'done'}
+          prep={prep.docs}
+          total={items.length}
+          action={act ? 'Prepare documents automatically' : undefined}
+          onAction={busyPrep ? undefined : () => void runPrep('docs', items.length)}
+          doneText={
+            <>
+              <b>{items.length} sponsorship document drafts</b> done for these jobs — they need a few details from you to finish.
+            </>
+          }
+        >
           Sponsorship documents
         </Need>
         {missingSkills > 0 && (
-          <Need value={missingSkills} waiting={!act} action={act ? 'Add to CV automatically' : undefined} onAction={() => startAuto('cv')}>
+          <Need
+            value={missingSkills}
+            waiting={!act && prep.cv.state !== 'done'}
+            prep={prep.cv}
+            total={items.length}
+            action={act ? 'Add to CV automatically' : undefined}
+            onAction={busyPrep ? undefined : () => void runPrep('cv', items.length)}
+            doneText={
+              <>
+                <b>CV draft done for {items.length} jobs</b> — {missingSkills} skills to confirm. Add only the ones you really have.
+              </>
+            }
+          >
             CV skills these jobs ask for
           </Need>
         )}
-        <Need value={`0 / ${items.length}`} waiting={!act} action={act ? 'Send all applications' : undefined} onAction={() => startAuto('apply')}>
+        <Need value={`0 / ${items.length}`} waiting={!act} action={act ? 'Send all applications' : undefined} onAction={busyPrep ? undefined : () => void startAuto('apply')}>
           Applications sent
         </Need>
       </ul>
@@ -835,8 +920,8 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
           </p>
         )}
         <div className="mt-6">{needs(true)}</div>
-        <button onClick={() => startAuto('all')} className="mv-shine mv-nudge mt-4 flex w-full items-center justify-center gap-2 rounded-full py-4 text-[16.5px] font-extrabold text-white shadow-md">
-          <Wand2 className="h-5 w-5" aria-hidden /> Complete all automatically
+        <button disabled={busyPrep} onClick={() => void startAuto('all')} className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-brand-700 py-4 text-[16.5px] font-extrabold text-white shadow-md hover:bg-brand-800 disabled:opacity-70">
+          {busyPrep ? <Loader2 className="mv-spin h-5 w-5" aria-hidden /> : <Wand2 className="h-5 w-5" aria-hidden />} {busyPrep ? 'Preparing…' : 'Complete all automatically'}
         </button>
         <Cheer>You’re one step away from your employer abroad.</Cheer>
       </>,
@@ -876,6 +961,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
   // ---- after the email: how to apply — Free · Starter · Pro, then the reviews ----
   const starterNow = amountOf(priceLabel('starter'));
   const proNow = amountOf(priceLabel('pro'));
+  const proDocs = Math.min(Math.max(items.length, 1), DOCS_PRO);
   return shell(
     'choose',
     null,
@@ -918,7 +1004,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
           }
           now={starterNow}
           was={WAS.starter}
-          points={[<b key="c">Up to 2× more chances</b>, `${DOCS_STARTER} sponsorship documents for ${roleJobs}`, 'What to add to your CV, for each job']}
+          points={[<b key="c">Up to 2× more chances</b>, `${docs} sponsorship document drafts already prepared for ${roleJobs}`, `Your CV already analyzed for ${docs} jobs`, `${DOCS_STARTER} sponsorship documents a month`]}
           cta={`Apply to ${docs} jobs`}
           open={openAsk === 'starter'}
           onToggle={() => toggle('starter')}
@@ -940,7 +1026,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
           }
           now={proNow}
           was={WAS.pro}
-          points={[<b key="c">Up to 10× more chances</b>, `${auto.toLocaleString('en-US')} jobs in the next 30 days, applied for you`, `${DOCS_PRO} sponsorship documents created for you`, 'Your CV adjusted for each job']}
+          points={[<b key="c">Up to 10× more chances</b>, `${proDocs} sponsorship document drafts already prepared`, `Your CV already analyzed for all ${items.length} jobs`, `Auto Apply to ${auto.toLocaleString('en-US')} jobs in the next 30 days`, `${DOCS_PRO} sponsorship documents a month`]}
           cta={`Apply to ${auto.toLocaleString('en-US')} jobs`}
           open={openAsk === 'pro'}
           onToggle={() => toggle('pro')}
