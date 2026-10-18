@@ -30,6 +30,7 @@ import { priceLabel } from '@/lib/plans';
 import { checkoutHref, trackBilling, useBillingCatalog } from '@/lib/billing';
 import { jobPath } from '@/lib/jobUrl';
 import { nav } from '@/lib/pageLayout';
+import { NEW_TAB } from '@/lib/navLink';
 import { countryName } from '@/lib/visaFit';
 
 type Goal = 'job' | 'student';
@@ -168,6 +169,7 @@ function JobRow({ m, top, delay }: { m: TopMatch; top?: boolean; delay?: number 
   return (
     <a
       href={`${jobPath({ id: `sponsored-${m.id}`, title: m.title, company: m.company })}#cv-match`}
+      {...NEW_TAB}
       className={`flex items-center gap-3 rounded-2xl bg-white p-3.5 shadow-sm transition hover:ring-brand-300 ${top ? 'ring-2 ring-brand-200' : 'ring-1 ring-ink-200'} ${delay != null ? 'mv-quiz-tag' : ''}`}
       style={delay != null ? { animationDelay: `${delay}ms` } : undefined}
     >
@@ -357,7 +359,7 @@ const remember = (key: string, v: string) => {
   }
 };
 
-export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => void }; searching: boolean; cv: StoredCv | null }) {
+export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start: () => void }; searching: boolean; cv: StoredCv | null; onExit: () => void }) {
   const { session } = useAuth();
   const [s, setS] = useState<Saved>(() => load());
   const [view, setView] = useState<Step>(() => urlStep() ?? 'goal');
@@ -463,6 +465,8 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
     return session ? 'results' : 'email';
   })();
   useEffect(() => {
+    // Signed in and nothing left to choose: the full CV match.
+    if (session && allowed === 'results') return onExit();
     if (allowed !== view) replace(allowed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed, view]);
@@ -470,12 +474,14 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
   const toCheckout = (plan: 'starter' | 'pro') => {
     trackBilling('plan_selected', { plan, source: 'cv_quiz' });
     update({ plan: null });
+    // Paid or not, checkout brings them back to the full CV match, not to a quiz step.
+    window.history.replaceState({}, '', '/cv-match');
     nav(checkoutHref(plan, 'cv_quiz'));
   };
   const choose = (plan: Plan) => {
     update({ plan });
     if (!session) return go('email');
-    if (plan === 'free') return go('results');
+    if (plan === 'free') return onExit();
     toCheckout(plan);
   };
 
@@ -827,7 +833,7 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
             sendLabel="Approve your email"
             onVerified={() => {
               if (s.plan === 'starter' || s.plan === 'pro') toCheckout(s.plan);
-              else replace('results');
+              else onExit();
             }}
           />
         </div>

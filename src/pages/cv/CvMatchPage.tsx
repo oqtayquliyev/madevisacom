@@ -14,7 +14,7 @@ import { CvUpload } from '@/components/cv/CvUpload';
 import { MatchLevels } from '@/components/cv/MatchShowcase';
 import { ENCOURAGEMENT, SearchProgress, TopMatchesList } from '@/components/cv/TopMatches';
 import { ProPlanCard } from '@/components/pro/ProPlanCard';
-import { CvInsights, CvMatchLocked, CvPersonCard, nameFromCv } from '@/components/cv/CvInsights';
+import { CvInsights, CvPersonCard, nameFromCv } from '@/components/cv/CvInsights';
 import { useFromCountry } from '@/components/cv/DocReady';
 import { cvScore, fixCount } from '@/lib/cv/cvScore';
 import { CvScoreCard } from '@/components/cv/CvScoreCard';
@@ -69,7 +69,9 @@ export function CvMatchPage({ go, onAuth }: Props) {
   const top = useTopMatches({ auto: true });
   const { cv, cvReady, status, result } = top;
   const site = useSiteStats();
-  const { session, profile } = useAuth();
+  const { session, profile, loading: authLoading } = useAuth();
+  // Leaving the quiz (signed up, or back from checkout): re-render on the plain /cv-match.
+  const [, setLeft] = useState(0);
   const my = useMyPlan();
   const { profile: visitor } = usePersonalization();
   // CV match is part of Starter and Pro.
@@ -119,8 +121,27 @@ export function CvMatchPage({ go, onAuth }: Props) {
   const p = cv?.profile;
   const skills = p ? Object.entries(p.skills).sort((a, b) => b[1] - a[1]).map(([id]) => skillName(id)) : [];
 
-  // Not on a plan yet: the page is a 3-step quiz — no menu, no footer, one thing per screen.
-  if (cvReady && !(session && my.loading) && !paid) return <CvQuiz top={top} searching={searching} cv={cv} />;
+  // No account yet: the page is a 3-step quiz — no menu, no footer, one thing per screen.
+  // Once signed up (free or a plan) it is the full CV match: every job, its visa route, what the CV is missing,
+  // and the sponsorship document. The quiz stays only while its email step finishes (it then sends Starter / Pro to checkout).
+  const quizStep = new URLSearchParams(window.location.search).get('step');
+  if (cvReady && authLoading) return <div className="min-h-screen bg-[#f8fafc]" />;
+  if (cvReady && !paid && (!session || quizStep === 'email')) {
+    return (
+      <CvQuiz
+        top={top}
+        searching={searching}
+        cv={cv}
+        onExit={() => {
+          window.history.replaceState({}, '', '/cv-match');
+          window.scrollTo({ top: 0 });
+          setLeft((n) => n + 1);
+        }}
+      />
+    );
+  }
+  // Back on a signed-in visit with an old quiz link: the plain address.
+  if (quizStep && typeof window !== 'undefined') window.history.replaceState({}, '', '/cv-match');
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
@@ -215,9 +236,8 @@ export function CvMatchPage({ go, onAuth }: Props) {
         {/* Starter and Pro: the matches and the charts. Everyone else: the count, and what unlocks it. */}
         {/* No account yet: the results wait behind one email field and a code (which also makes the free account). */}
 
-        {cv && !searching && session && !my.loading && !paid && <CvMatchLocked result={result} guest={!session} onAuth={onAuth} from={(visitor.currentLocation ?? visitor.citizenship ?? '').toUpperCase() || null} name={who} />}
-
-        {cv && !searching && paid && result && <TopMatchesList result={result} onAuth={onAuth} onAgain={top.start} />}
+        {/* Signed in, free or on a plan: every match, each opening in a new tab. */}
+        {cv && !searching && session && !my.loading && result && <TopMatchesList result={result} onAuth={onAuth} onAgain={top.start} />}
 
         {cv && !searching && paid && result && result.items.length > 0 && <CvInsights result={result} />}
 

@@ -34,8 +34,8 @@ type OnAuth = (page: 'login' | 'register') => void;
 
 /** Guests see this many matches; the rest wait behind a free account. */
 export const GUEST_VISIBLE = 2;
-/** A free account sees this many matches; the rest are in Pro. */
-export const FREE_VISIBLE = 10;
+/** A free account sees every match (the missing skills only on the best few). */
+export const FREE_VISIBLE = Infinity;
 /** A free account sees the missing skills on this many of them (the best ones). */
 export const FREE_MISSING = FREE_DAILY_CHECKS;
 
@@ -472,7 +472,7 @@ function LockedRows({ scores, onAuth, next, pro = false }: { scores: number[]; o
             </>
           ) : (
             <>
-              <p className="mt-1 text-[13px] leading-5 text-ink-600">A free account shows {FREE_VISIBLE} matches, and the skills you’re missing on {FREE_MISSING} of them.</p>
+              <p className="mt-1 text-[13px] leading-5 text-ink-600">A free account shows all your matches, and the skills you’re missing on {FREE_MISSING} of them.</p>
               <button onClick={() => signUp('register')} className="mt-3.5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-[14px] font-bold text-white hover:bg-brand-700">
                 Create free account <ArrowRight className="h-4 w-4" />
               </button>
@@ -759,7 +759,8 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
     made,
     go: (m) => {
       const share = made.get(m.id);
-      nav(share ? briefPath(share) : `${newOfferPath(m.id)}${m.cc ? `&country=${m.cc}` : ''}`);
+      // In a new tab, like the jobs: the matches stay open here.
+      window.open(share ? briefPath(share) : `${newOfferPath(m.id)}${m.cc ? `&country=${m.cc}` : ''}`, '_blank', 'noopener');
     },
   };
 
