@@ -123,10 +123,10 @@ export function CvMatchPage({ go, onAuth }: Props) {
 
   // No account yet: the page is a 3-step quiz — no menu, no footer, one thing per screen.
   // Once signed up (free or a plan) it is the full CV match: every job, its visa route, what the CV is missing,
-  // and the sponsorship document. The quiz stays only while its email step finishes (it then sends Starter / Pro to checkout).
+  // and the sponsorship document. The quiz stays for its last two screens: the email, then the choice of plan (Free → here, Starter / Pro → checkout).
   const quizStep = new URLSearchParams(window.location.search).get('step');
   if (cvReady && authLoading) return <div className="min-h-screen bg-[#f8fafc]" />;
-  if (cvReady && !paid && (!session || quizStep === 'email')) {
+  if (cvReady && !paid && (!session || quizStep === 'email' || quizStep === 'choose')) {
     return (
       <CvQuiz
         top={top}

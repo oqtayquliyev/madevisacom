@@ -4,11 +4,12 @@
 //   2/3  cv           — upload it · or "I don't have a CV" → job-title (+ close titles as tags) → experience (a simple CV is made)
 //        …the search, with its counting loading screen…
 //   3/3  country      — which country, with the jobs found there
-//        plan         — the best jobs found, then "Do you want to…?": explore (Free) · apply with documents (Starter) · Auto Apply (Pro)
-//        email        — approve the email (the account is made here)
-//   then results (Free) — or checkout (Starter / Pro), coming back here afterwards, paid or not.
+//        plan         — the best jobs found, and what is still missing, each with a "do it automatically" button
+//        email        — confirm the email (the account is made here), with what is waiting for them
+//        choose       — Free · Starter · Pro, with the reviews
+//   then the full CV match (Free) — or checkout (Starter / Pro), coming back to the full CV match afterwards.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock, Crown, FileCheck2, FileText, Globe2, GraduationCap, Info, Plane, Plus, Search, Sparkles, X, XCircle, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock, Compass, Loader2, MailCheck, Rocket, ShieldCheck, Wand2, FileText, Globe2, GraduationCap, Info, Plane, Plus, Search, Sparkles, X, XCircle } from 'lucide-react';
 import { BrandMark } from '@/components/layout/Logo';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CvUpload } from '@/components/cv/CvUpload';
@@ -36,9 +37,9 @@ import { countryName } from '@/lib/visaFit';
 type Goal = 'job' | 'student';
 type Plan = 'free' | 'starter' | 'pro';
 type Saved = { goal?: Goal; country?: string | null; plan?: Plan | null };
-type Step = 'goal' | 'cv' | 'job-title' | 'experience' | 'country' | 'plan' | 'email' | 'results';
-const ORDER: Step[] = ['goal', 'cv', 'job-title', 'experience', 'country', 'plan', 'email', 'results'];
-const NUMBER: Record<Step, 1 | 2 | 3 | null> = { goal: 1, cv: 2, 'job-title': 2, experience: 2, country: 3, plan: 3, email: 3, results: null };
+type Step = 'goal' | 'cv' | 'job-title' | 'experience' | 'country' | 'plan' | 'email' | 'choose';
+const ORDER: Step[] = ['goal', 'cv', 'job-title', 'experience', 'country', 'plan', 'email', 'choose'];
+const NUMBER: Record<Step, 1 | 2 | 3 | null> = { goal: 1, cv: 2, 'job-title': 2, experience: 2, country: 3, plan: 3, email: 3, choose: null };
 
 const KEY = 'mv:cvQuiz';
 const load = (): Saved => {
@@ -70,7 +71,13 @@ const STYLE = `
 .mv-quiz-step.back { animation-name: mvQuizBack }
 @keyframes mvTagIn { from { opacity: 0; transform: scale(.6) translate3d(0,6px,0) } 60% { opacity: 1; transform: scale(1.06) } to { opacity: 1; transform: none } }
 .mv-quiz-tag { animation: mvTagIn .42s cubic-bezier(.2,.8,.2,1) both }
-@media (prefers-reduced-motion: reduce) { .mv-quiz-step, .mv-quiz-tag { animation: none } }
+@keyframes mvShine { from { background-position: 100% 0 } to { background-position: -100% 0 } }
+.mv-shine { background-image: linear-gradient(110deg, #1d4ed8 0%, #2563eb 38%, #93c5fd 50%, #2563eb 62%, #1d4ed8 100%); background-size: 220% 100%; animation: mvShine 2.8s linear infinite }
+@keyframes mvNudge { 0%, 100% { transform: none } 50% { transform: scale(1.025) } }
+.mv-nudge { animation: mvNudge 2.2s ease-in-out infinite }
+@keyframes mvSpin { to { transform: rotate(360deg) } }
+.mv-spin { animation: mvSpin 1.6s linear infinite }
+@media (prefers-reduced-motion: reduce) { .mv-quiz-step, .mv-quiz-tag, .mv-shine, .mv-nudge, .mv-spin { animation: none } }
 `;
 
 function Shell({ step, stepKey, back, onBack, children }: { step: 1 | 2 | 3 | null; stepKey: string; back: boolean; onBack?: () => void; children: React.ReactNode }) {
@@ -123,39 +130,57 @@ function Option({ icon: Icon, title, sub, price, onClick, tone = 'plain', badge,
   );
 }
 
-/** A plan as a question. Closed: the question and the plan. Open: what it does, and the "Yes". */
-function Ask({ icon: Icon, question, points = [], cta, onClick, tone = 'plain', badge, note, plan, open, onToggle }: { icon: typeof Plane; question: React.ReactNode; points?: React.ReactNode[]; cta: string; onClick: () => void; tone?: 'plain' | 'brand' | 'premium'; badge?: string; note?: string; plan: string; open: boolean; onToggle: () => void }) {
-  const ring = tone === 'premium' ? 'ring-2 ring-amber-400' : tone === 'brand' ? 'ring-2 ring-brand-300' : 'ring-1 ring-ink-200';
-  const iconBg = tone === 'premium' ? 'bg-amber-100 text-amber-700' : tone === 'brand' ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-700';
-  const pill = tone === 'premium' ? 'bg-amber-100 text-amber-800' : tone === 'brand' ? 'bg-brand-50 text-brand-700' : 'bg-emerald-50 text-emerald-700';
-  const btn = tone === 'premium' ? 'bg-amber-400 text-ink-950 hover:bg-amber-300' : tone === 'brand' ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-white text-brand-700 ring-1 ring-brand-300 hover:bg-brand-50';
-  const tick = tone === 'premium' ? 'text-amber-600' : 'text-emerald-600';
+/** Regular prices; the visitor's price (the plan's real price) is shown against them. */
+const WAS: Record<'starter' | 'pro', number> = { starter: 4.99, pro: 14.99 };
+const usd = (n: number) => `$${n.toFixed(2)}`;
+const amountOf = (label: string) => Number(label.replace(/[^0-9.]/g, '').replace(/\.$/, '')) || 0;
+
+const PLAN_LOOK = {
+  free: { tile: 'bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-700 ring-emerald-200', ring: 'ring-1 ring-ink-200', name: 'text-emerald-700', btn: 'bg-white text-ink-900 ring-1 ring-ink-300 hover:bg-ink-50', tick: 'text-emerald-600' },
+  starter: { tile: 'bg-gradient-to-br from-brand-50 to-indigo-100 text-brand-700 ring-brand-200', ring: 'ring-2 ring-brand-300', name: 'text-brand-700', btn: 'mv-shine text-white', tick: 'text-brand-600' },
+  pro: { tile: 'bg-gradient-to-br from-amber-50 to-orange-100 text-amber-700 ring-amber-200', ring: 'ring-2 ring-amber-400', name: 'text-amber-700', btn: 'bg-gradient-to-r from-amber-400 to-orange-400 text-ink-950 hover:from-amber-300 hover:to-orange-300', tick: 'text-amber-600' },
+} as const;
+
+/** A plan: name, what it does, the price (with the regular one struck through). Open: the details and the button. */
+function PlanCard({ plan, icon: Icon, name, title, now, was, points, cta, onClick, open, onToggle, badge, note }: { plan: Plan; icon: typeof Plane; name: string; title: React.ReactNode; now?: number; was?: number; points: React.ReactNode[]; cta: string; onClick: () => void; open: boolean; onToggle: () => void; badge?: string; note?: string }) {
+  const look = PLAN_LOOK[plan];
+  const off = now && was ? Math.round((1 - now / was) * 100) : 0;
   return (
-    <div className={`relative rounded-2xl bg-white shadow-sm ${ring}`}>
-      {badge && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-400 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-ink-950">{badge}</span>}
-      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 p-4 pt-5 text-left">
-        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${iconBg}`}>
-          <Icon className="h-5 w-5" aria-hidden />
+    <div className={`relative rounded-3xl bg-white shadow-sm transition ${look.ring} ${open ? 'shadow-md' : ''}`}>
+      {badge && <span className="absolute -top-2.5 right-5 whitespace-nowrap rounded-full bg-gradient-to-r from-amber-400 to-orange-400 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-ink-950 shadow-sm">{badge}</span>}
+      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-start gap-3.5 p-4 text-left sm:p-5">
+        <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ring-1 ${look.tile}`}>
+          <Icon className="h-6 w-6" strokeWidth={1.8} aria-hidden />
         </span>
         <span className="min-w-0 flex-1">
-          <span className={`inline-block rounded-full px-2 py-0.5 text-[11.5px] font-extrabold uppercase tracking-wide ${pill}`}>{plan}</span>
-          <span className="mt-1 block text-[16.5px] font-bold leading-snug text-ink-950">{question}</span>
+          <span className={`block text-[12px] font-extrabold uppercase tracking-[0.08em] ${look.name}`}>{name}</span>
+          <span className="mt-0.5 block text-[17px] font-bold leading-snug text-ink-950">{title}</span>
+          <span className="mt-1.5 flex flex-wrap items-baseline gap-x-2">
+            {now ? (
+              <>
+                {was && <s className="text-[15px] font-semibold text-ink-400">{usd(was)}</s>}
+                <b className="text-[24px] font-extrabold leading-none tracking-tight text-ink-950">{usd(now)}</b>
+                <span className="text-[13px] font-semibold text-ink-600">/ month</span>
+                {off > 0 && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[12px] font-extrabold text-emerald-800">−{off}%</span>}
+              </>
+            ) : (
+              <b className="text-[24px] font-extrabold leading-none tracking-tight text-ink-950">$0</b>
+            )}
+          </span>
         </span>
-        <ChevronDown className={`h-5 w-5 shrink-0 text-ink-500 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} aria-hidden />
+        <ChevronDown className={`mt-1 h-5 w-5 shrink-0 text-ink-500 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} aria-hidden />
       </button>
       <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
-          <div className="px-4 pb-4">
-            {points.length > 0 && (
-              <ul className="space-y-1.5">
-                {points.map((t, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[14.5px] font-semibold text-ink-800">
-                    <Check className={`mt-0.5 h-4 w-4 shrink-0 ${tick}`} strokeWidth={3} aria-hidden /> <span>{t}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <button tabIndex={open ? 0 : -1} onClick={onClick} className={`mt-3.5 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15.5px] font-bold transition active:scale-[0.98] ${btn}`}>
+          <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+            <ul className="space-y-1.5 border-t border-ink-100 pt-3">
+              {points.map((t, i) => (
+                <li key={i} className="flex items-start gap-2 text-[14.5px] font-semibold text-ink-800">
+                  <Check className={`mt-0.5 h-4 w-4 shrink-0 ${look.tick}`} strokeWidth={3} aria-hidden /> <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+            <button tabIndex={open ? 0 : -1} onClick={onClick} className={`mt-4 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15.5px] font-bold shadow-sm transition active:scale-[0.98] ${look.btn}`}>
               {cta} <ArrowRight className="h-4 w-4" aria-hidden />
             </button>
             {note && <p className="mt-2 text-center text-[13px] font-semibold text-ink-600">{note}</p>}
@@ -166,13 +191,20 @@ function Ask({ icon: Icon, question, points = [], cta, onClick, tone = 'plain', 
   );
 }
 
-/** One thing still missing before applying: a red cross (or a clock), the thing, and where they stand. */
-function Need({ icon: Icon = XCircle, tone = 'missing', children, value }: { icon?: typeof Plane; tone?: 'missing' | 'hurry'; children: React.ReactNode; value?: React.ReactNode }) {
+/** One thing still missing before applying, and the button that does it. */
+function Need({ icon: Icon = XCircle, tone = 'missing', children, value, action, onAction, waiting }: { icon?: typeof Plane; tone?: 'missing' | 'hurry'; children: React.ReactNode; value?: React.ReactNode; action?: string; onAction?: () => void; waiting?: boolean }) {
   return (
-    <li className="flex items-center gap-3 py-2.5">
-      <Icon className={`h-5 w-5 shrink-0 ${tone === 'hurry' ? 'text-amber-500' : 'text-rose-500'}`} aria-hidden />
-      <span className="min-w-0 flex-1 text-[15px] font-semibold leading-snug text-ink-900">{children}</span>
-      {value != null && <span className="shrink-0 rounded-full bg-rose-50 px-2.5 py-0.5 text-[13px] font-extrabold tabular-nums text-rose-700">{value}</span>}
+    <li className="py-3">
+      <div className="flex items-center gap-3">
+        {waiting ? <Loader2 className="mv-spin h-5 w-5 shrink-0 text-brand-500" aria-hidden /> : <Icon className={`h-5 w-5 shrink-0 ${tone === 'hurry' ? 'text-amber-500' : 'text-rose-500'}`} aria-hidden />}
+        <span className="min-w-0 flex-1 text-[15px] font-semibold leading-snug text-ink-900">{children}</span>
+        {value != null && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-extrabold tabular-nums ${waiting ? 'bg-brand-50 text-brand-700' : 'bg-rose-50 text-rose-700'}`}>{value}</span>}
+      </div>
+      {action && onAction && (
+        <button onClick={onAction} className="mv-shine mt-2.5 flex w-full items-center justify-center gap-2 rounded-full py-3 text-[14.5px] font-bold text-white shadow-sm transition active:scale-[0.98]">
+          <Wand2 className="h-4 w-4" aria-hidden /> {action}
+        </button>
+      )}
     </li>
   );
 }
@@ -213,22 +245,6 @@ function JobRow({ m, top, delay }: { m: TopMatch; top?: boolean; delay?: number 
         </span>
       </span>
     </a>
-  );
-}
-
-/** Above the plans: fair prices for people from their country, and why it pays off. */
-function PlansHeader({ from, fromName }: { from: string | null; fromName: string | null }) {
-  return (
-    <div className="mb-4 mt-8 text-center">
-      {from && fromName && (
-        <p className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[13.5px] font-semibold text-ink-700 ring-1 ring-ink-200">
-          Fair prices for people from <CircleFlag countryCode={from} size={16} label={fromName} /> {fromName}
-        </p>
-      )}
-      <p className="mt-3 text-[22px] font-bold leading-tight text-ink-950">
-        <Hl>More chances</Hl> to relocate abroad
-      </p>
-    </div>
   );
 }
 
@@ -485,13 +501,10 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
     if (want === 'country') return 'country';
     if (!s.country) return 'country';
     if (want === 'plan') return 'plan';
-    if (!s.plan) return 'plan';
-    if (want === 'email') return session && s.plan === 'free' ? 'results' : 'email';
-    return session ? 'results' : 'email';
+    // The plan is chosen after the email is confirmed.
+    return session ? 'choose' : 'email';
   })();
   useEffect(() => {
-    // Signed in and nothing left to choose: the full CV match.
-    if (session && allowed === 'results') return onExit();
     if (allowed !== view) replace(allowed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed, view]);
@@ -504,10 +517,13 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
     nav(checkoutHref(plan, 'cv_quiz'));
   };
   const choose = (plan: Plan) => {
-    update({ plan });
-    if (!session) return go('email');
     if (plan === 'free') return onExit();
     toCheckout(plan);
+  };
+  /** Any "do it automatically" button: confirm the email first. */
+  const startAuto = (what: string) => {
+    trackBilling('plan_selected', { plan: 'free', source: `cv_quiz_auto_${what}` });
+    go('email');
   };
 
   /** "I don't have a CV": make a simple one from the answers, then on to the countries. */
@@ -519,11 +535,9 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
     if (!res.ok) return setError(res.error);
     go('country');
   };
-  const [showAll, setShowAll] = useState(false);
-  // Which plan question is open (one at a time).
-  const [openAsk, setOpenAsk] = useState<Plan | null>(null);
+  // Which plan is open (one at a time). Starter to begin with.
+  const [openAsk, setOpenAsk] = useState<Plan | null>('starter');
   const toggle = (p: Plan) => setOpenAsk((o) => (o === p ? null : p));
-  const JOBS_FIRST = 8;
 
   const stepKey = allowed;
   const shell = (step: Step, prev: Step | null, children: React.ReactNode) => (
@@ -760,98 +774,39 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
     );
   }
 
-  // The three plans, as questions about what will happen.
   const docs = Math.min(Math.max(items.length, 1), DOCS_STARTER);
   // Free shows half of the jobs found; Starter and Pro all of them.
   const half = freeVisible(items.length);
   const role = (cv?.profile.titles[0] ?? title.trim()) || null;
   const roleJobs = role ? `${role} jobs` : 'your jobs';
   const missingSkills = new Set(items.flatMap((m) => m.missing ?? []).map((k) => k.toLowerCase())).size;
-  const asks = (free: boolean) => (
-    <>
-      <PlansHeader from={from} fromName={fromName} />
-      <div className="space-y-3.5">
-        {free && (
-          <Ask
-            icon={Search}
-            plan="Free"
-            open={openAsk === 'free'}
-            onToggle={() => toggle('free')}
-            question={
-              <>
-                Do you want to apply to <Num>{half}</Num> {half === 1 ? 'job' : 'jobs'} manually?
-              </>
-            }
-            points={[`${half} of your ${items.length} jobs`, '1 sponsorship document a month']}
-            cta="Continue for free"
-            note="Registration required"
-            onClick={() => choose('free')}
-          />
-        )}
-        <Ask
-          icon={FileCheck2}
-          tone="brand"
-          plan={`Starter · ${priceLabel('starter')}`}
-          open={openAsk === 'starter'}
-          onToggle={() => toggle('starter')}
-          question={
-            items.length <= DOCS_STARTER ? (
-              <>
-                Do you want to apply to all <Num>{items.length}</Num> jobs, each with a sponsorship document?
-              </>
-            ) : (
-              <>
-                Do you want to apply to your best <Num>{docs}</Num> jobs, each with a sponsorship document?
-              </>
-            )
-          }
-          points={[<b key="c">Up to 2× more chances</b>, `${DOCS_STARTER} sponsorship documents for ${roleJobs}`, 'What to add to your CV, for each job']}
-          cta={`Yes · ${priceLabel('starter')}`}
-          onClick={() => (free ? choose('starter') : toCheckout('starter'))}
-        />
-        <Ask
-          icon={free ? Zap : Crown}
-          tone="premium"
-          badge="Most chances"
-          plan={`Pro · ${priceLabel('pro')}`}
-          open={openAsk === 'pro'}
-          onToggle={() => toggle('pro')}
-          question={
-            <>
-              Do you want to apply to{' '}
-              <Num tone="amber" className="!text-amber-600">
-                {auto.toLocaleString('en-US')}
-              </Num>{' '}
-              jobs in the next 30 days, automatically?
-            </>
-          }
-          points={[<b key="c">Up to 10× more chances</b>, `${auto.toLocaleString('en-US')} jobs in the next 30 days, applied for you`, `${DOCS_PRO} sponsorship documents created for you`]}
-          cta={`Yes · ${priceLabel('pro')}`}
-          onClick={() => (free ? choose('pro') : toCheckout('pro'))}
-        />
-      </div>
-    </>
-  );
 
-  /** What is still missing before they can apply — so the plan reads as the way to get it done. */
-  const needs = (
-    <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-ink-200 sm:p-5">
-      <p className="text-[18px] font-bold leading-snug text-ink-950">To get these jobs, you still need:</p>
+  /** What is still missing before they can apply. `act`: each with its "do it automatically" button; otherwise waiting for the email. */
+  const needs = (act: boolean) => (
+    <section className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-ink-200 sm:p-5">
+      <p className="text-[18px] font-bold leading-snug text-ink-950">{act ? 'To get these jobs, you still need:' : 'Ready to start once you confirm:'}</p>
       <ul className="mt-1 divide-y divide-ink-100">
-        <Need icon={Clock} tone="hurry">
-          Apply as quickly as possible
+        {act && (
+          <Need icon={Clock} tone="hurry">
+            Apply as quickly as possible
+          </Need>
+        )}
+        <Need value={`0 / ${items.length}`} waiting={!act} action={act ? 'Prepare documents automatically' : undefined} onAction={() => startAuto('documents')}>
+          Sponsorship documents
         </Need>
-        <Need value={`0 / ${items.length}`}>Sponsorship documents</Need>
-        {missingSkills > 0 && <Need value={missingSkills}>CV skills these jobs ask for</Need>}
-        <Need value={`0 / ${items.length}`}>Applications sent</Need>
+        {missingSkills > 0 && (
+          <Need value={missingSkills} waiting={!act} action={act ? 'Add to CV automatically' : undefined} onAction={() => startAuto('cv')}>
+            CV skills these jobs ask for
+          </Need>
+        )}
+        <Need value={`0 / ${items.length}`} waiting={!act} action={act ? 'Send all applications' : undefined} onAction={() => startAuto('apply')}>
+          Applications sent
+        </Need>
       </ul>
-      <p className="mt-3 rounded-xl bg-brand-50 px-3.5 py-3 text-[15px] font-semibold leading-snug text-brand-900">
-        A plan creates the sponsorship documents for {role ? <b>{role}</b> : 'your'} jobs, shows what to add to your CV, and you apply.
-      </p>
     </section>
   );
 
-  // ---- 3/3 · the best jobs found, what is still missing, then what they want to do ----
+  // ---- 3/3 · the best jobs found, and what is still missing (each with its button) ----
   if (allowed === 'plan') {
     const preview = items.slice(0, 3);
     return shell(
@@ -879,14 +834,16 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
             + <Num className="text-[15px]">{items.length - preview.length}</Num> more
           </p>
         )}
-        {needs}
-        {asks(true)}
+        <div className="mt-6">{needs(true)}</div>
+        <button onClick={() => startAuto('all')} className="mv-shine mv-nudge mt-4 flex w-full items-center justify-center gap-2 rounded-full py-4 text-[16.5px] font-extrabold text-white shadow-md">
+          <Wand2 className="h-5 w-5" aria-hidden /> Complete all automatically
+        </button>
         <Cheer>You’re one step away from your employer abroad.</Cheer>
       </>,
     );
   }
 
-  // ---- 3/3 · approve the email, with their jobs right under it ----
+  // ---- 3/3 · confirm the email, with what is waiting for them, and their jobs ----
   if (allowed === 'email') {
     const list = items.slice(0, 5);
     return shell(
@@ -894,19 +851,12 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
       'plan',
       <>
         <Title>
-          <Hl>Approve your email</Hl> to continue
+          <Hl>Confirm your email</Hl>
         </Title>
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-2 ring-brand-200">
-          <QuickSignup
-            cv={cv}
-            sendLabel="Approve your email"
-            onVerified={() => {
-              if (s.plan === 'starter' || s.plan === 'pro') toCheckout(s.plan);
-              else onExit();
-            }}
-          />
+          <QuickSignup cv={cv} sendLabel="Confirm your email" onVerified={() => replace('choose')} />
         </div>
-        <Cheer>Your jobs are saved to your account.</Cheer>
+        <div className="mt-5">{needs(false)}</div>
         {list.length > 0 && (
           <>
             <p className="mb-3 mt-7 text-center text-[17px] font-bold text-ink-950">
@@ -917,39 +867,87 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
                 <JobRow key={m.id} m={m} top={i === 0} />
               ))}
             </div>
-            {items.length > list.length && (
-              <p className="mt-2.5 text-center text-[14px] font-semibold text-ink-600">
-                + <Num className="text-[15px]">{items.length - list.length}</Num> more after you approve your email
-              </p>
-            )}
           </>
         )}
       </>,
     );
   }
 
-  // ---- Free: every job, open; then the next step up ----
-  const freeJobs = items.slice(0, half);
-  const shownJobs = showAll ? freeJobs : freeJobs.slice(0, JOBS_FIRST);
+  // ---- after the email: how to apply — Free · Starter · Pro, then the reviews ----
+  const starterNow = amountOf(priceLabel('starter'));
+  const proNow = amountOf(priceLabel('pro'));
   return shell(
-    'results',
-    'plan',
+    'choose',
+    null,
     <>
+      <p className="mb-3 flex items-center justify-center gap-1.5 text-[14px] font-bold text-emerald-700">
+        <MailCheck className="h-4 w-4" aria-hidden /> Email confirmed
+      </p>
       <Title>
-        {first ? `${first}, here` : 'Here'} are your <Hl>opportunities</Hl>
+        {first ? `${first}, choose` : 'Choose'} <Hl>how to apply</Hl>
       </Title>
-      <div className="space-y-2.5">
-        {shownJobs.map((m, i) => (
-          <JobRow key={m.id} m={m} top={i === 0} />
-        ))}
-      </div>
-      {!showAll && freeJobs.length > JOBS_FIRST && (
-        <button onClick={() => setShowAll(true)} className="mt-3 w-full rounded-full bg-white py-3 text-[15px] font-bold text-brand-700 ring-1 ring-brand-300 hover:bg-brand-50">
-          Show all {freeJobs.length} jobs
-        </button>
+      {from && fromName && (
+        <p className="mx-auto -mt-2 mb-5 flex w-fit items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[13.5px] font-semibold text-ink-700 ring-1 ring-ink-200">
+          <CircleFlag countryCode={from} size={16} label={fromName} /> Prices for people from {fromName}
+        </p>
       )}
-      {asks(false)}
-      <ExampleJourney rotate wide className="pt-6" />
+      <div className="space-y-4">
+        <PlanCard
+          plan="free"
+          icon={Compass}
+          name="Free"
+          title={
+            <>
+              Apply to <Num>{half}</Num> {half === 1 ? 'job' : 'jobs'} manually
+            </>
+          }
+          points={[`${half} of your ${items.length} jobs`, '1 sponsorship document a month']}
+          cta={`Apply to ${half} ${half === 1 ? 'job' : 'jobs'} for free`}
+          open={openAsk === 'free'}
+          onToggle={() => toggle('free')}
+          onClick={() => choose('free')}
+        />
+        <PlanCard
+          plan="starter"
+          icon={ShieldCheck}
+          name="Starter"
+          title={
+            <>
+              Apply to <Num>{docs}</Num> jobs with sponsorship documents
+            </>
+          }
+          now={starterNow}
+          was={WAS.starter}
+          points={[<b key="c">Up to 2× more chances</b>, `${DOCS_STARTER} sponsorship documents for ${roleJobs}`, 'What to add to your CV, for each job']}
+          cta={`Apply to ${docs} jobs`}
+          open={openAsk === 'starter'}
+          onToggle={() => toggle('starter')}
+          onClick={() => choose('starter')}
+        />
+        <PlanCard
+          plan="pro"
+          icon={Rocket}
+          name="Pro"
+          badge="Most chances"
+          title={
+            <>
+              Auto Apply to{' '}
+              <Num tone="amber" className="!text-amber-600">
+                {auto.toLocaleString('en-US')}
+              </Num>{' '}
+              jobs in 30 days
+            </>
+          }
+          now={proNow}
+          was={WAS.pro}
+          points={[<b key="c">Up to 10× more chances</b>, `${auto.toLocaleString('en-US')} jobs in the next 30 days, applied for you`, `${DOCS_PRO} sponsorship documents created for you`, 'Your CV adjusted for each job']}
+          cta={`Apply to ${auto.toLocaleString('en-US')} jobs`}
+          open={openAsk === 'pro'}
+          onToggle={() => toggle('pro')}
+          onClick={() => choose('pro')}
+        />
+      </div>
+      <ExampleJourney rotate wide className="pt-8" />
     </>,
   );
 }
