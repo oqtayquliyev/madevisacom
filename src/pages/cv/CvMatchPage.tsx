@@ -176,12 +176,12 @@ export function CvMatchPage({ go, onAuth }: Props) {
               <NoCvSignup />
             </div>
           )}
+          {/* Members from the visitor's own country, as high on the page as the upload allows. */}
+          {!cv && cvReady && <ExampleJourney rotate className="mx-auto mt-6 max-w-4xl" />}
         </div>
       </section>
 
       <main className={`${WRAP} space-y-10 py-10 sm:py-12`}>
-        {/* Members from the visitor's own country first. */}
-        {!cv && cvReady && <ExampleJourney rotate boxed className="mx-auto max-w-2xl" />}
         {!cv && cvReady && (
           <>
             <ol className="mx-auto grid max-w-4xl gap-3 sm:grid-cols-3">

@@ -126,24 +126,14 @@ export function NoCvSignup() {
 
   if (!plan) {
     return (
-      <div className="mx-auto grid max-w-xl gap-2.5 sm:grid-cols-2">
-        <button onClick={() => setPlan('starter')} className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3.5 text-left text-white ring-1 ring-white/25 hover:bg-white/15">
-          <FileText className="h-5 w-5 shrink-0 text-white/80" aria-hidden />
-          <span>
-            <span className="block text-[15px] font-bold leading-snug">I don’t have a CV / Resume</span>
-            <span className="block text-[12.5px] text-white/75">Jobs for your field · Starter</span>
-          </span>
-        </button>
-        <button onClick={() => setPlan('pro')} className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-left text-ink-950 hover:bg-brand-50">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-amber-400">
-            <Zap className="h-4 w-4" fill="currentColor" aria-hidden />
-          </span>
-          <span>
-            <span className="block text-[15px] font-bold leading-snug">Auto Apply for 30 days</span>
-            <span className="block text-[12.5px] text-ink-600">Jobs abroad, applied for you · Pro</span>
-          </span>
-        </button>
-      </div>
+      <button onClick={() => setPlan('starter')} className="mx-auto flex w-full max-w-xl items-center gap-3 rounded-2xl bg-white/10 px-4 py-3.5 text-left text-white ring-1 ring-white/25 hover:bg-white/15">
+        <FileText className="h-5 w-5 shrink-0 text-white/80" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-bold leading-snug">I don’t have a CV / Resume</span>
+          <span className="block text-[12.5px] text-white/75">Get sponsored jobs for your field</span>
+        </span>
+        <ArrowRight className="h-5 w-5 shrink-0" aria-hidden />
+      </button>
     );
   }
 
