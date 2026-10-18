@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Loader2, Mail } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { nav } from '@/lib/pageLayout';
 import { confirmEmailVerified } from '@/lib/emailVerification';
 import { useCaptcha } from '@/components/auth/Turnstile';
 import type { StoredCv } from '@/lib/cv/store';
@@ -41,6 +42,8 @@ export function QuickSignup({
   back = '/cv-match',
   beforeSend,
   sendLabel = 'Approve your email',
+  next,
+  onVerified,
 }: {
   cv?: StoredCv | null;
   onStep?: (step: 'email' | 'code') => void;
@@ -48,6 +51,10 @@ export function QuickSignup({
   /** Checked before the code is sent; a message stops it (e.g. "Choose your field"). */
   beforeSend?: () => string | null;
   sendLabel?: string;
+  /** Where to go once the email is approved (e.g. Pro checkout); otherwise the page stays. */
+  next?: string | null;
+  /** Called once the email is approved and the person is signed in. */
+  onVerified?: () => void;
 }) {
   const fromCv = useMemo(() => (cv ? emailFromCv(cv.text) : ''), [cv]);
   const [email, setEmail] = useState(fromCv);
@@ -110,6 +117,8 @@ export function QuickSignup({
       return setError(friendly(err.message));
     }
     await confirmEmailVerified().catch(() => undefined);
+    onVerified?.();
+    if (next) nav(next);
     // Signed in: the CV from this browser is attached to the account and the page shows the matches.
   };
 

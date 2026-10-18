@@ -425,8 +425,8 @@ export function topScore(cv: StoredCv | null, jobId: string): number | null {
   return r?.items.find((x) => x.id === jobId)?.score ?? null;
 }
 
-/** Matches a free account sees with their score on /cv-match (the best one, and the two after it). */
-export const FREE_PREVIEW = 3;
+/** Matches a free account sees with their score on /cv-match (the best one, and the one after it). */
+export const FREE_PREVIEW = 2;
 
 /**
  * The score /cv-match already showed this person for one job (one of the first {@link FREE_PREVIEW}

@@ -20,6 +20,9 @@ import { cvScore, fixCount } from '@/lib/cv/cvScore';
 import { GuestUnlock } from '@/components/cv/GuestUnlock';
 import { CvScoreCard } from '@/components/cv/CvScoreCard';
 import { NoCvSignup } from '@/components/cv/NoCvSignup';
+import { ExampleJourney } from '@/components/cv/ExampleJourney';
+import { CircleFlag } from '@/components/common/CircleFlag';
+import { countryName as countryNameOf } from '@/lib/visaFit';
 import { useAuth } from '@/lib/auth';
 import { useMyPlan } from '@/lib/plans';
 import { usePersonalization } from '@/lib/personalization';
@@ -130,13 +133,25 @@ export function CvMatchPage({ go, onAuth }: Props) {
               ? <>{who ? `${who}, your` : 'Your'} CV scores <span className="text-amber-300">{summary.score}</span> out of 100</>
               : cv
                 ? `${who ? `${who}, here` : 'Here'} are the jobs you match most`
-                : 'Upload your CV / Resume to find sponsored job opportunities abroad'}
+                : 'Your next job could take you somewhere new.'}
           </h1>
-          {!cv && site?.publishedJobs ? (
-            <p className="mx-auto mt-4 max-w-xl text-[18px] font-semibold text-white">
-              <span className="text-[24px] font-extrabold tabular-nums text-amber-300">{site.publishedJobs.toLocaleString('en-US')}</span> opportunities for you abroad
+          {!cv && (
+            <p className="mx-auto mt-3 max-w-xl text-[16px] font-medium text-white/90 sm:text-[18px]">
+              Upload your CV / Resume —{' '}
+              {site?.publishedJobs ? (
+                <>
+                  <span className="text-[20px] font-extrabold tabular-nums text-amber-300 sm:text-[22px]">{site.publishedJobs.toLocaleString('en-US')}</span> sponsored job opportunities abroad for you
+                </>
+              ) : (
+                'sponsored job opportunities abroad for you'
+              )}
             </p>
-          ) : null}
+          )}
+          {!cv && visitor.currentLocation && (
+            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[13px] font-semibold text-white/90">
+              <CircleFlag countryCode={visitor.currentLocation} size={16} label={countryNameOf(visitor.currentLocation) ?? undefined} /> From {countryNameOf(visitor.currentLocation)}
+            </p>
+          )}
           {cv && (
             <div className="mt-6">
               <CvPersonCard cv={cv} person={{ fullName: profile?.full_name, occupation: profile?.occupation, countryCode: visitor.currentLocation ?? null }} />
@@ -156,7 +171,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
               <p className="mt-2 text-[12px] text-ink-500">Read on your device; sent to an employer only when you ask.</p>
             </div>
           )}
-          {!cv && cvReady && !session && (
+          {!cv && cvReady && (
             <div className="mt-3">
               <NoCvSignup />
             </div>
@@ -165,6 +180,8 @@ export function CvMatchPage({ go, onAuth }: Props) {
       </section>
 
       <main className={`${WRAP} space-y-10 py-10 sm:py-12`}>
+        {/* Members from the visitor's own country first. */}
+        {!cv && cvReady && <ExampleJourney rotate boxed className="mx-auto max-w-2xl" />}
         {!cv && cvReady && (
           <>
             <ol className="mx-auto grid max-w-4xl gap-3 sm:grid-cols-3">

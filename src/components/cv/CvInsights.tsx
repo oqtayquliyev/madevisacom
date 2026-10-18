@@ -262,8 +262,8 @@ function DocLine({ from, m }: { from: string | null; m: TopMatch }) {
 }
 
 /**
- * Free accounts: three of their matches. The best one keeps its score and country but hides the role and the
- * company; the next two are shown in full. Every one shows its sponsorship document. The rest is Starter.
+ * Free accounts: two of their matches. The best one keeps its score and country but hides the role and the
+ * company; the next one is shown in full. Every one shows its sponsorship document. The rest is Starter.
  */
 export function CvMatchLocked({ result, guest, onAuth, from = null, name = null }: { result: TopResult | null; guest: boolean; onAuth?: (p: 'login' | 'register') => void; from?: string | null; name?: string | null }) {
   const items = result?.items ?? [];
@@ -273,7 +273,7 @@ export function CvMatchLocked({ result, guest, onAuth, from = null, name = null 
   const first = (name ?? '').trim().split(/\s+/)[0] ?? '';
   const href = checkoutHref('starter', 'cv_match_locked');
   const [top, ...rest] = items;
-  const open = rest.slice(0, 2);
+  const open = rest.slice(0, 1); // The best match stays hidden, one more is open, the rest are Starter.
   const jobHref = (m: TopMatch) => `${jobPath({ id: `sponsored-${m.id}`, title: m.title, company: m.company })}`;
   const where = (m: TopMatch) => [m.remote && !m.city ? 'Remote' : m.city, m.country].filter(Boolean).join(', ');
   return (
