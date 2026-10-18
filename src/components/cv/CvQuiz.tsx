@@ -205,6 +205,111 @@ function PlansHeader({ from, fromName }: { from: string | null; fromName: string
   );
 }
 
+/** Study fields first, then every job title and category (the same categories as the jobs page filter). */
+const STUDY_OPTIONS = [...new Set([...STUDY_FIELDS, ...ALL_TITLES])];
+
+/** "Prod" → Product designer, Product manager, Production worker… — words that start with it first. */
+function suggest(q: string, options: string[], max = 8): string[] {
+  const t = q.trim().toLowerCase();
+  if (!t) return [];
+  const starts: string[] = [];
+  const word: string[] = [];
+  const inside: string[] = [];
+  for (const o of options) {
+    const l = o.toLowerCase();
+    if (l === t) continue;
+    if (l.startsWith(t)) starts.push(o);
+    else if (l.split(/[\s/&,()-]+/).some((w) => w.startsWith(t))) word.push(o);
+    else if (l.includes(t)) inside.push(o);
+  }
+  return [...starts, ...word, ...inside].slice(0, max);
+}
+
+function Marked({ text, q }: { text: string; q: string }) {
+  const i = text.toLowerCase().indexOf(q.trim().toLowerCase());
+  if (i < 0 || !q.trim()) return <>{text}</>;
+  const n = q.trim().length;
+  return (
+    <>
+      {text.slice(0, i)}
+      <b className="font-bold text-ink-950">{text.slice(i, i + n)}</b>
+      {text.slice(i + n)}
+    </>
+  );
+}
+
+/** The title box, with its own list of matches as you type (works the same on every phone and browser). */
+function TitleSearch({ label, placeholder, value, onChange, options }: { label: string; placeholder: string; value: string; onChange: (v: string) => void; options: string[] }) {
+  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState(0);
+  const list = useMemo(() => suggest(value, options), [value, options]);
+  const show = open && list.length > 0;
+  const pick = (v: string) => {
+    onChange(v);
+    setOpen(false);
+  };
+  return (
+    <div className="relative">
+      <label htmlFor="quiz-title" className="text-[14px] font-semibold text-ink-800">
+        {label}
+      </label>
+      <span className="relative mt-1.5 block">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400" aria-hidden />
+        <input
+          id="quiz-title"
+          value={value}
+          autoComplete="off"
+          role="combobox"
+          aria-expanded={show}
+          aria-controls="quiz-title-list"
+          onChange={(e) => {
+            onChange(e.target.value);
+            setOpen(true);
+            setAt(0);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+          onKeyDown={(e) => {
+            if (!show) return;
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              setAt((n) => (n + 1) % list.length);
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              setAt((n) => (n - 1 + list.length) % list.length);
+            } else if (e.key === 'Enter' && list[at]) {
+              e.preventDefault();
+              pick(list[at]);
+            } else if (e.key === 'Escape') setOpen(false);
+          }}
+          placeholder={placeholder}
+          className="h-14 w-full rounded-xl border border-ink-200 bg-white pl-11 pr-3.5 text-[16px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        />
+      </span>
+      {show && (
+        <ul id="quiz-title-list" role="listbox" className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-72 overflow-y-auto rounded-xl bg-white py-1.5 shadow-lg ring-1 ring-ink-200">
+          {list.map((o, i) => (
+            <li key={o} role="option" aria-selected={i === at}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(o)}
+                onMouseEnter={() => setAt(i)}
+                className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[15px] text-ink-700 ${i === at ? 'bg-brand-50' : ''}`}
+              >
+                <Search className="h-4 w-4 shrink-0 text-ink-400" aria-hidden />
+                <span>
+                  <Marked text={o} q={value} />
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** A short, warm line under each question. */
 function Cheer({ children }: { children: React.ReactNode }) {
   return (
@@ -488,24 +593,13 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
             else go('experience');
           }}
         >
-          <label className="block">
-            <span className="text-[14px] font-semibold text-ink-800">{student ? 'Your study field' : 'Job title or keyword'}</span>
-            <span className="relative mt-1.5 block">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400" aria-hidden />
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                list="quiz-titles"
-                placeholder={student ? 'Search study fields...' : 'Search job titles...'}
-                className="h-14 w-full rounded-xl border border-ink-200 bg-white pl-11 pr-3.5 text-[16px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-              />
-              <datalist id="quiz-titles">
-                {(student ? STUDY_FIELDS : ALL_TITLES).map((t) => (
-                  <option key={t} value={t} />
-                ))}
-              </datalist>
-            </span>
-          </label>
+          <TitleSearch
+            label={student ? 'Your study field' : 'Job title or keyword'}
+            placeholder={student ? 'Search study fields...' : 'Search job titles...'}
+            value={title}
+            onChange={setTitle}
+            options={student ? STUDY_OPTIONS : ALL_TITLES}
+          />
           {tags.length > 0 && (
             <div className="mt-4">
               <p className="flex items-center gap-1.5 text-[13.5px] font-semibold text-ink-700">
