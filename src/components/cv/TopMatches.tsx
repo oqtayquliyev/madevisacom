@@ -34,15 +34,15 @@ type OnAuth = (page: 'login' | 'register') => void;
 
 /** Guests see this many matches; the rest wait behind a free account. */
 export const GUEST_VISIBLE = 2;
-/** A free account sees every match (the missing skills only on the best few). */
-export const FREE_VISIBLE = Infinity;
+/** A free account sees half of its matches, the best ones (the missing skills only on the best few). */
+export const freeVisible = (total: number) => Math.max(1, Math.ceil(total / 2));
 /** A free account sees the missing skills on this many of them (the best ones). */
 export const FREE_MISSING = FREE_DAILY_CHECKS;
 
 /** What this visitor may see: how many matches, and on how many of them the missing skills. */
 export type Access = { guest: boolean; pro: boolean; jobs: number; missing: number };
-export const accessFor = (guest: boolean, pro: boolean): Access =>
-  guest ? { guest, pro, jobs: GUEST_VISIBLE, missing: 0 } : pro ? { guest, pro, jobs: Infinity, missing: Infinity } : { guest, pro, jobs: FREE_VISIBLE, missing: FREE_MISSING };
+export const accessFor = (guest: boolean, pro: boolean, total: number): Access =>
+  guest ? { guest, pro, jobs: GUEST_VISIBLE, missing: 0 } : pro ? { guest, pro, jobs: Infinity, missing: Infinity } : { guest, pro, jobs: freeVisible(total), missing: FREE_MISSING };
 
 const hrefOf = (m: Pick<TopMatch, 'id' | 'title' | 'company'>) => `${jobPath({ id: `sponsored-${m.id}`, title: m.title, company: m.company })}#cv-match`;
 const go = (href: string) => (e: MouseEvent) => {
@@ -472,7 +472,7 @@ function LockedRows({ scores, onAuth, next, pro = false }: { scores: number[]; o
             </>
           ) : (
             <>
-              <p className="mt-1 text-[13px] leading-5 text-ink-600">A free account shows all your matches, and the skills you’re missing on {FREE_MISSING} of them.</p>
+              <p className="mt-1 text-[13px] leading-5 text-ink-600">A free account shows half of your matches, and the skills you’re missing on {FREE_MISSING} of them.</p>
               <button onClick={() => signUp('register')} className="mt-3.5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-[14px] font-bold text-white hover:bg-brand-700">
                 Create free account <ArrowRight className="h-4 w-4" />
               </button>
@@ -738,7 +738,7 @@ export function TopMatchesList({ result, onAuth, onAgain }: { result: TopResult;
   const t = tiers(items);
   const guest = !session;
   // Guests: 2 matches, no missing skills. Free: 10 matches, missing skills on the best 3. Starter and Pro: everything.
-  const access = accessFor(guest, full);
+  const access = accessFor(guest, full, result.items.length);
   // A result that has just been worked out builds up step by step; a saved one is simply there.
   const fresh = useMemo(() => Date.now() - result.at < 20_000, [result.at]);
   const step = useReveal(9, fresh);
