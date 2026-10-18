@@ -8,7 +8,7 @@
 //        email        — approve the email (the account is made here)
 //   then results (Free) — or checkout (Starter / Pro), coming back here afterwards, paid or not.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, Crown, FileCheck2, FileText, Globe2, GraduationCap, Info, Plane, Plus, Search, Sparkles, X, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock, Crown, FileCheck2, FileText, Globe2, GraduationCap, Info, Plane, Plus, Search, Sparkles, X, XCircle, Zap } from 'lucide-react';
 import { BrandMark } from '@/components/layout/Logo';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CvUpload } from '@/components/cv/CvUpload';
@@ -123,33 +123,57 @@ function Option({ icon: Icon, title, sub, price, onClick, tone = 'plain', badge,
   );
 }
 
-/** A plan as a question: what will happen, two short ticks, and a "Yes" with the price. */
-function Ask({ icon: Icon, question, points = [], cta, onClick, tone = 'plain', badge, note }: { icon: typeof Plane; question: React.ReactNode; points?: string[]; cta: string; onClick: () => void; tone?: 'plain' | 'brand' | 'premium'; badge?: string; note?: string }) {
+/** A plan as a question. Closed: the question and the plan. Open: what it does, and the "Yes". */
+function Ask({ icon: Icon, question, points = [], cta, onClick, tone = 'plain', badge, note, plan, open, onToggle }: { icon: typeof Plane; question: React.ReactNode; points?: React.ReactNode[]; cta: string; onClick: () => void; tone?: 'plain' | 'brand' | 'premium'; badge?: string; note?: string; plan: string; open: boolean; onToggle: () => void }) {
   const ring = tone === 'premium' ? 'ring-2 ring-amber-400' : tone === 'brand' ? 'ring-2 ring-brand-300' : 'ring-1 ring-ink-200';
   const iconBg = tone === 'premium' ? 'bg-amber-100 text-amber-700' : tone === 'brand' ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-700';
+  const pill = tone === 'premium' ? 'bg-amber-100 text-amber-800' : tone === 'brand' ? 'bg-brand-50 text-brand-700' : 'bg-emerald-50 text-emerald-700';
   const btn = tone === 'premium' ? 'bg-amber-400 text-ink-950 hover:bg-amber-300' : tone === 'brand' ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-white text-brand-700 ring-1 ring-brand-300 hover:bg-brand-50';
   const tick = tone === 'premium' ? 'text-amber-600' : 'text-emerald-600';
   return (
-    <div className={`relative rounded-2xl bg-white p-4 pt-5 text-center shadow-sm sm:p-5 ${ring}`}>
+    <div className={`relative rounded-2xl bg-white shadow-sm ${ring}`}>
       {badge && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-400 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-ink-950">{badge}</span>}
-      <span className={`mx-auto grid h-11 w-11 place-items-center rounded-2xl ${iconBg}`}>
-        <Icon className="h-5 w-5" aria-hidden />
-      </span>
-      <p className="mt-2.5 text-[17px] font-bold leading-snug text-ink-950">{question}</p>
-      {points.length > 0 && (
-        <ul className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1">
-          {points.map((t) => (
-            <li key={t} className="inline-flex items-center gap-1 text-[14px] font-semibold text-ink-800">
-              <Check className={`h-4 w-4 ${tick}`} strokeWidth={3} aria-hidden /> {t}
-            </li>
-          ))}
-        </ul>
-      )}
-      <button onClick={onClick} className={`mt-3.5 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15.5px] font-bold transition active:scale-[0.98] ${btn}`}>
-        {cta} <ArrowRight className="h-4 w-4" aria-hidden />
+      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 p-4 pt-5 text-left">
+        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${iconBg}`}>
+          <Icon className="h-5 w-5" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className={`inline-block rounded-full px-2 py-0.5 text-[11.5px] font-extrabold uppercase tracking-wide ${pill}`}>{plan}</span>
+          <span className="mt-1 block text-[16.5px] font-bold leading-snug text-ink-950">{question}</span>
+        </span>
+        <ChevronDown className={`h-5 w-5 shrink-0 text-ink-500 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} aria-hidden />
       </button>
-      {note && <p className="mt-2 text-[13px] font-semibold text-ink-600">{note}</p>}
+      <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+        <div className="overflow-hidden">
+          <div className="px-4 pb-4">
+            {points.length > 0 && (
+              <ul className="space-y-1.5">
+                {points.map((t, i) => (
+                  <li key={i} className="flex items-start gap-2 text-[14.5px] font-semibold text-ink-800">
+                    <Check className={`mt-0.5 h-4 w-4 shrink-0 ${tick}`} strokeWidth={3} aria-hidden /> <span>{t}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button tabIndex={open ? 0 : -1} onClick={onClick} className={`mt-3.5 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15.5px] font-bold transition active:scale-[0.98] ${btn}`}>
+              {cta} <ArrowRight className="h-4 w-4" aria-hidden />
+            </button>
+            {note && <p className="mt-2 text-center text-[13px] font-semibold text-ink-600">{note}</p>}
+          </div>
+        </div>
+      </div>
     </div>
+  );
+}
+
+/** One thing still missing before applying: a red cross (or a clock), the thing, and where they stand. */
+function Need({ icon: Icon = XCircle, tone = 'missing', children, value }: { icon?: typeof Plane; tone?: 'missing' | 'hurry'; children: React.ReactNode; value?: React.ReactNode }) {
+  return (
+    <li className="flex items-center gap-3 py-2.5">
+      <Icon className={`h-5 w-5 shrink-0 ${tone === 'hurry' ? 'text-amber-500' : 'text-rose-500'}`} aria-hidden />
+      <span className="min-w-0 flex-1 text-[15px] font-semibold leading-snug text-ink-900">{children}</span>
+      {value != null && <span className="shrink-0 rounded-full bg-rose-50 px-2.5 py-0.5 text-[13px] font-extrabold tabular-nums text-rose-700">{value}</span>}
+    </li>
   );
 }
 
@@ -496,6 +520,9 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
     go('country');
   };
   const [showAll, setShowAll] = useState(false);
+  // Which plan question is open (one at a time).
+  const [openAsk, setOpenAsk] = useState<Plan | null>(null);
+  const toggle = (p: Plan) => setOpenAsk((o) => (o === p ? null : p));
   const JOBS_FIRST = 8;
 
   const stepKey = allowed;
@@ -737,19 +764,48 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
   const docs = Math.min(Math.max(items.length, 1), DOCS_STARTER);
   // Free shows half of the jobs found; Starter and Pro all of them.
   const half = freeVisible(items.length);
+  const role = (cv?.profile.titles[0] ?? title.trim()) || null;
+  const roleJobs = role ? `${role} jobs` : 'your jobs';
+  const missingSkills = new Set(items.flatMap((m) => m.missing ?? []).map((k) => k.toLowerCase())).size;
   const asks = (free: boolean) => (
     <>
       <PlansHeader from={from} fromName={fromName} />
-      <div className="space-y-3">
+      <div className="space-y-3.5">
+        {free && (
+          <Ask
+            icon={Search}
+            plan="Free"
+            open={openAsk === 'free'}
+            onToggle={() => toggle('free')}
+            question={
+              <>
+                Do you want to apply to <Num>{half}</Num> {half === 1 ? 'job' : 'jobs'} manually?
+              </>
+            }
+            points={[`${half} of your ${items.length} jobs`, '1 sponsorship document a month']}
+            cta="Continue for free"
+            note="Registration required"
+            onClick={() => choose('free')}
+          />
+        )}
         <Ask
           icon={FileCheck2}
           tone="brand"
+          plan={`Starter · ${priceLabel('starter')}`}
+          open={openAsk === 'starter'}
+          onToggle={() => toggle('starter')}
           question={
-            <>
-              Apply to <Num>{docs}</Num> {docs === 1 ? 'job' : 'jobs'} with a sponsorship document for each?
-            </>
+            items.length <= DOCS_STARTER ? (
+              <>
+                Do you want to apply to all <Num>{items.length}</Num> jobs, each with a sponsorship document?
+              </>
+            ) : (
+              <>
+                Do you want to apply to your best <Num>{docs}</Num> jobs, each with a sponsorship document?
+              </>
+            )
           }
-          points={['Up to 2× more chances', `${DOCS_STARTER} sponsorship documents included`]}
+          points={[<b key="c">Up to 2× more chances</b>, `${DOCS_STARTER} sponsorship documents for ${roleJobs}`, 'What to add to your CV, for each job']}
           cta={`Yes · ${priceLabel('starter')}`}
           onClick={() => (free ? choose('starter') : toCheckout('starter'))}
         />
@@ -757,16 +813,19 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
           icon={free ? Zap : Crown}
           tone="premium"
           badge="Most chances"
+          plan={`Pro · ${priceLabel('pro')}`}
+          open={openAsk === 'pro'}
+          onToggle={() => toggle('pro')}
           question={
             <>
-              Apply to{' '}
+              Do you want to apply to{' '}
               <Num tone="amber" className="!text-amber-600">
                 {auto.toLocaleString('en-US')}
               </Num>{' '}
-              jobs in one month, automatically?
+              jobs in the next 30 days, automatically?
             </>
           }
-          points={['Up to 10× more chances', `${DOCS_PRO} sponsorship documents included`, 'Auto Apply to new jobs for 30 days']}
+          points={[<b key="c">Up to 10× more chances</b>, `${auto.toLocaleString('en-US')} jobs in the next 30 days, applied for you`, `${DOCS_PRO} sponsorship documents created for you`]}
           cta={`Yes · ${priceLabel('pro')}`}
           onClick={() => (free ? choose('pro') : toCheckout('pro'))}
         />
@@ -774,7 +833,25 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
     </>
   );
 
-  // ---- 3/3 · the best jobs found, then what they want to do with them ----
+  /** What is still missing before they can apply — so the plan reads as the way to get it done. */
+  const needs = (
+    <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-ink-200 sm:p-5">
+      <p className="text-[18px] font-bold leading-snug text-ink-950">To get these jobs, you still need:</p>
+      <ul className="mt-1 divide-y divide-ink-100">
+        <Need icon={Clock} tone="hurry">
+          Apply as quickly as possible
+        </Need>
+        <Need value={`0 / ${items.length}`}>Sponsorship documents</Need>
+        {missingSkills > 0 && <Need value={missingSkills}>CV skills these jobs ask for</Need>}
+        <Need value={`0 / ${items.length}`}>Applications sent</Need>
+      </ul>
+      <p className="mt-3 rounded-xl bg-brand-50 px-3.5 py-3 text-[15px] font-semibold leading-snug text-brand-900">
+        A plan creates the sponsorship documents for {role ? <b>{role}</b> : 'your'} jobs, shows what to add to your CV, and you apply.
+      </p>
+    </section>
+  );
+
+  // ---- 3/3 · the best jobs found, what is still missing, then what they want to do ----
   if (allowed === 'plan') {
     const preview = items.slice(0, 3);
     return shell(
@@ -797,19 +874,12 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
             <JobRow key={m.id} m={m} top={i === 0} delay={120 + i * 140} />
           ))}
         </div>
-        <div className="mt-3">
-          <Ask
-            icon={Search}
-            question={
-              <>
-                Explore <Num>{half}</Num> of your <Num>{items.length}</Num> {items.length === 1 ? 'job' : 'jobs'}?
-              </>
-            }
-            cta="Yes, explore for free"
-            note="Free · registration required"
-            onClick={() => choose('free')}
-          />
-        </div>
+        {items.length > preview.length && (
+          <p className="mt-2.5 text-center text-[14px] font-semibold text-ink-600">
+            + <Num className="text-[15px]">{items.length - preview.length}</Num> more
+          </p>
+        )}
+        {needs}
         {asks(true)}
         <Cheer>You’re one step away from your employer abroad.</Cheer>
       </>,
