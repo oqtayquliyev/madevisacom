@@ -19,6 +19,7 @@ import { useFromCountry } from '@/components/cv/DocReady';
 import { cvScore, fixCount } from '@/lib/cv/cvScore';
 import { CvScoreCard } from '@/components/cv/CvScoreCard';
 import { CvQuiz } from '@/components/cv/CvQuiz';
+import { ApplyDetailsForm } from '@/components/cv/ApplyDetailsForm';
 import { ExampleJourney } from '@/components/cv/ExampleJourney';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { countryName as countryNameOf } from '@/lib/visaFit';
@@ -125,8 +126,11 @@ export function CvMatchPage({ go, onAuth }: Props) {
   // Once signed up (free or a plan) it is the full CV match: every job, its visa route, what the CV is missing,
   // and the sponsorship document. The quiz stays for its last two screens: the email, then the choice of plan (Free → here, Starter / Pro → checkout).
   const quizStep = new URLSearchParams(window.location.search).get('step');
-  if (cvReady && authLoading) return <div className="min-h-screen bg-[#f8fafc]" />;
-  if (cvReady && !paid && (!session || quizStep === 'email' || quizStep === 'choose')) {
+  const inQuiz = !paid && (!session || quizStep === 'email' || quizStep === 'choose');
+  // Signing in re-reads the CV for the account (cvReady goes false for a moment): wait on a blank page,
+  // never on the full page — it would drop the quiz step and skip the plan choice.
+  if (authLoading || (inQuiz && !cvReady)) return <div className="min-h-screen bg-[#f8fafc]" />;
+  if (inQuiz) {
     return (
       <CvQuiz
         top={top}
@@ -141,7 +145,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
     );
   }
   // Back on a signed-in visit with an old quiz link: the plain address.
-  if (quizStep && typeof window !== 'undefined') window.history.replaceState({}, '', '/cv-match');
+  if (quizStep && cvReady) window.history.replaceState({}, '', '/cv-match');
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
@@ -201,6 +205,8 @@ export function CvMatchPage({ go, onAuth }: Props) {
       </section>
 
       <main className={`${WRAP} space-y-10 py-10 sm:py-12`}>
+        {/* Signed in: the details Auto Apply and the documents need, asked once, saved to the profile. */}
+        {session && cv && !searching && <ApplyDetailsForm cv={cv} paid={paid} />}
         {!cv && cvReady && (
           <>
             <ol className="mx-auto grid max-w-4xl gap-3 sm:grid-cols-3">

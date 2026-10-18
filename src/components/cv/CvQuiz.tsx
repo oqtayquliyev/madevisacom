@@ -18,7 +18,7 @@ import { MatchRing } from '@/components/cv/MatchBits';
 import { ExampleJourney } from '@/components/cv/ExampleJourney';
 import { SearchProgress, freeVisible } from '@/components/cv/TopMatches';
 import { Num, useFromCountry } from '@/components/cv/DocReady';
-import { AUTO_APPLY_FACTOR, FlagStack, countriesOf } from '@/components/cv/Upsell';
+import { FlagStack, countriesOf } from '@/components/cv/Upsell';
 import { nameFromCv } from '@/components/cv/CvInsights';
 import { saveCvText } from '@/lib/cv/store';
 import { cvFromAnswers } from '@/lib/cv/createCv';
@@ -28,7 +28,7 @@ import { ALL_TITLES, STUDY_FIELDS, relatedTitles } from '@/lib/cv/relatedTitles'
 import { isStudentOrInternJob } from '@/lib/jobCategories';
 import { useAuth } from '@/lib/auth';
 import { priceLabel } from '@/lib/plans';
-import { checkoutHref, trackBilling, useBillingCatalog } from '@/lib/billing';
+import { checkoutHref, trackBilling } from '@/lib/billing';
 import { jobPath } from '@/lib/jobUrl';
 import { nav } from '@/lib/pageLayout';
 import { NEW_TAB } from '@/lib/navLink';
@@ -410,6 +410,8 @@ const YEARS: { label: string; years: number }[] = [
 const DOCS_STARTER = 20;
 /** Pro's sponsorship documents a month. */
 const DOCS_PRO = 50;
+/** Pro's Auto Apply: sponsored jobs applied to in 30 days. */
+const AUTO_PRO = 50;
 const TITLE_KEY = 'mv:cvQuizTitle';
 const TAGS_KEY = 'mv:cvQuizTags';
 const readTags = (): string[] | null => {
@@ -456,7 +458,6 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
   const [error, setError] = useState<string | null>(null);
   const from = useFromCountry();
   const fromName = from ? countryName(from) ?? from : null;
-  const catalog = useBillingCatalog();
 
   const update = (next: Saved) =>
     setS((cur) => {
@@ -514,8 +515,6 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
   const picked = s.country && s.country !== 'any' ? s.country : null;
   const items = picked ? all.filter((m) => m.cc?.toUpperCase() === picked) : all;
   const pickedName = picked ? countries.find((c) => c.cc === picked)?.name ?? countryName(picked) : null;
-  const cap = catalog?.auto_apply?.pro_monthly ?? null;
-  const auto = cap ? Math.min(Math.max(items.length, 1) * AUTO_APPLY_FACTOR, cap) : Math.max(items.length, 1) * AUTO_APPLY_FACTOR;
   const first = (cv ? nameFromCv(cv.text) ?? '' : '').split(' ')[0] ?? '';
 
   // Where they may be: never past a step whose answer is missing.
@@ -987,7 +986,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
               Apply to <Num>{half}</Num> {half === 1 ? 'job' : 'jobs'} manually
             </>
           }
-          points={[`${half} of your ${items.length} jobs`, '1 sponsorship document a month']}
+          points={[<><b>{half}</b> of your <b>{items.length}</b> jobs</>, <><b>1</b> sponsorship document a month</>]}
           cta={`Apply to ${half} ${half === 1 ? 'job' : 'jobs'} for free`}
           open={openAsk === 'free'}
           onToggle={() => toggle('free')}
@@ -999,12 +998,12 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
           name="Starter"
           title={
             <>
-              Apply to <Num>{docs}</Num> jobs with sponsorship documents
+              Apply to <Num>{docs}</Num> jobs by revealing your most matching ones
             </>
           }
           now={starterNow}
           was={WAS.starter}
-          points={[<b key="c">Up to 2× more chances</b>, `${docs} sponsorship document drafts already prepared for ${roleJobs}`, `Your CV already analyzed for ${docs} jobs`, `${DOCS_STARTER} sponsorship documents a month`]}
+          points={[<b key="c">Up to 2× more chances</b>, <>Your <b>{docs}</b> most matching jobs revealed</>, <><b>{docs}</b> sponsorship document drafts already prepared for {roleJobs}</>, <>Your CV already analyzed for <b>{docs}</b> jobs</>, <><b>{DOCS_STARTER}</b> sponsorship documents a month</>]}
           cta={`Apply to ${docs} jobs`}
           open={openAsk === 'starter'}
           onToggle={() => toggle('starter')}
@@ -1019,15 +1018,15 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
             <>
               Auto Apply to{' '}
               <Num tone="amber" className="!text-amber-600">
-                {auto.toLocaleString('en-US')}
+                {AUTO_PRO}
               </Num>{' '}
-              jobs in 30 days
+              sponsored jobs in 30 days
             </>
           }
           now={proNow}
           was={WAS.pro}
-          points={[<b key="c">Up to 10× more chances</b>, `${proDocs} sponsorship document drafts already prepared`, `Your CV already analyzed for all ${items.length} jobs`, `Auto Apply to ${auto.toLocaleString('en-US')} jobs in the next 30 days`, `${DOCS_PRO} sponsorship documents a month`]}
-          cta={`Apply to ${auto.toLocaleString('en-US')} jobs`}
+          points={[<b key="c">Up to 10× more chances</b>, <>Auto Apply to <b>{AUTO_PRO}</b> sponsored jobs in the next 30 days</>, <><b>{proDocs}</b> sponsorship document drafts already prepared</>, <>Your CV already analyzed for all <b>{items.length}</b> jobs</>, <><b>{DOCS_PRO}</b> sponsorship documents a month</>]}
+          cta={`Auto Apply to ${AUTO_PRO} jobs`}
           open={openAsk === 'pro'}
           onToggle={() => toggle('pro')}
           onClick={() => choose('pro')}
