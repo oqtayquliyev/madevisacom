@@ -17,12 +17,8 @@ import { ProPlanCard } from '@/components/pro/ProPlanCard';
 import { CvInsights, CvMatchLocked, CvPersonCard, nameFromCv } from '@/components/cv/CvInsights';
 import { useFromCountry } from '@/components/cv/DocReady';
 import { cvScore, fixCount } from '@/lib/cv/cvScore';
-import { GuestUnlock } from '@/components/cv/GuestUnlock';
 import { CvScoreCard } from '@/components/cv/CvScoreCard';
-import { NoCvSignup } from '@/components/cv/NoCvSignup';
 import { CvQuiz } from '@/components/cv/CvQuiz';
-import { PlanChoice, clearPlanChoice, planChoicePending } from '@/components/cv/PlanChoice';
-import { countriesOf } from '@/components/cv/Upsell';
 import { ExampleJourney } from '@/components/cv/ExampleJourney';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { countryName as countryNameOf } from '@/lib/visaFit';
@@ -116,11 +112,6 @@ export function CvMatchPage({ go, onAuth }: Props) {
     return { score: sc.score, jobs: result.items.length, docs, fixes: fixCount(sc) };
   }, [cv, result, searching, status, from]);
 
-  // Just approved their email (or back from checkout without paying): the three ways on come first.
-  const [choosing, setChoosing] = useState(() => planChoicePending());
-  useEffect(() => {
-    if (session) setChoosing(planChoicePending());
-  }, [session]);
 
   // Results in front of someone not on a plan yet: keep the page on the one next step (no extra small print).
   const focus = Boolean(cv && result && !searching && !paid && status !== 'error');
@@ -183,11 +174,6 @@ export function CvMatchPage({ go, onAuth }: Props) {
               <p className="mt-2 text-[12px] text-ink-500">Read on your device; sent to an employer only when you ask.</p>
             </div>
           )}
-          {!cv && cvReady && (
-            <div className="mt-3">
-              <NoCvSignup />
-            </div>
-          )}
           {/* Members from the visitor's own country, as high on the page as the upload allows. */}
           {!cv && cvReady && <ExampleJourney rotate className="mx-auto mt-6 max-w-4xl" />}
         </div>
@@ -228,23 +214,8 @@ export function CvMatchPage({ go, onAuth }: Props) {
 
         {/* Starter and Pro: the matches and the charts. Everyone else: the count, and what unlocks it. */}
         {/* No account yet: the results wait behind one email field and a code (which also makes the free account). */}
-        {cv && !searching && !session && cvReady && status !== 'error' && <GuestUnlock cv={cv} result={result} />}
 
-        {cv && !searching && session && !my.loading && !paid && result && choosing && (
-          <PlanChoice
-            name={who}
-            jobs={result.items.length}
-            countries={countriesOf(result.items, from)}
-            from={from}
-            source="cv_match"
-            onFree={() => {
-              clearPlanChoice();
-              setChoosing(false);
-            }}
-          />
-        )}
-
-        {cv && !searching && session && !my.loading && !paid && !choosing && <CvMatchLocked result={result} guest={!session} onAuth={onAuth} from={(visitor.currentLocation ?? visitor.citizenship ?? '').toUpperCase() || null} name={who} />}
+        {cv && !searching && session && !my.loading && !paid && <CvMatchLocked result={result} guest={!session} onAuth={onAuth} from={(visitor.currentLocation ?? visitor.citizenship ?? '').toUpperCase() || null} name={who} />}
 
         {cv && !searching && paid && result && <TopMatchesList result={result} onAuth={onAuth} onAgain={top.start} />}
 

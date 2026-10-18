@@ -10,6 +10,7 @@ import { PLANS, refreshMyPlan, useMyPlan, type PaidPlanId } from '@/lib/plans';
 import { checkPayment, manageUrl } from '@/lib/gumroad';
 import { confirmedFor, formatMoney, longDate, trackBilling } from '@/lib/billing';
 import { AppLink } from '@/pages/info/InfoPage';
+import { clearReturn, readReturn } from '@/lib/returnTo';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 
@@ -173,10 +174,14 @@ export function CheckoutCompletePage({ go, onAuth }: Props) {
               <div className="mt-6 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => nav(my.plan === 'pro' ? '/cv-match' : '/jobs')}
+                  onClick={() => {
+                    const back = readReturn();
+                    clearReturn();
+                    nav(back ?? (my.plan === 'pro' ? '/cv-match' : '/jobs'));
+                  }}
                   className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
                 >
-                  Continue to MadeVisa <ArrowRight className="h-4 w-4" aria-hidden />
+                  {readReturn() ? 'Back to where you were' : 'Continue to MadeVisa'} <ArrowRight className="h-4 w-4" aria-hidden />
                 </button>
                 <AppLink href="/profile?tab=settings#billing" className="inline-flex items-center rounded-lg border border-ink-200 bg-white px-4 py-3 text-sm font-semibold text-ink-800 hover:bg-ink-50">
                   Billing settings
@@ -212,6 +217,11 @@ export function CheckoutCompletePage({ go, onAuth }: Props) {
                 <AppLink href={`/checkout?plan=${expected ?? 'starter'}`} className="inline-flex items-center rounded-lg border border-ink-200 bg-white px-4 py-2.5 text-sm font-semibold text-ink-800 hover:bg-ink-50">
                   Back to checkout
                 </AppLink>
+                {readReturn() && (
+                  <button type="button" onClick={() => nav(readReturn() ?? '/cv-match')} className="inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-brand-700 hover:underline">
+                    Back to where you were
+                  </button>
+                )}
               </div>
               {sub?.payment_issue && sub.provider_ref && (
                 <a href={manageUrl(sub.provider_ref)} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand-700 hover:underline">

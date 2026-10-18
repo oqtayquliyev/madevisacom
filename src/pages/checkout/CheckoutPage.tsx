@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { readReturn } from '@/lib/returnTo';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -13,7 +14,7 @@ import {
 } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
-import { WRAP } from '@/lib/pageLayout';
+import { WRAP, nav } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { PLANS, useMyPlan, type PaidPlanId } from '@/lib/plans';
@@ -160,9 +161,19 @@ export function CheckoutPage({ go, onAuth }: Props) {
       <LandingHeader go={go} onAuth={onAuth} />
 
       <main className={`${WRAP} pb-28 pt-6 sm:pt-10 lg:pb-16`}>
-        <AppLink href="/pricing" className="inline-flex items-center gap-1.5 rounded-md text-sm font-semibold text-ink-600 hover:text-ink-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
-          <ArrowLeft className="h-4 w-4" aria-hidden /> All plans
-        </AppLink>
+        {readReturn() ? (
+          <button
+            type="button"
+            onClick={() => nav(readReturn() ?? '/cv-match')}
+            className="inline-flex items-center gap-1.5 rounded-md text-sm font-semibold text-ink-600 hover:text-ink-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden /> Back to where you were
+          </button>
+        ) : (
+          <AppLink href="/pricing" className="inline-flex items-center gap-1.5 rounded-md text-sm font-semibold text-ink-600 hover:text-ink-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+            <ArrowLeft className="h-4 w-4" aria-hidden /> All plans
+          </AppLink>
+        )}
 
         <div className="mt-5 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,400px)] lg:gap-12">
           {/* LEFT — the plan and why it's worth it */}

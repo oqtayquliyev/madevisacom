@@ -11,7 +11,7 @@ export function cvFromAnswers(a: { name: string; field: string; years: number; s
     .filter(Boolean)
     .slice(0, 12);
   return [
-    a.name,
+    ...(a.name ? [a.name] : []),
     a.field,
     '',
     'Summary',

@@ -6,7 +6,7 @@
 //        → approve the email (accounts are made here) → Free: the results, with Starter / Pro and reviews;
 //          Starter / Pro: checkout, and back to this page afterwards (paid or not).
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Briefcase, Check, Crown, FileCheck2, FileText, GraduationCap, Lock, Plane, Sparkles, Upload, User, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Briefcase, Check, Crown, FileCheck2, FileText, GraduationCap, Info, Lock, Plane, Search, Sparkles, Upload, Zap } from 'lucide-react';
 import { BrandMark } from '@/components/layout/Logo';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CvUpload } from '@/components/cv/CvUpload';
@@ -75,26 +75,26 @@ function Shell({ step, onBack, children }: { step: 1 | 2 | 3 | null; onBack?: ()
   );
 }
 
-function Option({ icon: Icon, title, sub, onClick, tone = 'plain', badge }: { icon: typeof Plane; title: string; sub?: React.ReactNode; onClick: () => void; tone?: 'plain' | 'brand' | 'premium'; badge?: string }) {
-  const cls =
-    tone === 'premium'
-      ? 'bg-gradient-to-br from-ink-950 to-brand-900 text-white ring-2 ring-amber-300'
-      : tone === 'brand'
-        ? 'bg-white ring-2 ring-brand-300 hover:ring-brand-500'
-        : 'bg-white ring-1 ring-ink-200 hover:ring-brand-400';
+/** One answer as a card: icon on top, title, one short line, and the price when there is one. */
+function Option({ icon: Icon, title, sub, price, onClick, tone = 'plain', badge }: { icon: typeof Plane; title: string; sub?: React.ReactNode; price?: string; onClick: () => void; tone?: 'plain' | 'brand' | 'premium'; badge?: string }) {
+  const ring = tone === 'premium' ? 'ring-2 ring-amber-400 hover:ring-amber-500' : tone === 'brand' ? 'ring-2 ring-brand-300 hover:ring-brand-500' : 'ring-1 ring-ink-200 hover:ring-brand-400';
+  const iconBg = tone === 'premium' ? 'bg-amber-100 text-amber-700' : tone === 'brand' ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-700';
   return (
-    <button onClick={onClick} className={`flex w-full items-center gap-3.5 rounded-2xl px-4 py-4 text-left transition ${cls}`}>
-      <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${tone === 'premium' ? 'bg-amber-300 text-ink-950' : 'bg-brand-50 text-brand-700'}`}>
-        <Icon className="h-5 w-5" aria-hidden />
+    <button onClick={onClick} className={`relative flex w-full flex-col items-center gap-2 rounded-2xl bg-white px-4 pb-5 pt-6 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${ring}`}>
+      {badge && <span className="absolute -top-2.5 rounded-full bg-amber-400 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-ink-950">{badge}</span>}
+      <span className={`grid h-12 w-12 place-items-center rounded-2xl ${iconBg}`}>
+        <Icon className="h-6 w-6" aria-hidden />
       </span>
-      <span className="min-w-0 flex-1">
-        {badge && <span className="mb-1 inline-block rounded-full bg-amber-300 px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-wide text-ink-950">{badge}</span>}
-        <span className={`block text-[16px] font-bold leading-snug ${tone === 'premium' ? 'text-white' : 'text-ink-950'}`}>{title}</span>
-        {sub && <span className={`mt-0.5 block text-[13.5px] ${tone === 'premium' ? 'text-white/75' : 'text-ink-600'}`}>{sub}</span>}
-      </span>
-      <ArrowRight className={`h-5 w-5 shrink-0 ${tone === 'premium' ? 'text-amber-300' : 'text-ink-400'}`} aria-hidden />
+      <span className="text-[17px] font-bold leading-snug text-ink-950">{title}</span>
+      {sub && <span className="text-[14px] leading-5 text-ink-600">{sub}</span>}
+      {price && <span className={`mt-1 rounded-full px-3 py-1 text-[13px] font-extrabold ${tone === 'premium' ? 'bg-amber-100 text-amber-800' : tone === 'brand' ? 'bg-brand-50 text-brand-700' : 'bg-emerald-50 text-emerald-700'}`}>{price}</span>}
     </button>
   );
+}
+
+/** A short, warm line under each question. */
+function Cheer({ children }: { children: React.ReactNode }) {
+  return <p className="mt-5 flex items-center justify-center gap-1.5 text-center text-[13.5px] font-medium text-emerald-700">{children}</p>;
 }
 
 function Title({ children, sub }: { children: React.ReactNode; sub?: React.ReactNode }) {
@@ -106,74 +106,93 @@ function Title({ children, sub }: { children: React.ReactNode; sub?: React.React
   );
 }
 
-/** "No CV? Create one for me": four answers, one screen. */
-function CreateCv({ student, onDone }: { student: boolean; onDone: (cv: StoredCv) => void }) {
-  const [name, setName] = useState('');
-  const [field, setField] = useState('');
-  const [years, setYears] = useState(student ? 0 : 3);
-  const [skills, setSkills] = useState('');
+const ALL_TITLES = [...new Set(CATEGORIES_BY_GROUP.flatMap((g) => g.labels.map(cleanLabel)))].sort((a, b) => a.localeCompare(b));
+const YEARS: { label: string; years: number }[] = [
+  { label: 'None yet', years: 0 },
+  { label: '1–2 years', years: 2 },
+  { label: '3–5 years', years: 4 },
+  { label: '6–10 years', years: 8 },
+  { label: '10+ years', years: 12 },
+];
+
+/** "I don't have a CV": the job title, then the years — and a simple CV is made from those two answers. */
+function CreateCv({ student, onBack }: { student: boolean; onBack: () => void }) {
+  const [title, setTitle] = useState('');
+  const [part, setPart] = useState<'title' | 'years'>('title');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const input = 'h-12 w-full rounded-xl border border-ink-200 bg-white px-3.5 text-[15px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
-  return (
-    <form
-      className="space-y-3"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (name.trim().split(/\s+/).length < 2) return setError('Write your name and surname.');
-        if (!field) return setError('Choose your field.');
-        setBusy(true);
-        setError(null);
-        const res = await saveCvText(cvFromAnswers({ name: name.trim(), field, years, skills, student }));
-        setBusy(false);
-        if (!res.ok) return setError(res.error);
-        onDone(res.cv);
-      }}
-    >
-      <label className="block">
-        <span className="text-[13px] font-semibold text-ink-700">Name and surname</span>
-        <span className="relative mt-1.5 block">
-          <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden />
-          <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="Your full name" className={`${input} pl-9`} />
-        </span>
-      </label>
-      <label className="block">
-        <span className="text-[13px] font-semibold text-ink-700">Your field</span>
-        <span className="relative mt-1.5 block">
-          <Briefcase className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden />
-          <select value={field} onChange={(e) => setField(e.target.value)} className={`${input} appearance-none pl-9`}>
-            <option value="">Choose…</option>
-            {CATEGORIES_BY_GROUP.map((g) => (
-              <optgroup key={g.group} label={g.group}>
-                {[...new Set(g.labels.map(cleanLabel))].map((l) => (
-                  <option key={`${g.group}:${l}`} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </span>
-      </label>
-      <label className="block">
-        <span className="text-[13px] font-semibold text-ink-700">Years of experience</span>
-        <select value={years} onChange={(e) => setYears(Number(e.target.value))} className={`${input} mt-1.5 appearance-none`}>
-          {[0, 1, 2, 3, 5, 7, 10, 15].map((y) => (
-            <option key={y} value={y}>
-              {y === 0 ? 'None yet' : y === 15 ? '15+' : `${y}+`}
-            </option>
+
+  const create = async (years: number) => {
+    setBusy(true);
+    setError(null);
+    const res = await saveCvText(cvFromAnswers({ name: '', field: title.trim(), years, skills: '', student }));
+    setBusy(false);
+    if (!res.ok) setError(res.error);
+    window.scrollTo({ top: 0 });
+  };
+
+  if (part === 'years') {
+    return (
+      <Shell step={2} onBack={() => setPart('title')}>
+        <Title>How many years of experience do you have?</Title>
+        <div className="grid grid-cols-2 gap-3">
+          {YEARS.map((y) => (
+            <button
+              key={y.label}
+              disabled={busy}
+              onClick={() => void create(y.years)}
+              className="rounded-2xl bg-white px-3 py-5 text-[16px] font-bold text-ink-950 shadow-sm ring-1 ring-ink-200 transition hover:-translate-y-0.5 hover:ring-brand-400 disabled:opacity-60 [&:last-child]:col-span-2"
+            >
+              {y.label}
+            </button>
           ))}
-        </select>
-      </label>
-      <label className="block">
-        <span className="text-[13px] font-semibold text-ink-700">Main skills</span>
-        <input value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="e.g. Excel, customer service, forklift" className={`${input} mt-1.5`} />
-      </label>
-      {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{error}</p>}
-      <button disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3.5 text-[16px] font-bold text-white hover:bg-brand-700 disabled:opacity-60">
-        <Sparkles className="h-4 w-4" aria-hidden /> {busy ? 'Creating…' : 'Create my CV and find jobs'}
-      </button>
-    </form>
+        </div>
+        {error && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{error}</p>}
+        <Cheer>
+          <Sparkles className="h-4 w-4" aria-hidden /> {busy ? 'Creating your CV…' : 'Almost there — every year of experience counts.'}
+        </Cheer>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell step={2} onBack={onBack}>
+      <Title>What exact job title are you searching for?</Title>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (title.trim().length < 2) return setError('Write a job title.');
+          setError(null);
+          setPart('years');
+          window.scrollTo({ top: 0 });
+        }}
+      >
+        <label className="block">
+          <span className="text-[14px] font-semibold text-ink-800">Job title or keyword</span>
+          <span className="relative mt-1.5 block">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400" aria-hidden />
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              list="quiz-titles"
+              autoFocus
+              placeholder="Search job titles..."
+              className="h-14 w-full rounded-xl border border-ink-200 bg-white pl-11 pr-3.5 text-[16px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            />
+            <datalist id="quiz-titles">
+              {ALL_TITLES.map((t) => (
+                <option key={t} value={t} />
+              ))}
+            </datalist>
+          </span>
+        </label>
+        {error && <p className="mt-2 text-[13px] text-rose-700">{error}</p>}
+        <button className="mt-4 w-full rounded-full bg-brand-700 py-3.5 text-[16px] font-bold text-white hover:bg-brand-800">Continue</button>
+        <p className="mt-4 flex gap-2 text-[13.5px] leading-5 text-ink-600">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> Specific titles get better matches. “Project Manager” works better than “Manager”.
+        </p>
+      </form>
+    </Shell>
   );
 }
 
@@ -231,30 +250,33 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
         >
           Smart sponsored job search
         </Title>
-        <p className="mb-3 text-center text-[17px] font-bold text-ink-900">What are you looking for?</p>
-        <div className="space-y-3">
-          <Option icon={Plane} title="A sponsored job abroad" sub="Full-time work with visa sponsorship" onClick={() => update({ goal: 'job' })} />
-          <Option icon={GraduationCap} title="I’m a student" sub="Ausbildung, internship or traineeship abroad" onClick={() => update({ goal: 'student' })} />
+        <p className="mb-4 text-center text-[17px] font-bold text-ink-900">What are you looking for?</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Option icon={Plane} title="A sponsored job abroad" sub="Full-time work" onClick={() => update({ goal: 'job' })} />
+          <Option icon={GraduationCap} title="I’m a student" sub="Ausbildung or internship" onClick={() => update({ goal: 'student' })} />
         </div>
+        <Cheer>
+          <Sparkles className="h-4 w-4" aria-hidden /> Takes less than a minute. Your next job abroad starts here.
+        </Cheer>
       </Shell>
     );
   }
 
   // ---- 2/3 · CV ----
   if (!cv) {
+    if (cvMode === 'create') return <CreateCv student={student} onBack={() => setCvMode('choose')} />;
     return (
-      <Shell step={2} onBack={cvMode === 'create' ? () => setCvMode('choose') : () => update({ goal: undefined })}>
-        <Title>{cvMode === 'create' ? 'Let’s create your CV' : 'Your CV / Resume'}</Title>
-        {cvMode === 'create' ? (
-          <CreateCv student={student} onDone={() => window.scrollTo({ top: 0 })} />
-        ) : (
-          <div className="space-y-3">
-            <div className="rounded-2xl bg-white p-4 ring-2 ring-brand-300">
-              <CvUpload onDone={() => window.scrollTo({ top: 0 })} />
-            </div>
-            <Option icon={FileText} title="I don’t have a CV" sub="Create one for me in 1 minute" onClick={() => setCvMode('create')} />
+      <Shell step={2} onBack={() => update({ goal: undefined })}>
+        <Title>Your CV / Resume</Title>
+        <div className="space-y-3">
+          <div className="rounded-2xl bg-white p-4 shadow-sm ring-2 ring-brand-300">
+            <CvUpload onDone={() => window.scrollTo({ top: 0 })} />
           </div>
-        )}
+          <Option icon={FileText} title="I don’t have a CV" sub="We’ll create one for you" onClick={() => setCvMode('create')} />
+        </div>
+        <Cheer>
+          <Sparkles className="h-4 w-4" aria-hidden /> You’re doing great — one more step to your matches.
+        </Cheer>
       </Shell>
     );
   }
@@ -304,12 +326,15 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
 
         {!s.plan ? (
           <>
-            <p className="mb-3 text-center text-[17px] font-bold text-ink-900">What would you like?</p>
-            <div className="space-y-3">
-              <Option icon={Zap} tone="premium" badge="Pro · most chances" title={`Auto Apply to ${auto.toLocaleString('en-US')} jobs this month`} sub={<>With my tailored CV and sponsorship documents · only {priceLabel('pro')}</>} onClick={() => update({ plan: 'pro' })} />
-              <Option icon={FileCheck2} tone="brand" title="Sponsorship documents + all my matches" sub={<>Starter · only {priceLabel('starter')}</>} onClick={() => update({ plan: 'starter' })} />
-              <Option icon={Briefcase} title="See my job opportunities" sub="Free" onClick={() => update({ plan: 'free' })} />
+            <p className="mb-4 text-center text-[17px] font-bold text-ink-900">What would you like?</p>
+            <div className="space-y-4">
+              <Option icon={Briefcase} title="See my job opportunities" sub="Your best matches" price="Free" onClick={() => update({ plan: 'free' })} />
+              <Option icon={FileCheck2} tone="brand" title="Sponsorship documents + all my matches" sub="20 documents a month, every job" price={`Starter · only ${priceLabel('starter')}`} onClick={() => update({ plan: 'starter' })} />
+              <Option icon={Zap} tone="premium" badge="Most chances" title={`Auto Apply to ${auto.toLocaleString('en-US')} jobs this month`} sub="With my tailored CV and sponsorship documents" price={`Pro · only ${priceLabel('pro')}`} onClick={() => update({ plan: 'pro' })} />
             </div>
+            <Cheer>
+              <Sparkles className="h-4 w-4" aria-hidden /> You’re one step away from your next job abroad.
+            </Cheer>
           </>
         ) : (
           <div className="rounded-3xl bg-white p-5 ring-2 ring-brand-200">
@@ -391,15 +416,15 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
         </div>
 
         {/* Pro */}
-        <div className="rounded-3xl bg-gradient-to-br from-ink-950 to-brand-900 p-5 text-white ring-2 ring-amber-300">
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-amber-300 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-ink-950">
+        <div className="rounded-3xl bg-white p-5 ring-2 ring-amber-400">
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-ink-950">
             <Crown className="h-3.5 w-3.5" aria-hidden /> Pro
           </p>
-          <p className="mt-2 text-[18px] font-bold">
-            Auto Apply to <span className="text-amber-300">{auto.toLocaleString('en-US')}</span> jobs this month
+          <p className="mt-2 text-[18px] font-bold text-ink-950">
+            Auto Apply to <span className="text-amber-600">{auto.toLocaleString('en-US')}</span> jobs this month
           </p>
-          <p className="mt-1 text-[14.5px] text-white/80">More applications, more chances to move{topCountry ? ` to ${topCountry}` : ' abroad'}.</p>
-          <button onClick={() => toCheckout('pro')} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-300 py-3.5 text-[15px] font-extrabold text-ink-950 hover:bg-amber-200">
+          <p className="mt-1 text-[14.5px] text-ink-600">More applications, more chances to move{topCountry ? ` to ${topCountry}` : ' abroad'}.</p>
+          <button onClick={() => toCheckout('pro')} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-400 py-3.5 text-[15px] font-extrabold text-ink-950 hover:bg-amber-300">
             <Zap className="h-4 w-4" fill="currentColor" aria-hidden /> Pro · only {priceLabel('pro')}
           </button>
         </div>
