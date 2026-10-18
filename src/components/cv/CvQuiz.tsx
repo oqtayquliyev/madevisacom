@@ -15,7 +15,7 @@ import { CvUpload } from '@/components/cv/CvUpload';
 import { QuickSignup } from '@/components/cv/QuickSignup';
 import { MatchRing } from '@/components/cv/MatchBits';
 import { ExampleJourney } from '@/components/cv/ExampleJourney';
-import { SearchProgress } from '@/components/cv/TopMatches';
+import { SearchProgress, freeVisible } from '@/components/cv/TopMatches';
 import { Num, useFromCountry } from '@/components/cv/DocReady';
 import { AUTO_APPLY_FACTOR, FlagStack, countriesOf } from '@/components/cv/Upsell';
 import { nameFromCv } from '@/components/cv/CvInsights';
@@ -124,7 +124,7 @@ function Option({ icon: Icon, title, sub, price, onClick, tone = 'plain', badge,
 }
 
 /** A plan as a question: what will happen, two short ticks, and a "Yes" with the price. */
-function Ask({ icon: Icon, question, points = [], cta, onClick, tone = 'plain', badge }: { icon: typeof Plane; question: React.ReactNode; points?: string[]; cta: string; onClick: () => void; tone?: 'plain' | 'brand' | 'premium'; badge?: string }) {
+function Ask({ icon: Icon, question, points = [], cta, onClick, tone = 'plain', badge, note }: { icon: typeof Plane; question: React.ReactNode; points?: string[]; cta: string; onClick: () => void; tone?: 'plain' | 'brand' | 'premium'; badge?: string; note?: string }) {
   const ring = tone === 'premium' ? 'ring-2 ring-amber-400' : tone === 'brand' ? 'ring-2 ring-brand-300' : 'ring-1 ring-ink-200';
   const iconBg = tone === 'premium' ? 'bg-amber-100 text-amber-700' : tone === 'brand' ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-700';
   const btn = tone === 'premium' ? 'bg-amber-400 text-ink-950 hover:bg-amber-300' : tone === 'brand' ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-white text-brand-700 ring-1 ring-brand-300 hover:bg-brand-50';
@@ -148,6 +148,7 @@ function Ask({ icon: Icon, question, points = [], cta, onClick, tone = 'plain', 
       <button onClick={onClick} className={`mt-3.5 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15.5px] font-bold transition active:scale-[0.98] ${btn}`}>
         {cta} <ArrowRight className="h-4 w-4" aria-hidden />
       </button>
+      {note && <p className="mt-2 text-[13px] font-semibold text-ink-600">{note}</p>}
     </div>
   );
 }
@@ -734,22 +735,12 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
 
   // The three plans, as questions about what will happen.
   const docs = Math.min(Math.max(items.length, 1), DOCS_STARTER);
+  // Free shows half of the jobs found; Starter and Pro all of them.
+  const half = freeVisible(items.length);
   const asks = (free: boolean) => (
     <>
       <PlansHeader from={from} fromName={fromName} />
       <div className="space-y-3">
-        {free && (
-          <Ask
-            icon={Search}
-            question={
-              <>
-                Explore all <Num>{items.length}</Num> {items.length === 1 ? 'job' : 'jobs'}?
-              </>
-            }
-            cta="Yes, explore for free"
-            onClick={() => choose('free')}
-          />
-        )}
         <Ask
           icon={FileCheck2}
           tone="brand"
@@ -758,7 +749,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
               Apply to <Num>{docs}</Num> {docs === 1 ? 'job' : 'jobs'} with a sponsorship document for each?
             </>
           }
-          points={['More interview chances', `${DOCS_STARTER} sponsorship documents included`]}
+          points={['Up to 2× more chances', `${DOCS_STARTER} sponsorship documents included`]}
           cta={`Yes · ${priceLabel('starter')}`}
           onClick={() => (free ? choose('starter') : toCheckout('starter'))}
         />
@@ -775,7 +766,7 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
               jobs in one month, automatically?
             </>
           }
-          points={['Most interview chances', `${DOCS_PRO} sponsorship documents included`, 'New jobs for 30 days']}
+          points={['Up to 10× more chances', `${DOCS_PRO} sponsorship documents included`, 'Auto Apply to new jobs for 30 days']}
           cta={`Yes · ${priceLabel('pro')}`}
           onClick={() => (free ? choose('pro') : toCheckout('pro'))}
         />
@@ -806,11 +797,19 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
             <JobRow key={m.id} m={m} top={i === 0} delay={120 + i * 140} />
           ))}
         </div>
-        {items.length > preview.length && (
-          <p className="mt-2.5 text-center text-[14px] font-semibold text-ink-600">
-            + <Num className="text-[15px]">{items.length - preview.length}</Num> more
-          </p>
-        )}
+        <div className="mt-3">
+          <Ask
+            icon={Search}
+            question={
+              <>
+                Explore <Num>{half}</Num> of your <Num>{items.length}</Num> {items.length === 1 ? 'job' : 'jobs'}?
+              </>
+            }
+            cta="Yes, explore for free"
+            note="Free · registration required"
+            onClick={() => choose('free')}
+          />
+        </div>
         {asks(true)}
         <Cheer>You’re one step away from your employer abroad.</Cheer>
       </>,
@@ -860,7 +859,8 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
   }
 
   // ---- Free: every job, open; then the next step up ----
-  const shownJobs = showAll ? items : items.slice(0, JOBS_FIRST);
+  const freeJobs = items.slice(0, half);
+  const shownJobs = showAll ? freeJobs : freeJobs.slice(0, JOBS_FIRST);
   return shell(
     'results',
     'plan',
@@ -873,9 +873,9 @@ export function CvQuiz({ top, searching, cv, onExit }: { top: TopState & { start
           <JobRow key={m.id} m={m} top={i === 0} />
         ))}
       </div>
-      {!showAll && items.length > JOBS_FIRST && (
+      {!showAll && freeJobs.length > JOBS_FIRST && (
         <button onClick={() => setShowAll(true)} className="mt-3 w-full rounded-full bg-white py-3 text-[15px] font-bold text-brand-700 ring-1 ring-brand-300 hover:bg-brand-50">
-          Show all {items.length} jobs
+          Show all {freeJobs.length} jobs
         </button>
       )}
       {asks(false)}
