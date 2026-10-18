@@ -12,6 +12,29 @@ export function cvFromAnswers(a: { name: string; field: string; years: number; s
     .map((s) => s.trim())
     .filter(Boolean)
     .slice(0, 12);
+  if (a.student) {
+    // A student: what they study, and the training they look for — no work history is made up.
+    return [
+      ...(a.name ? [a.name] : []),
+      `${a.field} trainee`,
+      `${a.field} intern`,
+      ...related,
+      '',
+      'Summary',
+      `${a.field} student looking for an Ausbildung, internship or traineeship abroad with visa sponsorship. Motivated, reliable and ready to learn. Open to relocation and available to start soon.`,
+      ...(related.length ? [`Also interested in ${related.join(', ')}.`] : []),
+      '',
+      'Education',
+      `${a.field} — student, ${now} – Present`,
+      `Studying ${a.field.toLowerCase()}, with practical tasks, team projects and learning new tools and methods.`,
+      '',
+      'Skills',
+      skills.length ? skills.join(', ') : `${a.field}, teamwork, willingness to learn, reliability`,
+      '',
+      'Languages',
+      'English',
+    ].join('\n');
+  }
   return [
     ...(a.name ? [a.name] : []),
     a.field,

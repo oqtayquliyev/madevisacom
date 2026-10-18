@@ -20,8 +20,8 @@ function Review({ j, className = '' }: { j: Journey; className?: string }) {
           </span>
         </p>
         <FiveStars size={14} className="mt-1" />
-        <p className="mt-1 flex flex-nowrap items-center gap-1.5 overflow-hidden whitespace-nowrap text-[12.5px] text-ink-600">
-          <span className="truncate">{j.role}</span>
+        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12.5px] text-ink-600">
+          <span>{j.role}</span>
           <span aria-hidden>·</span>
           <CircleFlag countryCode={j.from} size={14} label={j.fromName} />
           <span aria-hidden>→</span>
@@ -40,9 +40,10 @@ function Review({ j, className = '' }: { j: Journey; className?: string }) {
 /**
  * Member reviews, the visitor's own country first.
  * `rotate`: a row of cards to swipe (phones) or scroll; it also moves on by itself every 12 seconds,
- * and stops once the visitor touches it. Without `rotate`: one review that stays put.
+ * and stops once the visitor touches it. `wide`: one full-width card at a time (narrow columns, like the quiz).
+ * Without `rotate`: one review that stays put.
  */
-export function ExampleJourney({ className = '', rotate = false, boxed = false }: { className?: string; rotate?: boolean; boxed?: boolean }) {
+export function ExampleJourney({ className = '', rotate = false, boxed = false, wide = false }: { className?: string; rotate?: boolean; boxed?: boolean; wide?: boolean }) {
   const from = useFromCountry();
   const list = useMemo(() => journeysFor(from).slice(0, SHOWN), [from]);
   const row = useRef<HTMLDivElement>(null);
@@ -80,7 +81,7 @@ export function ExampleJourney({ className = '', rotate = false, boxed = false }
         className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden"
       >
         {list.map((j) => (
-          <Review key={j.name + j.from} j={j} className="w-[86%] shrink-0 snap-start sm:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]" />
+          <Review key={j.name + j.from} j={j} className={`shrink-0 snap-start ${wide ? 'w-[88%] sm:w-full' : 'w-[86%] sm:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]'}`} />
         ))}
       </div>
       <div className="mt-3 flex justify-center gap-1.5">

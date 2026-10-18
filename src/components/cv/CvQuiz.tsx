@@ -8,7 +8,7 @@
 //        email        — approve the email (the account is made here)
 //   then results (Free) — or checkout (Starter / Pro), coming back here afterwards, paid or not.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Crown, FileCheck2, FileText, Globe2, GraduationCap, Info, Lock, Plane, Plus, Search, Sparkles, X, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Crown, FileCheck2, FileText, Globe2, GraduationCap, Info, Plane, Plus, Search, Sparkles, X, Zap } from 'lucide-react';
 import { BrandMark } from '@/components/layout/Logo';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CvUpload } from '@/components/cv/CvUpload';
@@ -23,7 +23,7 @@ import { saveCvText } from '@/lib/cv/store';
 import { cvFromAnswers } from '@/lib/cv/createCv';
 import type { TopMatch, TopState, TopResult } from '@/lib/cv/topMatches';
 import type { StoredCv } from '@/lib/cv/store';
-import { ALL_TITLES, relatedTitles } from '@/lib/cv/relatedTitles';
+import { ALL_TITLES, STUDY_FIELDS, relatedTitles } from '@/lib/cv/relatedTitles';
 import { isStudentOrInternJob } from '@/lib/jobCategories';
 import { useAuth } from '@/lib/auth';
 import { priceLabel } from '@/lib/plans';
@@ -122,11 +122,12 @@ function Option({ icon: Icon, title, sub, price, onClick, tone = 'plain', badge,
   );
 }
 
-/** A plan as a question: what will happen, and a "Yes" with the price. */
-function Ask({ icon: Icon, question, how, cta, onClick, tone = 'plain', badge }: { icon: typeof Plane; question: React.ReactNode; how: string; cta: string; onClick: () => void; tone?: 'plain' | 'brand' | 'premium'; badge?: string }) {
+/** A plan as a question: what will happen, two short ticks, and a "Yes" with the price. */
+function Ask({ icon: Icon, question, points = [], cta, onClick, tone = 'plain', badge }: { icon: typeof Plane; question: React.ReactNode; points?: string[]; cta: string; onClick: () => void; tone?: 'plain' | 'brand' | 'premium'; badge?: string }) {
   const ring = tone === 'premium' ? 'ring-2 ring-amber-400' : tone === 'brand' ? 'ring-2 ring-brand-300' : 'ring-1 ring-ink-200';
   const iconBg = tone === 'premium' ? 'bg-amber-100 text-amber-700' : tone === 'brand' ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-700';
   const btn = tone === 'premium' ? 'bg-amber-400 text-ink-950 hover:bg-amber-300' : tone === 'brand' ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-white text-brand-700 ring-1 ring-brand-300 hover:bg-brand-50';
+  const tick = tone === 'premium' ? 'text-amber-600' : 'text-emerald-600';
   return (
     <div className={`relative rounded-2xl bg-white p-4 pt-5 text-center shadow-sm sm:p-5 ${ring}`}>
       {badge && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-400 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-ink-950">{badge}</span>}
@@ -134,10 +135,72 @@ function Ask({ icon: Icon, question, how, cta, onClick, tone = 'plain', badge }:
         <Icon className="h-5 w-5" aria-hidden />
       </span>
       <p className="mt-2.5 text-[17px] font-bold leading-snug text-ink-950">{question}</p>
-      <p className="mt-1 text-[14px] leading-5 text-ink-600">{how}</p>
+      {points.length > 0 && (
+        <ul className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1">
+          {points.map((t) => (
+            <li key={t} className="inline-flex items-center gap-1 text-[14px] font-semibold text-ink-800">
+              <Check className={`h-4 w-4 ${tick}`} strokeWidth={3} aria-hidden /> {t}
+            </li>
+          ))}
+        </ul>
+      )}
       <button onClick={onClick} className={`mt-3.5 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15.5px] font-bold transition active:scale-[0.98] ${btn}`}>
         {cta} <ArrowRight className="h-4 w-4" aria-hidden />
       </button>
+    </div>
+  );
+}
+
+/** A key word in a heading: blue, with a hand-drawn curved underline. */
+function Hl({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="relative inline-block whitespace-nowrap text-brand-600">
+      {children}
+      <svg aria-hidden viewBox="0 0 200 12" preserveAspectRatio="none" className="pointer-events-none absolute -bottom-2 left-0 h-3 w-full text-brand-400">
+        <path d="M3 9 C 50 2, 120 2, 197 7" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      </svg>
+    </span>
+  );
+}
+
+/** One job: match ring, company, title, country. Open for everyone. */
+function JobRow({ m, top, delay }: { m: TopMatch; top?: boolean; delay?: number }) {
+  return (
+    <a
+      href={`${jobPath({ id: `sponsored-${m.id}`, title: m.title, company: m.company })}#cv-match`}
+      className={`flex items-center gap-3 rounded-2xl bg-white p-3.5 shadow-sm transition hover:ring-brand-300 ${top ? 'ring-2 ring-brand-200' : 'ring-1 ring-ink-200'} ${delay != null ? 'mv-quiz-tag' : ''}`}
+      style={delay != null ? { animationDelay: `${delay}ms` } : undefined}
+    >
+      <MatchRing score={m.score} size={48} />
+      <span className="min-w-0 flex-1">
+        {top && <span className="block text-[11px] font-bold uppercase tracking-wide text-brand-700">Most matching</span>}
+        <span className="block text-[15.5px] font-bold leading-snug text-ink-950">{m.title}</span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[13px] text-ink-600">
+          <span className="font-semibold text-ink-700">{m.company}</span>
+          {m.cc && (
+            <>
+              <span aria-hidden>·</span>
+              <CircleFlag countryCode={m.cc} size={14} label={m.country ?? m.cc} /> {m.country}
+            </>
+          )}
+        </span>
+      </span>
+    </a>
+  );
+}
+
+/** Above the plans: fair prices for people from their country, and why it pays off. */
+function PlansHeader({ from, fromName }: { from: string | null; fromName: string | null }) {
+  return (
+    <div className="mb-4 mt-8 text-center">
+      {from && fromName && (
+        <p className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[13.5px] font-semibold text-ink-700 ring-1 ring-ink-200">
+          Fair prices for people from <CircleFlag countryCode={from} size={16} label={fromName} /> {fromName}
+        </p>
+      )}
+      <p className="mt-3 text-[22px] font-bold leading-tight text-ink-950">
+        <Hl>More chances</Hl> to relocate abroad
+      </p>
     </div>
   );
 }
@@ -169,6 +232,8 @@ const YEARS: { label: string; years: number }[] = [
 ];
 /** Starter's sponsorship documents a month. */
 const DOCS_STARTER = 20;
+/** Pro's sponsorship documents a month. */
+const DOCS_PRO = 50;
 const TITLE_KEY = 'mv:cvQuizTitle';
 const TAGS_KEY = 'mv:cvQuizTags';
 const readTags = (): string[] | null => {
@@ -282,7 +347,8 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
     const want = view;
     if (!s.goal) return 'goal';
     if (want === 'goal' || want === 'cv' || want === 'job-title') return want;
-    if (want === 'experience') return title.trim() ? 'experience' : 'job-title';
+    // Students tell us their study field instead of their years of experience.
+    if (want === 'experience') return title.trim() && !student ? 'experience' : 'job-title';
     if (!cv) return 'cv';
     if (want === 'country') return 'country';
     if (!s.country) return 'country';
@@ -308,6 +374,18 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
     toCheckout(plan);
   };
 
+  /** "I don't have a CV": make a simple one from the answers, then on to the countries. */
+  const makeCv = async (years: number) => {
+    setBusy(true);
+    setError(null);
+    const res = await saveCvText(cvFromAnswers({ name: '', field: title.trim(), years, skills: '', student, related: tags }));
+    setBusy(false);
+    if (!res.ok) return setError(res.error);
+    go('country');
+  };
+  const [showAll, setShowAll] = useState(false);
+  const JOBS_FIRST = 8;
+
   const stepKey = allowed;
   const shell = (step: Step, prev: Step | null, children: React.ReactNode) => (
     <Shell step={NUMBER[step]} stepKey={stepKey} back={back} onBack={prev ? () => goBack(prev) : undefined}>
@@ -330,7 +408,7 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
             ) : undefined
           }
         >
-          Smart sponsored job search
+          Smart <Hl>sponsored job</Hl> search
         </Title>
         <p className="mb-4 text-center text-[17px] font-bold text-ink-900">What are you looking for?</p>
         <div className="grid grid-cols-2 gap-3">
@@ -364,7 +442,9 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
       'cv',
       'goal',
       <>
-        <Title>Your CV / Resume</Title>
+        <Title>
+          Your <Hl>CV / Resume</Hl>
+        </Title>
         <div className="space-y-3">
           <div className="rounded-2xl bg-white p-4 shadow-sm ring-2 ring-brand-300">
             <CvUpload allowRemove onDone={() => go('country')} />
@@ -382,34 +462,45 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
     );
   }
 
-  // ---- 2/3 · no CV: the job title ----
+  // ---- 2/3 · no CV: the job title (students: the study field) ----
   if (allowed === 'job-title') {
     return shell(
       'job-title',
       'cv',
       <>
-        <Title>What exact job title are you searching for?</Title>
+        <Title>
+          {student ? (
+            <>
+              What do you <Hl>study</Hl>?
+            </>
+          ) : (
+            <>
+              What exact <Hl>job title</Hl> are you searching for?
+            </>
+          )}
+        </Title>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (title.trim().length < 2) return setError('Write a job title.');
+            if (title.trim().length < 2) return setError(student ? 'Write your study field.' : 'Write a job title.');
             remember(TITLE_KEY, title.trim());
-            go('experience');
+            if (student) void makeCv(0);
+            else go('experience');
           }}
         >
           <label className="block">
-            <span className="text-[14px] font-semibold text-ink-800">Job title or keyword</span>
+            <span className="text-[14px] font-semibold text-ink-800">{student ? 'Your study field' : 'Job title or keyword'}</span>
             <span className="relative mt-1.5 block">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400" aria-hidden />
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 list="quiz-titles"
-                placeholder="Search job titles..."
+                placeholder={student ? 'Search study fields...' : 'Search job titles...'}
                 className="h-14 w-full rounded-xl border border-ink-200 bg-white pl-11 pr-3.5 text-[16px] outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
               />
               <datalist id="quiz-titles">
-                {ALL_TITLES.map((t) => (
+                {(student ? STUDY_FIELDS : ALL_TITLES).map((t) => (
                   <option key={t} value={t} />
                 ))}
               </datalist>
@@ -418,7 +509,7 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
           {tags.length > 0 && (
             <div className="mt-4">
               <p className="flex items-center gap-1.5 text-[13.5px] font-semibold text-ink-700">
-                <Plus className="h-4 w-4 text-brand-600" aria-hidden /> We’ll also search close jobs, for more results
+                <Plus className="h-4 w-4 text-brand-600" aria-hidden /> {student ? 'We’ll also search these trainings' : 'We’ll also search close jobs, for more results'}
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {tags.map((t, i) => (
@@ -433,9 +524,12 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
             </div>
           )}
           {error && <p className="mt-2 text-[13px] text-rose-700">{error}</p>}
-          <button className="mt-5 w-full rounded-full bg-brand-700 py-3.5 text-[16px] font-bold text-white hover:bg-brand-800">Continue</button>
+          <button disabled={busy} className="mt-5 w-full rounded-full bg-brand-700 py-3.5 text-[16px] font-bold text-white hover:bg-brand-800 disabled:opacity-60">
+            {busy ? 'Creating your CV…' : 'Continue'}
+          </button>
           <p className="mt-4 flex gap-2 text-[13.5px] leading-5 text-ink-600">
-            <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> Specific titles get better matches. “Project Manager” works better than “Manager”.
+            <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            {student ? 'For example “Nursing”, “Mechatronics” or “Hotel management”.' : 'Specific titles get better matches. “Project Manager” works better than “Manager”.'}
           </p>
         </form>
       </>,
@@ -448,20 +542,15 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
       'experience',
       'job-title',
       <>
-        <Title>How many years of experience do you have?</Title>
+        <Title>
+          How many <Hl>years of experience</Hl> do you have?
+        </Title>
         <div className="grid grid-cols-2 gap-3">
           {YEARS.map((y) => (
             <button
               key={y.label}
               disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                setError(null);
-                const res = await saveCvText(cvFromAnswers({ name: '', field: title.trim(), years: y.years, skills: '', student, related: tags }));
-                setBusy(false);
-                if (!res.ok) return setError(res.error);
-                go('country');
-              }}
+              onClick={() => void makeCv(y.years)}
               className="rounded-2xl bg-white px-3 py-5 text-[16px] font-bold text-ink-950 shadow-sm ring-1 ring-ink-200 transition active:scale-[0.98] disabled:opacity-60 sm:hover:-translate-y-0.5 sm:hover:ring-brand-400 [&:last-child]:col-span-2"
             >
               {y.label}
@@ -499,7 +588,23 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
       'country',
       'cv',
       <>
-        <Title>{first ? `${first}, which` : 'Which'} country do you want to work in?</Title>
+        <Title>
+          {first ? `${first}, which` : 'Which'} <Hl>country</Hl> do you want to work in?
+        </Title>
+        <button
+          onClick={() => {
+            update({ country: 'any' });
+            go('plan');
+          }}
+          className="mb-3 flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-4 text-left shadow-sm ring-2 ring-brand-300 transition active:scale-[0.98] sm:hover:-translate-y-0.5 sm:hover:ring-brand-500"
+        >
+          <Globe2 className="h-10 w-10 shrink-0 text-brand-600" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[17px] font-bold text-ink-950">All jobs abroad</span>
+            <span className="mt-1 inline-block rounded-full bg-brand-50 px-2.5 py-0.5 text-[13px] font-extrabold text-brand-700">{all.length} jobs for you</span>
+          </span>
+          <ArrowRight className="h-5 w-5 shrink-0 text-brand-600" aria-hidden />
+        </button>
         <div className="grid grid-cols-2 gap-3">
           {shown.map((c) => {
             const sponsors = all.filter((m) => m.cc?.toUpperCase() === c.cc && m.visa === 'offered').length;
@@ -521,27 +626,66 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
               </button>
             );
           })}
-          <button
-            onClick={() => {
-              update({ country: 'any' });
-              go('plan');
-            }}
-            className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-white px-3 pb-4 pt-5 text-center shadow-sm ring-1 ring-ink-200 transition active:scale-[0.98] sm:hover:ring-brand-400 ${shown.length % 2 === 0 ? 'col-span-2' : ''}`}
-          >
-            <Globe2 className="h-10 w-10 text-brand-600" aria-hidden />
-            <span className="text-[16px] font-bold text-ink-950">Anywhere abroad</span>
-            <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[13px] font-extrabold text-brand-700">{all.length} jobs for you</span>
-          </button>
         </div>
         <Cheer>Your sponsorship documents are ready for every country.</Cheer>
       </>,
     );
   }
 
+  // The three plans, as questions about what will happen.
+  const docs = Math.min(Math.max(items.length, 1), DOCS_STARTER);
+  const asks = (free: boolean) => (
+    <>
+      <PlansHeader from={from} fromName={fromName} />
+      <div className="space-y-3">
+        {free && (
+          <Ask
+            icon={Search}
+            question={
+              <>
+                Explore all <Num>{items.length}</Num> {items.length === 1 ? 'job' : 'jobs'}?
+              </>
+            }
+            cta="Yes, explore for free"
+            onClick={() => choose('free')}
+          />
+        )}
+        <Ask
+          icon={FileCheck2}
+          tone="brand"
+          question={
+            <>
+              Apply to <Num>{docs}</Num> {docs === 1 ? 'job' : 'jobs'} with a sponsorship document for each?
+            </>
+          }
+          points={['More interview chances', `${DOCS_STARTER} sponsorship documents included`]}
+          cta={`Yes · ${priceLabel('starter')}`}
+          onClick={() => (free ? choose('starter') : toCheckout('starter'))}
+        />
+        <Ask
+          icon={free ? Zap : Crown}
+          tone="premium"
+          badge="Most chances"
+          question={
+            <>
+              Apply to{' '}
+              <Num tone="amber" className="!text-amber-600">
+                {auto.toLocaleString('en-US')}
+              </Num>{' '}
+              jobs in one month, automatically?
+            </>
+          }
+          points={['Most interview chances', `${DOCS_PRO} sponsorship documents included`, 'New jobs for 30 days']}
+          cta={`Yes · ${priceLabel('pro')}`}
+          onClick={() => (free ? choose('pro') : toCheckout('pro'))}
+        />
+      </div>
+    </>
+  );
+
   // ---- 3/3 · the best jobs found, then what they want to do with them ----
   if (allowed === 'plan') {
     const preview = items.slice(0, 3);
-    const docs = Math.min(Math.max(items.length, 1), DOCS_STARTER);
     return shell(
       'plan',
       'country',
@@ -555,72 +699,34 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
             </span>
           }
         >
-          <Num className="text-[30px] sm:text-[34px]">{items.length}</Num> {items.length === 1 ? 'job' : 'jobs'} for you {pickedName ? `in ${pickedName}` : 'abroad'}
+          <Num className="text-[30px] sm:text-[34px]">{items.length}</Num> {items.length === 1 ? 'job' : 'jobs'} for you <Hl>{pickedName ? `in ${pickedName}` : 'abroad'}</Hl>
         </Title>
-
-        <ol className="space-y-2.5">
+        <div className="space-y-2.5">
           {preview.map((m, i) => (
-            <li key={m.id} className="mv-quiz-tag flex items-center gap-3 rounded-2xl bg-white p-3.5 shadow-sm ring-1 ring-ink-200" style={{ animationDelay: `${120 + i * 140}ms` }}>
-              <MatchRing score={m.score} size={48} />
-              <span className="min-w-0 flex-1">
-                {i === 0 && <span className="block text-[11px] font-bold uppercase tracking-wide text-brand-700">Most matching</span>}
-                <span className="block truncate text-[15.5px] font-bold leading-snug text-ink-950">{m.title}</span>
-                <span className="mt-0.5 flex items-center gap-1.5 text-[13px] text-ink-600">
-                  {m.cc && <CircleFlag countryCode={m.cc} size={14} label={m.country ?? m.cc} />}
-                  <span className="truncate">{m.country}</span>
-                  <span aria-hidden>·</span>
-                  <span aria-hidden className="inline-block h-3 w-20 rounded bg-ink-200 blur-[3px]" />
-                  <span className="sr-only">Company shown after you choose</span>
-                </span>
-              </span>
-            </li>
+            <JobRow key={m.id} m={m} top={i === 0} delay={120 + i * 140} />
           ))}
-        </ol>
+        </div>
         {items.length > preview.length && (
           <p className="mt-2.5 text-center text-[14px] font-semibold text-ink-600">
             + <Num className="text-[15px]">{items.length - preview.length}</Num> more
           </p>
         )}
-
-        <p className="mb-3 mt-7 text-center text-[18px] font-bold text-ink-900">Do you want to…</p>
-        <div className="space-y-3">
-          <Ask
-            icon={Search}
-            question={<>Explore <Num>{items.length}</Num> {items.length === 1 ? 'job' : 'jobs'}?</>}
-            how="You see the jobs. Your best match stays hidden."
-            cta="Yes, explore for free"
-            onClick={() => choose('free')}
-          />
-          <Ask
-            icon={FileCheck2}
-            tone="brand"
-            question={<>Apply to <Num>{docs}</Num> {docs === 1 ? 'job' : 'jobs'} with a sponsorship document for each?</>}
-            how="Today’s jobs, your best matches unlocked. You send each application with its document."
-            cta={`Yes · ${priceLabel('starter')}`}
-            onClick={() => choose('starter')}
-          />
-          <Ask
-            icon={Zap}
-            tone="premium"
-            badge="Most chances"
-            question={<>Apply to <Num tone="amber" className="!text-amber-600">{auto.toLocaleString('en-US')}</Num> jobs in one month, automatically?</>}
-            how="Today’s jobs and every new one in the next 30 days. Smart Tool applies with your CV and sponsorship document."
-            cta={`Yes · ${priceLabel('pro')}`}
-            onClick={() => choose('pro')}
-          />
-        </div>
+        {asks(true)}
         <Cheer>You’re one step away from your employer abroad.</Cheer>
       </>,
     );
   }
 
-  // ---- 3/3 · approve the email ----
+  // ---- 3/3 · approve the email, with their jobs right under it ----
   if (allowed === 'email') {
+    const list = items.slice(0, 5);
     return shell(
       'email',
       'plan',
       <>
-        <Title>Approve your email to continue</Title>
+        <Title>
+          <Hl>Approve your email</Hl> to continue
+        </Title>
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-2 ring-brand-200">
           <QuickSignup
             cv={cv}
@@ -631,78 +737,49 @@ export function CvQuiz({ top, searching, cv }: { top: TopState & { start: () => 
             }}
           />
         </div>
-        <Cheer>Free account, no password. Your results are saved.</Cheer>
+        <Cheer>Your jobs are saved to your account.</Cheer>
+        {list.length > 0 && (
+          <>
+            <p className="mb-3 mt-7 text-center text-[17px] font-bold text-ink-950">
+              Your <Num>{items.length}</Num> {items.length === 1 ? 'job' : 'jobs'} {pickedName ? `in ${pickedName}` : 'abroad'}
+            </p>
+            <div className="space-y-2.5">
+              {list.map((m, i) => (
+                <JobRow key={m.id} m={m} top={i === 0} />
+              ))}
+            </div>
+            {items.length > list.length && (
+              <p className="mt-2.5 text-center text-[14px] font-semibold text-ink-600">
+                + <Num className="text-[15px]">{items.length - list.length}</Num> more after you approve your email
+              </p>
+            )}
+          </>
+        )}
       </>,
     );
   }
 
-  // ---- Free: the results, with the next step up ----
-  const best = items[0] as TopMatch | undefined;
-  const open = items[1] as TopMatch | undefined;
-  const more = Math.max(0, items.length - 2);
+  // ---- Free: every job, open; then the next step up ----
+  const shownJobs = showAll ? items : items.slice(0, JOBS_FIRST);
   return shell(
     'results',
     'plan',
     <>
-      <Title>{first ? `${first}, here` : 'Here'} are your opportunities</Title>
-      <div className="space-y-3">
-        {best && (
-          <div className="flex items-center gap-4 rounded-2xl bg-white p-4 ring-2 ring-brand-200">
-            <MatchRing score={best.score} size={56} />
-            <div className="min-w-0 flex-1">
-              <p className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-brand-700">
-                <Lock className="h-3 w-3" aria-hidden /> Your best match
-              </p>
-              <span aria-hidden className="mt-1 block h-4 w-3/4 rounded bg-ink-200 blur-[4px]" />
-              {best.cc && (
-                <p className="mt-1.5 flex items-center gap-1.5 text-[13.5px] font-semibold text-ink-700">
-                  <CircleFlag countryCode={best.cc} size={15} label={best.country ?? best.cc} /> {best.country}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-        {open && (
-          <a href={`${jobPath({ id: `sponsored-${open.id}`, title: open.title, company: open.company })}#cv-match`} className="flex items-center gap-4 rounded-2xl bg-white p-4 ring-1 ring-ink-200 hover:ring-brand-300">
-            <MatchRing score={open.score} size={56} />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[12.5px] font-semibold text-ink-500">{open.company}</span>
-              <span className="block text-[16px] font-bold leading-snug text-ink-950">{open.title}</span>
-              {open.cc && (
-                <span className="mt-1 flex items-center gap-1.5 text-[13px] text-ink-600">
-                  <CircleFlag countryCode={open.cc} size={14} label={open.country ?? open.cc} /> {open.country}
-                </span>
-              )}
-            </span>
-          </a>
-        )}
-        {more > 0 && (
-          <p className="px-1 text-center text-[14.5px] font-semibold text-ink-600">
-            + <Num className="text-[16px]">{more}</Num> more {more === 1 ? 'opportunity' : 'opportunities'} waiting
-          </p>
-        )}
-
-        <Ask
-          icon={FileCheck2}
-          tone="brand"
-          question={<>Apply to <Num>{Math.min(Math.max(items.length, 1), DOCS_STARTER)}</Num> jobs with a sponsorship document for each?</>}
-          how="Your best match and all your jobs unlocked."
-          cta={`Yes · ${priceLabel('starter')}`}
-          onClick={() => toCheckout('starter')}
-        />
-
-        <Ask
-          icon={Crown}
-          tone="premium"
-          badge="Most chances"
-          question={<>Apply to <Num tone="amber" className="!text-amber-600">{auto.toLocaleString('en-US')}</Num> jobs in one month, automatically?</>}
-          how={`Today’s jobs and every new one in the next 30 days — more chances to move ${pickedName ? `to ${pickedName}` : 'abroad'}.`}
-          cta={`Yes · ${priceLabel('pro')}`}
-          onClick={() => toCheckout('pro')}
-        />
-
-        <ExampleJourney rotate className="pt-2" />
+      <Title>
+        {first ? `${first}, here` : 'Here'} are your <Hl>opportunities</Hl>
+      </Title>
+      <div className="space-y-2.5">
+        {shownJobs.map((m, i) => (
+          <JobRow key={m.id} m={m} top={i === 0} />
+        ))}
       </div>
+      {!showAll && items.length > JOBS_FIRST && (
+        <button onClick={() => setShowAll(true)} className="mt-3 w-full rounded-full bg-white py-3 text-[15px] font-bold text-brand-700 ring-1 ring-brand-300 hover:bg-brand-50">
+          Show all {items.length} jobs
+        </button>
+      )}
+      {asks(false)}
+      <ExampleJourney rotate wide className="pt-6" />
     </>,
   );
 }

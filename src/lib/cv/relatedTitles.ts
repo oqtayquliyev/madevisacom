@@ -16,6 +16,14 @@ export const COMMON_TITLES = [
   'Hairdresser', 'Beautician', 'Tailor', 'Seamstress', 'Massage therapist',
 ];
 
+/** What students often study before an Ausbildung or internship abroad. */
+export const STUDY_FIELDS = [
+  'Nursing', 'Elderly care', 'Healthcare', 'Pharmacy', 'Medicine', 'Mechatronics', 'Mechanical engineering', 'Electrical engineering', 'Electronics', 'Civil engineering',
+  'Automotive technology', 'Computer science', 'Software development', 'Information technology', 'Data science', 'Cybersecurity', 'Graphic design', 'Media design',
+  'Hotel management', 'Hospitality', 'Tourism', 'Cooking', 'Culinary arts', 'Bakery', 'Food technology', 'Business administration', 'Accounting', 'Finance', 'Marketing',
+  'Logistics', 'Supply chain', 'Retail', 'Office management', 'Construction', 'Architecture', 'Plumbing', 'HVAC', 'Welding', 'Agriculture', 'Biology', 'Chemistry', 'Education', 'Languages',
+].sort((a, b) => a.localeCompare(b));
+
 const cleanLabel = (l: string) => l.replace(/\s*\(other\)/i, '').trim();
 export const ALL_TITLES = [...new Set([...COMMON_TITLES, ...CATEGORIES_BY_GROUP.flatMap((g) => g.labels.map(cleanLabel))])].sort((a, b) => a.localeCompare(b));
 
@@ -83,6 +91,22 @@ const RELATED: Record<string, string[]> = {
   'retail assistant': ['Sales assistant', 'Cashier', 'Shop assistant'],
   'customer service agent': ['Call center agent', 'Customer support', 'Sales assistant'],
   'hairdresser': ['Barber', 'Beautician', 'Stylist'],
+  // Study fields (students).
+  'nursing': ['Nursing assistant', 'Care assistant', 'Elderly care'],
+  'elderly care': ['Care assistant', 'Nursing assistant', 'Caregiver'],
+  'mechatronics': ['Mechatronics technician', 'Electronics technician', 'Industrial mechanic'],
+  'mechanical engineering': ['Industrial mechanic', 'Mechanical technician', 'CNC operator'],
+  'electrical engineering': ['Electrician', 'Electronics technician', 'Electrical technician'],
+  'computer science': ['Software developer', 'IT specialist', 'Web developer'],
+  'information technology': ['IT specialist', 'IT support', 'System administrator'],
+  'software development': ['Software developer', 'Web developer', 'IT specialist'],
+  'hotel management': ['Hotel receptionist', 'Hotel clerk', 'Front desk agent'],
+  'hospitality': ['Hotel receptionist', 'Restaurant specialist', 'Waiter'],
+  'cooking': ['Cook', 'Chef', 'Kitchen helper'],
+  'culinary arts': ['Cook', 'Chef', 'Pastry chef'],
+  'business administration': ['Office clerk', 'Office administrator', 'Sales assistant'],
+  'logistics': ['Warehouse logistics specialist', 'Logistics clerk', 'Warehouse worker'],
+  'retail': ['Retail sales', 'Sales assistant', 'Cashier'],
 };
 
 /** Up to three titles close to this one: by hand for common jobs, otherwise others in the same field. */
