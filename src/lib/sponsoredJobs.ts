@@ -520,6 +520,68 @@ export async function fetchNewestDiverseJobs(limit = 36, perCompany = 3): Promis
   return (data as unknown as SponsoredJob[]).sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
+/**
+ * Search on the server: every live job whose title, city or job function contains each word,
+ * plus the live jobs of companies and countries whose name matches
+ * (newest first, up to `limit`). Answers in about a second, long before the full list could
+ * be downloaded — the landing page and /jobs show these at once and add the rest later.
+ * Remembered for a few minutes per search.
+ */
+const searchMemo = new Map<string, { at: number; rows: Promise<SponsoredJob[]> }>();
+export function searchPublishedJobs(query: string, limit = 400): Promise<SponsoredJob[]> {
+  const words = query
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}+#.\- ]+/gu, ' ')
+    .split(/\s+/)
+    .map((w) => w.replace(/[.,()*]/g, ''))
+    .filter((w) => w.length >= 2)
+    .slice(0, 5);
+  if (!words.length) return Promise.resolve([]);
+  const key = `${words.join(' ')}|${limit}`;
+  const hit = searchMemo.get(key);
+  if (hit && Date.now() - hit.at < 5 * 60_000) return hit.rows;
+  const asOf = nowIso();
+  let q = supabase.from('sponsored_jobs').select(LIST_COLUMNS).eq('status', 'published').or(`expires_at.is.null,expires_at.gt.${asOf}`);
+  for (const w of words) q = q.or(`title.ilike.*${w}*,city.ilike.*${w}*,job_function.ilike.*${w}*`);
+  const byText = Promise.resolve(q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit)).then(({ data, error }) => {
+    if (error) throw error;
+    return (data ?? []) as unknown as SponsoredJob[];
+  });
+  // A company name ("siemens", "ford motor"): that company's live jobs too.
+  const phrase = words.join(' ');
+  // A company or country name ("siemens", "germany"): its live jobs too.
+  const byName = (table: 'program_publishers' | 'countries', column: 'publisher_id' | 'country_id', max: number) =>
+    Promise.resolve(supabase.from(table).select('id').ilike('name', `*${phrase}*`).limit(max))
+      .then(async ({ data }) => {
+        const ids = ((data ?? []) as { id: string }[]).map((p) => p.id);
+        if (!ids.length) return [] as SponsoredJob[];
+        const r = await supabase.from('sponsored_jobs').select(LIST_COLUMNS).eq('status', 'published').or(`expires_at.is.null,expires_at.gt.${asOf}`).in(column, ids).order('created_at', { ascending: false }).limit(limit);
+        return (r.data ?? []) as unknown as SponsoredJob[];
+      })
+      .catch(() => [] as SponsoredJob[]);
+  const rows = Promise.all([byText, byName('program_publishers', 'publisher_id', 15), byName('countries', 'country_id', 3)])
+    .then((lists) => {
+      const seen = new Set<string>();
+      const all: SponsoredJob[] = [];
+      for (const list of lists) {
+        for (const r of list) {
+          if (seen.has(r.id)) continue;
+          seen.add(r.id);
+          all.push(r);
+        }
+      }
+      return all.sort((x, y) => (y.created_at > x.created_at ? 1 : y.created_at < x.created_at ? -1 : 0)).slice(0, limit);
+    })
+    .catch((e) => {
+      console.error('searchPublishedJobs failed', e);
+      searchMemo.delete(key);
+      return [] as SponsoredJob[];
+    });
+  searchMemo.set(key, { at: Date.now(), rows });
+  if (searchMemo.size > 40) searchMemo.delete(searchMemo.keys().next().value as string);
+  return rows;
+}
+
 /** How many jobs went live on MadeVisa between `fromIso` and `toIso` (indexed count). */
 export async function countJobsPublishedSince(fromIso: string, toIso?: string): Promise<number | null> {
   let q = supabase.from('sponsored_jobs').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('created_at', fromIso);

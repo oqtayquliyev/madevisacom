@@ -37,7 +37,7 @@ import { useAuth } from '@/lib/auth';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { JobSignals } from '@/components/jobs/JobSignals';
 import { useJobFacets } from '@/lib/jobFacets';
-import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
+import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, searchPublishedJobs, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { rememberSearch } from '@/lib/lastSearch';
 import { useMembership } from '@/lib/plans';
 import { Paywall } from '@/components/pro/Paywall';
@@ -613,7 +613,31 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
   const quickIds = useMemo(() => new Set(quickJobs.map((j) => j.id)), [quickJobs]);
   const sponsoredJobs = useMemo(() => (fullJobs ? [...quickJobs, ...fullJobs.filter((j) => !quickIds.has(j.id))] : quickJobs), [quickJobs, fullJobs, quickIds]);
   const loadingSponsored = loadingQuick && !fullJobs;
-  const allJobs = useMemo(() => [...sponsoredJobs, ...liveJobs], [liveJobs, sponsoredJobs]);
+  // A search is answered by the server at once (every live job matching it); the full list,
+  // when it arrives, adds nothing new for that search but keeps every other filter instant.
+  const searchKey = deferredSearch.trim().toLowerCase();
+  const [serverHits, setServerHits] = useState<{ q: string; jobs: Job[] } | null>(null);
+  useEffect(() => {
+    if (searchKey.length < 2) return;
+    let alive = true;
+    void searchPublishedJobs(searchKey).then((rows) => alive && startTransition(() => setServerHits({ q: searchKey, jobs: rows.map(toBoard) })));
+    return () => {
+      alive = false;
+    };
+  }, [searchKey]);
+  // A slow connection: after 12 s with nothing found, say so instead of showing placeholders for ever.
+  const [gaveUpWaiting, setGaveUpWaiting] = useState(false);
+  useEffect(() => {
+    setGaveUpWaiting(false);
+    const t = window.setTimeout(() => setGaveUpWaiting(true), 12_000);
+    return () => window.clearTimeout(t);
+  }, [searchKey]);
+  const searchBusy = searchKey.length >= 2 && serverHits?.q !== searchKey && (!fullJobs || loadingFull);
+  const baseJobs = useMemo(() => [...sponsoredJobs, ...liveJobs], [liveJobs, sponsoredJobs]);
+  const baseIds = useMemo(() => new Set(sponsoredJobs.map((j) => j.id)), [sponsoredJobs]);
+  const extraJobs = useMemo(() => (serverHits && serverHits.q === searchKey ? serverHits.jobs.filter((j) => !baseIds.has(j.id)) : []), [serverHits, searchKey, baseIds]);
+  // Unchanged (same array) when the server found nothing the page didn't already have: no re-sorting.
+  const allJobs = useMemo(() => (extraJobs.length ? [...sponsoredJobs, ...extraJobs, ...liveJobs] : baseJobs), [extraJobs, baseJobs, sponsoredJobs, liveJobs]);
   // OR, not AND: sponsored jobs and the live feed are two independent
   // fetches that resolve at different times (sponsored now paginates
   // past Supabase's 1000-row cap, so it can genuinely take longer than
@@ -814,7 +838,8 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
   const [authOpen, setAuthOpen] = useState(false);
 
   // Everyone sees every job: the next page, from the full list (loading it first when needed).
-  const waitingForMore = visibleCount > filteredJobs.length && loadingFull;
+  // Placeholders only while something is really on its way: a search being answered, or (no search) the full list.
+  const waitingForMore = visibleCount > filteredJobs.length && (deferredSearch.trim().length >= 2 ? searchBusy : loadingFull);
   const handleShowMore = () => {
     setLoadingMore(true);
     window.setTimeout(() => {
@@ -1220,7 +1245,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
               ))}
             </div>
           </>
-        ) : filteredJobs.length === 0 && loadingFull ? (
+        ) : filteredJobs.length === 0 && (searchBusy || (loadingFull && !gaveUpWaiting)) ? (
           <>
             <LoadingLatest />
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
