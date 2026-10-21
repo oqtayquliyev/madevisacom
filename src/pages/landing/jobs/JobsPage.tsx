@@ -1,7 +1,7 @@
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
 import { NEW_TAB } from '@/lib/navLink';
 import { AlertSignup } from '@/components/jobs/AlertSignup';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, startTransition, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   BadgeCheck,
@@ -41,7 +41,9 @@ import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, s
 import { rememberSearch } from '@/lib/lastSearch';
 import { useMembership } from '@/lib/plans';
 import { Paywall } from '@/components/pro/Paywall';
-import { isJobViewed, markJobViewed } from '@/lib/viewedJobs';
+import { isJobViewed, markJobViewed, viewedJobIds } from '@/lib/viewedJobs';
+import { rememberJobPreview } from '@/lib/jobPreview';
+import { nav } from '@/lib/pageLayout';
 import { useSeo } from '@/lib/seo';
 import { SEO_META } from '@/lib/seoMeta';
 import { PersonalizationBar } from '@/components/opportunities/PersonalizationBar';
@@ -74,9 +76,76 @@ function asCategoryValue(v: string | null): string {
   return categoryGroup(v) ? v : ALL_CATEGORIES;
 }
 
+/**
+ * Worked out once per job and kept (the list can be ~70k jobs, and phones type faster than
+ * they can re-read every date and lowercase every title): the dates as numbers, the category,
+ * and one lowercase line to search in.
+ */
+type JobMeta = { posted: number; shared: number; cat: JobCategory | null; hay: string };
+const META = new WeakMap<Job, JobMeta>();
+function meta(j: Job): JobMeta {
+  let m = META.get(j);
+  if (!m) {
+    const cat = classifyJob(j.title, j.category);
+    m = {
+      posted: Date.parse(j.postedDate ?? j.sharedAt ?? '') || 0,
+      shared: Date.parse(j.sharedAt ?? j.postedDate ?? '') || 0,
+      cat,
+      hay: `${j.title}\n${j.company}\n${j.category}\n${cat?.label ?? ''}\n${j.city}`.toLowerCase(),
+    };
+    META.set(j, m);
+  }
+  return m;
+}
 /** When the job was posted (company's date, else when it went live here). */
-const postedMs = (j: Job) => Date.parse(j.postedDate ?? j.sharedAt ?? '') || 0;
-const sharedMs = (j: Job) => Date.parse(j.sharedAt ?? j.postedDate ?? '') || 0;
+const postedMs = (j: Job) => meta(j).posted;
+const sharedMs = (j: Job) => meta(j).shared;
+
+/** Each downloaded row becomes a list job once (the full list arrives in parts, and comes back on each visit). */
+const BOARD = new WeakMap<SponsoredJob, Job>();
+const toBoard = (r: SponsoredJob): Job => {
+  let j = BOARD.get(r);
+  if (!j) {
+    j = sponsoredJobToBoardJob(r);
+    BOARD.set(r, j);
+  }
+  return j;
+};
+/**
+ * Turns a big download into list jobs in small slices, letting the phone draw and react to
+ * taps in between (one 60k-row pass would freeze the page for a second or two).
+ */
+async function toBoardInSlices(rows: SponsoredJob[], alive: () => boolean): Promise<Job[] | null> {
+  const out: Job[] = new Array(rows.length);
+  let i = 0;
+  while (i < rows.length) {
+    const until = performance.now() + 8;
+    for (; i < rows.length && performance.now() < until; i++) {
+      out[i] = toBoard(rows[i]);
+      meta(out[i]);
+    }
+    if (i < rows.length) await new Promise((r) => window.setTimeout(r, 0));
+    if (!alive()) return null;
+  }
+  return out;
+}
+
+/** The full list from this visit, so coming back from a job shows it at once. */
+let lastFullJobs: Job[] | null = null;
+
+/** Where the list was when a job was opened (phones open jobs in the same tab): restored on Back. */
+const LIST_KEY = 'mv:jobsListPlace';
+type ListPlace = { url: string; y: number; count: number; at: number };
+function readListPlace(): ListPlace | null {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(LIST_KEY) ?? 'null') as ListPlace | null;
+    return v && v.url === window.location.pathname + window.location.search && Date.now() - v.at < 30 * 60_000 ? v : null;
+  } catch {
+    return null;
+  }
+}
+/** Phones and tablets: a job opens in the same tab (a new tab means loading the whole site again). */
+const sameTab = () => typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
 const DAY_MS = 86_400_000;
 
 /** Posted in the last 24 hours — worth applying early. */
@@ -144,12 +213,6 @@ function LoadingLatest() {
 }
 
 const PAGE_SIZE = 12;
-
-function withinDateWindow(job: Job, window: DatePostedOption): boolean {
-  const t = postedMs(job);
-  if (!t) return window === 'Any time';
-  return (Date.now() - t) / DAY_MS <= WINDOW_DAYS[window];
-}
 
 /** Round-robins a list across `company` so that, when hundreds of jobs
  *  come from a handful of companies (a big ATS import batch), scrolling
@@ -242,7 +305,7 @@ function withClosedLast(jobs: Job[]): Job[] {
   return [...jobs.filter((j) => !j.closed), ...jobs.filter((j) => j.closed)];
 }
 
-function JobCard({ job, onLocked }: { job: Job; /** Not a member: picking an outside listing opens the membership card instead. */ onLocked?: (job: Job) => void }) {
+function JobCard({ job, onLocked, onOpen }: { job: Job; /** Not a member: picking an outside listing opens the membership card instead. */ onLocked?: (job: Job) => void; /** Opening it in this tab (phones). */ onOpen?: () => void }) {
   const isExternal = job.sourceType === 'live_feed';
   const viewed = isJobViewed(job.id);
   const closed = Boolean(job.closed);
@@ -337,7 +400,15 @@ function JobCard({ job, onLocked }: { job: Job; /** Not a member: picking an out
     <a
       href={href}
       {...NEW_TAB}
-      onClick={() => markJobViewed(job.id, { id: job.id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url })}
+      onClick={(e) => {
+        markJobViewed(job.id, { id: job.id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url });
+        rememberJobPreview(job);
+        // Phones: open it right here (instant, and Back returns to this spot in the list).
+        if (!sameTab() || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        onOpen?.();
+        nav(href);
+      }}
       className={`${cardClass} cursor-pointer`}
     >
       {inner}
@@ -430,6 +501,8 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
   const initial = useMemo(() => new URLSearchParams(window.location.search), []);
 
   const [search, setSearch] = useState(initial.get('q') ?? '');
+  // The box shows every key at once; the list follows a moment later (the filtering waits for a pause in typing).
+  const deferredSearch = useDeferredValue(search);
   const [country, setCountry] = useState(initial.get('country') ?? 'All countries');
   const [category, setCategory] = useState(() => asCategoryValue(initial.get('category')));
   const [jobType, setJobType] = useState(initial.get('type') ?? 'All types');
@@ -448,7 +521,9 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
   const [studentOnly, setStudentOnly] = useState(initial.get('students') === '1');
   const [visaOnly, setVisaOnly] = useState(initial.get('visa') === '1');
   const [showFilters, setShowFilters] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // Back from a job (phones): the same number of jobs, then the same scroll position.
+  const [place] = useState(readListPlace);
+  const [visibleCount, setVisibleCount] = useState(() => Math.max(PAGE_SIZE, place?.count ?? 0));
   const [loadingMore, setLoadingMore] = useState(false);
 
   const [liveJobs, setLiveJobs] = useState<Job[]>([]);
@@ -457,7 +532,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
   const [quickJobs, setQuickJobs] = useState<Job[]>(() => readQuickCopy() ?? []);
   const [loadingQuick, setLoadingQuick] = useState(() => !readQuickCopy());
   // Every job: loaded when someone searches, filters, goes past the newest ones, or already has a copy.
-  const [fullJobs, setFullJobs] = useState<Job[] | null>(null);
+  const [fullJobs, setFullJobs] = useState<Job[] | null>(lastFullJobs);
   const [loadingFull, setLoadingFull] = useState(false);
   const { session } = useAuth();
   const { member, ready: memberReady } = useMembership();
@@ -484,7 +559,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
     fetchNewestDiverseJobs(PAGE_SIZE * 3).then((rows) => {
       if (cancelled) return;
       writeQuickCopy(rows);
-      setQuickJobs(rows.map(sponsoredJobToBoardJob));
+      setQuickJobs(rows.map(toBoard));
       setLoadingQuick(false);
     });
     return () => {
@@ -515,9 +590,18 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
     if (!wantFull) return;
     let cancelled = false;
     setLoadingFull(true);
-    const show = (rows: SponsoredJob[]) => !cancelled && rows.length && setFullJobs(rows.map(sponsoredJobToBoardJob));
-    fetchPublishedSponsoredJobs({ onPartial: show }).then((rows) => {
-      show(rows);
+    // Arriving jobs are worked in behind typing and scrolling (startTransition), never in front of them.
+    let latest = 0;
+    const show = async (rows: SponsoredJob[]) => {
+      if (cancelled || !rows.length) return;
+      const n = ++latest;
+      const list = await toBoardInSlices(rows, () => !cancelled && n === latest);
+      if (!list) return;
+      lastFullJobs = list;
+      startTransition(() => setFullJobs(list));
+    };
+    fetchPublishedSponsoredJobs({ onPartial: (rows) => void show(rows) }).then(async (rows) => {
+      await show(rows);
       if (!cancelled) setLoadingFull(false);
     });
     return () => {
@@ -583,7 +667,13 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
     window.history.replaceState({}, '', query ? `/jobs?${query}` : '/jobs');
   }, [search, country, category, jobType, remoteOnly, flexOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly]);
 
+  const firstFilterRun = useRef(true);
   useEffect(() => {
+    // Not on arrival: a list restored after Back keeps its length.
+    if (firstFilterRun.current) {
+      firstFilterRun.current = false;
+      return;
+    }
     setVisibleCount(PAGE_SIZE);
   }, [search, country, category, jobType, remoteOnly, flexOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly]);
 
@@ -595,35 +685,37 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
   }, [allJobs]);
   // Viewed jobs as of this page load — so opening a job and coming back
   // doesn't reshuffle the list under the person's thumb.
-  const viewedAtLoad = useMemo(() => new Set(allJobs.filter((j) => isJobViewed(j.id)).map((j) => j.id)), [allJobs]);
+  const viewedAtLoad = useMemo(() => {
+    const seen = viewedJobIds();
+    return new Set(allJobs.filter((j) => seen.has(j.id)).map((j) => j.id));
+  }, [allJobs]);
   const shownBefore = useMemo(() => recentlyShownIds('jobs'), []);
 
   // Each job's category (from its title / department) — computed once per list.
   const catOf = useMemo(() => {
     const m = new Map<string, JobCategory | null>();
-    for (const j of allJobs) m.set(j.id, classifyJob(j.title, j.category));
+    for (const j of allJobs) m.set(j.id, meta(j).cat);
     return m;
   }, [allJobs]);
+  // Newest first, worked out once per list: every search and filter keeps this order.
+  const newestAll = useMemo(() => sortNewestFirst(allJobs), [allJobs]);
 
   // Every filter except the category — so the category list can show how
   // many jobs each category has with the other filters applied.
   const baseMatched = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
+    const normalizedSearch = deferredSearch.trim().toLowerCase();
     const normalizedCity = city.trim().toLowerCase();
     const normalizedCompany = company.trim().toLowerCase();
 
-    return allJobs.filter((job) => {
-      const cat = catOf.get(job.id);
-      const matchesSearch =
-        !normalizedSearch ||
-        job.title.toLowerCase().includes(normalizedSearch) ||
-        job.company.toLowerCase().includes(normalizedSearch) ||
-        job.category.toLowerCase().includes(normalizedSearch) ||
-        Boolean(cat && cat.label.toLowerCase().includes(normalizedSearch)) ||
-        job.city.toLowerCase().includes(normalizedSearch);
+    const now = Date.now();
+    const maxAge = WINDOW_DAYS[datePosted] * DAY_MS;
+    return newestAll.filter((job) => {
+      const m = meta(job);
+      const matchesSearch = !normalizedSearch || m.hay.includes(normalizedSearch);
+      const inWindow = m.posted ? now - m.posted <= maxAge : datePosted === 'Any time';
 
       return (
-        withinDateWindow(job, datePosted) &&
+        inWindow &&
         (!directOnly || job.sourceType === 'company_submitted') &&
         (!studentOnly || isStudentOrInternJob(job)) &&
         (!visaOnly || Boolean(job.visaSponsorship)) &&
@@ -638,7 +730,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
         (experienceLevel === 'All levels' || experienceBucket(job.experienceLevel) === experienceLevel)
       );
     });
-  }, [allJobs, catOf, search, country, jobType, remoteOnly, flexOnly, city, company, salaryOnly, experienceLevel, datePosted, directOnly, studentOnly, visaOnly]);
+  }, [newestAll, deferredSearch, country, jobType, remoteOnly, flexOnly, city, company, salaryOnly, experienceLevel, datePosted, directOnly, studentOnly, visaOnly]);
 
   const categoryCounts = useMemo(() => {
     const labels = new Map<string, number>();
@@ -658,7 +750,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
     const main = buildMainList();
     if (category === ALL_CATEGORIES || category.startsWith('group:')) return { filteredJobs: main, relatedStart: -1, relatedGroup: '' };
     const group = categoryGroup(category) ?? '';
-    const related = sortNewestFirst(baseMatched.filter((j) => {
+    const related = (baseMatched.filter((j) => {
       const c = catOf.get(j.id);
       return Boolean(c && c.group === group && c.label !== category) && !j.closed;
     }));
@@ -672,10 +764,10 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
     if (!hasQuery && quickIds.size) {
       const first = matched.filter((j) => quickIds.has(j.id));
       const rest = matched.filter((j) => !quickIds.has(j.id));
-      if (sortBy === 'newest') return withClosedLast([...sortNewestFirst(first), ...sortNewestFirst(rest)]);
+      if (sortBy === 'newest') return withClosedLast([...first, ...rest]);
       return withClosedLast([...interleaveByCompany(visitShuffle(first, 'relevant')), ...interleaveByCompany(visitShuffle(rest, 'relevant'))]);
     }
-    if (sortBy === 'newest') return withClosedLast(sortNewestFirst(matched));
+    if (sortBy === 'newest') return withClosedLast(matched);
     // "Most relevant": a different mix each visit — shuffled, jobs shown at
     // the top last time and jobs already opened go further down, spread
     // across companies.
@@ -696,6 +788,26 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
   }, [unfiltered, loadingSponsored, filteredJobs]);
 
   const visibleJobs = filteredJobs.slice(0, visibleCount);
+
+  // Phones open a job in this tab: remember the spot, and go back to it on return.
+  const saveListPlace = () => {
+    try {
+      sessionStorage.setItem(LIST_KEY, JSON.stringify({ url: window.location.pathname + window.location.search, y: window.scrollY, count: visibleCount, at: Date.now() } satisfies ListPlace));
+    } catch {
+      /* fine */
+    }
+  };
+  const restored = useRef(false);
+  useLayoutEffect(() => {
+    if (restored.current || !place || loading || visibleJobs.length < Math.min(place.count, filteredJobs.length)) return;
+    restored.current = true;
+    window.scrollTo(0, place.y);
+    try {
+      sessionStorage.removeItem(LIST_KEY);
+    } catch {
+      /* fine */
+    }
+  });
   const hasMore = visibleCount < filteredJobs.length || (!fullJobs && !hasQuery);
 
   // Free accounts are made right here, in a dialog (job alerts).
@@ -1154,7 +1266,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
                   {directJobs.slice(0, 2).map((job) => (
-                    <JobCard key={`direct-${job.id}`} job={job} onLocked={onLocked} />
+                    <JobCard key={`direct-${job.id}`} job={job} onLocked={onLocked} onOpen={saveListPlace} />
                   ))}
                 </div>
               </div>
@@ -1168,7 +1280,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
                       <p className="text-xs text-ink-500">Other roles in the same field, newest first.</p>
                     </div>
                   )}
-                  <JobCard job={job} onLocked={onLocked} />
+                  <JobCard job={job} onLocked={onLocked} onOpen={saveListPlace} />
                 </Fragment>
               ))}
               {(loadingMore || waitingForMore) && Array.from({ length: 2 }).map((_, i) => <JobCardSkeleton key={`more-${i}`} />)}

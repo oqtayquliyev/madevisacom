@@ -122,6 +122,9 @@ export function isMeaningfulSalary(text: string | null | undefined): boolean {
   return /[1-9]/.test(t);
 }
 
+/** Same output as n.toLocaleString(), without building a new formatter for every job (lists have thousands). */
+const NUMBER = new Intl.NumberFormat();
+
 export function formatSalary(job: {
   salary_status?: SalaryStatus;
   salary_min?: number | null;
@@ -147,7 +150,7 @@ export function formatSalary(job: {
       }
       const currency = job.salary_currency ?? 'USD';
       const period = job.salary_period ?? 'year';
-      const fmt = (n: number) => `${currency} ${n.toLocaleString()}`;
+      const fmt = (n: number) => `${currency} ${NUMBER.format(n)}`;
       const range =
         job.salary_min != null && job.salary_max != null && job.salary_min !== job.salary_max
           ? `${fmt(job.salary_min)}–${fmt(job.salary_max)}`
@@ -181,7 +184,7 @@ export function formatCost(program: {
         return program.funding_text || null;
       }
       const currency = program.cost_currency ?? 'USD';
-      const fmt = (n: number) => `${currency} ${n.toLocaleString()}`;
+      const fmt = (n: number) => `${currency} ${NUMBER.format(n)}`;
       if (program.cost_amount_min != null && program.cost_amount_max != null && program.cost_amount_min !== program.cost_amount_max) {
         return `${fmt(program.cost_amount_min)}–${fmt(program.cost_amount_max)}`;
       }

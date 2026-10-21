@@ -112,6 +112,11 @@ export function markJobViewed(jobId: string, snapshot?: ViewedJobSnapshot) {
   writeAll(map);
 }
 
+/** Every viewed job id, read once (for checking a whole list). */
+export function viewedJobIds(): Set<string> {
+  return new Set(Object.keys(pruneExpired(readAll())));
+}
+
 export function isJobViewed(jobId: string): boolean {
   const map = pruneExpired(readAll());
   return jobId in map;

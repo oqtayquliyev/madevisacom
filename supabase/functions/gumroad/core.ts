@@ -22,6 +22,8 @@ export type Deps = {
    * Gumroad without one. Absent in tests that don't need it.
    */
   createAccount?: (email: string) => Promise<{ id: string } | { error: string }>;
+  /** A one-time sign-in code for an existing account (not emailed by Supabase: we send it). */
+  signInCode?: (email: string) => Promise<{ code: string } | { error: string }>;
 };
 
 const CORS = {
@@ -109,7 +111,9 @@ async function gumroad(deps: Deps, method: 'GET' | 'POST' | 'PUT' | 'DELETE', pa
 // ---------------------------------------------------------------------------
 // One membership, as Gumroad's API describes it now → the database
 // ---------------------------------------------------------------------------
-type SyncInput = { subscriptionId?: string | null; saleId?: string | null; checkoutId?: string | null; test?: boolean; claimUser?: string | null };
+type SyncInput = { subscriptionId?: string | null; saleId?: string | null; checkoutId?: string | null; test?: boolean; claimUser?: string | null;
+  /** The guest's browser token (?mvg= on the Gumroad link): lets that browser sign in with an emailed code. */
+  guestToken?: string | null };
 type SyncResult = { ok: boolean; note: string; active?: boolean; linked?: boolean; plan?: PaidPlanId };
 
 const time = (v: unknown): number => {
@@ -176,14 +180,19 @@ export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput
   // one is created for them. An account whose email was never verified is left alone.
   let claimUser = input.claimUser ?? null;
   let created = false;
+  let byEmail = false;
   if (!claimUser && email && ALIVE.has(status) && !ended && (lastPaidAt || input.test)) {
     const who = (await deps.rpc('gumroad_buyer_account', { p_email: email, p_subscription: subscriptionId })).data as { state?: string; user_id?: string } | null;
-    if (who?.state === 'match' && who.user_id) claimUser = who.user_id;
+    if (who?.state === 'match' && who.user_id) {
+      claimUser = who.user_id;
+      byEmail = true;
+    }
     else if (who?.state === 'none' && deps.createAccount && !(input.checkoutId && UUID.test(input.checkoutId))) {
       const made = await deps.createAccount(email.toLowerCase());
       if ('id' in made) {
         claimUser = made.id;
         created = true;
+        byEmail = true;
       }
     }
   }
@@ -214,6 +223,10 @@ export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput
   if (out.linked && out.user_id) {
     if (created) await deps.rpc('member_emails', { p_user: out.user_id, p_kind: 'account', p_ref: subscriptionId });
     if (out.before === 'free' && out.after && out.after !== 'free') await deps.rpc('member_emails', { p_user: out.user_id, p_kind: 'welcome', p_ref: subscriptionId });
+    // The buyer's browser is waiting to sign them in and take them back to the job.
+    if (byEmail && email && input.guestToken && UUID.test(input.guestToken)) {
+      await deps.rpc('guest_claim_mark', { p_token: input.guestToken, p_user: out.user_id, p_email: email, p_subscription: subscriptionId });
+    }
   }
   const who = email ?? 'A buyer';
   const until = iso(out.until)?.slice(0, 10);
@@ -282,7 +295,7 @@ async function webhook(deps: Deps, req: Request, key: string): Promise<Response>
   const eventId = logged.data as number;
   // Gumroad waits 5 seconds for an answer, so the lookups happen after it.
   deps.background(
-    syncSubscription(deps, cfg, { subscriptionId, saleId, checkoutId: ping['url_params[mv]'] || null, test: ping.test === 'true' })
+    syncSubscription(deps, cfg, { subscriptionId, saleId, checkoutId: ping['url_params[mv]'] || null, guestToken: ping['url_params[mvg]'] || null, test: ping.test === 'true' })
       .catch((e): SyncResult => ({ ok: false, note: e instanceof Error ? e.message : 'Unexpected error.' }))
       .then((r) => deps.rpc('gumroad_finish_event', { p_id: eventId, p_ok: r.ok, p_note: r.note })),
   );
@@ -536,6 +549,24 @@ async function disconnect(deps: Deps, cfg: Config, body: Json): Promise<Response
   return json({ ok: true });
 }
 
+/**
+ * The guest's browser holds the token it sent to Gumroad. Once the payment is on an account,
+ * a 6-digit code goes to that account's email (at most once a minute); typing it signs them in.
+ * The token alone never signs anyone in.
+ */
+async function guestClaim(deps: Deps, body: Json): Promise<Response> {
+  const token = String(body?.token ?? '');
+  if (!UUID.test(token)) return json({ state: 'none' });
+  const took = (await deps.rpc('guest_claim_take', { p_token: token })).data as { state?: string; email?: string; user_id?: string; seconds?: number } | null;
+  if (!took || took.state === 'none' || !took.email) return json({ state: 'none' });
+  if (took.state === 'wait') return json({ state: 'sent', email: took.email, wait: took.seconds ?? 60 });
+  if (!deps.signInCode) return json({ state: 'none' });
+  const made = await deps.signInCode(took.email);
+  if (!('code' in made)) return json({ state: 'error', email: took.email });
+  await deps.rpc('guest_claim_code', { p_email: took.email, p_user: took.user_id, p_code: made.code });
+  return json({ state: 'sent', email: took.email, wait: 60 });
+}
+
 // ---------------------------------------------------------------------------
 // The door
 // ---------------------------------------------------------------------------
@@ -549,6 +580,8 @@ export function makeHandler(deps: Deps): (req: Request) => Promise<Response> {
     const body = await req.json().catch(() => null);
     const action = String(body?.action ?? '');
     // The paywall's "Subscribe" for someone without an account: no sign-in needed.
+    // Back from Gumroad without an account: email a sign-in code for the account the payment went on.
+    if (action === 'guest_claim') return guestClaim(deps, body);
     if (action === 'guest_checkout') {
       const cfgRes = await deps.rpc('gumroad_config');
       const cfg = cfgRes.data as Config | null;

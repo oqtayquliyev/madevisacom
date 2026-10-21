@@ -42,6 +42,8 @@ function world() {
   // Who a Gumroad buyer's email belongs to (gumroad_buyer_account), and the accounts the function made.
   const buyer: { state: string; user_id?: string } = { state: 'linked', user_id: USER.id };
   const made: string[] = [];
+  // guest_claim_take's answer (a guest's browser asking for its sign-in code).
+  const claim: Record<string, unknown> = { state: 'send', email: 'new.buyer@example.com', user_id: '44444444-4444-4444-8444-444444444444' };
   const calls: Calls = [];
   const background: Promise<unknown>[] = [];
   const deps: Deps = {
@@ -68,6 +70,8 @@ function world() {
           return { data: buyer, error: null };
         case 'gumroad_log_event':
           return { data: 7, error: null };
+        case 'guest_claim_take':
+          return { data: claim, error: null };
         case 'gumroad_refresh_allowed':
           return { data: true, error: null };
         default:
@@ -95,6 +99,7 @@ function world() {
       made.push(email);
       return { id: '44444444-4444-4444-8444-444444444444' };
     },
+    signInCode: async () => ({ code: '123456' }),
   };
   const handler = makeHandler(deps);
   const call = async (body: Record<string, unknown>, auth = 'Bearer good') => {
@@ -108,7 +113,7 @@ function world() {
   };
   const applied = () => calls.filter((c) => c.name === 'gumroad_apply').map((c) => c.args?.p as Record<string, unknown>);
   const emails = () => calls.filter((c) => c.name === 'member_emails').map((c) => c.args);
-  return { cfg, state, buyer, made, products, subscribers, sales, calls, call, ping, applied, emails };
+  return { cfg, state, buyer, made, claim, products, subscribers, sales, calls, call, ping, applied, emails };
 }
 
 let w: ReturnType<typeof world>;
@@ -293,6 +298,45 @@ describe('a purchase made without an account', () => {
     ]);
     const note = String(w.calls.find((c) => c.name === 'gumroad_finish_event')?.args?.p_note);
     expect(note).toMatch(/one was created for this email/);
+  });
+
+  it('the guest browser token (?mvg=) is remembered for the account, so that browser can sign in with a code', async () => {
+    w.buyer.state = 'none';
+    w.sales.g1 = sale('g1', 'sub_g');
+    w.subscribers.sub_g = member('sub_g', 'New.Buyer@Example.com');
+    await w.ping({ sale_id: 'g1', product_id: 'prod_starter', 'url_params[mvg]': '99999999-9999-4999-8999-999999999999' });
+    expect(w.calls.find((c) => c.name === 'guest_claim_mark')?.args).toEqual({
+      p_token: '99999999-9999-4999-8999-999999999999',
+      p_user: '44444444-4444-4444-8444-444444444444',
+      p_email: 'New.Buyer@Example.com',
+      p_subscription: 'sub_g',
+    });
+  });
+
+  it('no token, or a bad one: nothing is remembered', async () => {
+    w.buyer.state = 'none';
+    w.sales.g1 = sale('g1', 'sub_g');
+    w.subscribers.sub_g = member('sub_g', 'x@example.com');
+    await w.ping({ sale_id: 'g1', product_id: 'prod_starter', 'url_params[mvg]': 'not-a-token' });
+    expect(w.calls.some((c) => c.name === 'guest_claim_mark')).toBe(false);
+  });
+
+  it('guest_claim emails a sign-in code once the payment is on an account (no sign-in needed to ask)', async () => {
+    const r = await w.call({ action: 'guest_claim', token: '99999999-9999-4999-8999-999999999999' }, '');
+    expect(r.body).toEqual({ state: 'sent', email: 'new.buyer@example.com', wait: 60 });
+    expect(w.calls.find((c) => c.name === 'guest_claim_code')?.args).toEqual({ p_email: 'new.buyer@example.com', p_user: '44444444-4444-4444-8444-444444444444', p_code: '123456' });
+    // The code never goes back to the browser.
+    expect(JSON.stringify(r.body)).not.toContain('123456');
+  });
+
+  it('guest_claim: too soon again → no new code; unknown token → nothing', async () => {
+    w.claim.state = 'wait';
+    w.claim.seconds = 40;
+    expect((await w.call({ action: 'guest_claim', token: '99999999-9999-4999-8999-999999999999' }, '')).body).toEqual({ state: 'sent', email: 'new.buyer@example.com', wait: 40 });
+    expect(w.calls.some((c) => c.name === 'guest_claim_code')).toBe(false);
+    w.claim.state = 'none';
+    expect((await w.call({ action: 'guest_claim', token: '99999999-9999-4999-8999-999999999999' }, '')).body).toEqual({ state: 'none' });
+    expect((await w.call({ action: 'guest_claim', token: 'nope' }, '')).body).toEqual({ state: 'none' });
   });
 
   it('a trusted account with that email gets it (no new account; welcome email only)', async () => {

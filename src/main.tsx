@@ -5,6 +5,7 @@ import { AppErrorBoundary } from '@/components/common/AppErrorBoundary';
 import { reloadForNewVersion } from '@/lib/lazyPage';
 import { AuthProvider } from '@/lib/auth';
 import { MfaGate } from '@/components/auth/MfaGate';
+import { GuestReturn } from '@/components/pro/GuestReturn';
 import { PersonalizationProvider } from '@/lib/personalization';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
@@ -66,6 +67,7 @@ createRoot(document.getElementById('root')!).render(
             <App />
           </Suspense>
         </MfaGate>
+        <GuestReturn />
         <Analytics />
         <SpeedInsights />
       </PersonalizationProvider>

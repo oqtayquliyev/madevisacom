@@ -201,37 +201,88 @@ function openCacheDb(): Promise<IDBDatabase | null> {
   });
 }
 
-async function readPersistedJobs(): Promise<(Omit<JobsCopy, 'release'> & { release?: number | null }) | null> {
-  const db = await openCacheDb();
-  if (!db) return null;
+/**
+ * The saved copy is kept in parts of PART_ROWS jobs: saving or reading ~70k jobs as one value
+ * blocks a phone for a second or more (the browser copies it in one go), which made the page
+ * stick right after the list arrived. Parts are saved one at a time, between other work.
+ */
+const PART_ROWS = 2000;
+const partKey = (i: number) => `${IDB_KEY}:${i}`;
+type CopyHead = Omit<JobsCopy, 'data' | 'release'> & { release?: number | null; parts?: number; data?: SponsoredJob[] };
+
+function idbGet<T>(db: IDBDatabase, key: string): Promise<T | undefined> {
   return new Promise((resolve) => {
     try {
-      const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(IDB_KEY);
-      req.onsuccess = () => {
-        const v = req.result as (Omit<JobsCopy, 'release'> & { release?: number | null }) | undefined;
-        resolve(v && Array.isArray(v.data) && Date.now() - v.fetchedAt < PERSISTED_RELEASE_MAX_AGE_MS ? v : null);
-      };
-      req.onerror = () => resolve(null);
+      const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result as T | undefined);
+      req.onerror = () => resolve(undefined);
     } catch {
-      resolve(null);
+      resolve(undefined);
     }
   });
 }
 
+async function readPersistedJobs(): Promise<(Omit<JobsCopy, 'release'> & { release?: number | null }) | null> {
+  const db = await openCacheDb();
+  if (!db) return null;
+  const head = await idbGet<CopyHead>(db, IDB_KEY);
+  if (!head || Date.now() - head.fetchedAt >= PERSISTED_RELEASE_MAX_AGE_MS) return null;
+  // An older single-value copy.
+  if (Array.isArray(head.data)) return { ...head, data: head.data };
+  if (!head.parts) return null;
+  const data: SponsoredJob[] = [];
+  for (let i = 0; i < head.parts; i++) {
+    const part = await idbGet<SponsoredJob[]>(db, partKey(i));
+    // A part missing (saving was interrupted): no copy rather than half a list.
+    if (!Array.isArray(part)) return null;
+    for (const r of part) data.push(r);
+  }
+  return { fetchedAt: head.fetchedAt, release: head.release ?? null, releaseAt: head.releaseAt ?? null, data };
+}
+
+let saving = 0;
 function writePersistedJobs(copy: JobsCopy) {
-  // Deferred so saving never competes with the first render.
+  const run = ++saving;
+  const idle = (cb: () => void) => {
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void }).requestIdleCallback;
+    if (ric) ric(cb, { timeout: 4000 });
+    else setTimeout(cb, 300);
+  };
+  const parts = Math.ceil(copy.data.length / PART_ROWS);
   const save = async () => {
     const db = await openCacheDb();
     if (!db) return;
-    try {
-      db.transaction(IDB_STORE, 'readwrite').objectStore(IDB_STORE).put(copy, IDB_KEY);
-    } catch {
-      /* quota / private mode — caching is optional */
+    const put = (key: string, value: unknown) =>
+      new Promise<boolean>((resolve) => {
+        try {
+          const tx = db.transaction(IDB_STORE, 'readwrite');
+          tx.objectStore(IDB_STORE).put(value, key);
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = tx.onabort = () => resolve(false);
+        } catch {
+          resolve(false);
+        }
+      });
+    // The old head goes first and the new one last, so a half-saved copy is never read.
+    await new Promise<void>((resolve) => {
+      try {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).delete(IDB_KEY);
+        tx.oncomplete = tx.onerror = tx.onabort = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+    for (let i = 0; i < parts; i++) {
+      await new Promise<void>((r) => idle(r));
+      if (run !== saving) return;
+      if (!(await put(partKey(i), copy.data.slice(i * PART_ROWS, (i + 1) * PART_ROWS)))) return;
     }
+    if (run !== saving) return;
+    await put(IDB_KEY, { fetchedAt: copy.fetchedAt, release: copy.release, releaseAt: copy.releaseAt ?? null, parts } satisfies CopyHead);
   };
-  const idle = (window as unknown as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback;
-  if (idle) idle(() => void save());
-  else setTimeout(() => void save(), 1500);
+  // Deferred so saving never competes with the first render.
+  idle(() => void save());
 }
 
 const nowIso = () => new Date().toISOString();

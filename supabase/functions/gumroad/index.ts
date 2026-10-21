@@ -7,6 +7,7 @@
 //
 // What it does
 //   • The paywall / pricing page, without an account → { action: 'guest_checkout', source, email? }
+//   • Back from Gumroad without an account → { action: 'guest_claim', token } (emails a sign-in code)
 //       → { url } — the membership's Gumroad page. When the payment arrives,
 //       an account with that email gets it, or one is created (sign-in by email
 //       code) and the "account ready" and "welcome" emails go out.
@@ -73,6 +74,12 @@ Deno.serve(
       const { data, error } = await service.auth.admin.createUser({ email, email_confirm: true, user_metadata: { source: 'gumroad' } });
       if (error || !data?.user) return { error: error?.message ?? 'The account could not be created.' };
       return { id: data.user.id };
+    },
+    // A sign-in code for a guest buyer's account (the guest_claim action emails it).
+    signInCode: async (email) => {
+      const { data, error } = await service.auth.admin.generateLink({ type: 'magiclink', email });
+      const code = data?.properties?.email_otp;
+      return error || !code ? { error: error?.message ?? 'No code.' } : { code };
     },
     // Keeps the function alive until the work is done, after the answer has gone out.
     background: (work) => {

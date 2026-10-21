@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth';
 import { MEMBERSHIP_PLAN, MEMBERSHIP_URL, refreshMyPlan, type PaidPlanId, type PlanId } from '@/lib/plans';
 import { trackBilling } from '@/lib/billing';
 import { readCheckout, type CheckoutResult } from '@/lib/billingCore';
+import { startGuestClaim } from '@/lib/guestClaim';
 
 export { readCheckout, type Checkout, type CheckoutResult } from '@/lib/billingCore';
 
@@ -104,7 +105,10 @@ export async function goToMembershipCheckout(opts: { signedIn: boolean; email?: 
     return { kind: 'leaving' };
   }
   // No account: straight to the membership's page. The payment is matched to an account by its email (or one is made).
-  window.location.assign(membershipPage(opts.email));
+  // The token (?mvg=) comes back with the sale, so this browser can sign them in and return them here.
+  const u = new URL(membershipPage(opts.email));
+  u.searchParams.set('mvg', startGuestClaim(window.location.pathname + window.location.search));
+  window.location.assign(u.toString());
   return { kind: 'leaving' };
 }
 

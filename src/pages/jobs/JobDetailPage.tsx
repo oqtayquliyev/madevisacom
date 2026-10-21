@@ -12,6 +12,7 @@ import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { MatchButton } from '@/components/cv/MatchButton';
 import { Paywall } from '@/components/pro/Paywall';
+import { peekJobPreview } from '@/lib/jobPreview';
 import { useMembership } from '@/lib/plans';
 import { MatchPanel } from '@/components/cv/MatchPanel';
 import { SaveJobButton } from '@/components/billing/SavedJobs';
@@ -58,6 +59,11 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const { session } = useAuth();
   // Applying is for members: everyone else gets the membership card over the page, and Apply stays locked.
   const { member, ready: memberReady } = useMembership();
+  // Non-members see the job for a moment (title and ad), then it blurs and the membership card comes up.
+  const [peeking, setPeeking] = useState(true);
+  useEffect(() => setPeeking(true), [id]);
+  // Opened from the list: its title, company and place show at once while the full ad loads.
+  const preview = useMemo(() => peekJobPreview(window.location.pathname), [id]); // eslint-disable-line react-hooks/exhaustive-deps
   const { profile: visitor } = usePersonalization();
   // Signed-out visitors: after 3 job views, invite them to create an account.
   const [guestViews, setGuestViews] = useState(0);
@@ -207,6 +213,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   };
 
   if (job === undefined) {
+    if (preview) return <JobPreviewShell job={preview} go={go} onAuth={onAuth} />;
     return (
       <div className="min-h-screen bg-[#f8fafc]">
         <LandingHeader go={go} onAuth={onAuth} active="jobs" />
@@ -341,6 +348,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
   // Not a member (or still finding out): Apply is a locked button and the job's own address isn't on the page.
   const locked = !closed && memberReady && !member;
+  const covered = locked && !peeking;
   const applyButton = (extra = '') =>
     closed ? (
       <span className={`inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-full bg-ink-200 px-7 py-3.5 text-sm font-bold text-ink-500 ${extra.includes('flex-1') ? 'flex-1 md:flex-none' : ''}`}>
@@ -378,7 +386,8 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
-      {locked && <Paywall job={{ title: job.title, company: job.company }} source="job_page" />}
+      {locked && <PeekTimer onDone={() => setPeeking(false)} />}
+      {covered && <Paywall job={{ title: job.title, company: job.company }} source="job_page" />}
       {matchKey && !closed && member && <ApplySheet jobKey={matchKey} company={job.company} match={match} doc={docFor} armed={applied} onAuth={onAuth} />}
       {/* One of your best matches? A small card in the corner lists the others. Not while the apply sheet is up. */}
       {matchKey && !applied && !locked && <OtherMatchesPopup currentId={matchKey} onAuth={onAuth} />}
@@ -532,7 +541,10 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
         </div>
       </section>
 
-      <main className="mx-auto flex max-w-4xl flex-col px-5 py-8 sm:px-8 sm:py-10 md:block">
+      <main
+        aria-hidden={covered || undefined}
+        className={`mx-auto flex max-w-4xl flex-col px-5 py-8 transition-[filter] duration-700 sm:px-8 sm:py-10 md:block ${covered ? 'pointer-events-none select-none blur-[6px]' : ''}`}
+      >
         {matchJob && !closed && (
           <div className="mb-5 md:-mt-4 md:mb-6">
             <MatchPanel match={match} jobId={matchKey} jobTitle={job.title} company={job.company} doc={docFor} onAuth={onAuth} />
@@ -936,4 +948,44 @@ function buildJobPostingJsonLd(job: Job, raw: SponsoredJob, path: string): Recor
   }
 
   return data;
+}
+
+/** Two seconds to look at the job, then the membership card (non-members). */
+function PeekTimer({ onDone }: { onDone: () => void }) {
+  const done = useRef(onDone);
+  done.current = onDone;
+  useEffect(() => {
+    const t = window.setTimeout(() => done.current(), 2000);
+    return () => window.clearTimeout(t);
+  }, []);
+  return null;
+}
+
+/** The job as the list knew it, while the full ad loads (opened from /jobs). */
+function JobPreviewShell({ job, go, onAuth }: { job: Job; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void }) {
+  const place = [job.city, job.country].filter((v, i, a) => v && a.indexOf(v) === i).join(', ');
+  return (
+    <div className="min-h-screen bg-[#f8fafc] text-ink-900" aria-busy="true">
+      <LandingHeader go={go} onAuth={onAuth} active="jobs" />
+      <section className="bg-brand-700 text-white">
+        <div className="mx-auto max-w-4xl px-5 pb-10 pt-6 sm:px-8 sm:pb-14 sm:pt-8">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-white/70">
+            <ArrowLeft className="h-3.5 w-3.5" /> All jobs
+          </p>
+          <p className="mt-8 truncate text-base font-bold sm:mt-10 sm:text-lg">{job.company}</p>
+          <h1 className="mt-6 break-words font-title text-3xl font-bold leading-tight tracking-tight sm:text-5xl sm:leading-[1.1]">{job.title}</h1>
+          {place && (
+            <p className="mt-4 flex items-center gap-1.5 text-sm text-white/85">
+              <CircleFlag countryCode={job.countryCode} label={job.country} size={16} /> {place}
+            </p>
+          )}
+        </div>
+      </section>
+      <main className="mx-auto max-w-4xl space-y-3 px-5 py-8 sm:px-8 sm:py-10">
+        {[92, 100, 84, 97, 70, 88, 60].map((w, i) => (
+          <div key={i} className="h-3.5 rounded skeleton-shimmer" style={{ width: `${w}%` }} />
+        ))}
+      </main>
+    </div>
+  );
 }
