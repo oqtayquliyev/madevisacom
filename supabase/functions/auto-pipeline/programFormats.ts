@@ -17,6 +17,7 @@ import { hash } from './programSchedule.ts';
 import { SITE, The, adsSay, chance, clickable, closer, dayLabel, firstSentence, flag, go, host, list, lowerFirst, mark, monthLabel, nf, noDot, pick, plural, shortName, tags, the, write } from './programVoice.ts';
 // social.ts imports program.ts, which imports this file: a cycle, but these are only called at run time.
 import { cleanTitle, imageUrl, isRemote, jobLink, place, type Job } from './social.ts';
+import { MEMBER_REVIEWS } from '../_shared/testimonials.ts';
 
 // ---------------------------------------------------------------------------
 // Data
@@ -526,7 +527,7 @@ const jobs_plan: Builder = async (c) => {
       c.w,
       'explain'
     ),
-    go(c.p, c.w, ['See how a Visa Plan works:', 'How it works:', 'It comes with MadeVisa Pro:'], '/offers'),
+    go(c.p, c.w, ['See how a Visa Plan works:', 'How it works:', 'It comes with the MadeVisa Membership:'], '/offers'),
     jobTags(c, jobs, ['visasponsorship', 'visaplan']),
   ]);
   return {
@@ -981,7 +982,7 @@ const plan_flip: Builder = async (c) => {
       'explain'
     ),
     pick(['Salary is never part of it. Visa salary rules exist so nobody gets underpaid.', 'You never offer to take less pay. The plan only covers costs the law lets a candidate pay.'], c.w, 'guard'),
-    go(c.p, c.w, ['See how it works:', 'How a Visa Plan works:', 'It comes with MadeVisa Pro:'], '/offers'),
+    go(c.p, c.w, ['See how it works:', 'How a Visa Plan works:', 'It comes with the MadeVisa Membership:'], '/offers'),
     c.p !== 'telegram' && chance(0.5, c.w, 'ask') ? 'Have you ever asked an employer about sponsorship? What did they say?' : null,
     tags(c.p, ['visasponsorship', 'visaplan', 'workabroad', 'jobsearch', 'jobsabroad', 'movingabroad']),
   ]);
@@ -1279,12 +1280,12 @@ const invite: Builder = async (c) => {
   if (c.age('invite:invite') < 24 * 20) return null;
   const caption = write(c.p, [
     pick(['Know someone job hunting abroad? Send them your link.', 'If MadeVisa helped you, there’s a simple way to pass it on.'], c.w, 'hook'),
-    'Every account has an invite link. When someone you invited starts MadeVisa Pro, you get 2 extra Visa Plans.',
+    'Every account has an invite link. When someone you invited becomes a member, you get 2 extra Visa Plans.',
     'Searching, tracking applications and the visa guides are free for them either way.',
     go(c.p, c.w, ['Your link is in your profile:', 'Find your invite link:'], '/profile'),
     tags(c.p, ['workabroad', 'jobsearch', 'jobsabroad']),
   ]);
-  return { topic: 'invite', headline: 'Invite a friend', format: 'image', images: [og(c, 'cta', { k: 'Invite', n: 'plus', h: 'Know someone job hunting abroad?', hl: 'job hunting abroad', s: 'Send them your invite link. You get 2 extra Visa Plans when they start MadeVisa Pro.', cta: 'Get your link', link: 'madevisa.com/profile' })], caption, links: [link(c, 'Profile', '/profile')] };
+  return { topic: 'invite', headline: 'Invite a friend', format: 'image', images: [og(c, 'cta', { k: 'Invite', n: 'plus', h: 'Know someone job hunting abroad?', hl: 'job hunting abroad', s: 'Send them your invite link. You get 2 extra Visa Plans when they become a member.', cta: 'Get your link', link: 'madevisa.com/profile' })], caption, links: [link(c, 'Profile', '/profile')] };
 };
 
 // The free job alert (src/components/jobs/AlertSignup.tsx): "Email me these jobs" on the
@@ -1715,7 +1716,7 @@ const reel_news: Builder = async (c) => {
 // Your application: the CV match
 // ---------------------------------------------------------------------------
 // Everything said here is how the feature works — no made-up numbers, no
-// "users say". CV match (score, missing skills, report) is part of Starter and Pro.
+// "users say". CV match (score, missing skills, report) is part of the membership.
 
 const MATCH_TAGS = ['cv', 'resume', 'cvtips', 'jobsearch', 'workabroad', 'jobsabroad', 'jobapplication'];
 /** Footage with people in it: someone working, an interview, a desk — never presented as a named person. */
@@ -1741,7 +1742,7 @@ const match_check: Builder = async (c) => {
       c.w,
       'explain'
     ),
-    'CV match is part of MadeVisa Starter and Pro: your score on every job, the skills the ad asks for that your CV doesn’t show, and what to change.',
+    'CV match is part of the MadeVisa Membership ($2.29 a month): your score on every job, the skills the ad asks for that your CV doesn’t show, and what to change.',
     go(c.p, c.w, ['Upload your CV and try it:', 'Try it on a job you like:', 'Check yours:'], '/cv-match'),
     c.p !== 'telegram' && chance(0.45, c.w, 'ask') ? 'What’s the lowest match you’d still apply with?' : null,
     tags(c.p, MATCH_TAGS),
@@ -1789,7 +1790,7 @@ const match_missing: Builder = async (c) => {
     pick(f.hooks, c.w, 'hook'),
     'When you check your match on MadeVisa, it lists the skills the ad asks for that your CV doesn’t show — the required ones first, then the nice-to-haves.',
     pick(['Add the ones you really have, in the ad’s own words. Leave out the ones you don’t: interviews check, and a visa application repeats what your CV says.', 'Then it’s simple: if you’ve used it, write it down, the way the ad spells it. If you haven’t, don’t.'], c.w, 'guard'),
-    'Part of MadeVisa Starter and Pro.',
+    'Part of the MadeVisa Membership, $2.29 a month.',
     go(c.p, c.w, ['See what yours is missing:', 'Check a job:'], '/cv-match'),
     closer(c.p, c.w, 'share', 0.4),
     tags(c.p, MATCH_TAGS),
@@ -1814,7 +1815,7 @@ const cv_fix: Builder = async (c) => {
     f.h,
     f.why,
     f.rows.map((r, i) => `${i + 1}. ${r[0]}: ${lowerFirst(r[1])}.`).join('\n'),
-    pick(['MadeVisa checks this on your own CV when you check your match (the full report is part of Pro).', 'This is one of the checks MadeVisa runs on your CV when you check your match (Starter and Pro).'], c.w, 'where'),
+    pick(['MadeVisa checks this on your own CV when you check your match (the full report is part of the membership).', 'This is one of the checks MadeVisa runs on your CV when you check your match (MadeVisa Membership).'], c.w, 'where'),
     go(c.p, c.w, ['Check your CV against a job:', 'Try it:'], '/cv-match'),
     closer(c.p, c.w, 'save', 0.6),
     tags(c.p, MATCH_TAGS),
@@ -1822,22 +1823,138 @@ const cv_fix: Builder = async (c) => {
   return { topic: f.id, headline: f.h, format: 'image', images: [og(c, 'steps', { k: 'CV fix', h: f.h, hl: f.hl, rows: rows(f.rows), cta: 'Check your CV', link: 'madevisa.com/cv-match' })], caption, links: [link(c, 'CV match', '/cv-match')] };
 };
 
+// ---------------------------------------------------------------------------
+// Chat bubbles: one membership feature as a short, funny text conversation
+// (pastel card, like a phone ad). Every claim here is something the site does.
+// "u" = the person (blue, right), "m" = MadeVisa (dark, left).
+// ---------------------------------------------------------------------------
+type Chat = { id: string; k: string; m: string; h: string; hl?: string; s: string; msgs: [('u' | 'm'), string][]; hooks: string[]; body: string[]; lead: string; path: string; tags: string[]; th: 'light' | 'blue' | 'ink' };
+const CHATS: Chat[] = [
+  {
+    id: 'beyond_linkedin', k: 'A new kind of job board', m: 'Other boards: reposts.', h: 'MadeVisa: the company’s own page.', s: 'Jobs straight from company career pages, including ones you may not see on LinkedIn.',
+    msgs: [['u', 'wait, this job isn’t on LinkedIn?'], ['m', 'nope. it’s from the company’s own careers page'], ['u', 'so I’m not applicant #2,000?'], ['m', 'early bird gets the interview']],
+    hooks: ['Not every job makes it to LinkedIn.', 'The job you’re looking for might not be on the big boards.'],
+    body: ['MadeVisa collects roles straight from company career pages, so you see openings you may miss on the big job sites.', 'Browsing is free. Applying, CV match and the rest are in the membership, $2.29 a month.'],
+    lead: 'Look around:', path: '/jobs', tags: ['jobsearch', 'linkedin', 'hiddenjobs', 'jobsabroad'], th: 'light',
+  },
+  {
+    id: 'fresh', k: 'Posted today', m: 'Some job ads: 6 weeks old.', h: 'MadeVisa: posted this morning.', s: 'New roles from company career pages every day, with the real posting date.',
+    msgs: [['u', 'how old is this job?'], ['m', '4 hours. the coffee’s still warm'], ['u', 'ok applying before my coffee gets cold']],
+    hooks: ['Apply while the job is still fresh.', 'Old job ads waste your evenings.'],
+    body: ['Every job on MadeVisa shows when the company really posted it, and new ones arrive through the day.', 'Being early matters: recruiters often start reading applications as soon as they come in.'],
+    lead: 'Opened today:', path: '/jobs', tags: ['jobsearch', 'newjobs', 'hiring', 'jobsabroad'], th: 'blue',
+  },
+  {
+    id: 'remote', k: 'Remote & online jobs', m: 'Commute: 90 minutes.', h: 'Remote: 9 steps to your desk.', s: 'Remote, online and hybrid roles, marked on every listing.',
+    msgs: [['u', 'got any jobs I can do in pyjamas?'], ['m', 'remote and online roles, marked on every job'], ['u', 'say less']],
+    hooks: ['Work for a company abroad without moving yet.', 'Remote doesn’t have to mean hard to find.'],
+    body: ['Remote and online roles are marked on every listing, and one switch shows only remote or hybrid jobs.', 'Part of the MadeVisa Membership, $2.29 a month.'],
+    lead: 'Remote roles:', path: '/jobs?flex=1', tags: ['remotejobs', 'workfromhome', 'onlinejobs', 'jobsearch'], th: 'ink',
+  },
+  {
+    id: 'cv_match', k: 'CV match', m: 'Guessing if you fit: free.', h: 'Knowing your score: $2.29.', s: 'Your CV compared with each job ad, with a score and what’s missing.',
+    msgs: [['u', 'am I even qualified for this?'], ['m', '82% match. you’re missing Kafka'], ['u', 'I literally used Kafka last year'], ['m', 'then put it on your CV. +6 points']],
+    hooks: ['Stop guessing whether you fit the job.', 'Your CV might be underselling you.'],
+    body: ['Upload your CV once. On every job, CV match shows your score and the skills the ad asks for that your CV doesn’t show.', 'Part of the MadeVisa Membership, $2.29 a month.'],
+    lead: 'Check your match:', path: '/cv-match', tags: ['cv', 'resume', 'cvtips', 'jobsearch'], th: 'light',
+  },
+  {
+    id: 'cv_tips', k: 'CV suggestions', m: 'Rewriting your whole CV: a weekend.', h: 'Three changes for this job: 5 minutes.', s: 'Suggestions for each job, from what the ad actually asks for.',
+    msgs: [['u', 'do I need to rewrite my whole CV?'], ['m', 'nope. 3 changes for this job'], ['u', 'that’s it?'], ['m', 'that’s it. specific, not generic']],
+    hooks: ['You don’t need a new CV for every job. You need the right three changes.', 'Generic CV advice doesn’t get interviews.'],
+    body: ['MadeVisa reads the job ad and your CV, then tells you what to change for that job: the skills it asks for, the words it uses, the experience it wants.', 'Part of the MadeVisa Membership, $2.29 a month.'],
+    lead: 'Try it:', path: '/cv-match', tags: ['cvtips', 'resumetips', 'jobsearch', 'careeradvice'], th: 'blue',
+  },
+  {
+    id: 'sponsors', k: 'Visa sponsorship', m: 'Asking “do you sponsor?”: awkward.', h: 'Filtering for it: one tap.', s: 'Find employers that offer visa sponsorship, country by country.',
+    msgs: [['u', 'which companies actually sponsor visas?'], ['m', 'here’s who’s hiring with sponsorship, by country'], ['u', 'and do they reply?'], ['m', 'we show their reply rates too']],
+    hooks: ['Need a visa to work abroad? Start with employers who sponsor.', 'The awkward visa question, answered before you apply.'],
+    body: ['MadeVisa shows which employers offer visa sponsorship in each country, with details to help you judge each job before you apply.', 'Part of the MadeVisa Membership, $2.29 a month.'],
+    lead: 'Jobs with sponsorship:', path: '/jobs?visa=1', tags: ['visasponsorship', 'workvisa', 'workabroad', 'jobsabroad'], th: 'ink',
+  },
+  {
+    id: 'documents', k: 'Sponsorship documents', m: 'Ad says nothing about visas.', h: 'You send the plan anyway.', s: 'A one-page proposal: the route, the steps and who pays what.',
+    msgs: [['u', 'the ad doesn’t mention a visa'], ['m', 'send them a sponsorship document'], ['u', 'a what?'], ['m', 'one page: the route, the steps, who pays what']],
+    hooks: ['No visa line in the job ad? Don’t give up on it.', 'Make it easy for an employer to say yes.'],
+    body: ['A sponsorship document shows an employer what sponsoring you would involve, with the source for every line.', '20 a month are included in the MadeVisa Membership, $2.29 a month. It’s a proposal, not a guarantee of a visa.'],
+    lead: 'How it works:', path: '/offers', tags: ['visasponsorship', 'workvisa', 'jobsabroad', 'movingabroad'], th: 'light',
+  },
+  {
+    id: 'price', k: 'One plan', m: 'A coffee: $4.', h: 'MadeVisa: $2.29 a month.', s: 'Apply to every job, CV match, visa sponsors and more. Cancel anytime.',
+    msgs: [['u', 'wait, $2.29? per month?'], ['m', 'yep. one plan, everything in it'], ['u', 'cheaper than my coffee'], ['m', 'and it might get you a better one']],
+    hooks: ['One plan. $2.29 a month. Cancel anytime.', 'Less than a coffee a month.'],
+    body: ['The MadeVisa Membership: apply to every job, jobs from company career pages, remote listings, CV match and suggestions, companies that sponsor visas and 20 sponsorship documents a month.', 'Same price in every country.'],
+    lead: 'See what’s included:', path: '/pricing', tags: ['jobsearch', 'jobsabroad', 'workabroad', 'career'], th: 'blue',
+  },
+  {
+    id: 'no_signup', k: 'No sign-up first', m: 'Most sites: make an account.', h: 'MadeVisa: just subscribe.', s: 'Pay with your email; your account is ready when you are.',
+    msgs: [['u', 'do I need to make an account first?'], ['m', 'nope. pay with your email, we set it up'], ['u', 'one less password. love it']],
+    hooks: ['No forms before you start.', 'Skip the sign-up form.'],
+    body: ['Subscribe straight from any job. We create your MadeVisa account for the email you pay with and send you a one-time sign-in code.', 'MadeVisa Membership, $2.29 a month.'],
+    lead: 'Start here:', path: '/pricing', tags: ['jobsearch', 'jobsabroad', 'career'], th: 'ink',
+  },
+  {
+    id: 'alerts', k: 'Job alerts', m: 'Refreshing job sites: all day.', h: 'Job alerts: the jobs come to you.', s: 'Save a search and new matching jobs reach you by email.',
+    msgs: [['u', 'I can’t check job sites all day'], ['m', 'set an alert. new jobs come to you'], ['u', 'finally, the jobs chase me']],
+    hooks: ['Let the jobs find you for a change.', 'Stop refreshing job boards.'],
+    body: ['Set a job alert for a role and a country, and new matching jobs reach you as they’re published.', 'Members get up to 5 alerts. MadeVisa Membership, $2.29 a month.'],
+    lead: 'Set one up:', path: '/jobs', tags: ['jobalerts', 'jobsearch', 'jobsabroad'], th: 'light',
+  },
+];
+
+const chat_feature: Builder = async (c) => {
+  const x = choose(c, 'chat_feature', CHATS, (t) => t.id, 24 * 10);
+  if (!x) return null;
+  const caption = write(c.p, [
+    pick(x.hooks, c.w, 'hook'),
+    ...x.body,
+    go(c.p, c.w, x.lead, x.path),
+    closer(c.p, c.w, 'share', 0.5),
+    tags(c.p, [...x.tags, 'madevisa']),
+  ]);
+  const image = og(c, 'chat', { k: x.k, m: x.m, h: x.h, s: x.s, rows: rows(x.msgs), link: bare(x.path), th: x.th });
+  return { topic: x.id, headline: `${x.m} ${x.h}`, format: 'image', images: [image], caption, links: [link(c, x.k, x.path)] };
+};
+
+// ---------------------------------------------------------------------------
+// Member review: one member's own words (shared with permission), once a week.
+// Reviews that name the retired Pro plan are left out.
+// ---------------------------------------------------------------------------
+const REVIEWS = MEMBER_REVIEWS.filter((r) => !/\bPro\b/.test(`${r.headline} ${r.text}`) && !/member$/i.test(r.name));
+const THEMES: ('light' | 'blue' | 'ink')[] = ['light', 'blue', 'ink'];
+
+const member_review: Builder = async (c) => {
+  const r = choose(c, 'member_review', REVIEWS, (t) => t.id, 24 * 40);
+  if (!r) return null;
+  const who = [r.name, r.role].filter(Boolean).join(' · ');
+  const caption = write(c.p, [
+    `“${r.headline}”`,
+    r.text,
+    `— ${who}, ${r.from.name} → ${r.to.name}`,
+    pick(['Shared by a MadeVisa member with their permission. Results vary.', 'A MadeVisa member’s own words, shared with permission. Results vary.'], c.w, 'note'),
+    go(c.p, c.w, ['Start your search:', 'Find your next job:'], '/jobs'),
+    tags(c.p, ['jobsabroad', 'workabroad', 'movingabroad', 'jobsearch', 'success']),
+  ]);
+  const image = og(c, 'review', { k: 'Member review', h: r.headline, s: r.text, u: who, cc: r.from.code.toLowerCase(), cc2: r.to.code.toLowerCase(), link: 'madevisa.com', th: THEMES[hash(r.id) % THEMES.length] });
+  return { topic: r.id, headline: r.headline, format: 'image', images: [image], caption, links: [link(c, 'Jobs', '/jobs')] };
+};
+
 const match_free: Builder = async (c) => {
   if (c.age('match_free:levels') < 24 * 30) return null;
   const levels: [string, string][] = [
-    ['Every job + 1 sponsorship document a month', 'Free, with an account.'],
-    ['CV match on every job', 'MadeVisa Starter.'],
-    ['Auto Apply + 50 documents a month', 'MadeVisa Pro.'],
+    ['Browse every job', 'Free, no account needed.'],
+    ['Apply to every job + CV match', 'MadeVisa Membership.'],
+    ['20 sponsorship documents a month', 'MadeVisa Membership.'],
   ];
-  const h = 'What’s free, and what the plan adds';
+  const h = 'What’s free, and what the membership adds';
   const caption = write(c.p, [
-    pick(['What you get on MadeVisa without paying, and what Pro adds.', 'Free, free with an account, and Pro. Here’s the split.'], c.w, 'hook'),
+    pick(['What you get on MadeVisa without paying, and what $2.29 a month adds.', 'Free to browse. $2.29 a month to apply. Here’s the split.'], c.w, 'hook'),
     levels.map((l) => `${l[0]} — ${lowerFirst(l[1])}`).join('\n'),
-    'Starter and Pro are monthly plans in US dollars, the same price in every country. Cancel any time.',
-    go(c.p, c.w, ['The price for your country:', 'See it here:'], '/pricing'),
+    'One plan, $2.29 a month in US dollars, the same price in every country. Cancel anytime.',
+    go(c.p, c.w, ['See what’s included:', 'See it here:'], '/pricing'),
     tags(c.p, ['cv', 'jobsearch', 'workabroad', 'jobsabroad', 'visasponsorship']),
   ]);
-  return { topic: 'levels', headline: h, format: 'image', images: [og(c, 'steps', { k: 'CV match', h, hl: 'free', rows: rows(levels), cta: 'See pricing', link: 'madevisa.com/pricing' })], caption, links: [link(c, 'Pricing', '/pricing')] };
+  return { topic: 'levels', headline: h, format: 'image', images: [og(c, 'steps', { k: 'Membership', h, hl: 'free', rows: rows(levels), cta: 'See pricing', link: 'madevisa.com/pricing' })], caption, links: [link(c, 'Pricing', '/pricing')] };
 };
 
 const reel_match: Builder = async (c) => {
@@ -1853,7 +1970,7 @@ const reel_match: Builder = async (c) => {
     pick(f.hooks, c.w, 'hook'),
     'Upload your CV once on MadeVisa. On any job, press Check your match next to Apply: your CV is compared with the ad and you get a score out of 100.',
     gets.map((g, i) => `${i + 1}. ${g[0]}: ${lowerFirst(g[1])}`).join('\n'),
-    'Part of MadeVisa Starter and Pro.',
+    'Part of the MadeVisa Membership, $2.29 a month.',
     go(c.p, c.w, ['Try it:', 'Check yours:'], '/cv-match'),
     tags(c.p, MATCH_TAGS),
   ]);
@@ -2016,7 +2133,7 @@ export const BUILDERS: Record<string, Builder> = {
   jobs_fresh, jobs_country, jobs_visa, jobs_remote, jobs_student, jobs_uk_sponsors, jobs_salary, job_spotlight, jobs_plan, jobs_links, hiring_card,
   country_hiring, country_ranking, sponsor_ranking, top_companies, roles_in_demand, market_pulse, remote_share, milestone,
   visa_route, visa_jobsearch, visa_nomad, visa_pr, visa_salary, visa_compare, visa_myth, visa_checklist,
-  match_check, match_parts, match_missing, cv_fix, match_free,
+  match_check, match_parts, match_missing, cv_fix, match_free, chat_feature, member_review,
   plan_flip, plan_steps, plan_employer, plan_costs,
   feedback_stats, responsive_companies, ghosting_stat, principle,
   follow_cta, comment_cta, this_or_that, question, tip, feedback_ask, invite, recruiters, employers, job_alert, employer_inbox,

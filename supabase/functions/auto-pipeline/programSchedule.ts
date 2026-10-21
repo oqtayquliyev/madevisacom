@@ -219,6 +219,9 @@ export function rankFormats(slot: Pick, history: Past[], settings: ProgramSettin
   // Every day has at least one job post in this network's own style (Facebook: link list; Instagram: hiring card).
   const style = JOB_STYLE[slot.platform];
   const styleDue = style && !sameDay.has(style) ? eligible.find((f) => f.key === style) : undefined;
+  // Weekly formats (chat bubbles, member reviews): due when the week hasn't had its share yet.
+  const weekAgo = slot.at - 7 * 86_400_000;
+  const weeklyDue = eligible.find((f) => f.weekly && before.filter((h) => h.kind === f.key && h.at >= weekAgo).length < f.weekly && !sameDay.has(f.key));
 
   // The pillar furthest behind its share goes first.
   const mix = mixFor(settings);
@@ -259,7 +262,8 @@ export function rankFormats(slot: Pick, history: Past[], settings: ProgramSettin
   const turn = (f: FormatDef) => (Boolean(f.video) === wantVideo ? 1 : 0);
   const scored = eligible.map((f) => ({ f, pillar: deficit(f.pillar), s: score(f) }));
   const ranked = scored.sort((a, b) => turn(b.f) - turn(a.f) || b.pillar - a.pillar || b.s - a.s).map((x) => x.f);
-  return styleDue ? [styleDue, ...ranked.filter((f) => f !== styleDue)] : ranked;
+  const first = [styleDue, weeklyDue].filter((f, i, a): f is FormatDef => Boolean(f) && a.indexOf(f) === i);
+  return first.length ? [...first, ...ranked.filter((f) => !first.includes(f))] : ranked;
 }
 
 export type Slot = { platform: Platform; at: number; part: DayPart; kind: string; pillar: Pillar };

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, AtSign, BarChart3, FlaskConical, RotateCcw, Bot, Briefcase, Check, ChevronLeft, ChevronRight, Eye, FileUp, Globe, Loader2, Mail, Pause, Play, Plus, RefreshCw, Rocket, ScanSearch, Search, Send, Settings2, Sparkles, Square, Tag, Trash2, Upload, UserRound, Users, X, Zap } from 'lucide-react';
+import { AlertTriangle, AtSign, BarChart3, FlaskConical, RotateCcw, Bot, Briefcase, Check, ChevronLeft, ChevronRight, Eye, FileUp, Globe, Loader2, Mail, Pause, Play, Plus, RefreshCw, Rocket, ScanSearch, Search, Send, Settings2, Square, Tag, Trash2, Upload, UserRound, Users, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 // Admin → Outreach: emails to many people at once.
@@ -18,7 +18,6 @@ import { supabase } from '@/lib/supabase';
 //               (edge function email-finder). Added with tags found-online + employer.
 //   Templates   the six emails (3 CV Match / Auto Apply promos, 3 Auto Apply series) — edit,
 //               preview, test.
-//   Series      the Auto Apply emails free accounts get automatically, 12 days apart.
 //   Limits      daily cap, reserve for site emails, speed, sender.
 // Server side: migrations 20261216090000_outreach_campaigns.sql … 20261218090000_email_finder_and_names.sql.
 
@@ -74,7 +73,7 @@ const ACCOUNT_SEGS: { v: AccountSeg; t: string; hint?: string }[] = [
   { v: 'starter_pro_intent', t: 'Lifecycle · Starter showing interest in Pro', hint: 'Template: life_pro_upgrade' },
   { v: 'saved_no_apply', t: 'Lifecycle · Saved jobs, no application in 14 days', hint: 'Template: life_saved_jobs' },
 ];
-type Sub = 'autopilot' | 'campaigns' | 'results' | 'contacts' | 'finder' | 'templates' | 'senders' | 'series' | 'limits';
+type Sub = 'autopilot' | 'campaigns' | 'results' | 'contacts' | 'finder' | 'templates' | 'senders' | 'limits';
 const SUBS: { key: Sub; label: string; icon: typeof Mail }[] = [
   { key: 'autopilot', label: 'Autopilot', icon: Bot },
   { key: 'campaigns', label: 'Campaigns', icon: Rocket },
@@ -83,7 +82,6 @@ const SUBS: { key: Sub; label: string; icon: typeof Mail }[] = [
   { key: 'finder', label: 'Find emails', icon: ScanSearch },
   { key: 'templates', label: 'Templates', icon: Mail },
   { key: 'senders', label: 'Senders', icon: AtSign },
-  { key: 'series', label: 'Auto Apply series', icon: Zap },
   { key: 'limits', label: 'Sending & limits', icon: Settings2 },
 ];
 const nf = (n: number | null | undefined) => (n ?? 0).toLocaleString('en-US');
@@ -174,7 +172,6 @@ export function OutreachSection() {
       {sub === 'finder' && <EmailFinder onContacts={() => setSub('contacts')} />}
       {sub === 'templates' && <Templates templates={templates} senders={senders} onSaved={load} />}
       {sub === 'senders' && <Senders senders={senders} onChange={load} />}
-      {sub === 'series' && <Series ov={ov} templates={templates} onChange={load} onEdit={() => setSub('templates')} />}
       {sub === 'limits' && <Limits ov={ov} onChange={load} />}
     </div>
   );
@@ -1821,7 +1818,7 @@ function Templates({ templates, senders, onSaved }: { templates: Template[]; sen
           <li key={x.key}>
             <button onClick={() => setKey(x.key)} className={`w-full rounded-lg px-3 py-2 text-left text-[13px] ${x.key === key ? 'bg-brand-50 font-semibold text-brand-800' : 'text-ink-700 hover:bg-white'}`}>
               <span className="block">{x.name}</span>
-              <span className="block text-[11px] text-ink-500">{x.audience === 'series' ? 'Auto Apply series' : x.audience === 'autopilot' ? 'Autopilot' : 'Campaign'}</span>
+              <span className="block text-[11px] text-ink-500">{x.audience === 'series' ? 'Series (retired)' : x.audience === 'autopilot' ? 'Autopilot' : 'Campaign'}</span>
             </button>
           </li>
         ))}
@@ -2200,63 +2197,6 @@ function Results() {
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ Series */
-
-function Series({ ov, templates, onChange, onEdit }: { ov: Overview; templates: Template[]; onChange: () => void; onEdit: () => void }) {
-  const s = ov.settings;
-  const [busy, setBusy] = useState(false);
-  const save = async (p: Partial<Settings>) => {
-    setBusy(true);
-    await supabase.rpc('admin_outreach_settings', { p });
-    setBusy(false);
-    onChange();
-  };
-  const series = templates.filter((t) => t.audience === 'series');
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl bg-white p-5 ring-1 ring-ink-200">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="max-w-xl">
-            <p className="flex items-center gap-2 text-base font-bold text-ink-950">
-              <Sparkles className="h-4 w-4 text-brand-600" /> Auto Apply email series
-            </p>
-            <p className="mt-1 text-[13px] leading-5 text-ink-600">
-              Free accounts (email confirmed, at least 2 days old) get three emails about Auto Apply, {s.nurture_gap_days} days apart, every day at 13:20 Baku time. It stops for anyone who goes Pro, turns on Auto Apply, unsubscribes or turns off “News and tips”, and never lands within 3 days of a campaign email.
-            </p>
-          </div>
-          <Btn onClick={() => void save({ nurture_enabled: !s.nurture_enabled })} busy={busy} icon={s.nurture_enabled ? Pause : Play} tone={s.nurture_enabled ? 'ink' : 'green'}>
-            {s.nurture_enabled ? 'Pause the series' : 'Turn the series on'}
-          </Btn>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Status" value={s.nurture_enabled ? 'On' : 'Paused'} tone={s.nurture_enabled ? 'ink' : 'amber'} />
-          <Stat label="In the series now" value={nf(ov.series.in_series)} />
-          <Stat label="Got all 3" value={nf(ov.series.finished)} />
-          <Stat label="Sent in 7 days" value={nf(ov.series.sent_7d)} />
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <NumberSetting label="Days between emails" value={s.nurture_gap_days} min={3} max={60} onSave={(v) => save({ nurture_gap_days: v })} />
-          <NumberSetting label="At most a day" value={s.nurture_per_day} min={0} max={100000} onSave={(v) => save({ nurture_per_day: v })} />
-        </div>
-      </div>
-      <ol className="grid gap-3 sm:grid-cols-3">
-        {series.map((t, i) => (
-          <li key={t.key} className="rounded-xl bg-white p-4 ring-1 ring-ink-200">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-ink-500">Email {i + 1} · day {i * s.nurture_gap_days}</p>
-            <p className="mt-1 text-[14px] font-semibold text-ink-950">{t.subject}</p>
-            <p className="mt-1 line-clamp-3 text-[12.5px] text-ink-600">{t.headline}</p>
-            <button onClick={onEdit} className="mt-2 text-[12.5px] font-semibold text-brand-700 hover:underline">
-              Edit in Templates
-            </button>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ Limits */
 
 function Limits({ ov, onChange }: { ov: Overview; onChange: () => void }) {
   const s = ov.settings;

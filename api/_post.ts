@@ -16,8 +16,8 @@
 import { h, icon, img, type El } from './_og';
 
 export type SizeKey = 'portrait' | 'square' | 'story';
-export type Template = 'hero' | 'stat' | 'rank' | 'card' | 'steps' | 'myth' | 'text' | 'versus' | 'news' | 'cta' | 'grid' | 'photo';
-export const TEMPLATES: Template[] = ['hero', 'stat', 'rank', 'card', 'steps', 'myth', 'text', 'versus', 'news', 'cta', 'grid', 'photo'];
+export type Template = 'hero' | 'stat' | 'rank' | 'card' | 'steps' | 'myth' | 'text' | 'versus' | 'news' | 'cta' | 'grid' | 'photo' | 'chat' | 'review';
+export const TEMPLATES: Template[] = ['hero', 'stat', 'rank', 'card', 'steps', 'myth', 'text', 'versus', 'news', 'cta', 'grid', 'photo', 'chat', 'review'];
 
 export type PostParams = {
   t: Template;
@@ -361,6 +361,106 @@ export async function drawPost(q: PostParams, load: Loader): Promise<{ tree: El;
       )
     );
     return { tree, issues, width: S.w, height: S.h };
+  }
+
+  // --- chat: a funny text-message conversation about one feature (pastel, like a phone ad) ----
+  // m = the "other way" line (muted), h = the MadeVisa line (bold), s = one sentence,
+  // rows = the messages: "u|text" (the person, blue, right) or "m|text" (MadeVisa, dark, left).
+  if (q.t === 'chat' || q.t === 'review') {
+    const PASTEL: Record<PostParams['th'], { bg: string; muted: string; ink: string }> = {
+      light: { bg: '#F7E8EA', muted: '#7A5A68', ink: '#24161C' },
+      blue: { bg: '#E7EFFF', muted: '#55688F', ink: '#0F1A33' },
+      ink: { bg: '#F4EEE3', muted: '#86705A', ink: '#231A12' },
+    };
+    const pal = PASTEL[q.th];
+    const avail = S.h - S.top - S.bottom;
+    let best: { tree: El; issues: Issue[] } | null = null;
+    // A story is tall: start bigger there so the post doesn't look empty.
+    for (const z of [...(q.size === 'story' ? [1.22, 1.1] : []), 1, 0.92, 0.84, 0.76, 0.68, 0.6]) {
+      const Z = (n: number) => Math.max(14, Math.round(n * S.u * z));
+      const iss: Issue[] = [];
+      const fit = (t: string, sizes: number[], w: Weight, lines: number, what: string, width = inner) => {
+        const f = fitText(t, sizes.map(Z), w, width, lines);
+        if (f.cut) iss.push({ level: 'warning', message: `${what} shortened to fit` });
+        return f;
+      };
+      const top: (Box | null)[] = [];
+      const pillSize = Z(22);
+      if (q.k) top.push({ h: Math.round(pillSize * 2), el: h('div', { flexShrink: 0 }, h('div', { border: `2px solid ${pal.ink}`, color: pal.ink, fontSize: pillSize, fontWeight: 800, letterSpacing: 1.5, height: Math.round(pillSize * 2), padding: `0 ${Math.round(pillSize * 0.9)}px`, borderRadius: 999, alignItems: 'center', whiteSpace: 'nowrap', fontFamily: SANS }, `•  ${oneLine(q.k.toUpperCase(), pillSize, 800, inner * 0.8)}`)) }, space(Z(40)));
+      let bottom: (Box | null)[] = [];
+      if (q.t === 'chat') {
+        if (q.m) top.push(textBox(fit(q.m, [84, 74, 66, 58], 800, 2, 'First line'), { weight: 800, color: pal.muted, width: inner, lh: 1.08, tracking: -2 }));
+        top.push(textBox(fit(q.h, [84, 74, 66, 58], 800, 2, 'Headline'), { weight: 800, color: pal.ink, width: inner, lh: 1.08, tracking: -2 }));
+        if (q.s) top.push(space(Z(26)), textBox(fit(q.s, [34, 31, 28], 400, 3, 'Sub line', Math.round(inner * 0.82)), { weight: 400, color: pal.muted, width: Math.round(inner * 0.82), lh: 1.32 }));
+        const bubbleW = inner * 0.74;
+        const pad = Z(26);
+        const msgs = q.rows.filter((r) => r[1]).slice(0, 6);
+        msgs.forEach((r, i) => {
+          const mine = r[0] !== 'm';
+          const f = fit(r[1], [32, 30, 28], 600, 3, 'A message', bubbleW - pad * 2);
+          const lh = Math.round(f.size * 1.28);
+          const w = Math.min(bubbleW, Math.ceil(Math.max(...f.lines.map((l) => textWidth(l, f.size, 600)))) + pad * 2);
+          const bh = lh * f.lines.length + Math.round(pad * 1.1);
+          if (i) bottom.push(space(Z(18)));
+          bottom.push({
+            h: bh,
+            el: h(
+              'div',
+              { width: inner, justifyContent: mine ? 'flex-end' : 'flex-start', flexShrink: 0 },
+              h(
+                'div',
+                { width: w, height: bh, borderRadius: Z(40), backgroundColor: mine ? '#1F8BFF' : pal.ink, padding: `${Math.round(pad * 0.55)}px ${pad}px`, flexShrink: 0 },
+                textBox(f, { weight: 600, color: 'white', width: w - pad * 2, lh: 1.28 }).el
+              )
+            ),
+          });
+        });
+      } else {
+        // review: five stars, the member's headline, their words, who they are and where they went.
+        const star = Z(40);
+        top.push({ h: star, el: h('div', { flexShrink: 0 }, ...Array.from({ length: 5 }, () => h('div', { marginRight: Z(8), display: 'flex' }, svg(star, ['M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'], { stroke: '#F59E0B', fill: '#F59E0B', width: 1 })))) }, space(Z(30)));
+        top.push(textBox(fit(`“${q.h}”`, [74, 66, 58, 52, 46], 800, 4, 'Headline'), { weight: 800, color: pal.ink, width: inner, lh: 1.12, tracking: -1.5 }));
+        if (q.s) top.push(space(Z(28)), textBox(fit(q.s, [34, 31, 28, 26], 400, 8, 'Review'), { weight: 400, color: pal.muted, width: inner, lh: 1.4 }));
+        const who = Z(30);
+        const flag = Z(40);
+        bottom = [
+          {
+            h: Math.max(who * 1.3, flag) + Z(8),
+            el: h(
+              'div',
+              { width: inner, alignItems: 'center', flexShrink: 0 },
+              h('div', { fontSize: who, fontWeight: 800, color: pal.ink, fontFamily: SANS, whiteSpace: 'nowrap' }, oneLine(q.u || 'A MadeVisa member', who, 800, inner * 0.6)),
+              isCode(q.cc) ? h('div', { marginLeft: Z(18), alignItems: 'center' }, flagCircle(flag1, flag, q.cc, 'white'), h('div', { margin: `0 ${Z(10)}px`, fontSize: who, color: pal.muted, fontFamily: SANS }, '→'), isCode(q.cc2) ? flagCircle(flag2, flag, q.cc2, 'white') : null) : null
+            ),
+          },
+        ];
+      }
+      const foot = Z(28);
+      const footer: Box = {
+        h: Z(60),
+        el: h(
+          'div',
+          { width: inner, height: Z(60), alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
+          brand(pal.ink, Z(32)),
+          h('div', { backgroundColor: pal.ink, color: 'white', fontSize: foot, fontWeight: 700, height: Z(56), padding: `0 ${Z(24)}px`, borderRadius: 999, alignItems: 'center', whiteSpace: 'nowrap', fontFamily: SANS }, oneLine(q.link || 'madevisa.com', foot, 700, inner * 0.55))
+        ),
+      };
+      const need = total(top) + total(bottom) + footer.h + Z(70);
+      if (need > avail && z > 0.6) continue;
+      if (need > avail) iss.push({ level: 'error', message: 'Too much text for one image' });
+      best = {
+        issues: iss,
+        tree: h(
+          'div',
+          { width: S.w, height: S.h, backgroundColor: pal.bg, fontFamily: SANS, flexDirection: 'column', justifyContent: 'space-between', padding: `${S.top}px ${S.side}px ${S.bottom}px` },
+          column(top),
+          h('div', { flexDirection: 'column', flexShrink: 0 }, column(bottom), space(Z(44)).el, footer.el)
+        ),
+      };
+      break;
+    }
+    issues.push(...best!.issues);
+    return { tree: best!.tree, issues, width: S.w, height: S.h };
   }
 
   const headerH = U(58);

@@ -1,0 +1,6 @@
+Delete this file from your project (it is no longer used):
+
+src/pages/admin/QuizFunnelSection.tsx
+
+Terminal (Mac):
+cd ~/Documents/GitHub/madevisacom && rm -f src/pages/admin/QuizFunnelSection.tsx

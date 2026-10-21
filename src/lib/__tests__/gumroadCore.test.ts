@@ -126,7 +126,8 @@ describe('checkout', () => {
     expect(r.body.price_cents).toBe(229);
     expect(r.body.plan).toBe('starter');
     const url = new URL(String(r.body.url));
-    expect(url.origin + url.pathname).toBe('https://madevisa.gumroad.com/l/starter');
+    expect(url.origin + url.pathname).toBe('https://madevisa.gumroad.com/l/membership');
+    expect(url.searchParams.get('wanted')).toBe('true');
     expect(url.searchParams.get('mv')).toBe(CHECKOUT_ID);
     expect(url.searchParams.get('email')).toBe(USER.email);
     expect(url.searchParams.get('recurrence')).toBe('monthly');
@@ -140,7 +141,7 @@ describe('checkout', () => {
     const r = await w.call({ action: 'checkout', plan: 'pro' });
     expect(r.body.plan).toBe('starter');
     expect(r.body.price_cents).toBe(229);
-    expect(String(r.body.url)).toContain('/l/starter');
+    expect(String(r.body.url)).toContain('/l/membership');
   });
 
   it('ignores any amount the page sends', async () => {
@@ -174,9 +175,9 @@ describe('checkout', () => {
     expect(JSON.stringify(w.calls.find((c) => c.name === 'gumroad_save')?.args)).toMatch(/costs \$2.99 a month on Gumroad, but MadeVisa Membership is \$2.29/);
   });
 
-  it('refuses when buyers could pick a yearly price on Gumroad, or Gumroad discounts by country', async () => {
+  it('allows a yearly option on the product (the link opens on monthly), but refuses Gumroad discounts by country', async () => {
     Object.assign(w.products.prod_starter, tier(229, { yearly: { price_cents: 2200 } }));
-    expect((await w.call({ action: 'checkout' })).body.url).toBeUndefined();
+    expect(new URL(String((await w.call({ action: 'checkout' })).body.url)).searchParams.get('recurrence')).toBe('monthly');
     Object.assign(w.products.prod_starter, tier(229));
     (w.products.prod_starter.variants as { options: { recurrence_prices: { monthly: Record<string, unknown> } }[] }[])[0].options[0].recurrence_prices.monthly.purchasing_power_parity_prices = { IN: 100 };
     expect((await w.call({ action: 'checkout' })).body.url).toBeUndefined();
@@ -192,11 +193,11 @@ describe('checkout', () => {
 });
 
 describe('guest checkout (no account)', () => {
-  it('needs no sign-in and returns the membership’s Gumroad page', async () => {
+  it('needs no sign-in and returns THE membership link', async () => {
     const r = await w.call({ action: 'guest_checkout', source: 'job_page', email: 'New@Example.com' }, '');
     expect(r.status).toBe(200);
     const url = new URL(String(r.body.url));
-    expect(url.origin + url.pathname).toBe('https://madevisa.gumroad.com/l/starter');
+    expect(url.origin + url.pathname).toBe('https://madevisa.gumroad.com/l/membership');
     expect(url.searchParams.get('wanted')).toBe('true');
     expect(url.searchParams.get('recurrence')).toBe('monthly');
     expect(url.searchParams.get('email')).toBe('new@example.com');

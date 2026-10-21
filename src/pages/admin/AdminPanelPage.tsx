@@ -8,7 +8,7 @@ import { OffersSection } from '@/pages/admin/OffersSection';
 import { SocialSection } from '@/pages/admin/SocialSection';
 import { ControlRoom } from '@/pages/admin/ControlRoom';
 import { CvsSection } from '@/pages/admin/CvsSection';
-import { QuizFunnelSection } from '@/pages/admin/QuizFunnelSection';
+import { PaywallSection } from '@/pages/admin/PaywallSection';
 import { EmailsSection } from '@/pages/admin/EmailsSection';
 import { OutreachSection } from '@/pages/admin/OutreachSection';
 import { ExperienceReportsSection } from '@/pages/admin/ExperienceReportsSection';
@@ -123,7 +123,7 @@ const orgIcon: Record<OrgType, typeof Building2> = {
 type AdminTab = 'control' | 'funnel' | 'emails' | 'outreach' | 'inbox' | 'listings' | 'imports' | 'companies' | 'articles' | 'plans' | 'cvs' | 'offers' | 'images' | 'settings';
 const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Inbox }[] = [
   { key: 'control', label: 'Control room', icon: Gauge },
-  { key: 'funnel', label: 'Quiz funnel', icon: Filter },
+  { key: 'funnel', label: 'Paywall', icon: Filter },
   { key: 'emails', label: 'Emails', icon: AtSign },
   { key: 'outreach', label: 'Outreach', icon: Megaphone },
   { key: 'inbox', label: 'Requests', icon: Inbox },
@@ -449,7 +449,7 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
         {/* These two load their own data, so they don't wait for the listings. */}
         {tab === 'control' && <ControlRoom onOpen={setTab} />}
         {tab === 'cvs' && <CvsSection />}
-        {tab === 'funnel' && <QuizFunnelSection />}
+        {tab === 'funnel' && <PaywallSection />}
         {tab === 'emails' && <EmailsSection />}
         {tab === 'outreach' && <OutreachSection />}
 

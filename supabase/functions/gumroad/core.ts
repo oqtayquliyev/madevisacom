@@ -4,7 +4,7 @@
 // check, network and secrets are handed in (Deps), so the same code runs in
 // the tests against a pretend Gumroad.
 
-import { isPaidPlanId, MEMBERSHIP_PLAN, PLANS, type PaidPlanId } from '../_shared/plans.ts';
+import { isPaidPlanId, MEMBERSHIP_PLAN, MEMBERSHIP_URL, PLANS, type PaidPlanId } from '../_shared/plans.ts';
 
 // deno-lint-ignore no-explicit-any
 type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -312,8 +312,8 @@ export function checkProduct(product: Json, plan: PaidPlanId): ProductCheck {
   const prices = (tiers[0].recurrence_prices ?? {}) as Record<string, Json>;
   const monthly = Number(prices.monthly?.price_cents ?? 0);
   if (!monthly) return { ok: false, reason: `${name} has no monthly price. Switch on monthly billing for its tier.` };
-  const others = Object.keys(prices).filter((k) => k !== 'monthly' && Number(prices[k]?.price_cents ?? 0) > 0);
-  if (others.length) return { ok: false, reason: `${name} can also be bought ${others.join(', ')}. MadeVisa sells monthly only: switch the other billing periods off for its tier.` };
+  // Other billing periods (yearly…) may exist on the product: the link opens on monthly, and a yearly
+  // membership is applied for its own period (gumroad_apply reads the recurrence).
   if (monthly !== want) return { ok: false, reason: `${name} costs $${(monthly / 100).toFixed(2)} a month on Gumroad, but ${PLANS[plan].name} is $${(want / 100).toFixed(2)}. Make them the same.` };
   if (prices.monthly?.purchasing_power_parity_prices) {
     return { ok: false, reason: `Gumroad’s “purchasing power parity” discount is on for ${name}. Switch it off (Gumroad → Settings → Payments, or exclude this product): MadeVisa charges the same price everywhere.` };
@@ -363,8 +363,8 @@ async function checkout(deps: Deps, cfg: Config, user: { id: string; email: stri
   // Belt and braces: the amount the database priced must be what Gumroad charges.
   if (c.price_cents !== checked.monthlyCents) return json({ error: 'The price could not be confirmed. Please try again later.' });
 
-  const url = new URL(checked.url);
-  url.searchParams.set('wanted', 'true');
+  // Always THE membership link (MEMBERSHIP_URL), whatever short link the product has.
+  const url = new URL(MEMBERSHIP_URL);
   url.searchParams.set('recurrence', 'monthly');
   if (user.email) url.searchParams.set('email', user.email);
   // Comes back with the payment and says which account it is for (never which plan: the product says that).
@@ -391,42 +391,25 @@ async function checkout(deps: Deps, cfg: Config, user: { id: string; email: stri
 // ---------------------------------------------------------------------------
 // Guest checkout: the membership's Gumroad page, for someone without an account
 // ---------------------------------------------------------------------------
-/** The checked product link, kept for a few minutes so a busy paywall doesn't ask Gumroad on every press. */
-let guestLink: { url: string; cents: number; at: number; product: string } | null = null;
-const GUEST_LINK_MS = 5 * 60_000;
 const EMAIL = /^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,24}$/;
 
 /**
- * Anyone may open the membership's checkout. Nothing is recorded here: the
- * payment itself (Gumroad's notification, re-read from Gumroad's API) decides
- * whose membership it is — an existing account with that email, or a new one
- * made for it (syncSubscription).
+ * Anyone may open the membership's checkout: THE membership link (MEMBERSHIP_URL).
+ * Nothing is recorded here: the payment itself (Gumroad's notification, re-read
+ * from Gumroad's API) decides whose membership it is — an existing account with
+ * that email, or a new one made for it (syncSubscription).
  */
-async function guestCheckout(deps: Deps, cfg: Config, body: Json): Promise<Response> {
+async function guestCheckout(_deps: Deps, cfg: Config, body: Json): Promise<Response> {
   const plan = MEMBERSHIP_PLAN;
-  const pp = planProduct(cfg, plan);
-  if (!cfg.enabled || !pp?.product_id || !pp.connected_at) return json({ error: 'off' });
+  if (!cfg.enabled) return json({ error: 'off' });
   const source = typeof body?.source === 'string' && /^[a-z0-9_]{1,40}$/.test(body.source) ? body.source : null;
-
-  if (!guestLink || guestLink.product !== pp.product_id || Date.now() - guestLink.at > GUEST_LINK_MS) {
-    const live = await gumroad(deps, 'GET', `/products/${encodeURIComponent(pp.product_id)}`);
-    if (!live.ok) return json({ error: 'The payment page could not be prepared. Please try again in a minute.' });
-    const checked = checkProduct(live.body.product, plan);
-    if (!checked.ok) {
-      await deps.rpc('gumroad_save', { p: { last_error: `${new Date().toISOString().slice(0, 16)} ${PLANS[plan].name} guest checkout refused: ${checked.reason}` } });
-      return json({ error: `${PLANS[plan].name} can’t be bought right now. Please try again later, or write to hello@madevisa.com.` });
-    }
-    guestLink = { url: checked.url, cents: checked.monthlyCents, at: Date.now(), product: pp.product_id };
-  }
-
-  const url = new URL(guestLink.url);
-  url.searchParams.set('wanted', 'true');
+  const url = new URL(MEMBERSHIP_URL);
   url.searchParams.set('recurrence', 'monthly');
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
   if (EMAIL.test(email)) url.searchParams.set('email', email);
   if (source) url.searchParams.set('mvs', source);
   url.searchParams.set('referrer', `${SITE}/checkout`);
-  return json({ url: url.toString(), plan, billing: 'monthly', price_cents: guestLink.cents, currency: 'USD', guest: true });
+  return json({ url: url.toString(), plan, billing: 'monthly', price_cents: PLANS[plan].priceCents, currency: 'USD', guest: true });
 }
 
 // ---------------------------------------------------------------------------

@@ -32,6 +32,8 @@ export type PaidPlanId = Exclude<PlanId, 'free'>;
 export const PAID_PLANS: readonly PaidPlanId[] = ['starter', 'pro'];
 /** The one plan on sale. */
 export const MEMBERSHIP_PLAN: PaidPlanId = 'starter';
+/** THE Gumroad link for the membership. Every "Subscribe" button ends here (the email, and for accounts a checkout id, are added to it). */
+export const MEMBERSHIP_URL = 'https://madevisa.gumroad.com/l/membership?wanted=true';
 
 /** Higher includes everything below it. */
 export const PLAN_RANK: Record<PlanId, number> = { free: 0, starter: 1, pro: 2 };

@@ -87,6 +87,8 @@ export type FormatDef = {
   needs?: string;
   /** How many times it may run on one network in one day (default 1). */
   perDay?: number;
+  /** Runs at least this many times a week on each of its networks: when it is due, it takes the next free slot. */
+  weekly?: number;
 };
 
 const FEED: Platform[] = ['instagram', 'facebook', 'linkedin', 'tiktok', 'telegram'];
@@ -285,7 +287,7 @@ export const FORMATS: FormatDef[] = [
   // --- Your application: CV match first, then the sponsorship document -----------
   {
     key: 'match_check', pillar: 'plan', name: 'How well does your CV match?',
-    idea: 'The button next to Apply: one press compares your CV with the ad and gives a score. Part of Starter and Pro.',
+    idea: 'The button next to Apply: one press compares your CV with the ad and gives a score. Part of the MadeVisa Membership ($2.29 a month).',
     example: 'Before you apply: how well does your CV actually match this ad?',
     source: 'CV match', link: '/cv-match', visual: 'Photo with one line, then a card',
     platforms: FEED, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 40,
@@ -299,7 +301,7 @@ export const FORMATS: FormatDef[] = [
   },
   {
     key: 'match_missing', pillar: 'plan', name: 'The skill your CV forgot',
-    idea: 'Why a skill you have but didn’t write down counts as missing — for the match score and for a recruiter’s search. Part of Starter and Pro.',
+    idea: 'Why a skill you have but didn’t write down counts as missing — for the match score and for a recruiter’s search. Part of the MadeVisa Membership ($2.29 a month).',
     example: 'You know Excel. Your CV doesn’t say so. To a recruiter’s search, you don’t.',
     source: 'CV match — missing skills', link: '/cv-match', visual: 'Big statement',
     platforms: FEED, parts: ['morning', 'lunch', 'evening'], weight: 2.5, cooldown: 60,
@@ -312,11 +314,18 @@ export const FORMATS: FormatDef[] = [
     platforms: FEED, parts: ['morning', 'evening', 'night'], weight: 2.5, cooldown: 30,
   },
   {
-    key: 'match_free', pillar: 'plan', name: 'What’s free, what’s Pro',
-    idea: 'Plainly: every job and 1 sponsorship document a month are free; CV match and 20 documents a month in Starter; Auto Apply and 50 documents a month in Pro.',
+    key: 'match_free', pillar: 'plan', name: 'What’s free, what the membership adds',
+    idea: 'Plainly: browsing every job is free; applying, CV match and 20 sponsorship documents a month are in the MadeVisa Membership at $2.29 a month.',
     example: 'What you get without paying, and what the plan adds.',
     source: 'Pricing', link: '/pricing', visual: 'Fact card',
     platforms: FEED, parts: ['lunch', 'evening'], weight: 1, cooldown: 240,
+  },
+  {
+    key: 'chat_feature', pillar: 'plan', name: 'Chat bubbles: one feature',
+    idea: 'A short, funny text-message chat about one thing the membership does — jobs beyond LinkedIn, fresh jobs, remote listings, CV match, CV suggestions, visa sponsors, sponsorship documents, the $2.29 price — on a pastel card, like a phone ad. A different feature each time; twice a week.',
+    example: 'Other job boards: reposts. MadeVisa: the company’s own page. “wait, it’s not on LinkedIn yet?” “nope 👀”',
+    source: 'The membership’s features (pricing page)', link: '/pricing', visual: 'Chat bubbles on a pastel card',
+    platforms: VISUAL, parts: ['lunch', 'evening', 'night'], weight: 2.5, cooldown: 48, weekly: 2,
   },
   {
     key: 'plan_flip', pillar: 'plan', name: 'You make the offer',
@@ -327,7 +336,7 @@ export const FORMATS: FormatDef[] = [
   },
   {
     key: 'plan_steps', pillar: 'plan', name: 'How a Visa Plan works',
-    idea: 'Three steps: check your match on the job, choose which costs you’ll share, attach the one-page plan to your application. Part of MadeVisa Pro.',
+    idea: 'Three steps: check your match on the job, choose which costs you’ll share, attach the one-page plan to your application. Part of the MadeVisa Membership.',
     example: 'A cover letter for the visa. Here’s how it works.',
     source: 'Visa Plan', link: '/offers', visual: 'Numbered steps (carousel)',
     platforms: FEED, parts: ['evening', 'night', 'lunch'], weight: 1, cooldown: 168,
@@ -361,6 +370,13 @@ export const FORMATS: FormatDef[] = [
     example: 'We asked what happened after people applied.',
     source: 'Hiring Feedback (tracked applications + shared experiences)', link: '/feedback', visual: 'Four-number grid',
     platforms: FEED, parts: ['lunch', 'evening'], weight: 2, cooldown: 120,
+  },
+  {
+    key: 'member_review', pillar: 'proof', name: 'Member review',
+    idea: 'One member’s own review, word for word, with five stars, their first name, role and where they moved — from the reviews members agreed to share. Once a week on Instagram and Facebook, a different member each time.',
+    example: '“I found opportunities I wasn’t seeing on the usual job boards.” — Thomas V., Netherlands → Germany',
+    source: 'Member reviews shared with permission (the same ones on the site)', link: '/pricing', visual: 'Review card',
+    platforms: ['instagram', 'facebook'], parts: ['evening', 'lunch', 'morning'], weight: 2, cooldown: 72, weekly: 1,
   },
   {
     key: 'responsive_companies', pillar: 'proof', name: 'Companies that reply',
@@ -438,7 +454,7 @@ export const FORMATS: FormatDef[] = [
   },
   {
     key: 'invite', pillar: 'community', name: 'Invite a friend',
-    idea: 'The invite link: you get 2 extra Visa Plans when someone you invited starts MadeVisa Pro.',
+    idea: 'The invite link: you get 2 extra Visa Plans when someone you invited becomes a member.',
     example: 'Know someone job hunting abroad? Send them your link.',
     source: 'Invite rewards', link: '/profile', visual: 'Call-to-action card',
     platforms: FEED, parts: ['evening', 'night'], weight: 0.7, cooldown: 336,
@@ -581,7 +597,7 @@ export const JOB_EXTRA: Partial<Record<Platform, string[]>> = { facebook: ['reel
 /** Networks the program runs on even before Start is pressed (always on autopilot). */
 export const ALWAYS_ON: Platform[] = ['telegram'];
 /** Formats that go out exactly as written: no photo is put in front of them. */
-export const PLAIN_FORMATS = new Set(['jobs_links', 'hiring_card', 'reel_hiring']);
+export const PLAIN_FORMATS = new Set(['jobs_links', 'hiring_card', 'reel_hiring', 'chat_feature', 'member_review']);
 /** May this network post this format at all? */
 export const formatAllowed = (p: Platform, key: string): boolean => {
   const only = ONLY_FORMATS[p];

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, CreditCard, ExternalLink, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { dollars, manageUrl, resetCardPayments } from '@/lib/gumroad';
+import { MEMBERSHIP_URL } from '@/lib/plans';
 
 // Admin → Plans → Card payments.
 //
@@ -177,19 +178,13 @@ export function GumroadCard() {
         </p>
       ))}
       {state.last_error && <p className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-800">Last problem: {state.last_error}</p>}
-      {state.legacy_product_name || state.legacy_product_url ? (
-        <p className="mt-3 text-xs leading-5 text-ink-500">
-          Old single Pro product (country prices, monthly or yearly):{' '}
-          {state.legacy_product_url ? (
-            <a href={state.legacy_product_url} target="_blank" rel="noopener noreferrer" className="font-semibold text-ink-700 hover:underline">
-              {state.legacy_product_name || 'product'}
-            </a>
-          ) : (
-            state.legacy_product_name
-          )}{' '}
-          — no longer sold; its members keep Pro and their renewals, refunds and cancellations still apply.
-        </p>
-      ) : null}
+      <p className="mt-3 rounded-md bg-brand-50 px-3 py-2 text-xs leading-5 text-brand-900">
+        Every “Subscribe” button on the site opens one link:{' '}
+        <a href={MEMBERSHIP_URL} target="_blank" rel="noopener noreferrer" className="break-all font-mono font-semibold underline">
+          {MEMBERSHIP_URL}
+        </a>
+        . Connect that product below so Gumroad’s payments switch the membership on.
+      </p>
 
       {!state.connected && (
         <p className="mt-3 rounded-md bg-ink-100 px-3 py-2 text-xs leading-5 text-ink-600">
@@ -197,9 +192,9 @@ export function GumroadCard() {
           <span className="font-mono">GUMROAD_ACCESS_TOKEN</span>, and deploy: <span className="font-mono">supabase functions deploy gumroad --no-verify-jwt</span>. Then connect each plan below.
         </p>
       )}
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
-        {/* One plan is sold: the membership ('starter'). The retired Pro product shows only while it is connected, for its members. */}
-        {(state.plans ?? []).filter((p) => p.plan === 'starter' || p.connected_at).map((p) => (
+      <div className="mt-3 grid gap-3">
+        {/* One product: the membership ('starter'). Members of retired plans keep theirs on the server; nothing to manage here. */}
+        {(state.plans ?? []).filter((p) => p.plan === 'starter').map((p) => (
           <PlanProduct key={p.plan} p={p} busy={busy} onConnect={(url) => connect(p.plan, url)} onDisconnect={() => void disconnect(p.plan)} />
         ))}
       </div>
@@ -318,9 +313,12 @@ export function GumroadCard() {
   );
 }
 
+const MEMBERSHIP_PRODUCT = MEMBERSHIP_URL.split('?')[0];
+const isMembershipLink = (url: string | null) => Boolean(url && /\/l\/membership(\b|$|\?)/.test(url));
+
 /** One plan's Gumroad product: connected or not, and whether Gumroad charges the plan's price. */
 function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: string | null; onConnect: (url: string) => Promise<boolean>; onDisconnect: () => void }) {
-  const [link, setLink] = useState('');
+  const [link, setLink] = useState(MEMBERSHIP_PRODUCT);
   const [editing, setEditing] = useState(false);
   const connected = Boolean(p.connected_at && p.product_url);
   const priceOk = p.provider_price_cents === p.price_cents;
@@ -348,9 +346,11 @@ function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: s
             <button onClick={() => void onConnect(p.product_url ?? '')} disabled={busy !== null} className="inline-flex items-center gap-1.5 rounded-md border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50" title="Reads the product from Gumroad again and repairs the notifications">
               {busy === `connect:${p.plan}` && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Check the connection
             </button>
-            <button onClick={() => setEditing(true)} disabled={busy !== null} className="rounded-md px-3 py-1.5 text-xs font-semibold text-ink-500 hover:bg-ink-100">
-              Use another product
-            </button>
+            {!isMembershipLink(p.product_url) && (
+              <button onClick={() => void onConnect(MEMBERSHIP_PRODUCT)} disabled={busy !== null} className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                Connect madevisa.gumroad.com/l/membership instead
+              </button>
+            )}
             <button onClick={onDisconnect} disabled={busy !== null} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold text-ink-500 hover:bg-ink-100">
               {busy === `disconnect:${p.plan}` && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Disconnect
             </button>
@@ -360,10 +360,10 @@ function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: s
         <>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5 text-ink-600">
             <li>
-              In Gumroad, create a product of type <strong>Membership</strong> named “MadeVisa {name}”, with <strong>one tier</strong>, a <strong>monthly price of {dollars(p.price_cents)}</strong> and no other billing periods. Switch Gumroad’s purchasing-power discount off for it. Publish it.
+              The product is <strong>madevisa.gumroad.com/l/membership</strong>: a <strong>Membership</strong> with one tier at a <strong>monthly price of {dollars(p.price_cents)}</strong>. Switch Gumroad’s purchasing-power discount off for it. Publish it.
             </li>
             <li>Optional: in the product’s content, add a button to https://madevisa.com/checkout/complete so buyers can come back.</li>
-            <li>Paste the product’s link here and press Connect.</li>
+            <li>Press Connect (the link is already filled in).</li>
           </ol>
           <form
             className="mt-2 flex flex-wrap items-center gap-2"
@@ -371,7 +371,7 @@ function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: s
               e.preventDefault();
               void onConnect(link).then((ok) => {
                 if (ok) {
-                  setLink('');
+                  setLink(MEMBERSHIP_PRODUCT);
                   setEditing(false);
                 }
               });

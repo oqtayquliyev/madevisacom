@@ -27,6 +27,9 @@ import { formatCost } from '@/lib/listingCategories';
 import { stripHtml } from '@/lib/htmlText';
 import type { Job } from '@/data/jobs';
 import { CircleFlag } from '@/components/common/CircleFlag';
+import { Paywall } from '@/components/pro/Paywall';
+import { useMembership } from '@/lib/plans';
+import { rememberSearch } from '@/lib/lastSearch';
 
 export type MatchItem =
   | { kind: 'job'; id: string; title: string; org: string; countryCode: string; countryName: string; category: string; remote: boolean; salary?: string; imageUrl?: string | null; createdAt: string; description?: string | null; postedDate?: string | null; sourceDate: string | null; syncedAt: string | null }
@@ -203,6 +206,38 @@ export function LocationMatchSection({
 }) {
   const [query, setQuery] = useState('');
   const visibleItems = items;
+  // Typing: every live job, filtered as you type (the full list loads once, on the first keystroke or focus).
+  const [allJobs, setAllJobs] = useState<MatchItem[] | null>(null);
+  const loadingAll = useRef(false);
+  const loadAll = () => {
+    if (loadingAll.current) return;
+    loadingAll.current = true;
+    const show = (rows: Awaited<ReturnType<typeof fetchPublishedSponsoredJobs>>) => rows.length && setAllJobs(buildMatchItems(rows, []));
+    void fetchPublishedSponsoredJobs({ onPartial: show }).then(show);
+  };
+  const q = query.trim().toLowerCase();
+  const searching = q.length >= 2;
+  const results = useMemo(() => {
+    if (!searching || !allJobs) return null;
+    const words = q.split(/\s+/).filter(Boolean);
+    const hits = allJobs.filter((i) => {
+      const text = `${i.title} ${i.org} ${i.category} ${i.countryName}`.toLowerCase();
+      return words.every((w) => text.includes(w));
+    });
+    const when = (i: MatchItem) => new Date(i.createdAt).getTime() || 0;
+    return hits.sort((a, b) => when(b) - when(a));
+  }, [searching, allJobs, q]);
+  // The membership card's headline: "1,240 more hotel jobs".
+  useEffect(() => {
+    if (!results || !q) return;
+    const t = window.setTimeout(() => rememberSearch(query, results.length), 500);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results?.length, q]);
+  // Not a member: a job opens the membership card right here, not the job page.
+  const { member, ready } = useMembership();
+  const [locked, setLocked] = useState<MatchItem | null>(null);
+  const onLocked = ready && !member ? setLocked : undefined;
   const shownItems = useMemo(() => (visibleItems ? pickNewestDistinct(visibleItems, 5) : null), [visibleItems]);
   useEffect(() => {
     if (shownItems?.length) rememberShown('landing', shownItems.map((i) => i.id));
@@ -269,7 +304,11 @@ export function LocationMatchSection({
           <Search className="h-4.5 w-4.5 shrink-0 text-ink-400" />
           <input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onFocus={loadAll}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              loadAll();
+            }}
             placeholder="Job title, skill, company or city"
             className="h-full w-full bg-transparent text-sm font-medium text-ink-900 outline-none placeholder:text-ink-400"
           />
@@ -288,7 +327,41 @@ export function LocationMatchSection({
         </button>
       </form>
 
-      {shownItems === null ? (
+      {searching ? (
+        results === null ? (
+          <div className="mt-6" role="status" aria-live="polite">
+            <p className="flex items-center gap-2 text-sm font-semibold text-brand-700">
+              <Zap className="h-4 w-4 fill-amber-300 text-amber-400" aria-hidden /> Searching the latest jobs for you…
+            </p>
+            <div className="mt-4 grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 lg:grid-cols-5">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <MatchCardSkeleton key={i} />
+              ))}
+            </div>
+          </div>
+        ) : results.length === 0 ? (
+          <div className="mt-6 rounded border-2 border-dashed border-ink-200 bg-white px-5 py-10 text-center">
+            <p className="text-sm font-semibold text-ink-600">No live jobs match “{query.trim()}” right now.</p>
+            <p className="mt-1 text-xs text-ink-400">Try another word, or a country or company name.</p>
+          </div>
+        ) : (
+          <>
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-2" aria-live="polite">
+              <p className="text-sm text-ink-600">
+                <strong className="text-ink-950">{results.length.toLocaleString()}</strong> live {results.length === 1 ? 'job' : 'jobs'} for “{query.trim()}”, newest first
+              </p>
+              <a href={`/jobs?q=${encodeURIComponent(query.trim())}`} className="text-sm font-semibold text-brand-700 hover:underline">
+                See all on the jobs page →
+              </a>
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 lg:grid-cols-5">
+              {results.slice(0, 10).map((item) => (
+                <MatchCard key={`${item.kind}-${item.id}`} item={item} originCode={originCode} onLocked={onLocked} />
+              ))}
+            </div>
+          </>
+        )
+      ) : shownItems === null ? (
         <div className="mt-6 grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 lg:grid-cols-5" aria-busy="true" aria-label="Loading opportunities">
           {[0, 1, 2, 3, 4].map((i) => (
             <MatchCardSkeleton key={i} />
@@ -305,10 +378,11 @@ export function LocationMatchSection({
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 lg:grid-cols-5">
           {shownItems.map((item) => (
-            <MatchCard key={`${item.kind}-${item.id}`} item={item} originCode={originCode} />
+            <MatchCard key={`${item.kind}-${item.id}`} item={item} originCode={originCode} onLocked={onLocked} />
           ))}
         </div>
       )}
+      {locked && <Paywall job={{ title: locked.title, company: locked.org }} onClose={() => setLocked(null)} source="landing" />}
     </div>
   );
 }
@@ -365,7 +439,7 @@ function CostBreakdownPopover({ est, onClose }: { est: JourneyCostBreakdown; onC
   );
 }
 
-function MatchCard({ item, originCode }: { item: MatchItem; originCode: string | null }) {
+function MatchCard({ item, originCode, onLocked }: { item: MatchItem; originCode: string | null; /** Not a member: a job opens the membership card instead of its page. */ onLocked?: (item: MatchItem) => void }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const Icon = iconFor(item.category, item.kind);
@@ -389,6 +463,11 @@ function MatchCard({ item, originCode }: { item: MatchItem; originCode: string |
       <a
         href={href}
         {...NEW_TAB}
+        onClick={(e) => {
+          if (!onLocked || item.kind !== 'job') return;
+          e.preventDefault();
+          onLocked(item);
+        }}
         className={`group relative flex h-full flex-col rounded-lg border p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg ${
           viewed ? 'border-ink-200 bg-ink-100/70 opacity-75 grayscale-[40%] hover:opacity-100' : 'border-ink-900/20 bg-white'
         }`}

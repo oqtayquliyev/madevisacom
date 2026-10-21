@@ -7,6 +7,7 @@ import { moreJobsHeadline, readLastSearch } from '@/lib/lastSearch';
 import { goToMembershipCheckout } from '@/lib/gumroad';
 import { MEMBERSHIP_PRICE } from '@/lib/plans';
 import { trackBilling } from '@/lib/billing';
+import { trackPaywall } from '@/lib/paywallStats';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { nav } from '@/lib/pageLayout';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -17,14 +18,23 @@ import { TESTIMONIALS } from '@/data/testimonials';
 // locked), and opens over a list when someone picks a job there. "Subscribe"
 // goes straight to Gumroad's payment page, with or without an account.
 
-/** What's included — short, so the card stays one screen tall on a phone. */
+/** What's included — short, so the card stays one screen tall on a phone. **words** are drawn bold. */
 const INCLUDED = [
-  'Apply to this job and every job on MadeVisa',
-  'Jobs straight from company career pages, beyond LinkedIn',
-  'Remote and online job listings',
-  'CV match and CV suggestions on every job',
-  'Companies that sponsor work visas',
+  'Apply to **this job** and **every job** on MadeVisa',
+  'Jobs straight from **company career pages**, beyond **LinkedIn**',
+  '**Remote** and **online** job listings',
+  '**CV match** and **CV suggestions** on every job',
+  'Companies that **sponsor work visas**',
 ];
+
+/** "a **b** c" → a <strong>b</strong> c */
+function Bolded({ text }: { text: string }) {
+  return (
+    <span>
+      {text.split('**').map((part, i) => (i % 2 ? <strong key={i} className="font-bold text-ink-950">{part}</strong> : <span key={i}>{part}</span>))}
+    </span>
+  );
+}
 
 /** Members' own headlines that don't name the retired Pro plan. */
 const QUOTES = TESTIMONIALS.filter((t) => !/\bpro\b|\$/i.test(t.headline) && !/member$/i.test(t.name) && /^[\x20-\x7E’‘“”—–…]+$/.test(t.headline));
@@ -34,7 +44,7 @@ type Props = {
   job?: { title: string; company?: string | null } | null;
   /** Without onClose the card can't be dismissed (a job page); "Back to jobs" is the way out. */
   onClose?: () => void;
-  /** Which screen showed it (funnel in Admin → Plans). */
+  /** Which screen showed it (Admin → Paywall). */
   source: string;
 };
 
@@ -50,6 +60,7 @@ export function Paywall({ job, onClose, source }: Props) {
 
   useEffect(() => {
     trackBilling('upgrade_prompt_shown', { source });
+    trackPaywall('shown', source);
     dialog.current?.focus({ preventScroll: true });
     // The page behind doesn't scroll while the card is up.
     const html = document.documentElement;
@@ -84,6 +95,7 @@ export function Paywall({ job, onClose, source }: Props) {
     if (busy) return;
     setBusy(true);
     trackBilling('upgrade_prompt_clicked', { source });
+    trackPaywall('click', source);
     const r = await goToMembershipCheckout({ signedIn: Boolean(user), email: user?.email ?? null, source });
     if (r.kind === 'already') {
       setBusy(false);
@@ -172,7 +184,7 @@ export function Paywall({ job, onClose, source }: Props) {
             {INCLUDED.map((t) => (
               <li key={t} className="flex gap-2.5 text-[13.5px] leading-5 text-ink-800">
                 <Check className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={3} aria-hidden />
-                {t}
+                <Bolded text={t} />
               </li>
             ))}
           </ul>

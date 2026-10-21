@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
-import { MEMBERSHIP_PLAN, refreshMyPlan, type PaidPlanId, type PlanId } from '@/lib/plans';
+import { MEMBERSHIP_PLAN, MEMBERSHIP_URL, refreshMyPlan, type PaidPlanId, type PlanId } from '@/lib/plans';
 import { trackBilling } from '@/lib/billing';
 import { readCheckout, type CheckoutResult } from '@/lib/billingCore';
 
@@ -72,13 +72,9 @@ export async function startCheckout(_plan: PaidPlanId, source: string | null): P
   return readCheckout(MEMBERSHIP_PLAN, await invoke({ action: 'checkout', plan: MEMBERSHIP_PLAN, billing: 'monthly', source }));
 }
 
-/** The membership's own Gumroad page: used when a prepared checkout isn't available, so a click always ends on Gumroad. */
-const MEMBERSHIP_PAGE = 'https://madevisa.gumroad.com/l/starter';
-const GUMROAD = /^https:\/\/([a-z0-9-]+\.)*gumroad\.com\//i;
+/** The membership's Gumroad page (MEMBERSHIP_URL), with the email filled in when we know it. */
 function membershipPage(email: string | null | undefined): string {
-  const u = new URL(MEMBERSHIP_PAGE);
-  u.searchParams.set('wanted', 'true');
-  u.searchParams.set('recurrence', 'monthly');
+  const u = new URL(MEMBERSHIP_URL);
   if (email) u.searchParams.set('email', email);
   return u.toString();
 }
@@ -107,10 +103,8 @@ export async function goToMembershipCheckout(opts: { signedIn: boolean; email?: 
     window.location.assign(membershipPage(opts.email));
     return { kind: 'leaving' };
   }
-  const data = await invoke({ action: 'guest_checkout', source: opts.source, email: opts.email ?? undefined });
-  const url = typeof data?.url === 'string' && GUMROAD.test(data.url) ? data.url : null;
-  if (!url) trackBilling('checkout_unavailable', { plan: MEMBERSHIP_PLAN, source: opts.source, guest: true });
-  window.location.assign(url ?? membershipPage(opts.email));
+  // No account: straight to the membership's page. The payment is matched to an account by its email (or one is made).
+  window.location.assign(membershipPage(opts.email));
   return { kind: 'leaving' };
 }
 
