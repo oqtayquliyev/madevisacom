@@ -349,6 +349,16 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // Not a member (or still finding out): Apply is a locked button and the job's own address isn't on the page.
   const locked = !closed && memberReady && !member;
   const covered = locked && !peeking;
+  // Apply / Check your match pressed by a non-member: the membership card at once.
+  const openPaywall = locked ? () => setPeeking(false) : undefined;
+  const lockClicks = locked
+    ? (e: React.MouseEvent) => {
+        if (!(e.target as HTMLElement).closest('button, a, input, label, [role="button"]')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setPeeking(false);
+      }
+    : undefined;
   const applyButton = (extra = '') =>
     closed ? (
       <span className={`inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-full bg-ink-200 px-7 py-3.5 text-sm font-bold text-ink-500 ${extra.includes('flex-1') ? 'flex-1 md:flex-none' : ''}`}>
@@ -358,6 +368,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       <button
         type="button"
         disabled={!memberReady}
+        onClick={openPaywall}
         aria-label="Apply (members only)"
         className={`inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${extra}`}
       >
@@ -501,7 +512,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {applyButton('flex-1 bg-white text-brand-700 shadow-sm hover:bg-brand-50 focus-visible:outline-white md:flex-none')}
-              {matchJob && !closed && <MatchButton match={match} variant="hero" />}
+              {matchJob && !closed && <MatchButton match={match} variant="hero" onLocked={openPaywall} />}
               <span className="relative shrink-0">
                 <button
                   onClick={share}
@@ -547,7 +558,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       >
         {matchJob && !closed && (
           <div className="mb-5 md:-mt-4 md:mb-6">
-            <MatchPanel match={match} jobId={matchKey} jobTitle={job.title} company={job.company} doc={docFor} onAuth={onAuth} />
+            <div onClickCapture={lockClicks}>
+              <MatchPanel match={match} jobId={matchKey} jobTitle={job.title} company={job.company} doc={docFor} onAuth={onAuth} />
+            </div>
           </div>
         )}
         {raw && !closed && <SaveJobButton jobId={raw.id} onAuth={onAuth} className="mb-5" />}
@@ -620,7 +633,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {applyButton('flex-1 bg-brand-600 text-white shadow-soft-lg hover:bg-brand-700 focus-visible:outline-brand-600 md:flex-none')}
-              {matchJob && !closed && <MatchButton match={match} variant="body" />}
+              {matchJob && !closed && <MatchButton match={match} variant="body" onLocked={openPaywall} />}
               <span className="relative shrink-0">
                 <button
                   onClick={share}

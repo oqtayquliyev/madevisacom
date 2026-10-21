@@ -552,7 +552,7 @@ function MatchCard({ item, originCode, onLocked }: { item: MatchItem; originCode
           )}
           {/* Visual only — the whole card is already the clickable <a>, so
               this is a styled span rather than a second nested link. */}
-          <span className="mt-2 block rounded-lg border border-ink-200 py-1.5 text-center text-xs font-semibold text-brand-700 transition group-hover:bg-brand-50">
+          <span className="mt-2 block rounded-lg bg-brand-600 py-1.5 text-center text-xs font-semibold text-white transition group-hover:bg-brand-700">
             See more
           </span>
         </div>

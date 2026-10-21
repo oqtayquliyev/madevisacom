@@ -9,13 +9,14 @@ const toPanel = () => document.getElementById('cv-match')?.scrollIntoView({ beha
  * "Check your match" — next to Apply on every job page. Pressed once per
  * job; after that it shows the score and jumps to the report.
  */
-export function MatchButton({ match, variant, disabled = false }: { match: JobMatch; variant: 'hero' | 'body'; disabled?: boolean }) {
+export function MatchButton({ match, variant, disabled = false, onLocked }: { match: JobMatch; variant: 'hero' | 'body'; disabled?: boolean; /** Not a member: opens the membership card instead. */ onLocked?: () => void }) {
   const hero = variant === 'hero';
   const { cv, result, busy } = match;
   // CV match is part of Starter and Pro: everyone else is taken to the panel, which says so.
   const { isPaid } = useMyPlan();
 
   const click = () => {
+    if (onLocked) return onLocked();
     toPanel();
     // With a CV on file, pressing the button is the check itself.
     if (isPaid && cv && !result && !busy) void match.check();
