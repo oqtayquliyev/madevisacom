@@ -78,7 +78,7 @@ export function OffersPage({ go, onAuth }: Props) {
                 </>
               ) : (
                 <>
-                  Free: 1 a month. Starter (20 a month, <strong className="text-white">{priceLabel('starter')}</strong>) and Pro (50 a month, <strong className="text-white">{priceLabel('pro')}</strong>)
+                  Free: 1 a month. Members: 20 a month, <strong className="text-white">{priceLabel('starter')}</strong>
                 </>
               )}
             </p>
@@ -132,7 +132,7 @@ export function OffersPage({ go, onAuth }: Props) {
         {/* 5. The plan */}
         <section id="buy" aria-labelledby="buy-title" className="scroll-mt-24">
           <h2 id="buy-title" className="text-[17px] font-bold text-ink-950">
-            Included in Starter and Pro
+            Included in the membership
           </h2>
           <p className="mt-0.5 text-[14px] text-ink-500">Sponsorship documents come with the full CV match report. The same price in every country.</p>
           <div className="mt-5 max-w-2xl">

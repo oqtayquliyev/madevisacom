@@ -67,7 +67,7 @@ export function MyBriefsSection({ hideWhenEmpty = false }: { hideWhenEmpty?: boo
           </div>
           {!credits?.pro && (
             <a href={checkoutHref('starter', 'my_documents')} onClick={(e) => (e.preventDefault(), nav(checkoutHref('starter', 'my_documents')))} className="shrink-0 rounded-lg bg-white px-3.5 py-2 text-[13px] font-bold text-brand-700 hover:bg-brand-50">
-              Get Starter
+              Get started
             </a>
           )}
         </div>
@@ -261,17 +261,17 @@ export function PlanCard() {
           {paid ? 'Manage' : 'See plans'}
         </a>
       </div>
-      <p className="mt-0.5 text-[17px] font-bold text-ink-950">{paid ? `MadeVisa ${PLANS[plan].name}` : 'Free'}</p>
+      <p className="mt-0.5 text-[17px] font-bold text-ink-950">{paid ? PLANS[plan].name : 'Free'}</p>
       {paid && sub?.current_period_end && <p className="text-[12px] text-ink-500">{sub.cancel_at_period_end ? 'Ends' : 'Until'} {new Date(sub.current_period_end).toLocaleDateString()}</p>}
       <div className="mt-3 border-t border-ink-100 pt-3">
         <div className="flex items-center gap-1">
           <p className="text-[13px] font-semibold text-ink-800">Sponsorship documents</p>
           <OfferInfo />
         </div>
-        <p className="mt-1.5 text-[13px] text-ink-700">{credits ? (credits.left > 0 ? allowanceLabel(credits) : has('sponsorship_documents') ? 'All used this month — they renew on the 1st' : '20 a month with Starter, 50 with Pro') : '…'}</p>
+        <p className="mt-1.5 text-[13px] text-ink-700">{credits ? (credits.left > 0 ? allowanceLabel(credits) : has('sponsorship_documents') ? 'All used this month — they renew on the 1st' : '20 a month with the membership') : '…'}</p>
         {credits && credits.left === 0 && !has('sponsorship_documents') && (
           <a href={checkoutHref('starter', 'dashboard_documents')} onClick={(e) => (e.preventDefault(), nav(checkoutHref('starter', 'dashboard_documents')))} className="mt-2 inline-block text-[13px] font-semibold text-[#1D4ED8] hover:underline">
-            See Starter
+            See the membership
           </a>
         )}
       </div>

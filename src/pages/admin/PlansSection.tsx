@@ -113,12 +113,12 @@ export function PlansSection() {
               </div>
             ))}
           </dl>
-          <p className="mt-3 text-xs leading-5 text-ink-500">“Hit the free limit” = free accounts that used all 3 missing-skill checks today — the people most likely to want Starter.</p>
+          <p className="mt-3 text-xs leading-5 text-ink-500">“Hit the free limit” = free accounts that used all 3 missing-skill checks today — the people most likely to want the membership.</p>
         </section>
       )}
       <GumroadCard />
       <p className="rounded-lg bg-ink-100 px-3 py-2 text-xs leading-5 text-ink-600">
-        Two plans: Starter ($2.99 a month) and Pro ($8.99 a month), the same price everywhere (members from before October 2026 keep their old Pro price). With card payments on, people pay on Gumroad and the plan switches on by itself once the payment is verified; nothing to do here. Requests below come in when card payments are off, and for employer products: reply to the request email (it goes to hello@madevisa.com) with a payment link, mark it <em>Contacted</em>, and once paid click <em>Activate</em>. The person gets a notification.
+        One plan: the MadeVisa Membership ($2.29 a month), the same price everywhere (members of earlier plans keep their old price). With card payments on, people pay on Gumroad — with or without a MadeVisa account — and the membership switches on by itself once the payment is verified. A buyer with no account gets one made for their email, plus the “account ready” and “welcome” emails (Emails → Templates: member_account, member_welcome; sent ones show in the email log as kind “membership”). Nothing to do here. Requests below come in when card payments are off, and for employer products: reply to the request email (it goes to hello@madevisa.com) with a payment link, mark it <em>Contacted</em>, and once paid click <em>Activate</em>. The person gets a notification.
       </p>
       {msg && <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">{msg}</p>}
 
@@ -197,7 +197,7 @@ export function PlansSection() {
 
       {activeSubs.length > 0 && (
         <section className="rounded-xl border border-ink-200 bg-white p-4">
-          <p className="text-sm font-bold text-ink-950">Active Pro members</p>
+          <p className="text-sm font-bold text-ink-950">Active members</p>
           <ul className="mt-2 divide-y divide-ink-100 text-sm">
             {activeSubs.map((s) => (
               <li key={s.user_id} className="flex justify-between py-2">

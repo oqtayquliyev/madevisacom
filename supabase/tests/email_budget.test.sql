@@ -56,7 +56,7 @@ SELECT t.ok(NOT EXISTS (SELECT 1 FROM public.email_log WHERE kind = 'starter_rem
 SELECT t.ok(NOT EXISTS (SELECT 1 FROM public.email_log WHERE kind = 'starter_reminder' AND to_email = 'newpaid@realmail.com'), 'not for someone already on Starter');
 SELECT t.ok(NOT EXISTS (SELECT 1 FROM public.email_log WHERE kind = 'starter_reminder' AND to_email LIKE 'free%'), 'not for older accounts');
 SELECT t.ok((SELECT subject FROM public.email_log WHERE kind = 'starter_reminder' AND to_email = 'newnamed@realmail.com') = 'Aysel, your best job matches are waiting', 'personal subject when the name is known');
-SELECT t.ok((SELECT payload->>'html' FROM public.email_log WHERE kind = 'starter_reminder' AND to_email = 'new7h@realmail.com') LIKE '%$2.99 a month%', 'shows the Starter price');
+SELECT t.ok((SELECT payload->>'html' FROM public.email_log WHERE kind = 'starter_reminder' AND to_email = 'new7h@realmail.com') LIKE '%$2.29 a month%', 'shows the membership price');
 SELECT public.run_starter_reminders();
 SELECT t.ok((SELECT count(*) FROM public.email_log WHERE kind = 'starter_reminder' AND to_email = 'new7h@realmail.com') = 1, 'only once');
 

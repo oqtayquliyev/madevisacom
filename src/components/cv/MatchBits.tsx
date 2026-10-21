@@ -60,7 +60,7 @@ export function PartBar({ name, score, weight, locked = false }: { name: string;
         )}
       </span>
       <span className="w-[92px] shrink-0 whitespace-nowrap text-right text-[12px] tabular-nums text-ink-500">
-        {locked ? <Lock className="ml-auto h-3.5 w-3.5 text-ink-400" aria-label="In Pro" /> : score == null ? 'not asked' : <strong className="text-[13px] text-ink-900">{score}%</strong>}
+        {locked ? <Lock className="ml-auto h-3.5 w-3.5 text-ink-400" aria-label="Members only" /> : score == null ? 'not asked' : <strong className="text-[13px] text-ink-900">{score}%</strong>}
         {!locked && score != null && <span className="ml-1 text-ink-400">· {weight} pts</span>}
       </span>
     </div>
@@ -92,7 +92,7 @@ export function MatchLabel({ result }: { result: MatchResult }) {
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-bold ${tone.bg} ${tone.text}`}>{result.label}</span>;
 }
 
-/** "Starter: $2.99 / month" — the plan that includes the full report. */
+/** "Membership: $2.29 / month" — the plan that includes the full report. */
 export function ProPrice({ className = '' }: { className?: string }) {
-  return <span className={className}>Starter: {priceLabel('starter')}</span>;
+  return <span className={className}>Membership: {priceLabel('starter')}</span>;
 }

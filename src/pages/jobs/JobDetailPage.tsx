@@ -6,11 +6,13 @@ import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import { isNewCompany, NewCompanyBadge } from '@/components/common/NewCompanyBadge';
 import { usePersonalization } from '@/lib/personalization';
 import { isLocalJobFor } from '@/lib/visaFit';
-import { ArrowLeft, ArrowUpRight, Banknote, Briefcase, Building2, Calendar, Check, ChevronDown, FileText, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Navigation, Phone, Plane, Share2, UserRound, Users, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Banknote, Lock, Briefcase, Building2, Calendar, Check, ChevronDown, FileText, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Navigation, Phone, Plane, Share2, UserRound, Users, Zap } from 'lucide-react';
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { MatchButton } from '@/components/cv/MatchButton';
+import { Paywall } from '@/components/pro/Paywall';
+import { useMembership } from '@/lib/plans';
 import { MatchPanel } from '@/components/cv/MatchPanel';
 import { SaveJobButton } from '@/components/billing/SavedJobs';
 import { ApplySheet } from '@/components/cv/ApplySheet';
@@ -54,6 +56,8 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const [applied, setApplied] = useState(false);
   useEffect(() => setApplied(false), [id]);
   const { session } = useAuth();
+  // Applying is for members: everyone else gets the membership card over the page, and Apply stays locked.
+  const { member, ready: memberReady } = useMembership();
   const { profile: visitor } = usePersonalization();
   // Signed-out visitors: after 3 job views, invite them to create an account.
   const [guestViews, setGuestViews] = useState(0);
@@ -242,7 +246,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             : 'Location on source';
   const flagCode = !countryOk && sourcePlace?.code ? sourcePlace.code : job.countryCode;
   const contact = cleaned?.contact ?? {};
-  const hasSourceUrl = Boolean(job.url && job.url !== '#');
+  const hasSourceUrl = member && Boolean(job.url && job.url !== '#');
   const shareLabel = copied ? 'Link copied' : 'Share';
 
   // Every fact in the details box is either real data from the listing
@@ -335,11 +339,23 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const closedAgo = job.closedAt ? formatRelativeTime(job.closedAt, '').toLowerCase() : null;
   const docFor = offerOk && raw ? { jobId: raw.id, country: offerCountry, dest: offerEl?.ok && !offerEl.picked ? offerEl.code : null, visaOffered: visa === 'offered' } : null;
 
+  // Not a member (or still finding out): Apply is a locked button and the job's own address isn't on the page.
+  const locked = !closed && memberReady && !member;
   const applyButton = (extra = '') =>
     closed ? (
       <span className={`inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-full bg-ink-200 px-7 py-3.5 text-sm font-bold text-ink-500 ${extra.includes('flex-1') ? 'flex-1 md:flex-none' : ''}`}>
         Closed
       </span>
+    ) : !member ? (
+      <button
+        type="button"
+        disabled={!memberReady}
+        aria-label="Apply (members only)"
+        className={`inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${extra}`}
+      >
+        <Lock className="h-4 w-4" aria-hidden />
+        Apply
+      </button>
     ) : (
     <a
       href={job.url}
@@ -362,9 +378,10 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
-      {matchKey && !closed && <ApplySheet jobKey={matchKey} company={job.company} match={match} doc={docFor} armed={applied} onAuth={onAuth} />}
+      {locked && <Paywall job={{ title: job.title, company: job.company }} source="job_page" />}
+      {matchKey && !closed && member && <ApplySheet jobKey={matchKey} company={job.company} match={match} doc={docFor} armed={applied} onAuth={onAuth} />}
       {/* One of your best matches? A small card in the corner lists the others. Not while the apply sheet is up. */}
-      {matchKey && !applied && <OtherMatchesPopup currentId={matchKey} onAuth={onAuth} />}
+      {matchKey && !applied && !locked && <OtherMatchesPopup currentId={matchKey} onAuth={onAuth} />}
 
       <section className={`${closed ? 'bg-ink-500' : 'bg-brand-700'} text-white transition-colors`}>
         <div className="mx-auto max-w-4xl px-5 pb-10 pt-6 sm:px-8 sm:pb-14 sm:pt-8">

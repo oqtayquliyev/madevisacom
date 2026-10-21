@@ -69,7 +69,7 @@ export function SponsorDocRow({ jobId, company, country, dest = null, visaOffere
           <span className="text-right text-[12px] leading-4 text-ink-500">
             All {credits.quota} used this month.
             <br />
-            They renew on the 1st{credits.quota < 50 ? <> — or <button onClick={go(checkoutHref('pro', 'documents_limit'))} className="font-semibold text-brand-700 hover:underline">50 a month with Pro</button></> : null}.
+            They renew on the 1st.
           </span>
         ) : (
           <span className="flex flex-col items-stretch gap-1 sm:items-end">
@@ -77,7 +77,7 @@ export function SponsorDocRow({ jobId, company, country, dest = null, visaOffere
               onClick={() => (session ? nav(checkoutHref('starter', 'sponsor_document')) : onAuth?.('register'))}
               className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-[13px] font-bold text-white hover:bg-brand-700"
             >
-              <Lock className="h-3.5 w-3.5" /> Add it with Starter
+              <Lock className="h-3.5 w-3.5" /> Add it with the membership
             </button>
             <span className="text-[11px] text-ink-500">20 a month · {priceLabel('starter')}</span>
           </span>

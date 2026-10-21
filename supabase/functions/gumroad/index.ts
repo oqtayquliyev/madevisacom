@@ -1,10 +1,15 @@
 // supabase/functions/gumroad/index.ts
 //
-// Card payments for MadeVisa Starter ($2.99 / month) and Pro ($8.99 / month),
-// through Gumroad (the seller of record). Each plan is its own Gumroad
-// membership product; the product a payment belongs to decides the plan.
+// Card payments for the MadeVisa Membership ($2.29 / month), through Gumroad
+// (the seller of record). The membership is the Gumroad membership product
+// connected as 'starter'; the retired Pro product is still read so its members
+// keep their plan. The product a payment belongs to decides the plan.
 //
 // What it does
+//   • The paywall / pricing page, without an account → { action: 'guest_checkout', source, email? }
+//       → { url } — the membership's Gumroad page. When the payment arrives,
+//       an account with that email gets it, or one is created (sign-in by email
+//       code) and the "account ready" and "welcome" emails go out.
 //   • The checkout page → { action: 'checkout', plan, source } (signed-in people)
 //       → { url, checkout_id, plan, price_cents, currency }
 //       The plan is the only thing the page chooses. The function reads the
@@ -35,7 +40,8 @@
 //
 // Deploy: supabase functions deploy gumroad --no-verify-jwt
 // (Gumroad cannot sign in, so the function checks access itself.)
-// Needs migrations 20261203090000_gumroad_checkout.sql and 20261219090000_starter_pro_plans.sql.
+// Needs migrations 20261203090000_gumroad_checkout.sql, 20261219090000_starter_pro_plans.sql and
+// 20261231090000_single_membership_guest_checkout.sql.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { makeHandler } from './core.ts';
@@ -62,6 +68,12 @@ Deno.serve(
     },
     fetch: (input, init) => fetch(input, init),
     env: (name) => Deno.env.get(name),
+    // A buyer who paid without an account: a MadeVisa account for that email (sign-in by email code).
+    createAccount: async (email) => {
+      const { data, error } = await service.auth.admin.createUser({ email, email_confirm: true, user_metadata: { source: 'gumroad' } });
+      if (error || !data?.user) return { error: error?.message ?? 'The account could not be created.' };
+      return { id: data.user.id };
+    },
     // Keeps the function alive until the work is done, after the answer has gone out.
     background: (work) => {
       const safe = work.catch((e) => console.error('gumroad background', e));

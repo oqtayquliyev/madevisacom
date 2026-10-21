@@ -42,7 +42,7 @@ INSERT INTO public.user_milestones (user_id, key) VALUES (t.id('preview'), 'cv_m
 INSERT INTO public.gumroad_checkouts (user_id, plan, billing, price_cents, list_cents, created_at) VALUES (t.id('starter'), 'pro', 'monthly', 899, 899, now() - interval '2 days');
 
 \echo '1. templates: new copy in place, admin edits kept'
-SELECT t.ok((SELECT count(*) FROM public.email_template_library) = 17, '17 MadeVisa templates (12 rewritten + 5 lifecycle)');
+SELECT t.ok((SELECT count(*) FROM public.email_template_library) = 19, '19 MadeVisa templates (12 rewritten + 5 lifecycle + 2 membership)');
 SELECT t.ok(NOT EXISTS (
   SELECT 1 FROM public.email_template_library l JOIN public.email_templates m USING (key)
   WHERE public.mv_template_hash(m.subject, m.preheader, m.eyebrow, m.headline, m.body, m.cta_label, m.cta_url)

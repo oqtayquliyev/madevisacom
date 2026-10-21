@@ -4,7 +4,7 @@
 // check, network and secrets are handed in (Deps), so the same code runs in
 // the tests against a pretend Gumroad.
 
-import { isPaidPlanId, PLANS, type PaidPlanId } from '../_shared/plans.ts';
+import { isPaidPlanId, MEMBERSHIP_PLAN, PLANS, type PaidPlanId } from '../_shared/plans.ts';
 
 // deno-lint-ignore no-explicit-any
 type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -17,6 +17,11 @@ export type Deps = {
   env: (name: string) => string | undefined;
   /** Work that may finish after the answer has been sent. */
   background: (work: Promise<unknown>) => void;
+  /**
+   * Creates a MadeVisa account (sign-in by email code) for a buyer who paid on
+   * Gumroad without one. Absent in tests that don't need it.
+   */
+  createAccount?: (email: string) => Promise<{ id: string } | { error: string }>;
 };
 
 const CORS = {
@@ -165,6 +170,24 @@ export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput
 
   const email = String(sub.email ?? latest?.purchase_email ?? latest?.email ?? sub.user_email ?? '').trim() || null;
   const ended = iso(sub.ended_at) ?? iso(sub.failed_at) ?? (ALIVE.has(status) ? null : (iso(sub.cancelled_at) ?? new Date().toISOString()));
+
+  // Bought without a MadeVisa account (the paywall's guest checkout): the buyer's email decides
+  // whose membership it is. A trusted account with that email gets it; with no account at all,
+  // one is created for them. An account whose email was never verified is left alone.
+  let claimUser = input.claimUser ?? null;
+  let created = false;
+  if (!claimUser && email && ALIVE.has(status) && !ended && (lastPaidAt || input.test)) {
+    const who = (await deps.rpc('gumroad_buyer_account', { p_email: email, p_subscription: subscriptionId })).data as { state?: string; user_id?: string } | null;
+    if (who?.state === 'match' && who.user_id) claimUser = who.user_id;
+    else if (who?.state === 'none' && deps.createAccount && !(input.checkoutId && UUID.test(input.checkoutId))) {
+      const made = await deps.createAccount(email.toLowerCase());
+      if ('id' in made) {
+        claimUser = made.id;
+        created = true;
+      }
+    }
+  }
+
   const applied = await deps.rpc('gumroad_apply', {
     p: {
       subscription_id: subscriptionId,
@@ -181,16 +204,24 @@ export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput
       card_country: typeof latest?.country_iso2 === 'string' ? latest.country_iso2 : null,
       test: Boolean(input.test),
       checkout_id: input.checkoutId && UUID.test(input.checkoutId) ? input.checkoutId : null,
-      claim_user: input.claimUser ?? null,
+      claim_user: claimUser,
     },
   });
   if (applied.error) return { ok: false, note: `Could not save the membership: ${applied.error.message}` };
   const out = applied.data ?? {};
+  // The emails (Admin → Emails → Templates): "your account is ready" for an account made just now,
+  // then "you now have access to every job" whenever someone goes from free to paid. Each goes once.
+  if (out.linked && out.user_id) {
+    if (created) await deps.rpc('member_emails', { p_user: out.user_id, p_kind: 'account', p_ref: subscriptionId });
+    if (out.before === 'free' && out.after && out.after !== 'free') await deps.rpc('member_emails', { p_user: out.user_id, p_kind: 'welcome', p_ref: subscriptionId });
+  }
   const who = email ?? 'A buyer';
   const until = iso(out.until)?.slice(0, 10);
   const name = PLANS[plan].name;
   const note = !out.linked
     ? `${who}: ${name} ${status}, no MadeVisa account matched yet.`
+    : created
+      ? `${who}: ${name} on until ${until}. Paid without an account: one was created for this email and the welcome emails were sent.`
     : out.kept_other_plan
       ? `${who}: ${name} ${status}. A plan an admin switched on is higher or runs longer, so it was left as it is.`
       : out.active
@@ -299,25 +330,19 @@ const manageLink = (subscriptionId: string) => `https://gumroad.com/subscription
 // Checkout: the plan, at its price, for this account
 // ---------------------------------------------------------------------------
 async function checkout(deps: Deps, cfg: Config, user: { id: string; email: string | null }, body: Json): Promise<Response> {
-  // The plan is the only thing the page chooses. Its price, product and link come from the server.
-  const plan = body?.plan ?? 'pro';
-  if (!isPaidPlanId(plan)) return json({ error: 'Choose Starter or Pro.' }, 400);
-  if (body?.billing && body.billing !== 'monthly') return json({ error: 'Plans are billed monthly. Reload the page and try again.' }, 400);
+  // One plan is sold: the membership. Old links that still say "pro" get the membership too.
+  if (body?.plan != null && !isPaidPlanId(body.plan)) return json({ error: 'Choose the MadeVisa Membership.' }, 400);
+  const plan: PaidPlanId = MEMBERSHIP_PLAN;
+  if (body?.billing && body.billing !== 'monthly') return json({ error: 'The membership is billed monthly. Reload the page and try again.' }, 400);
   const source = typeof body?.source === 'string' && /^[a-z0-9_]{1,40}$/.test(body.source) ? body.source : null;
 
   const state = (await deps.rpc('gumroad_user', { p_user: user.id })).data ?? {};
   const pp = planProduct(cfg, plan);
   if (!pp?.product_id || !pp.connected_at || (!cfg.enabled && !state.is_admin)) return json({ error: 'off' });
 
-  // A membership that is still being billed: never start a second one.
+  // A membership that is still being billed (the membership, or the retired Pro): never start a second one.
   const alive = ((state.alive ?? []) as { subscription_id: string; plan: PaidPlanId; status: string }[]).filter((a) => a?.subscription_id);
-  const same = alive.find((a) => a.plan === plan);
-  if (same) return json({ already: true, plan, manage_url: manageLink(same.subscription_id) });
-  if (alive.length) {
-    // Gumroad can't move a membership to another product, so switching = cancel the current one there
-    // (it runs to the end of what was paid), then come back and start the new plan.
-    return json({ switch: true, plan, current_plan: alive[0].plan, manage_url: manageLink(alive[0].subscription_id) });
-  }
+  if (alive.length) return json({ already: true, plan, manage_url: manageLink(alive[0].subscription_id) });
 
   // Read the product now: the price shown must be the price charged.
   const live = await gumroad(deps, 'GET', `/products/${encodeURIComponent(pp.product_id)}`);
@@ -361,6 +386,47 @@ async function checkout(deps: Deps, cfg: Config, user: { id: string; email: stri
   }
 
   return json({ url: url.toString(), checkout_id: c.id, plan, billing: 'monthly', price_cents: c.price_cents, currency: c.currency ?? 'USD', email: user.email });
+}
+
+// ---------------------------------------------------------------------------
+// Guest checkout: the membership's Gumroad page, for someone without an account
+// ---------------------------------------------------------------------------
+/** The checked product link, kept for a few minutes so a busy paywall doesn't ask Gumroad on every press. */
+let guestLink: { url: string; cents: number; at: number; product: string } | null = null;
+const GUEST_LINK_MS = 5 * 60_000;
+const EMAIL = /^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,24}$/;
+
+/**
+ * Anyone may open the membership's checkout. Nothing is recorded here: the
+ * payment itself (Gumroad's notification, re-read from Gumroad's API) decides
+ * whose membership it is — an existing account with that email, or a new one
+ * made for it (syncSubscription).
+ */
+async function guestCheckout(deps: Deps, cfg: Config, body: Json): Promise<Response> {
+  const plan = MEMBERSHIP_PLAN;
+  const pp = planProduct(cfg, plan);
+  if (!cfg.enabled || !pp?.product_id || !pp.connected_at) return json({ error: 'off' });
+  const source = typeof body?.source === 'string' && /^[a-z0-9_]{1,40}$/.test(body.source) ? body.source : null;
+
+  if (!guestLink || guestLink.product !== pp.product_id || Date.now() - guestLink.at > GUEST_LINK_MS) {
+    const live = await gumroad(deps, 'GET', `/products/${encodeURIComponent(pp.product_id)}`);
+    if (!live.ok) return json({ error: 'The payment page could not be prepared. Please try again in a minute.' });
+    const checked = checkProduct(live.body.product, plan);
+    if (!checked.ok) {
+      await deps.rpc('gumroad_save', { p: { last_error: `${new Date().toISOString().slice(0, 16)} ${PLANS[plan].name} guest checkout refused: ${checked.reason}` } });
+      return json({ error: `${PLANS[plan].name} can’t be bought right now. Please try again later, or write to hello@madevisa.com.` });
+    }
+    guestLink = { url: checked.url, cents: checked.monthlyCents, at: Date.now(), product: pp.product_id };
+  }
+
+  const url = new URL(guestLink.url);
+  url.searchParams.set('wanted', 'true');
+  url.searchParams.set('recurrence', 'monthly');
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+  if (EMAIL.test(email)) url.searchParams.set('email', email);
+  if (source) url.searchParams.set('mvs', source);
+  url.searchParams.set('referrer', `${SITE}/checkout`);
+  return json({ url: url.toString(), plan, billing: 'monthly', price_cents: guestLink.cents, currency: 'USD', guest: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -499,6 +565,13 @@ export function makeHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     const body = await req.json().catch(() => null);
     const action = String(body?.action ?? '');
+    // The paywall's "Subscribe" for someone without an account: no sign-in needed.
+    if (action === 'guest_checkout') {
+      const cfgRes = await deps.rpc('gumroad_config');
+      const cfg = cfgRes.data as Config | null;
+      if (cfgRes.error || !cfg) return json({ error: 'off' });
+      return guestCheckout(deps, cfg, body);
+    }
     const user = await deps.getUser(req.headers.get('Authorization') ?? '');
     if (!user) return json({ error: 'Sign in first.' }, 401);
     const cfgRes = await deps.rpc('gumroad_config');

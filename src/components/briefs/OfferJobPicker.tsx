@@ -108,7 +108,7 @@ export function OfferJobPicker({ limit = PAGE, onAuth, title = 'Your last visite
                   <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
                     {r.offer ? (
                       <>
-                        <span className="text-[12px] font-semibold text-emerald-700">{r.offer.paid === 'pro' ? 'Included in Pro' : 'Prepared'}</span>
+                        <span className="text-[12px] font-semibold text-emerald-700">{r.offer.paid === 'pro' ? 'Included in your membership' : 'Prepared'}</span>
                         <a href={briefPath(r.offer.share)} onClick={go(briefPath(r.offer.share))} className="inline-flex items-center gap-1.5 rounded-lg border border-[#1D4ED8]/30 px-3 py-2 text-[13px] font-bold text-[#1D4ED8] hover:bg-[#1D4ED8]/5">
                           <FileDown className="h-4 w-4" /> See PDF
                         </a>
@@ -125,10 +125,10 @@ export function OfferJobPicker({ limit = PAGE, onAuth, title = 'Your last visite
                       </a>
                     ) : (
                       <>
-                        <span className="text-[12px] font-semibold text-ink-500">{credits?.pro ? `All ${credits.quota} used this month` : 'Part of Starter and Pro'}</span>
+                        <span className="text-[12px] font-semibold text-ink-500">{credits?.pro ? `All ${credits.quota} used this month` : 'Part of the membership'}</span>
                         {!credits?.pro && (
                           <a href="#buy" onClick={toBuy} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-2 text-[13px] font-bold text-ink-950 hover:bg-amber-300">
-                            <Lock className="h-4 w-4" /> Get Starter
+                            <Lock className="h-4 w-4" /> Get started
                           </a>
                         )}
                       </>

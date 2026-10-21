@@ -12,8 +12,8 @@ import { checkoutHref, dismissPrompt, promptDismissed, trackBilling } from '@/li
 // have the plan (or a higher one).
 
 export const UPGRADE_COPY: Record<PaidPlanId, string> = {
-  starter: 'Want a stronger application for this job? Starter includes the full CV match report — what to change in your CV for each job — and sponsorship documents.',
-  pro: 'Want applications prepared for you? Pro includes Auto Apply: a CV tailored to each job and a cover letter when one helps, sent or ready to send.',
+  starter: 'Want a stronger application for this job? The MadeVisa Membership includes CV match on every job — what to change in your CV for each one — and sponsorship documents.',
+  pro: 'Want to apply to every job? The MadeVisa Membership unlocks Apply on every job, CV match and sponsorship documents.',
 };
 
 export function UpgradePrompt({
@@ -40,7 +40,7 @@ export function UpgradePrompt({
   if (!show) return null;
   const href = checkoutHref(plan, source);
   return (
-    <aside className={`relative rounded-xl border border-brand-200 bg-brand-50/70 p-4 pr-10 ${className}`} aria-label={`About MadeVisa ${PLANS[plan].name}`}>
+    <aside className={`relative rounded-xl border border-brand-200 bg-brand-50/70 p-4 pr-10 ${className}`} aria-label={`About ${PLANS[plan].name}`}>
       <p className="text-sm leading-6 text-ink-800">{text ?? UPGRADE_COPY[plan]}</p>
       <a
         href={href}
@@ -51,7 +51,7 @@ export function UpgradePrompt({
         }}
         className="mt-2 inline-flex items-center gap-1.5 rounded-md text-sm font-semibold text-brand-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
       >
-        See {PLANS[plan].name} · {priceLabel(plan)} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+        Get started · {priceLabel(plan)} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
       </a>
       <button
         type="button"

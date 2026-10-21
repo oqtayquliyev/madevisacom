@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, CreditCard, ExternalLink, Loader2, RefreshCw } from 'lucide-react';
 import { PLANS, useMyPlan, type FeatureId } from '@/lib/plans';
 import { checkPayment, manageUrl, useCardPayments } from '@/lib/gumroad';
-import { checkoutHref, formatMoney, longDate, trackBilling } from '@/lib/billing';
+import { formatMoney, longDate, trackBilling } from '@/lib/billing';
 import { handleNavClick } from '@/lib/navLink';
 import { nav } from '@/lib/pageLayout';
 
@@ -28,7 +28,7 @@ export function BillingCard() {
 
   const sub = my.sub;
   const gumroad = sub?.provider === 'gumroad' && sub.provider_ref ? sub.provider_ref : null;
-  const name = my.plan === 'free' ? 'Free' : `MadeVisa ${PLANS[my.plan].name}`;
+  const name = my.plan === 'free' ? 'Free' : PLANS[my.plan].name;
 
   const check = async () => {
     setChecking(true);
@@ -104,7 +104,7 @@ export function BillingCard() {
 
           {my.others.map((o) => (
             <p key={o.provider_ref ?? o.plan} className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[13px] leading-5 text-amber-900">
-              Your {PLANS[o.plan].name} membership is also running{o.until ? ` until ${longDate(o.until)}` : ''}.{' '}
+              Your {PLANS[o.plan].name} is also running{o.until ? ` until ${longDate(o.until)}` : ''}.{' '}
               {o.status === 'pending_cancellation' ? (
                 'It is cancelled and won’t renew.'
               ) : o.provider_ref ? (
@@ -147,17 +147,9 @@ export function BillingCard() {
                 {sub?.cancel_at_period_end ? 'Restart on Gumroad' : 'Manage or cancel on Gumroad'} <ExternalLink className="h-3.5 w-3.5" aria-hidden />
               </a>
             )}
-            {my.plan === 'free' ? (
+            {my.plan === 'free' && (
               <a href="/pricing" onClick={(e) => handleNavClick(e, () => nav('/pricing'))} className="inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
-                See plans
-              </a>
-            ) : (
-              <a
-                href={checkoutHref(my.plan === 'pro' ? 'starter' : 'pro', 'billing_settings')}
-                onClick={(e) => handleNavClick(e, () => nav(checkoutHref(my.plan === 'pro' ? 'starter' : 'pro', 'billing_settings')))}
-                className="inline-flex items-center rounded-lg border border-ink-200 px-4 py-2 text-sm font-semibold text-ink-800 hover:bg-ink-50"
-              >
-                Switch to {my.plan === 'pro' ? 'Starter' : 'Pro'}
+                See the membership
               </a>
             )}
             {card.on && (

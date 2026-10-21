@@ -1,4 +1,3 @@
-import { ApplyChannelControl } from '@/components/apply/ApplyChannelControl';
 import { useEffect, useState } from 'react';
 import { jobPath } from '@/lib/jobUrl';
 import { ArrowLeft, ExternalLink, Loader2, ShieldAlert, Trash2 } from 'lucide-react';
@@ -316,7 +315,6 @@ export function AdminJobEditorPage({ id, go, onAuth }: AdminJobEditorPageProps) 
             </Section>
 
             <Section title="Admin only">
-              <ApplyChannelControl jobId={job.id} />
               <label className="flex items-center gap-2 text-sm text-ink-700">
                 <input type="checkbox" checked={job.source_verified} onChange={(e) => set('source_verified', e.target.checked)} />
                 Source verified

@@ -49,6 +49,13 @@ GRANT SELECT ON t.jobs TO authenticated;
 CREATE FUNCTION t.job(n integer) RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT id FROM t.jobs WHERE jobs.n = $1 $$;
 GRANT EXECUTE ON FUNCTION t.job(integer) TO authenticated;
 
+-- This suite checks the two-plan mechanics of 20261219090000 (Starter $2.99 + Pro $8.99).
+-- 20261231090000 later sells one plan ($2.29, Pro inactive) and renames plan notices; that state
+-- is checked in single_membership.test.sql. Put the two-plan state back for this run (rolled back).
+UPDATE public.billing_plans SET price_amount = 299, name = 'Starter' WHERE id = 'starter';
+UPDATE public.billing_plans SET is_active = true WHERE id = 'pro';
+ALTER TABLE public.notifications DISABLE TRIGGER mv_membership_wording;
+
 \echo '1. catalogue'
 SELECT t.ok((SELECT price_amount FROM public.billing_plans WHERE id = 'starter') = 299, 'Starter is 299 cents');
 SELECT t.ok((SELECT price_amount FROM public.billing_plans WHERE id = 'pro') = 899, 'Pro is 899 cents');

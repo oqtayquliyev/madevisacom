@@ -17,7 +17,7 @@ export function InviteCard() {
       <p className="flex min-w-0 items-start gap-2 text-[13.5px] leading-5 text-ink-700">
         <Gift className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
         <span>
-          <strong className="text-ink-950">Invite a friend who’s moving abroad.</strong> You get <strong>2 extra sponsorship documents</strong> when they start Pro.
+          <strong className="text-ink-950">Invite a friend who’s moving abroad.</strong> You get <strong>2 extra sponsorship documents</strong> when they become a member.
           {r.joined > 0 && (
             <span className="text-ink-500">
               {' '}

@@ -2,7 +2,7 @@ import { ArrowRight, ScanSearch } from 'lucide-react';
 import { nav } from '@/lib/pageLayout';
 import { useCv } from '@/lib/cv/store';
 import { CvUpload } from '@/components/cv/CvUpload';
-import { MatchExample, MatchLevels } from '@/components/cv/MatchShowcase';
+import { CvMatchDemo } from '@/components/cv/CvMatchDemo';
 
 /** Landing: what "Check your match" gives you, shown rather than told. */
 export function MatchSection() {
@@ -29,9 +29,8 @@ export function MatchSection() {
             )}
           </div>
         </div>
-        <MatchExample />
+        <CvMatchDemo />
       </div>
-      <MatchLevels className="mt-8" />
     </section>
   );
 }

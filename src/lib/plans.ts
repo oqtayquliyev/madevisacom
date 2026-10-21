@@ -191,3 +191,14 @@ export function missingProfileFields(p: { occupation?: string | null; specializa
 }
 
 export const EXPERIENCE_OPTIONS = ['Student / no experience', 'Less than 2 years', '2–5 years', '5–10 years', '10+ years'];
+
+/**
+ * Is this visitor a member — may they apply to jobs? Admins always may.
+ * `ready` is false while the sign-in or the plan is still loading (show nothing locked yet).
+ */
+export function useMembership(): { member: boolean; ready: boolean } {
+  const { user, profile, loading } = useAuth();
+  const my = useMyPlan();
+  const admin = profile?.role === 'admin';
+  return { member: admin || my.isPaid, ready: !loading && (!user || (!my.loading && Boolean(profile))) };
+}

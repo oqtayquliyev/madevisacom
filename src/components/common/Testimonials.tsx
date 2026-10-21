@@ -4,7 +4,7 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { TESTIMONIALS, type Testimonial } from '@/data/testimonials';
 
 /** Shown under every set of member feedback. */
-export const TESTIMONIAL_NOTE = 'Shared by MadeVisa Pro members with their permission. Names shortened; results vary.';
+export const TESTIMONIAL_NOTE = 'Shared by MadeVisa members with their permission. Names shortened; results vary.';
 
 /** Five filled stars. */
 export function FiveStars({ size = 16, className = '' }: { size?: number; className?: string }) {

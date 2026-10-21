@@ -57,7 +57,7 @@ SELECT t.as('admin');
 SELECT t.ok((public.admin_audience_count('{"source":"both"}')->>'total')::int = 4, 'news off → left out');
 
 \echo '3. templates'
-SELECT t.ok(jsonb_array_length(public.admin_templates()) = 17, '17 templates (12 rewritten + 5 lifecycle)');
+SELECT t.ok(jsonb_array_length(public.admin_templates()) = 19, '19 templates (12 rewritten + 5 lifecycle + 2 membership)');
 SELECT t.ok(public.admin_template_preview('promo_cv')->>'html' LIKE '%Live jobs%', 'preview with stats');
 SELECT t.ok(public.admin_template_preview('promo_cv')->>'html' NOT LIKE '%{{%', 'no placeholder left');
 SELECT t.ok(public.admin_template_test('promo_auto_apply', 'me@test.com'), 'test send');

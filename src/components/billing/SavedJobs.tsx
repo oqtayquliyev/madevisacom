@@ -47,7 +47,7 @@ export function SaveJobButton({ jobId, onAuth, className = '' }: { jobId: string
       {msg && (
         <div className="mt-2 max-w-md">
           {msg.limit ? (
-            <UpgradePrompt id="saved_jobs_limit" plan="starter" source="saved_jobs_limit" text={`${msg.text} Starter saves as many jobs as you like, and adds the full CV match report on every job.`} />
+            <UpgradePrompt id="saved_jobs_limit" plan="starter" source="saved_jobs_limit" text={`${msg.text} Members save as many jobs as they like, and get CV match on every job.`} />
           ) : (
             <p className="text-[13px] text-rose-700">{msg.text}</p>
           )}

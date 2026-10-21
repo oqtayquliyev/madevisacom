@@ -187,9 +187,8 @@ export function orderSummary(plan: CatalogPlan, now: Date, confirmedCents?: numb
 /** Which button led to the checkout: lower-case letters, digits and _ only (the server checks the same). */
 export const cleanSource = (v: string | null | undefined): string | null => (v && /^[a-z0-9_]{1,40}$/.test(v) ? v : null);
 
-/** /checkout?plan=…&source=… */
-/** Every "Get Starter / Get Pro" button: the checkout page, which goes straight on to Gumroad (go=1) for a signed-in person. */
-export const checkoutHref = (plan: PaidPlanId, source?: string) => `/checkout?plan=${plan}${source ? `&source=${encodeURIComponent(source)}` : ''}&go=1`;
+/** Every "Subscribe" link: /checkout, which goes straight on to Gumroad's payment page (one plan, so the plan argument is ignored). */
+export const checkoutHref = (_plan?: PaidPlanId, source?: string) => `/checkout${source ? `?source=${encodeURIComponent(source)}` : ''}`;
 
 
 // ---------------------------------------------------------------------------
@@ -236,7 +235,9 @@ export function readCheckout(plan: PaidPlanId, data: Record<string, unknown> | n
 // ---------------------------------------------------------------------------
 // Checkout pages
 // ---------------------------------------------------------------------------
-export const readPlanParam = (search: string): PaidPlanId => (new URLSearchParams(search).get('plan') === 'pro' ? 'pro' : 'starter');
+/** One plan is sold: every checkout is for the membership ('starter'), whatever an old link says. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const readPlanParam = (_search: string): PaidPlanId => 'starter';
 
 /** What the plan allows, from the server's catalogue — the limits a buyer sees before paying. */
 export function limitRows(c: Catalog, plan: CatalogPlan): { label: string; value: string }[] {
@@ -251,12 +252,6 @@ export function limitRows(c: Catalog, plan: CatalogPlan): { label: string; value
     { label: 'Job alerts', value: lim(f.job_alerts?.limit, f.job_alerts?.limit === 1 ? 'alert' : 'alerts at a time') },
     { label: 'Saved jobs', value: f.saved_jobs?.limit == null ? 'No limit' : `${f.saved_jobs.limit} jobs` },
   ];
-  if (c.auto_apply?.enabled) {
-    rows.push({
-      label: 'Auto Apply',
-      value: f.auto_apply?.allowed ? `Up to ${c.auto_apply.pro_monthly} applications a month` : `${c.auto_apply.free_monthly} applications a month to try it`,
-    });
-  }
   return rows;
 }
 

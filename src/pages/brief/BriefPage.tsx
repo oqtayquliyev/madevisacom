@@ -784,7 +784,7 @@ function NewOffer({ go, onAuth }: Props) {
           headline={headline.trim()}
           company={ed.employer.name}
           role={job.title}
-          price={usesPro ? 'Included in Pro' : '1 document from your balance'}
+          price={usesPro ? 'Included in your membership' : '1 document from your balance'}
           onBack={() => setConfirming(false)}
           onConfirm={() => void generate()}
         />
@@ -1006,7 +1006,7 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
         <dl className="space-y-1.5 text-[14px]">
           <div className="flex justify-between">
             <dt className="text-ink-600">This document</dt>
-            <dd className="font-semibold tabular-nums text-ink-950">{usesPro ? (credits?.pro ? 'Included in your plan' : 'Your free document this month') : canPay ? '1 kept document' : 'Starter or Pro'}</dd>
+            <dd className="font-semibold tabular-nums text-ink-950">{usesPro ? (credits?.pro ? 'Included in your plan' : 'Your free document this month') : canPay ? '1 kept document' : 'Membership'}</dd>
           </div>
           {credits && credits.quota > 0 && (
             <div className="flex justify-between">
@@ -1026,7 +1026,7 @@ function PayBox({ credits, signedIn, usesPro, canPay, busy, error, onGo }: { cre
           {signedIn && credits && !canPay && (
             <div className="flex justify-between border-t border-ink-100 pt-1.5">
               <dt className="font-semibold text-rose-700">Used up this month</dt>
-              <dd className="font-bold tabular-nums text-rose-700">{credits.pro ? 'Renews on the 1st' : 'Starter: 20 a month'}</dd>
+              <dd className="font-bold tabular-nums text-rose-700">{credits.pro ? 'Renews on the 1st' : 'Members: 20 a month'}</dd>
             </div>
           )}
         </dl>
@@ -1063,7 +1063,7 @@ function PlanSheet({ company, signedIn, onClose, onAuth }: { company: string; si
             <h2 id="plan-sheet-title" className="text-[20px] font-bold leading-snug tracking-tight text-ink-950">
               Download your document{company ? ` for ${company}` : ''}
             </h2>
-            <p className="mt-1 text-[13.5px] leading-5 text-ink-600">{signedIn ? 'This month’s free document is used. Starter includes 20 a month and Pro 50.' : 'Sign up free to download: every account gets 1 free document a month.'} Your document stays as you set it.</p>
+            <p className="mt-1 text-[13.5px] leading-5 text-ink-600">{signedIn ? 'This month’s free document is used. The membership includes 20 a month.' : 'Sign up free to download: every account gets 1 free document a month.'} Your document stays as you set it.</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="-mr-1 -mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-ink-100">
             <X className="h-5 w-5" />

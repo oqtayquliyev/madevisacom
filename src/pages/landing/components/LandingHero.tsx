@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { nav } from '@/lib/pageLayout';
 import { SOON_VIEWS } from '@/components/common/SoonChip';
-import { SponsoredAdsSection } from './SponsoredAdsSection';
 import { createPortal } from 'react-dom';
 import {
   Briefcase,
@@ -13,7 +12,6 @@ import {
   GraduationCap,
   Plane,
   Search,
-  Sparkles,
 } from 'lucide-react';
 import type { View } from '@/types';
 import { useOriginCountry } from '@/lib/originCountry';
@@ -465,12 +463,7 @@ export function LandingHero(_props: LandingHeroProps) {
 
         <div className="mx-auto max-w-7xl px-5 pb-16 pt-6 sm:px-8 sm:pb-24 sm:pt-10">
 
-          <div className="hidden items-center gap-2 text-sm font-medium text-white/70 sm:flex">
-            <Sparkles className="h-4 w-4" />
-            Jobs abroad · CV match · Hiring insights
-          </div>
-
-          <div className="max-w-4xl sm:mt-5">
+          <div className="max-w-4xl">
 
             <h1 className="text-3xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
               Find a job abroad. See how well you match it.
@@ -667,10 +660,6 @@ export function LandingHero(_props: LandingHeroProps) {
         </div>
 
       </section>
-
-      {/* FOR ORGANIZATIONS — free posting + sponsored ads, one section */}
-      <SponsoredAdsSection />
-
 
     </main>
   );

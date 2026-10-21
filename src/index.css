@@ -149,3 +149,9 @@
   .offer-paper [data-row] { break-inside: avoid; }
   .offer-flash { animation: none; }
 }
+
+/* Jobs page: the "loading the latest jobs" bar. */
+@keyframes mvslide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(320%); }
+}

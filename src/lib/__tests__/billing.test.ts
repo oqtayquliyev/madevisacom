@@ -1,21 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ENTITLEMENTS, PLANS, PLAN_ORDER, lowestPlanWith, priceLabel, usd, type FeatureId, type PlanId } from '../../../supabase/functions/_shared/plans';
+import { ENTITLEMENTS, MEMBERSHIP_PLAN, MEMBERSHIP_PRICE, PLANS, PLAN_ORDER, lowestPlanWith, priceLabel, usd, type FeatureId, type PlanId } from '../../../supabase/functions/_shared/plans';
 import { checkoutHref, cleanSource, confirmedFor, fallbackCatalog, formatMoney, limitRows, nextMonth, orderSummary, planView, readCheckout, readPlanParam, type Catalog } from '@/lib/billingCore';
 
 const MIGRATION = readFileSync(new URL('../../../supabase/migrations/20261219090000_starter_pro_plans.sql', import.meta.url), 'utf8');
 /** Later changes to the seed: "UPDATE public.plan_entitlements SET allowed = false, usage_limit = 0 WHERE plan_id = 'free' AND feature IN (…)". */
 const LATER = readFileSync(new URL('../../../supabase/migrations/20261220090000_emails_docs_cvmatch_social.sql', import.meta.url), 'utf8');
+/** One plan: the membership ('starter') at $2.29; Pro no longer sold. */
+const MEMBERSHIP = readFileSync(new URL('../../../supabase/migrations/20261231090000_single_membership_guest_checkout.sql', import.meta.url), 'utf8');
 
 describe('the plans', () => {
-  it('cost $0, $2.99 and $8.99 a month, in USD', () => {
+  it('one membership at $2.29 a month, in USD', () => {
+    expect(MEMBERSHIP_PLAN).toBe('starter');
     expect(PLANS.free.priceCents).toBe(0);
-    expect(PLANS.starter.priceCents).toBe(299);
-    expect(PLANS.pro.priceCents).toBe(899);
+    expect(PLANS.starter.priceCents).toBe(229);
+    expect(PLANS.starter.name).toBe('MadeVisa Membership');
     expect(PLANS.starter.currency).toBe('USD');
-    expect(PLANS.pro.interval).toBe('month');
-    expect(priceLabel('starter')).toBe('$2.99 / month');
-    expect(priceLabel('pro')).toBe('$8.99 / month');
+    expect(PLANS.starter.interval).toBe('month');
+    expect(priceLabel('starter')).toBe('$2.29 / month');
+    expect(MEMBERSHIP_PRICE).toBe('$2.29');
     expect(usd(1900)).toBe('$19');
   });
 
@@ -33,35 +36,38 @@ describe('the plans', () => {
 
   it('never promises what it should not', () => {
     const text = JSON.stringify(PLANS).toLowerCase();
-    expect(text).not.toMatch(/unlimited ai|guarantee|credits?\b/);
-    // Features still being built are listed as "coming", never as included.
-    for (const c of PLANS.pro.coming) expect(PLANS.pro.benefits.some((b) => b.title === c)).toBe(false);
-    expect(PLANS.pro.coming.join(' ')).toMatch(/Proof of Fit/);
+    expect(text).not.toMatch(/unlimited ai|guarantee|credits?\b|auto apply/);
   });
 
-  it('knows which plan unlocks a feature', () => {
+  it('lists remote and online jobs among the first three benefits', () => {
+    expect(PLANS.starter.benefits.slice(0, 3).some((b) => /remote/i.test(b.title))).toBe(true);
+  });
+
+  it('the membership unlocks every feature', () => {
     expect(lowestPlanWith('cv_full_report')).toBe('starter');
     expect(lowestPlanWith('sponsorship_documents')).toBe('starter');
-    expect(lowestPlanWith('auto_apply')).toBe('pro');
   });
 });
 
 describe('the database has the same numbers as the code', () => {
   it('prices', () => {
-    for (const id of PLAN_ORDER) {
-      const m = new RegExp(`\\('${id}', '\\w+', \\d, (?:NULL|'monthly'), (\\d+), 'USD'`).exec(MIGRATION);
-      expect(m, `billing_plans row for ${id}`).not.toBeNull();
-      expect(Number(m![1])).toBe(PLANS[id].priceCents);
-    }
+    const m = /UPDATE public\.billing_plans SET name = 'Membership', price_amount = (\d+)/.exec(MEMBERSHIP);
+    expect(m, 'membership price update').not.toBeNull();
+    expect(Number(m![1])).toBe(PLANS.starter.priceCents);
+    expect(MEMBERSHIP).toMatch(/UPDATE public\.billing_plans SET is_active = false[^;]*WHERE id = 'pro'/);
+    const free = /\('free', '\w+', \d, NULL, (\d+), 'USD'/.exec(MIGRATION);
+    expect(Number(free![1])).toBe(0);
   });
 
   it('entitlements and limits', () => {
-    const rows = [...MIGRATION.matchAll(/\('(free|starter|pro)',\s+'([a-z_]+)',\s+(true|false),\s+(NULL|\d+),\s+(NULL|'day'|'month')\)/g)];
+    const rows = [...MIGRATION.matchAll(/\('(free|starter|pro)',\s+'([a-z_]+)',\s+(true|false),\s+(NULL|\d+),\s+(NULL|'day'|'month')\)/g)].filter((r) => r[2] !== 'auto_apply');
     const seeded = new Map(rows.map((r) => [`${r[1]}:${r[2]}`, { allowed: r[3] === 'true', limit: r[4] === 'NULL' ? null : Number(r[4]), period: r[5] === 'NULL' ? null : r[5].replace(/'/g, '') }]));
-    for (const m of LATER.matchAll(/UPDATE public\.plan_entitlements SET allowed = (true|false), usage_limit = (NULL|\d+)\s+WHERE plan_id = '(free|starter|pro)' AND feature IN \(([^)]*)\)/g)) {
-      for (const f of m[4].split(',').map((x) => x.trim().replace(/'/g, ''))) {
-        const row = seeded.get(`${m[3]}:${f}`);
-        if (row) seeded.set(`${m[3]}:${f}`, { ...row, allowed: m[1] === 'true', limit: m[2] === 'NULL' ? null : Number(m[2]) });
+    for (const later of [LATER, MEMBERSHIP]) {
+      for (const m of later.matchAll(/UPDATE public\.plan_entitlements SET allowed = (true|false), usage_limit = (NULL|\d+)\s+WHERE plan_id = '(free|starter|pro)' AND feature IN \(([^)]*)\)/g)) {
+        for (const f of m[4].split(',').map((x) => x.trim().replace(/'/g, ''))) {
+          const row = seeded.get(`${m[3]}:${f}`);
+          if (row) seeded.set(`${m[3]}:${f}`, { ...row, allowed: m[1] === 'true', limit: m[2] === 'NULL' ? null : Number(m[2]) });
+        }
       }
     }
     let n = 0;
@@ -86,15 +92,14 @@ describe('what a person has', () => {
     expect(v.isPaid).toBe(false);
     expect(v.has('cv_full_report')).toBe(false);
     expect(v.limit('saved_jobs')).toBe(5);
-    expect(v.limit('sponsorship_documents')).toBe(0);
+    expect(v.limit('sponsorship_documents')).toBe(1);
   });
-  it('starter is paid but not Pro', () => {
+  it('the membership is paid', () => {
     const v = view('starter');
     expect(v.isPaid).toBe(true);
     expect(v.isPro).toBe(false);
     expect(v.has('cv_full_report')).toBe(true);
-    expect(v.has('auto_apply')).toBe(false);
-    expect(v.limit('sponsorship_documents')).toBe(10);
+    expect(v.limit('sponsorship_documents')).toBe(20);
     expect(v.limit('saved_jobs')).toBeNull();
   });
   it('pro', () => {
@@ -114,15 +119,15 @@ describe('order summary', () => {
   const starter = cat.plans.find((p) => p.id === 'starter')!;
   it('due today and the renewal are the plan price, monthly', () => {
     const s = orderSummary(starter, new Date(2026, 9, 12));
-    expect(s.dueToday).toBe(299);
-    expect(s.renewalAmount).toBe(299);
+    expect(s.dueToday).toBe(229);
+    expect(s.renewalAmount).toBe(229);
     expect(s.billing).toBe('Monthly');
     expect(s.renewsOn.getMonth()).toBe(10);
     expect(s.renewsOn.getDate()).toBe(12);
     expect(s.confirmed).toBe(false);
   });
   it('uses the amount the server priced the checkout at once it exists', () => {
-    const s = orderSummary(starter, new Date(2026, 9, 12), 299);
+    const s = orderSummary(starter, new Date(2026, 9, 12), 229);
     expect(s.confirmed).toBe(true);
   });
   it('renews on the last day of a shorter month', () => {
@@ -139,15 +144,12 @@ describe('order summary', () => {
     expect(cat.plans.every((p) => !p.available)).toBe(true);
   });
   it('lists the limits before purchase', () => {
-    const server: Catalog = { ...cat, source: 'server', auto_apply: { enabled: true, free_monthly: 3, pro_monthly: 150 } };
-    const pro = server.plans.find((p) => p.id === 'pro')!;
-    const rows = Object.fromEntries(limitRows(server, pro).map((r) => [r.label, r.value]));
-    expect(rows['Sponsorship documents']).toBe('50 a month, at most 30 in any 7 days');
-    expect(rows['Auto Apply']).toBe('Up to 150 applications a month');
+    const server: Catalog = { ...cat, source: 'server' };
+    const rows = Object.fromEntries(limitRows(server, starter).map((r) => [r.label, r.value]));
+    expect(rows['Sponsorship documents']).toBe('20 a month, at most 30 in any 7 days');
     expect(rows['Saved jobs']).toBe('No limit');
-    const rowsStarter = Object.fromEntries(limitRows(server, starter).map((r) => [r.label, r.value]));
-    expect(rowsStarter['Job alerts']).toBe('5 alerts at a time');
-    expect(rowsStarter['Auto Apply']).toBe('3 applications a month to try it');
+    expect(rows['Job alerts']).toBe('5 alerts at a time');
+    expect(rows['Auto Apply']).toBeUndefined();
   });
 });
 
@@ -167,13 +169,14 @@ describe('checkout answers', () => {
     expect(readCheckout('pro', { already: true, manage_url: 'https://gumroad.com/subscriptions/x/manage' })).toEqual({ kind: 'already', manageUrl: 'https://gumroad.com/subscriptions/x/manage' });
     expect(readCheckout('pro', { switch: true, current_plan: 'starter', manage_url: 'https://gumroad.com/subscriptions/x/manage' })).toMatchObject({ kind: 'switch', currentPlan: 'starter' });
   });
-  it('reads the plan and source from the address safely', () => {
-    expect(readPlanParam('?plan=pro')).toBe('pro');
+  it('reads the plan and source from the address safely (one plan: always the membership)', () => {
+    expect(readPlanParam('?plan=pro')).toBe('starter');
     expect(readPlanParam('?plan=enterprise')).toBe('starter');
     expect(readPlanParam('')).toBe('starter');
     expect(cleanSource('job_page')).toBe('job_page');
     expect(cleanSource('<script>')).toBeNull();
-    expect(checkoutHref('pro', 'auto_apply')).toBe('/checkout?plan=pro&source=auto_apply&go=1');
+    expect(checkoutHref('pro', 'paywall')).toBe('/checkout?source=paywall');
+    expect(checkoutHref('starter')).toBe('/checkout');
   });
   it('confirms only when the server says the plan (or a higher one) is on', () => {
     expect(confirmedFor('starter', 'free')).toBe(false);

@@ -20,6 +20,8 @@ type Stats = {
 };
 
 const KIND: Record<string, string> = {
+  membership: 'Membership: account ready, welcome',
+  starter_reminder: 'Membership reminder after sign-up',
   for_you: 'Jobs that match your skills',
   job_alert: 'Job alerts',
   application: 'Applications sent',

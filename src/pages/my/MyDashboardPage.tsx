@@ -9,7 +9,7 @@ import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 
 // /my?t=<token> — the dashboard linked from every campaign and series email.
 // Works without signing in (the token in the link is the key). Shows counts only:
-// live jobs, and for an account its CV, matches, applications, Auto Apply and plan.
+// live jobs, and for an account its CV, matches, applications and membership.
 // Server side: email_dashboard(token), migration 20261216090000.
 
 type Dash = {
@@ -90,7 +90,7 @@ export function MyDashboardPage({ go, onAuth }: Props) {
                   {[
                     { icon: FileText, t: 'Upload your CV', s: 'PDF or Word — about 10 seconds.' },
                     { icon: Target, t: 'Get your matches', s: 'Your best jobs first, with your score on each.' },
-                    { icon: Zap, t: 'Let us apply', s: 'With Pro, Auto Apply sends applications for you.' },
+                    { icon: Zap, t: 'Apply', s: 'Members apply to any job, straight on the employer’s page.' },
                   ].map((x, i) => (
                     <li key={x.t} className="rounded-xl bg-ink-50 p-4">
                       <span className="flex items-center gap-2 text-[12px] font-bold text-brand-700">
@@ -135,27 +135,15 @@ export function MyDashboardPage({ go, onAuth }: Props) {
                 </Card>
 
                 <Card title="Applications" icon={Send}>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Mini label="By Auto Apply" value={nf(d.applications?.by_madevisa)} />
-                    <Mini label="By you" value={nf(d.applications?.by_you)} />
-                    <Mini label="In queue" value={nf(d.applications?.in_queue)} />
-                  </div>
-                  <p className="mt-3 text-[13px] text-ink-600">
-                    {d.auto_apply?.status === 'active'
-                      ? `⚡ Auto Apply is on until ${date(d.auto_apply.ends_at)}.`
-                      : d.auto_apply?.status === 'paused'
-                        ? '⏸️ Auto Apply is paused.'
-                        : '⚡ Auto Apply is off.'}
-                  </p>
-                  <CardLink href="/cv-match?s=my#auto-apply" onClick={link('/cv-match?s=my#auto-apply')}>
-                    {d.auto_apply?.status === 'active' || d.auto_apply?.status === 'paused' ? 'See Auto Apply' : 'Turn on Auto Apply'}
-                  </CardLink>
+                  <p className="text-[22px] font-bold text-ink-950">{nf(d.applications?.by_you)}</p>
+                  <p className="mt-0.5 text-[13px] text-ink-600">Jobs you applied to from MadeVisa.</p>
+                  <CardLink href="/jobs?s=my" onClick={link('/jobs?s=my')}>Find more jobs</CardLink>
                 </Card>
 
                 <Card title="Membership" icon={Crown}>
                   <p className="text-[22px] font-bold text-ink-950">{d.plan?.name ?? 'Free'}</p>
-                  <p className="mt-0.5 text-[13px] text-ink-600">{d.plan?.pro ? (d.plan.until ? `Active until ${date(d.plan.until)}` : 'Active') : 'Pro adds Auto Apply, the full match report and sponsorship documents.'}</p>
-                  <CardLink href="/pricing?s=my#pro" onClick={link('/pricing?s=my#pro')}>{d.plan?.pro ? 'Manage plan' : 'See Pro'}</CardLink>
+                  <p className="mt-0.5 text-[13px] text-ink-600">{d.plan?.pro ? (d.plan.until ? `Active until ${date(d.plan.until)}` : 'Active') : 'Apply to every job, with CV match and sponsorship documents, for $2.29 a month.'}</p>
+                  <CardLink href={d.plan?.pro ? '/profile?tab=settings#billing' : '/pricing?s=my'} onClick={link(d.plan?.pro ? '/profile?tab=settings#billing' : '/pricing?s=my')}>{d.plan?.pro ? 'Manage membership' : 'Become a member'}</CardLink>
                 </Card>
               </section>
             )}
@@ -211,15 +199,6 @@ function Card({ title, icon: Icon, children }: { title: string; icon: typeof Glo
         <Icon className="h-4 w-4" /> {title}
       </p>
       {children}
-    </div>
-  );
-}
-
-function Mini({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-ink-50 px-2.5 py-2.5">
-      <p className="text-[20px] font-bold tabular-nums text-ink-950">{value}</p>
-      <p className="text-[11.5px] leading-4 text-ink-500">{label}</p>
     </div>
   );
 }

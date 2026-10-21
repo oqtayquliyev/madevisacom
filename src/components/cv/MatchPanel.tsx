@@ -67,7 +67,7 @@ export function MatchPanel({ match, jobId = null, jobTitle, company, doc, closed
             <p className="mt-1.5 text-[14px] leading-6 text-ink-600">
               Upload your CV once. On every job you get a match score, the skills the ad asks for that your CV doesn’t show, and what to change before you apply.
             </p>
-            <p className="mt-2 text-[12px] text-ink-500">Part of Starter and Pro. Your CV is read on your device, and goes to an employer only when you ask.</p>
+            <p className="mt-2 text-[12px] text-ink-500">Part of the MadeVisa Membership. Your CV is read on your device, and goes to an employer only when you ask.</p>
           </div>
           <CvUpload />
         </div>
@@ -99,7 +99,7 @@ export function MatchPanel({ match, jobId = null, jobTitle, company, doc, closed
               </div>
               <p className="mt-3 flex flex-wrap items-center gap-x-1.5 text-[13px] text-ink-700">
                 <Sparkles className="h-3.5 w-3.5 text-brand-600" aria-hidden />
-                Full CV match on every job — your score, missing skills and what to change: <b className="text-ink-950">{priceLabel('starter')}</b> with Starter.
+                Full CV match on every job — your score, missing skills and what to change: <b className="text-ink-950">{priceLabel('starter')}</b> with the membership.
               </p>
             </div>
           </div>
@@ -123,9 +123,9 @@ export function MatchPanel({ match, jobId = null, jobTitle, company, doc, closed
             </h2>
             <p className="mt-1 text-[13px] leading-5 text-ink-600">
               {shown != null ? (
-                <>The skills {company} asks for that {cv.name} doesn’t show, and what to change before you apply: <b className="text-ink-900">{priceLabel('starter')}</b> with Starter.</>
+                <>The skills {company} asks for that {cv.name} doesn’t show, and what to change before you apply: <b className="text-ink-900">{priceLabel('starter')}</b> with the membership.</>
               ) : (
-                <>Your score, the skills {company} asks for that {cv.name} doesn’t show, and what to change before you apply: <b className="text-ink-900">{priceLabel('starter')}</b> with Starter.</>
+                <>Your score, the skills {company} asks for that {cv.name} doesn’t show, and what to change before you apply: <b className="text-ink-900">{priceLabel('starter')}</b> with the membership.</>
               )}
             </p>
           </div>
@@ -136,7 +136,7 @@ export function MatchPanel({ match, jobId = null, jobTitle, company, doc, closed
             }}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-brand-600 px-6 py-3 text-[15px] font-bold text-white shadow-sm hover:bg-brand-700"
           >
-            <Sparkles className="h-4 w-4" /> {shown != null ? 'See what’s missing' : 'Unlock with Starter'}
+            <Sparkles className="h-4 w-4" /> {shown != null ? 'See what’s missing' : 'Unlock with the membership'}
           </button>
         </div>
         {doc && (
@@ -200,7 +200,7 @@ export function MatchPanel({ match, jobId = null, jobTitle, company, doc, closed
         <div className="min-w-0 space-y-5">
           {result.capReason && <p className={`rounded-lg px-3 py-2 text-[13px] font-medium leading-5 ${tone.bg} ${tone.text}`}>{result.capReason}</p>}
 
-          {/* Skills: Starter and Pro */}
+          {/* Skills: members */}
           <div>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-[15px] font-bold text-ink-950">Skills</h3>
@@ -266,7 +266,7 @@ export function MatchPanel({ match, jobId = null, jobTitle, company, doc, closed
                         ? `Create a free account to see which — free on ${FREE_DAILY_CHECKS} jobs every day.`
                         : canUnlock
                           ? `${quota ? quota.left : FREE_DAILY_CHECKS} of ${FREE_DAILY_CHECKS} free skill checks left today.`
-                          : `You’ve used today’s ${FREE_DAILY_CHECKS} free skill checks. See these tomorrow, or now with Starter.`}
+                          : `You’ve used today’s ${FREE_DAILY_CHECKS} free skill checks. See these tomorrow, or now with the membership.`}
                     </span>
                   </p>
                   {!session ? (
@@ -285,7 +285,7 @@ export function MatchPanel({ match, jobId = null, jobTitle, company, doc, closed
                       }}
                       className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-700"
                     >
-                      <Sparkles className="h-4 w-4" /> Every job with Starter
+                      <Sparkles className="h-4 w-4" /> Every job with the membership
                     </button>
                   )}
                 </div>
@@ -293,11 +293,11 @@ export function MatchPanel({ match, jobId = null, jobTitle, company, doc, closed
             )}
           </div>
 
-          {/* The full report — Starter and Pro */}
+          {/* The full report — members */}
           <div>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-[15px] font-bold text-ink-950">Where your {result.score}% comes from</h3>
-              {full && <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">{plan === 'pro' ? 'Pro' : 'Starter'}</span>}
+              {full && <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Member</span>}
             </div>
             {full ? (
               <>
@@ -420,7 +420,7 @@ function SponsorBonus({ company }: { company: string }) {
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-2 text-[15px] font-bold text-ink-950">
             Bonus: your sponsorship document
-            <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-white">Included with Starter</span>
+            <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-white">Included with membership</span>
           </p>
           <p className="mt-1 text-[13px] leading-5 text-ink-700">
             Send it along with your CV: a short proposal that shows {company} the visa route that may apply, what it asks of them and the costs you offer to share. <b className="text-ink-900">20 a month</b>, ready in seconds.
@@ -435,7 +435,7 @@ function SponsorBonus({ company }: { company: string }) {
           }}
           className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-emerald-600 px-5 py-2.5 text-[14px] font-bold text-white shadow-sm hover:bg-emerald-700"
         >
-          Get Starter · {priceLabel('starter')}
+          Get started · {priceLabel('starter')}
         </a>
       </div>
     </div>

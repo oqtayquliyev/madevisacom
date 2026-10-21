@@ -5,7 +5,7 @@ import { dollars, manageUrl, resetCardPayments } from '@/lib/gumroad';
 
 // Admin → Plans → Card payments.
 //
-// Connect one Gumroad membership product per plan (Starter, Pro); from then on
+// Connect the membership's Gumroad product (stored as plan 'starter', $2.29); from then on
 // the checkout page sends buyers to it and the plan switches on and off by
 // itself. Shown here: each plan's product and whether its price matches, the
 // switch for everyone, the checkout funnel, members who pay by card, and what
@@ -123,7 +123,7 @@ export function GumroadCard() {
     return true;
   };
   const disconnect = async (plan: 'starter' | 'pro') => {
-    if (!window.confirm(`Disconnect the ${plan === 'starter' ? 'Starter' : 'Pro'} product? Its checkout goes back to the request form. Members who already pay keep their plan; their renewals and cancellations keep reaching MadeVisa while any product is connected.`)) return;
+    if (!window.confirm(`Disconnect the ${plan === 'starter' ? 'membership' : 'Pro'} product? Its checkout goes back to the request form. Members who already pay keep their plan; their renewals and cancellations keep reaching MadeVisa while any product is connected.`)) return;
     setBusy(`disconnect:${plan}`);
     setErr(null);
     const res = await call({ action: 'disconnect', plan });
@@ -198,14 +198,15 @@ export function GumroadCard() {
         </p>
       )}
       <div className="mt-3 grid gap-3 md:grid-cols-2">
-        {(state.plans ?? []).map((p) => (
+        {/* One plan is sold: the membership ('starter'). The retired Pro product shows only while it is connected, for its members. */}
+        {(state.plans ?? []).filter((p) => p.plan === 'starter' || p.connected_at).map((p) => (
           <PlanProduct key={p.plan} p={p} busy={busy} onConnect={(url) => connect(p.plan, url)} onDisconnect={() => void disconnect(p.plan)} />
         ))}
       </div>
-      {!(state.plans ?? []).length && <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">Run the migration 20261219090000_starter_pro_plans.sql to sell Starter and Pro.</p>}
+      {!(state.plans ?? []).length && <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">Run the migrations 20261219090000_starter_pro_plans.sql and 20261231090000_single_membership_guest_checkout.sql to sell the membership.</p>}
       {state.connected && !state.enabled && (
         <p className="mt-3 rounded-md bg-ink-100 px-3 py-2 text-xs leading-5 text-ink-600">
-          Try it first: open /checkout while signed in as an admin; you get the card checkout, everyone else still gets the request form. Buying your own product while signed in to Gumroad as the seller is a free test purchase. Then tick the box above.
+          Try it first: open /checkout while signed in as an admin; you go straight to Gumroad. Guests (the paywall) can pay only once card payments are on for everyone. Buying your own product while signed in to Gumroad as the seller is a free test purchase. Then tick the box above.
         </p>
       )}
       <p className="mt-2 text-xs leading-5 text-ink-500">{state.last_ping_at ? `Last notification from Gumroad ${when(state.last_ping_at)}.` : 'No notification from Gumroad yet.'}</p>
@@ -323,7 +324,7 @@ function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: s
   const [editing, setEditing] = useState(false);
   const connected = Boolean(p.connected_at && p.product_url);
   const priceOk = p.provider_price_cents === p.price_cents;
-  const name = p.name || (p.plan === 'starter' ? 'Starter' : 'Pro');
+  const name = p.plan === 'starter' ? 'MadeVisa Membership' : 'Pro (retired — not sold, members keep it)';
   return (
     <div className="rounded-lg border border-ink-200 p-3">
       <div className="flex flex-wrap items-center gap-2">

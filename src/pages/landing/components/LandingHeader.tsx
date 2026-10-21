@@ -174,7 +174,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             >
               <ScanSearch className="h-4 w-4" />
               CV match
-              <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold text-white">{hasCv ? "On" : "Free"}</span>
+              <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold text-white">{hasCv ? "On" : "New"}</span>
             </a>
 
             {primaryLinks.slice(1).map((link) => {

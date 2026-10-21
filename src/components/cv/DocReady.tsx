@@ -98,7 +98,7 @@ export function VisaRouteLine({ dest, source, className = '' }: { dest: string |
         }}
         className="inline-flex items-center gap-1 font-bold text-brand-700 hover:underline"
       >
-        <Lock className="h-3 w-3" aria-hidden /> See it with Starter · {priceLabel('starter')}
+        <Lock className="h-3 w-3" aria-hidden /> See it with the membership · {priceLabel('starter')}
       </a>
     </span>
   );

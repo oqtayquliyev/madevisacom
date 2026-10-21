@@ -64,7 +64,7 @@ export function OfferInfo({ className = '', light = false }: { className?: strin
             <span className="flex gap-2"><Dot />One-click replies, and terms they can carry into the contract</span>
           </span>
           <span className="mt-3 block border-t border-ink-100 pt-2 text-[12px] leading-5 text-ink-500">
-            Part of Starter (10 documents a month) and Pro (50 a month). You review everything first, and can correct it until the company accepts.
+            Part of the MadeVisa Membership (20 documents a month). You review everything first, and can correct it until the company accepts.
           </span>
         </span>
       )}

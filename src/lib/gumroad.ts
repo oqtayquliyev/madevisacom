@@ -1,15 +1,17 @@
-// Card payments for Starter and Pro, through Gumroad.
+// Card payments for the MadeVisa Membership, through Gumroad.
 //
-// The browser only ever does three things here: ask whether card payment is
-// on, ask the `gumroad` function to prepare a checkout for a plan, and ask it
-// to look at the person's payment again. The price, the product and switching
+// The browser only ever does four things here: ask whether card payment is
+// on, ask the `gumroad` function to prepare a checkout (for an account, or —
+// without one — the membership's Gumroad page), go there, and ask it to look
+// at the person's payment again. The price, the product and switching
 // the plan on all happen on the server (supabase/functions/gumroad, migrations
 // 20261203090000 and 20261219090000). The page never sends an amount.
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
-import { refreshMyPlan, type PaidPlanId, type PlanId } from '@/lib/plans';
+import { MEMBERSHIP_PLAN, refreshMyPlan, type PaidPlanId, type PlanId } from '@/lib/plans';
+import { trackBilling } from '@/lib/billing';
 import { readCheckout, type CheckoutResult } from '@/lib/billingCore';
 
 export { readCheckout, type Checkout, type CheckoutResult } from '@/lib/billingCore';
@@ -65,9 +67,51 @@ async function invoke(body: Record<string, unknown>): Promise<Record<string, unk
   }
 }
 
-/** Prepare a checkout. `source` says which button led here (for the funnel in Admin → Plans). */
-export async function startCheckout(plan: PaidPlanId, source: string | null): Promise<CheckoutResult> {
-  return readCheckout(plan, await invoke({ action: 'checkout', plan, billing: 'monthly', source }));
+/** Prepare a checkout for the signed-in person. `source` says which button led here (for the funnel in Admin → Plans). */
+export async function startCheckout(_plan: PaidPlanId, source: string | null): Promise<CheckoutResult> {
+  return readCheckout(MEMBERSHIP_PLAN, await invoke({ action: 'checkout', plan: MEMBERSHIP_PLAN, billing: 'monthly', source }));
+}
+
+/** The membership's own Gumroad page: used when a prepared checkout isn't available, so a click always ends on Gumroad. */
+const MEMBERSHIP_PAGE = 'https://madevisa.gumroad.com/l/starter';
+const GUMROAD = /^https:\/\/([a-z0-9-]+\.)*gumroad\.com\//i;
+function membershipPage(email: string | null | undefined): string {
+  const u = new URL(MEMBERSHIP_PAGE);
+  u.searchParams.set('wanted', 'true');
+  u.searchParams.set('recurrence', 'monthly');
+  if (email) u.searchParams.set('email', email);
+  return u.toString();
+}
+
+export type PayOutcome =
+  /** The browser is on its way to Gumroad. */
+  | { kind: 'leaving' }
+  /** This account already has a membership running on Gumroad. */
+  | { kind: 'already'; manageUrl: string };
+
+/**
+ * "Subscribe": straight to Gumroad's payment page, with or without a MadeVisa account.
+ * Signed in → a checkout linked to the account. Signed out → the membership's page; the
+ * payment then lands on the account with that email, or a new account is made for it.
+ */
+export async function goToMembershipCheckout(opts: { signedIn: boolean; email?: string | null; source: string }): Promise<PayOutcome> {
+  trackBilling('checkout_started', { plan: MEMBERSHIP_PLAN, source: opts.source, guest: !opts.signedIn });
+  if (opts.signedIn) {
+    const r = await startCheckout(MEMBERSHIP_PLAN, opts.source);
+    if (r.kind === 'ready') {
+      window.location.assign(r.checkout.url);
+      return { kind: 'leaving' };
+    }
+    if (r.kind === 'already' || r.kind === 'switch') return { kind: 'already', manageUrl: r.manageUrl };
+    trackBilling('checkout_unavailable', { plan: MEMBERSHIP_PLAN, source: opts.source });
+    window.location.assign(membershipPage(opts.email));
+    return { kind: 'leaving' };
+  }
+  const data = await invoke({ action: 'guest_checkout', source: opts.source, email: opts.email ?? undefined });
+  const url = typeof data?.url === 'string' && GUMROAD.test(data.url) ? data.url : null;
+  if (!url) trackBilling('checkout_unavailable', { plan: MEMBERSHIP_PLAN, source: opts.source, guest: true });
+  window.location.assign(url ?? membershipPage(opts.email));
+  return { kind: 'leaving' };
 }
 
 /**

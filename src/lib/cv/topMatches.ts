@@ -82,6 +82,8 @@ export type TopResult = {
   cvForeign: boolean;
   /** Things to fix on the CV itself — the same for every job (no dates, few numbers, no Skills section…). */
   tips: string[];
+  /** The job title the visitor said they're looking for (/cv-match), when there was one. */
+  want?: string;
 };
 
 export type Stage = 'jobs' | 'reading' | 'translating' | 'scoring';
@@ -112,11 +114,31 @@ const KEEP = 40; // results remembered
 /** Below this a job isn't called a match at all. */
 export const MIN_SCORE = 45;
 
+// --- The job title the visitor is looking for (asked first on /cv-match) ----------
+const WANT_KEY = 'mv:wantTitle';
+/** The title typed on /cv-match ("Hotel receptionist"), or ''. Its words lead the search. */
+export function readWantedTitle(): string {
+  try {
+    return (window.localStorage.getItem(WANT_KEY) ?? '').slice(0, 60);
+  } catch {
+    return '';
+  }
+}
+export function saveWantedTitle(title: string): void {
+  try {
+    const t = title.replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (t) window.localStorage.setItem(WANT_KEY, t);
+    else window.localStorage.removeItem(WANT_KEY);
+  } catch {
+    /* private mode: the CV alone decides */
+  }
+}
+
 function readSaved(cv: StoredCv | null): TopResult | null {
   if (!cv) return null;
   try {
     const v = JSON.parse(window.localStorage.getItem(KEY) ?? 'null') as TopResult | null;
-    if (v && v.v === 5 && v.cvAt === cv.at && Date.now() - v.at < TOP_TTL_MS && Array.isArray(v.items)) return v;
+    if (v && v.v === 5 && v.cvAt === cv.at && (v.want ?? '') === readWantedTitle() && Date.now() - v.at < TOP_TTL_MS && Array.isArray(v.items)) return v;
   } catch {
     /* ignore */
   }
@@ -268,6 +290,7 @@ let rpcMissing = false;
 
 async function search(cv: StoredCv, userId: string | null, light = false): Promise<void> {
   if (runningFor === cv.at) return;
+  const want = readWantedTitle();
   // A job page only searches the light way (the server's shortlist); the full job list is too much to load there.
   if (light && rpcMissing) return;
   runningFor = cv.at;
@@ -275,9 +298,11 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
   try {
     // The CV in English (translated for accounts when it is in another language).
     const me: EnglishCv = await cvInEnglish(cv, userId);
-    const words = shortlistWords(me.profile);
+    const fromCv = shortlistWords(me.profile);
+    // The title they're looking for comes first: its words lead the shortlist.
+    const words = { title: [...new Set([...tokens(want), ...fromCv.title])].slice(0, 24), skill: fromCv.skill };
     if (!words.title.length && !words.skill.length) {
-      const empty: TopResult = { v: 5, cvAt: cv.at, at: Date.now(), read: 0, pool: 0, items: [], cvForeign: me.state === 'foreign', tips: [] };
+      const empty: TopResult = { v: 5, cvAt: cv.at, at: Date.now(), read: 0, pool: 0, items: [], cvForeign: me.state === 'foreign', tips: [], want };
       writeSaved(empty);
       return set({ status: 'done', stage: null, progress: 1, result: empty });
     }
@@ -367,7 +392,7 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
       });
     }
     items.sort((a, b) => b.score - a.score);
-    const result: TopResult = { v: 5, cvAt: cv.at, at: Date.now(), read: readable.length, pool: pool.length, items: items.filter((x) => x.score >= MIN_SCORE).slice(0, KEEP), cvForeign: me.state === 'foreign', tips };
+    const result: TopResult = { v: 5, cvAt: cv.at, at: Date.now(), read: readable.length, pool: pool.length, items: items.filter((x) => x.score >= MIN_SCORE).slice(0, KEEP), cvForeign: me.state === 'foreign', tips, want };
     writeSaved(result);
     set({ status: 'done', stage: null, progress: 1, result });
   } catch (e) {
@@ -414,9 +439,10 @@ export function useTopMatches(opts: { auto?: boolean; autoDelayMs?: number; ligh
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cv, ready, authLoading, userId, opts.auto]);
 
-  // A result for an earlier CV is never shown for the current one.
   const mine = s.result && cv && s.result.cvAt === cv.at ? s.result : null;
-  return { ...s, result: mine, cv, cvReady: ready && !authLoading, start: () => cv && void search(cv, userId) };
+  // A result for an earlier CV (or an earlier job title) is never shown for the current one.
+  const current = mine && (mine.want ?? '') === readWantedTitle() ? mine : null;
+  return { ...s, result: current, cv, cvReady: ready && !authLoading, start: () => cv && void search(cv, userId) };
 }
 
 /** Score from the last search for one job (for lists and buttons), or null. */

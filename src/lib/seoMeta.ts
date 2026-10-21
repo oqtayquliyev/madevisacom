@@ -43,10 +43,10 @@ export const SEO_META = {
   cvMatch: {
     title: 'CV Match — See How Well Your CV Fits a Job Before You Apply',
     description:
-      'Upload your CV once. On every job, MadeVisa shows a match score, the skills the ad asks for that your CV doesn’t show, and what to change. Part of MadeVisa Starter and Pro.',
+      'Upload your CV once. On every job, MadeVisa shows a match score, the skills the ad asks for that your CV doesn’t show, and what to change. Part of the MadeVisa Membership.',
   },
   pricing: {
-    title: 'MadeVisa Pricing — Free Job Search, Starter $2.99 and Pro $8.99',
+    title: 'MadeVisa Pricing — One Membership, $2.29 a Month',
     description: '', // built from live prices (see api/seo.ts and PricingPage)
   },
   jobMarket: {

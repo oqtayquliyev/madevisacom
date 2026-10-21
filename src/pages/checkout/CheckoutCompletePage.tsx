@@ -129,11 +129,18 @@ export function CheckoutCompletePage({ go, onAuth }: Props) {
         <div className="mx-auto max-w-xl">
           {!user ? (
             <Card>
-              <h1 className="text-2xl font-bold tracking-tight text-ink-950">Sign in to see your plan</h1>
-              <p className="mt-2 text-sm leading-6 text-ink-600">Your payment is linked to the MadeVisa account you used at checkout. Sign in with it to see the plan.</p>
+              <CheckCircle2 className="h-10 w-10 text-emerald-600" aria-hidden />
+              <h1 className="mt-3 text-2xl font-bold tracking-tight text-ink-950">Thank you! Check your inbox</h1>
+              <p className="mt-2 text-sm leading-6 text-ink-600">
+                Your membership is linked to the <strong>email you used on Gumroad</strong>. If you didn’t have a MadeVisa account, we’ve created one with that email and sent you
+                “Your MadeVisa account is ready”. Sign in with that email: we send you a one-time code, no password needed.
+              </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <button type="button" onClick={() => signIn('login')} className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2">
                   Sign in
+                </button>
+                <button type="button" onClick={() => nav('/jobs')} className="rounded-lg px-4 py-2.5 text-sm font-semibold text-ink-700 ring-1 ring-ink-200 hover:bg-ink-50">
+                  Browse jobs
                 </button>
               </div>
             </Card>
@@ -147,11 +154,11 @@ export function CheckoutCompletePage({ go, onAuth }: Props) {
             <Card>
               <div role="status">
                 <CheckCircle2 className="h-10 w-10 text-emerald-600" aria-hidden />
-                <h1 className="mt-3 text-2xl font-bold tracking-tight text-ink-950">You’re on MadeVisa {info.name}</h1>
+                <h1 className="mt-3 text-2xl font-bold tracking-tight text-ink-950">You’re a {info.name} member</h1>
                 <p className="mt-1 text-sm text-ink-600">Payment confirmed with Gumroad. Your receipt is in your email.</p>
               </div>
               <dl className="mt-5 divide-y divide-ink-100 rounded-xl border border-ink-200 text-sm">
-                <Row label="Plan" value={`MadeVisa ${info.name}`} />
+                <Row label="Plan" value={info.name} />
                 {sub?.price_cents ? <Row label="Amount paid" value={`${formatMoney(sub.price_cents)} (before any tax)`} /> : null}
                 <Row label="Billing" value="Monthly" />
                 {sub?.renews_at && !sub.cancel_at_period_end ? <Row label="Next renewal" value={longDate(sub.renews_at)} /> : null}
