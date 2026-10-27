@@ -29,6 +29,14 @@ export function CheckoutPage(_props: Props) {
   const [state, setState] = useState<State>({ at: 'opening' });
   const started = useRef(false);
 
+  // Back from Gumroad, or the payment form closed: offer the way back instead of a spinner.
+  const [back, setBack] = useState(false);
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => e.persisted && setBack(true);
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, []);
+
   useSeo({ title: 'Opening secure payment', description: `MadeVisa Membership, ${MEMBERSHIP_PRICE} a month. Secure payment by Gumroad.`, path: '/checkout', noindex: true });
 
   useEffect(() => {
@@ -41,16 +49,11 @@ export function CheckoutPage(_props: Props) {
     }
     void goToMembershipCheckout({ signedIn: Boolean(user), email: user?.email ?? null, source }).then((r) => {
       if (r.kind === 'already') setState({ at: 'already', manageUrl: r.manageUrl });
+      // The payment form opens over this page now: once it's closed, offer the way on instead of a spinner.
+      else window.setTimeout(() => setBack(true), 2500);
     });
   }, [authLoading, user, my.loading, my.isPaid, source]);
 
-  // Back from Gumroad (the browser may restore this page): offer the way back instead of a spinner.
-  const [back, setBack] = useState(false);
-  useEffect(() => {
-    const onShow = (e: PageTransitionEvent) => e.persisted && setBack(true);
-    window.addEventListener('pageshow', onShow);
-    return () => window.removeEventListener('pageshow', onShow);
-  }, []);
 
   const leave = () => nav(readReturn() ?? '/jobs');
 
@@ -71,8 +74,8 @@ export function CheckoutPage(_props: Props) {
         )}
         {state.at === 'opening' && back && (
           <div>
-            <h1 className="font-title text-2xl font-bold tracking-tight text-ink-950">Payment not finished</h1>
-            <p className="mt-2 text-sm leading-6 text-ink-600">You can go back to Gumroad, or keep browsing jobs.</p>
+            <h1 className="font-title text-2xl font-bold tracking-tight text-ink-950">Payment not finished yet?</h1>
+            <p className="mt-2 text-sm leading-6 text-ink-600">Open the payment again, or keep browsing jobs. Paid already? Your membership switches on within a minute.</p>
             <div className="mt-6 flex flex-col gap-2">
               <button type="button" onClick={() => window.location.reload()} className="rounded-full bg-brand-600 px-5 py-3 text-sm font-bold text-white hover:bg-brand-700">
                 Continue to payment

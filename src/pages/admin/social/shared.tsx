@@ -64,7 +64,7 @@ export type Post = {
     planned_kind?: string;
     force?: boolean;
     /** A Reel's recipe (migration 20261124090000), plus what the renderer used. */
-    reel?: ReelRecipe & { bg_used?: { source: 'pexels' | 'library' | 'slides' | 'photo' | 'gradient'; credit?: string | null; page?: string; query?: string; count?: number } | null; music?: string | null };
+    reel?: ReelRecipe & { bg_used?: { source: 'pexels' | 'library' | 'slides' | 'photo' | 'gradient'; credit?: string | null; page?: string; query?: string; count?: number } | null; music?: string | null; music_start?: number | null; thumb_made?: boolean };
   } | null;
   /** A Reel: the rendered MP4 (images[0] is then its cover). */
   video_url?: string | null;
@@ -91,6 +91,8 @@ export type ProgramRow = {
   /** When the reel renderer (GitHub Actions) last reported in, and what it did. */
   reels_at?: string | null;
   reels_note?: string | null;
+  /** This week's trending sounds, one suggested per reel for posting by hand (migration 20261231120000). */
+  trending_sounds?: string[] | null;
   // Voice, look, spacing and the photo library (migration 20261127090000):
   /** A real team member's name that signs the captions; null = no signature. */
   host_name?: string | null;

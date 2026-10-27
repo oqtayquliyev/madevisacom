@@ -356,7 +356,9 @@ async function jobPage(a: string, b: string | null, reqPath: string): Promise<Pa
       `<h1>${esc(j.title)}</h1><p class="meta">${link(crumbs[2][1], j.company)}${loc ? ` · ${esc(loc)}` : ''}</p>` +
       `<ul>${facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` +
       `<h2>About the role</h2><div>${descHtml || `<p>${esc(text)}</p>`}</div>` +
-      (j.official_url ? `<p>${`<a href="${esc(j.official_url)}" rel="nofollow noopener">Apply on ${esc(j.company)}’s careers page</a>`}</p>` : '') +
+      // The company's own apply address is for members (the app unlocks it); this HTML is what every
+      // visitor's browser receives first, so it links to the job page's Apply instead of leaking it.
+      (j.official_url ? `<p>${link(path, `Apply to ${j.title} at ${j.company} on MadeVisa`)}</p>` : '') +
       (j.related.length ? `<h2>More jobs at ${esc(j.company)}</h2><ul class="links">${j.related.map((r) => `<li>${link(jobPath({ ...r, company: j.company }), r.title + (r.city ? ` — ${r.city}` : ''))}</li>`).join('')}</ul>` : '') +
       (guide ? `<p>${link(`/destinations/${guide.slug}`, `Visa routes for working in ${guide.name}`)}</p>` : '') +
       footerLinks(),

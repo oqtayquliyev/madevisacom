@@ -18,6 +18,7 @@ import { SITE, The, adsSay, chance, clickable, closer, dayLabel, firstSentence, 
 // social.ts imports program.ts, which imports this file: a cycle, but these are only called at run time.
 import { cleanTitle, imageUrl, isRemote, jobLink, place, type Job } from './social.ts';
 import { MEMBER_REVIEWS } from '../_shared/testimonials.ts';
+import { MOVE } from '../_shared/moveMath.ts';
 
 // ---------------------------------------------------------------------------
 // Data
@@ -2129,6 +2130,96 @@ const reel_hiring: Builder = async (c) => {
   };
 };
 
+// --- New fast formats --------------------------------------------------------------
+// Where the audience comes from (the passports that search MadeVisa most) — "at home" in Move Math.
+const HOMES: { iso: string; name: string }[] = [
+  { iso: 'IN', name: 'India' }, { iso: 'PK', name: 'Pakistan' }, { iso: 'NG', name: 'Nigeria' }, { iso: 'PH', name: 'the Philippines' },
+  { iso: 'EG', name: 'Egypt' }, { iso: 'BD', name: 'Bangladesh' }, { iso: 'KE', name: 'Kenya' }, { iso: 'AZ', name: 'Azerbaijan' },
+  { iso: 'TR', name: 'Turkey' }, { iso: 'BR', name: 'Brazil' }, { iso: 'ID', name: 'Indonesia' }, { iso: 'MA', name: 'Morocco' },
+];
+const usd0 = (n: number) => `$${(Math.round(n / 10) * 10).toLocaleString('en-US')}`;
+
+/** Move math: "$1,900 a month left after rent in Germany — $100 in Pakistan." The split-screen money reel. */
+const reel_movemath: Builder = async (c) => {
+  const lib = await c.data.library();
+  const dests = focusFirst(c, (lib?.countries ?? []).filter((g) => MOVE[g.code] && MOVE[g.code].net - MOVE[g.code].rent > 600), (g) => g.code);
+  const g = choose(c, 'reel_movemath', dests, (x) => x.code, 24 * 6);
+  if (!g) return null;
+  const home = HOMES[hash(`${g.code}:${c.seed}`) % HOMES.length];
+  const d = MOVE[g.code];
+  const h = MOVE[home.iso];
+  if (!h) return null;
+  const left = d.net - d.rent;
+  const homeLeft = Math.max(0, h.net - h.rent);
+  if (left - homeLeft < 300) return null;
+  const path = `/destinations/${g.slug}`;
+  const name = the(g.name);
+  const ask = commentPrompt(c, keyword(g.name), path);
+  const facts = [
+    [`Average take-home: ${usd0(d.net)}`, 'per month, after tax'],
+    [`Rent: −${usd0(d.rent)}`, '1-bedroom flat, outside the centre'],
+    [`Left: ${usd0(left)} a month`, `vs about ${usd0(homeLeft)} in ${home.name}`],
+  ];
+  const caption = write(c.p, [
+    pick([`${flag(g.code)} ${usd0(left)} a month left after rent in ${name}. In ${home.name}: about ${usd0(homeLeft)}.`, `${flag(g.code)} The move math for ${name}, in one screen.`, `${flag(g.code)} What a normal salary in ${name} leaves you, after tax and rent.`], c.w, 'hook'),
+    `Average take-home ${usd0(d.net)}, rent ${usd0(d.rent)} for a 1-bedroom flat. Rough averages (2025), so your number depends on the job: every job on MadeVisa with a salary shows its own Move math.`,
+    ask.caption,
+    go(c.p, c.w, [`Visa routes and open roles in ${name}:`, `How to get there, and who is hiring:`], path),
+    tags(c.p, [`${countryTag(g.name)}jobs`, `workin${countryTag(g.name)}`, 'salary', 'costofliving', 'workabroad', 'movingabroad']),
+  ]);
+  return {
+    topic: `${g.code}-${home.iso}`,
+    headline: `${usd0(left)} a month left in ${shortName(g.name)}`,
+    format: 'reel',
+    images: [],
+    caption,
+    links: [link(c, `${g.name}: jobs and visa routes`, path)],
+    meta: ask.meta,
+    reel: {
+      bg: footage(g.code, g.name),
+      scenes: [
+        scene('hook', { k: 'Move math', kc: 'yellow', cc: g.code, l: lines([`!${usd0(left)} a month`, `left in ${shortName(g.name)}`]), s: 'after tax and rent' }, { steps: 3, step: 0.6, hold: 1.6 }),
+        scene('list', { l: `${shortName(g.name)} vs ${home.name.replace(/^the /, '')}`, rows: rows(facts) }, { steps: facts.length, step: 0.95, hold: 2.2 }),
+        scene('cta', { l: lines(['Your number,', '*on every job']), link: pill(path), c: ask.c, s: ask.s }, { hold: 2.6 }),
+      ],
+    },
+  };
+};
+
+/** Fast, white: jobs at companies on an official sponsor register — "already licensed to sponsor". */
+const reel_sponsor_jobs: Builder = async (c) => {
+  const jobs = await c.jobs({ kind: 'sponsor', want: 3, min: 2 });
+  if (jobs.length < 2) return null;
+  const handle = (c.handle || '@madevisacom').replace(/^@/, '');
+  const first = jobs[0];
+  const caption = write(c.p, [
+    pick([`🛂 Already licensed to sponsor visas, and hiring right now.`, `🛂 These companies are on the official visa-sponsor register. All hiring.`, `🛂 Skip the “do you sponsor?” email: these already do.`], c.w, 'hook'),
+    jobs.map((j) => `${flag(j.iso)} ${j.company} is hiring: ${cleanTitle(j.title)}${place(j) ? ` in ${place(j)}` : ''}`.trim()).join('\n'),
+    jobs.map((j) => `👉 ${cleanTitle(j.title)}: ${jobLink(j, c.p)}`).join('\n'),
+    'A licence means the company can sponsor; each job page shows its official record.',
+    `🔔 Follow @${handle} for new job opportunities every day.`,
+    jobTags(c, jobs, ['visasponsorship', 'sponsoredjobs']),
+  ]);
+  return {
+    topic: jobs.map((j) => j.id.slice(0, 8)).join(','),
+    headline: `Licensed to sponsor: ${first.company}`,
+    format: 'reel',
+    images: [],
+    caption,
+    links: jobs.map((j) => ({ job_id: j.id, title: cleanTitle(j.title), company: j.company, url: jobLink(j, c.p) })),
+    jobs,
+    reel: {
+      bg: { queries: [], cc: null, plain: true },
+      scenes: [
+        ...jobs.map((j) =>
+          scene('job', { l: cleanTitle(j.title), co: j.company, pl: place(j), cc: j.iso ?? '', logo: j.logo && /^https:\/\//.test(j.logo) ? j.logo : '', s: 'Licensed UK visa sponsor', fh: handle }, { hold: 1.7 })
+        ),
+        scene('follow', { fh: handle }, { hold: 1.6 }),
+      ],
+    },
+  };
+};
+
 export const BUILDERS: Record<string, Builder> = {
   jobs_fresh, jobs_country, jobs_visa, jobs_remote, jobs_student, jobs_uk_sponsors, jobs_salary, job_spotlight, jobs_plan, jobs_links, hiring_card,
   country_hiring, country_ranking, sponsor_ranking, top_companies, roles_in_demand, market_pulse, remote_share, milestone,
@@ -2138,5 +2229,5 @@ export const BUILDERS: Record<string, Builder> = {
   feedback_stats, responsive_companies, ghosting_stat, principle,
   follow_cta, comment_cta, this_or_that, question, tip, feedback_ask, invite, recruiters, employers, job_alert, employer_inbox,
   news, article, program,
-  reel_country, reel_city, reel_route, reel_myth, reel_plan, reel_news, reel_match, reel_cvfix, reel_hiring,
+  reel_country, reel_city, reel_route, reel_myth, reel_plan, reel_news, reel_match, reel_cvfix, reel_hiring, reel_movemath, reel_sponsor_jobs,
 };

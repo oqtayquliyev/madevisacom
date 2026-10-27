@@ -6,6 +6,9 @@ const KEY = 'mv:guestClaim';
 /** How long the browser keeps looking for the payment. */
 export const CLAIM_TTL = 24 * 60 * 60 * 1000;
 
+/** Fired when a guest starts paying, so the page starts looking for the payment. */
+export const CLAIM_EVENT = 'mv:guest-claim';
+
 export type GuestClaim = { token: string; back: string; at: number };
 
 const newToken = () =>
@@ -26,6 +29,12 @@ export function startGuestClaim(back: string): string {
     localStorage.setItem(KEY, JSON.stringify({ token, back: safe, at: Date.now() } satisfies GuestClaim));
   } catch {
     /* private mode: the account still gets made, they sign in from the email */
+  }
+  // GuestReturn starts watching for the payment now (the checkout opens over this page).
+  try {
+    window.dispatchEvent(new Event(CLAIM_EVENT));
+  } catch {
+    /* fine */
   }
   return token;
 }

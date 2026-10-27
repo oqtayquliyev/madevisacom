@@ -14,7 +14,8 @@ const SOURCE_NAME: Record<string, string> = {
 };
 const nf = (n: number) => n.toLocaleString('en-US');
 const rate = (part: number, whole: number) => (whole > 0 ? `${((100 * part) / whole).toFixed(1)}%` : '—');
-const dayLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+// en-GB on purpose: some browser languages print months as "M10".
+const dayLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 
 export function PaywallSection() {
   const [range, setRange] = useState(14);
@@ -37,7 +38,7 @@ export function PaywallSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range]);
 
-  const sum = (k: keyof Omit<PaywallDay, 'day'>) => (days ?? []).reduce((n, d) => n + d[k], 0);
+  const sum = (k: keyof Omit<PaywallDay, 'day'>) => (days ?? []).reduce((n, d) => n + (d[k] ?? 0), 0);
   const max = Math.max(1, ...(days ?? []).map((d) => d.shown));
 
   return (
@@ -69,6 +70,13 @@ export function PaywallSection() {
             <Tile label="Subscribe now pressed" value={nf(sum('clicks'))} sub={`${rate(sum('clicks'), sum('shown'))} of opens`} />
             <Tile label="People who pressed it" value={nf(sum('clickers'))} />
             <Tile label="New paying members" value={nf(sum('paid'))} sub={`${rate(sum('paid'), sum('clickers'))} of people who pressed`} />
+          </div>
+          {/* Added with the on-page checkout and the offer (migration 20261231120000). */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Tile label="Payment form opened" value={nf(sum('checkouts'))} sub="people; on the page, not on Gumroad" />
+            <Tile label="Free applications used" value={nf(sum('free_applies'))} sub="the one free Apply per browser" />
+            <Tile label="“First month” offer shown" value={nf(sum('downsell_shown'))} sub="needs VITE_GUMROAD_DOWNSELL_CODE" />
+            <Tile label="Offer taken" value={nf(sum('downsell_clicks'))} sub={`${rate(sum('downsell_clicks'), sum('downsell_shown'))} of people shown`} />
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-ink-200 bg-white">

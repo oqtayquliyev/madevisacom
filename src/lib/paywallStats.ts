@@ -19,7 +19,9 @@ function visitorId(): string {
   }
 }
 
-export function trackPaywall(kind: 'shown' | 'click', source: string): void {
+export type PaywallKind = 'shown' | 'click' | 'checkout_open' | 'downsell_shown' | 'downsell_click' | 'free_apply';
+
+export function trackPaywall(kind: PaywallKind, source: string): void {
   try {
     void Promise.resolve(supabase.rpc('paywall_track', { p_visitor: visitorId(), p_kind: kind, p_source: source })).catch(() => undefined);
   } catch {
@@ -27,7 +29,19 @@ export function trackPaywall(kind: 'shown' | 'click', source: string): void {
   }
 }
 
-export type PaywallDay = { day: string; shown: number; people: number; clicks: number; clickers: number; paid: number };
+export type PaywallDay = {
+  day: string;
+  shown: number;
+  people: number;
+  clicks: number;
+  clickers: number;
+  paid: number;
+  /** Added by migration 20261231120000 (0 before it ran). */
+  checkouts?: number;
+  downsell_shown?: number;
+  downsell_clicks?: number;
+  free_applies?: number;
+};
 export type PaywallSource = { source: string; shown: number; people: number; clicks: number; clickers: number };
 
 export async function fetchPaywallStats(days = 30): Promise<{ days: PaywallDay[]; by_source: PaywallSource[] } | { error: string }> {

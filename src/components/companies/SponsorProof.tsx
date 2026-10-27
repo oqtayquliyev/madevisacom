@@ -1,5 +1,6 @@
 import { ExternalLink, ShieldCheck } from 'lucide-react';
 import { UK_REGISTER_URL, useUkSponsor } from '@/lib/sponsorRegister';
+import { REGISTER_NAME, useSponsorProof } from '@/lib/sponsorProof';
 
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null);
 
@@ -48,5 +49,25 @@ export function SponsorAnswer({ publisherId, companyName }: { publisherId: strin
         {s.checked ? ` · checked ${day(s.checked)}` : ''}
       </p>
     </section>
+  );
+}
+
+/**
+ * Job page hero: "Visa sponsor on record · UK, US" when the company is in any official
+ * register (UK Home Office, NL IND, US H-1B data). Shown to everyone — the details are in
+ * "Your edge on this job". Renders nothing when not matched.
+ */
+export function SponsorRecordPill({ publisherId }: { publisherId: string | null | undefined }) {
+  const records = useSponsorProof(publisherId);
+  if (!records?.length) return null;
+  const where = records.map((r) => (r.country === 'GB' ? 'UK' : r.country)).join(', ');
+  return (
+    <a
+      href="#edge-title"
+      title={records.map((r) => `${REGISTER_NAME[r.country] ?? r.country}: “${r.name}”`).join('\n')}
+      className="inline-flex items-center gap-1 rounded-full bg-emerald-400/20 px-2.5 py-1 text-[11px] font-bold text-emerald-100 ring-1 ring-emerald-300/40 hover:bg-emerald-400/30"
+    >
+      <ShieldCheck className="h-3.5 w-3.5" /> Visa sponsor on record · {where}
+    </a>
   );
 }

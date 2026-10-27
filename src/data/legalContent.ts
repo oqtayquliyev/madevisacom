@@ -533,6 +533,7 @@ export const legalPages: Record<string, LegalPageContent> = {
       'Payments are taken by Gumroad, the seller named on your receipt. MadeVisa never sees your card.',
       'You can pay without a MadeVisa account: we create one for the email you pay with, or add the membership to your existing account with that email.',
       'Full refund within 14 days of first joining, as long as you haven’t used any of its paid features yet.',
+      'Sponsor-jobs guarantee: if MadeVisa doesn’t show you at least 10 open jobs in your field at companies with an official visa-sponsor record within your first 14 days, you get a full refund, even if you used the membership.',
     ],
     sections: [
       {
@@ -581,6 +582,7 @@ export const legalPages: Record<string, LegalPageContent> = {
           'Within 14 days of first joining, if you haven’t used any of its paid features yet: a full refund.',
           'Paid features are: opening a job’s application page through Apply, CV match on a job, your ranked list of matches, and a sponsorship document beyond the free one. Browsing jobs, saving jobs and alerts don’t count.',
           'Once you have used a paid feature, that month is not refunded. You can still cancel anytime, and you keep the membership until the end of the month you paid for.',
+          'Sponsor-jobs guarantee: within 14 days of first joining, if MadeVisa doesn’t show you at least 10 open jobs in your field (the job title you searched for or gave in CV match) at companies with an official visa-sponsor record (Sponsor proof on the job page), write to us with your receipt and the field: full refund, even if you used paid features. Once per person.',
           'Double charges, or a payment taken after you cancelled: always refunded.',
           'After a refund, or if a payment is disputed with your bank, the membership ends straight away.',
         ],

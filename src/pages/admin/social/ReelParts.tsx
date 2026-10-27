@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Clapperboard, Loader2, Music, RefreshCw, Save, Trash2, Upload } from 'lucide-react';
+import { CheckCircle2, Clapperboard, Flame, Loader2, Music, RefreshCw, Save, Trash2, Upload } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { btn, card, input, reelLayers, reelsAlive, when, type Post, type ProgramRow, type ReelRecipe, type ReelScene } from './shared';
 
@@ -71,7 +71,13 @@ export function ReelPreview({ post, rendererAlive }: { post: Post; rendererAlive
             ) : (
               'background: MadeVisa gradient'
             )}
-            {reel.music ? ` · music: ${reel.music.replace(/\.(mp3|m4a)$/i, '')}` : ' · no music'}
+            {reel.music ? ` · music: ${trackLabel(reel.music)}${reel.music_start ? ` from ${reel.music_start.toFixed(1)} s (the drop)` : ''}` : ' · no music'}
+            {reel.thumb_made ? ' · cover with big text' : ''}
+          </p>
+        )}
+        {reel?.sound && (
+          <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-800" title="Posting by hand (TikTok, or Instagram from the app)? Add this sound in the app: a trending sound is what the algorithm pushes. Lower the clip's own music to 0–10%.">
+            <Flame className="h-3 w-3" /> Trending sound to add in the app: {reel.sound}
           </p>
         )}
       </div>
@@ -202,11 +208,30 @@ export function ReelEditor({ post, onDone }: { post: Post; onDone: () => void })
 
 type Track = { name: string; created_at?: string };
 
+/** Music moods: the renderer picks a track of the reel's mood (files named "<mood>--name.mp3"). */
+const MOODS = [
+  { id: 'energetic', label: 'Energetic', hint: 'job reels, fast lists' },
+  { id: 'upbeat', label: 'Upbeat', hint: 'tips, CV match' },
+  { id: 'chill', label: 'Chill', hint: 'visa know-how, news' },
+  { id: 'emotional', label: 'Emotional', hint: 'stories, outcomes' },
+  { id: 'cinematic', label: 'Cinematic', hint: 'countries by the numbers' },
+] as const;
+const moodOf = (name: string) => MOODS.find((m) => name.toLowerCase().startsWith(`${m.id}--`))?.id ?? null;
+export const trackLabel = (name: string) => name.replace(/\.(mp3|m4a)$/i, '').replace(/^[a-z]+--/, '');
+
 export function ReelsSetup({ program }: { program: ProgramRow }) {
   const alive = reelsAlive(program);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [mood, setMood] = useState<string>('energetic');
+  const [sounds, setSounds] = useState(() => (program.trending_sounds ?? []).join('\n'));
+  const [soundsSaved, setSoundsSaved] = useState<string | null>(null);
+  const saveSounds = async () => {
+    const list = sounds.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 20);
+    const { error } = await supabase.from('social_program').update({ trending_sounds: list, updated_at: new Date().toISOString() }).eq('id', true);
+    setSoundsSaved(error ? `${error.message} — run migration 20261231120000_conversion_boost.sql first.` : `Saved ${list.length} ${list.length === 1 ? 'sound' : 'sounds'}. New reels suggest one each.`);
+  };
   const load = useCallback(async () => {
     const { data } = await supabase.storage.from('social-videos').list('music', { limit: 100, sortBy: { column: 'name', order: 'asc' } });
     setTracks(((data ?? []) as Track[]).filter((t) => /\.(mp3|m4a)$/i.test(t.name)));
@@ -228,7 +253,7 @@ export function ReelsSetup({ program }: { program: ProgramRow }) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
         .slice(0, 50) || 'track';
-    const { error } = await supabase.storage.from('social-videos').upload(`music/${name}.${ext}`, file, { contentType: ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4', upsert: true });
+    const { error } = await supabase.storage.from('social-videos').upload(`music/${mood}--${name.replace(/^[a-z]+--/, '')}.${ext}`, file, { contentType: ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4', upsert: true });
     setBusy(false);
     if (error) setErr(`${error.message} — has the migration 20261124090000_social_reels.sql been run?`);
     void load();
@@ -272,13 +297,14 @@ export function ReelsSetup({ program }: { program: ProgramRow }) {
           <Music className="h-4 w-4 text-ink-500" /> Music
         </p>
         <p className="mt-1 max-w-3xl text-xs leading-5 text-ink-600">
-          Optional. Upload a few tracks you have the right to use (royalty-free libraries such as Pixabay Music or the YouTube Audio Library; not chart songs). Each reel gets one of them, faded in and out. With no tracks, reels are silent — Instagram’s own music library can’t be added through the API.
+          Upload tracks you have the right to use (royalty-free: Pixabay Music, YouTube Audio Library, Epidemic Sound, Artlist — not chart songs) and pick a mood for each. Each reel then gets a track of its mood automatically, never one of the last six, and starts at the track’s drop — so the first second hits on the beat. Two or three tracks per mood is plenty.
         </p>
         {err && <p className="mt-2 rounded-md bg-rose-50 px-2.5 py-1.5 text-xs text-rose-800">{err}</p>}
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {tracks.map((t) => (
             <span key={t.name} className="inline-flex items-center gap-1.5 rounded-full bg-ink-100 py-1 pl-3 pr-1.5 text-xs font-medium text-ink-800">
-              {t.name}
+              <span className="rounded-full bg-white px-1.5 text-[10px] font-bold uppercase text-ink-500">{moodOf(t.name) ?? 'any'}</span>
+              {trackLabel(t.name)}
               <button
                 className="rounded-full p-1 text-ink-400 hover:bg-rose-50 hover:text-rose-600"
                 title="Remove this track"
@@ -291,10 +317,33 @@ export function ReelsSetup({ program }: { program: ProgramRow }) {
               </button>
             </span>
           ))}
+          <select value={mood} onChange={(e) => setMood(e.target.value)} className={`${input} w-auto py-1 text-xs`} aria-label="Mood of the next track">
+            {MOODS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label} — {m.hint}
+              </option>
+            ))}
+          </select>
           <label className={`${btn} cursor-pointer`}>
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Add a track
             <input type="file" accept="audio/mpeg,audio/mp4,.mp3,.m4a" className="hidden" onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])} />
           </label>
+        </div>
+      </div>
+
+      <div className="mt-4 border-t border-ink-100 pt-3">
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
+          <Flame className="h-4 w-4 text-rose-500" /> Trending sounds this week
+        </p>
+        <p className="mt-1 max-w-3xl text-xs leading-5 text-ink-600">
+          The trend boost comes from using the app’s own sound, and no app lets that be added through its API. Paste this week’s trending sounds (one per line, e.g. from TikTok Creative Center → Trends → Songs, or the ↗ arrow next to a sound in Instagram Reels). Each new reel suggests one; when you post it by hand, add that sound in the app and lower the video’s own music to 0–10%.
+        </p>
+        <textarea value={sounds} onChange={(e) => setSounds(e.target.value)} rows={4} placeholder={'Song name – Artist\nAnother sound – Creator'} className={`${input} mt-2 max-w-xl font-mono text-xs`} />
+        <div className="mt-2 flex items-center gap-2">
+          <button type="button" onClick={() => void saveSounds()} className={btn}>
+            <Save className="h-3.5 w-3.5" /> Save sounds
+          </button>
+          {soundsSaved && <span className="text-xs text-ink-600">{soundsSaved}</span>}
         </div>
       </div>
     </div>

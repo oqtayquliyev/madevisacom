@@ -14,6 +14,7 @@ import { MEMBERSHIP_PLAN, MEMBERSHIP_URL, refreshMyPlan, type PaidPlanId, type P
 import { trackBilling } from '@/lib/billing';
 import { readCheckout, type CheckoutResult } from '@/lib/billingCore';
 import { startGuestClaim } from '@/lib/guestClaim';
+import { openGumroadCheckout } from '@/lib/gumroadOverlay';
 
 export { readCheckout, type Checkout, type CheckoutResult } from '@/lib/billingCore';
 
@@ -81,34 +82,62 @@ function membershipPage(email: string | null | undefined): string {
 }
 
 export type PayOutcome =
-  /** The browser is on its way to Gumroad. */
+  /** The browser is on its way to Gumroad, or Gumroad's payment form is open over the page. */
   | { kind: 'leaving' }
   /** This account already has a membership running on Gumroad. */
   | { kind: 'already'; manageUrl: string };
 
 /**
- * "Subscribe": straight to Gumroad's payment page, with or without a MadeVisa account.
+ * Adds a Gumroad offer code to a product link: /l/membership → /l/membership/CODE
+ * (Gumroad's own way of applying a discount from a link). Anything else is left alone.
+ */
+export function withOfferCode(url: string, code: string | null | undefined): string {
+  if (!code || !/^[A-Za-z0-9_-]{2,40}$/.test(code)) return url;
+  try {
+    const u = new URL(url);
+    const m = u.pathname.match(/^\/l\/([^/]+)\/?$/);
+    if (!m) return url;
+    u.pathname = `/l/${m[1]}/${code}`;
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * "Subscribe": Gumroad's payment form, opened over the page (the overlay), with or without
+ * a MadeVisa account. When the overlay can't load, Gumroad's page opens instead, as before.
  * Signed in → a checkout linked to the account. Signed out → the membership's page; the
  * payment then lands on the account with that email, or a new account is made for it.
+ * `offerCode`: a Gumroad offer code (the "first month for less" offer), when one is set.
  */
-export async function goToMembershipCheckout(opts: { signedIn: boolean; email?: string | null; source: string }): Promise<PayOutcome> {
-  trackBilling('checkout_started', { plan: MEMBERSHIP_PLAN, source: opts.source, guest: !opts.signedIn });
+export async function goToMembershipCheckout(opts: { signedIn: boolean; email?: string | null; source: string; offerCode?: string | null }): Promise<PayOutcome> {
+  trackBilling('checkout_started', { plan: MEMBERSHIP_PLAN, source: opts.source, guest: !opts.signedIn, offer: Boolean(opts.offerCode) });
   if (opts.signedIn) {
     const r = await startCheckout(MEMBERSHIP_PLAN, opts.source);
     if (r.kind === 'ready') {
-      window.location.assign(r.checkout.url);
+      const done = `/checkout/complete?c=${encodeURIComponent(r.checkout.checkout_id)}&plan=${MEMBERSHIP_PLAN}`;
+      const how = await openGumroadCheckout(withOfferCode(r.checkout.url, opts.offerCode), {
+        // Paid: the page that waits for the server's confirmation (it never trusts the click alone).
+        onSale: () => window.location.assign(done),
+        // While the form is open: ask the server to read the payment; the page unlocks by itself.
+        onTick: () => void checkPayment().then((p) => p.plan !== 'free' && window.location.assign(done)),
+      });
+      trackBilling('checkout_viewed', { mode: how, source: opts.source });
       return { kind: 'leaving' };
     }
     if (r.kind === 'already' || r.kind === 'switch') return { kind: 'already', manageUrl: r.manageUrl };
     trackBilling('checkout_unavailable', { plan: MEMBERSHIP_PLAN, source: opts.source });
-    window.location.assign(membershipPage(opts.email));
+    window.location.assign(withOfferCode(membershipPage(opts.email), opts.offerCode));
     return { kind: 'leaving' };
   }
-  // No account: straight to the membership's page. The payment is matched to an account by its email (or one is made).
-  // The token (?mvg=) comes back with the sale, so this browser can sign them in and return them here.
-  const u = new URL(membershipPage(opts.email));
+  // No account: the membership's page. The payment is matched to an account by its email (or one is made).
+  // The token (?mvg=) comes back with the sale, so this browser can sign them in and return them here
+  // (GuestReturn watches for it — it starts looking the moment the claim is made).
+  const u = new URL(withOfferCode(membershipPage(opts.email), opts.offerCode));
   u.searchParams.set('mvg', startGuestClaim(window.location.pathname + window.location.search));
-  window.location.assign(u.toString());
+  const how = await openGumroadCheckout(u.toString());
+  trackBilling('checkout_viewed', { mode: how, source: opts.source, guest: true });
   return { kind: 'leaving' };
 }
 

@@ -31,7 +31,7 @@
 
 // deno-lint-ignore-file no-explicit-any
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ALWAYS_ON, DEFAULT_GAP, DEFAULT_SETTINGS, FORMATS, FORMAT_BY_KEY, JOB_FORMATS, JOB_STYLE, ONLY_FORMATS, PLAIN_FORMATS, formatAllowed, isFormatOn, perDayFor, reelLayers, type Pillar, type Platform, type ProgramSettings, type ReelRecipe } from './programCatalog.ts';
+import { ALWAYS_ON, DEFAULT_GAP, DEFAULT_SETTINGS, FORMATS, FORMAT_BY_KEY, JOB_FORMATS, JOB_STYLE, ONLY_FORMATS, PLAIN_FORMATS, formatAllowed, isFormatOn, perDayFor, reelLayers, moodFor, thumbLines, type Pillar, type Platform, type ProgramSettings, type ReelRecipe } from './programCatalog.ts';
 import { hash, localTime, planRange, rankFormats, type Past } from './programSchedule.ts';
 import { BUILDERS, type ArticleRow, type CountryReport, type Ctx, type Data, type Draft, type Feedback, type Library, type NewsItem, type ProgramRow, type Snapshot } from './programFormats.ts';
 import { SITE, opening, setHost } from './programVoice.ts';
@@ -54,7 +54,7 @@ const leadFor = (kind: string) => {
 const MAX_WRITES_PER_RUN = 4;
 const HOT_HOURS = 20;
 
-type ProgramRowDb = { running: boolean; timezone: string | null; autopilot: boolean; per_day: any; formats: any; mix: any; handles: any; focus: string[] | null; lock_until: string | null; planned_at: string | null; reels_at?: string | null; host_name?: string | null; look?: string | null; gap_min?: number | null; media_at?: string | null; video_share?: number | null };
+type ProgramRowDb = { trending_sounds?: string[] | null; running: boolean; timezone: string | null; autopilot: boolean; per_day: any; formats: any; mix: any; handles: any; focus: string[] | null; lock_until: string | null; planned_at: string | null; reels_at?: string | null; host_name?: string | null; look?: string | null; gap_min?: number | null; media_at?: string | null; video_share?: number | null };
 type PostRow = { id: string; platform: Platform; status: string; kind: string | null; pillar: Pillar | null; topic_key: string | null; scheduled_at: string; meta: Record<string, any> | null; origin: string };
 type HistoryRow = { platform: Platform; kind: string; pillar: Pillar; topic: string | null; opening: string | null; at: string; post_id: string | null };
 
@@ -85,6 +85,8 @@ function settingsOf(row: ProgramRowDb): ProgramSettings {
     videoShare: row.video_share == null ? undefined : Number(row.video_share),
     look: row.look === 'graphic' ? 'graphic' : 'photo',
     host: (row.host_name ?? '').trim(),
+    // Column from migration 20261231120000; before it runs: no suggestions.
+    sounds: (row.trending_sounds ?? []).map((x) => String(x).trim()).filter(Boolean).slice(0, 20),
   };
 }
 
@@ -496,6 +498,10 @@ async function writeSlot(
         scenes,
         ...reelLayers(scenes),
         after: ready,
+        // The cover: big, readable words over a frame of the video (made by the renderer).
+        thumb: `${SITE}/api/og/post?${new URLSearchParams({ t: 'reel', sc: 'thumb', l: thumbLines(draft.headline), ...(cc ? { cc } : {}), v: '1' }).toString()}`,
+        mood: moodFor(def.pillar, plain),
+        sound: settings.sounds?.length ? settings.sounds[seed % settings.sounds.length] : null,
       };
     } else {
       images = draft.images.slice(0, 6).map((url) => ({ url, width: w, height: h }));

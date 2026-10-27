@@ -17,6 +17,10 @@
 //          the flag and the place — fast job reels show one of these per role
 //   follow a whole white screen: "Follow @handle for daily job opportunities"
 //   (frame with plain=1 draws nothing: white reels need no dark fades)
+//   thumb  the cover (thumbnail): 2–4 huge lines in boxes and the flag — laid over a
+//          frame of the video (which already carries the logo) by the renderer.
+//          Everything sits inside the middle
+//          1080×1440 (Instagram's profile grid crops covers to 3:4), readable at grid size.
 // Parameters:
 //   l     lines, "~" between them. First character sets the box:
 //         "*" blue · "!" yellow · "-" dark · none = white
@@ -35,7 +39,7 @@
 import { h, icon, img, type El } from './_og';
 import { FLAG_URL, breakLines, oneLine, textWidth, type Issue, type Loader } from './_post';
 
-export type ReelScene = 'frame' | 'hook' | 'list' | 'cta' | 'bg' | 'job' | 'follow';
+export type ReelScene = 'frame' | 'hook' | 'list' | 'cta' | 'bg' | 'job' | 'follow' | 'thumb';
 export type ReelParams = {
   sc: ReelScene;
   l: string[];
@@ -168,6 +172,7 @@ export async function drawReel(q: ReelParams, load: Loader): Promise<{ tree: El;
   if (q.sc === 'bg' && q.plain) return { width: W, height: H, issues, tree: full([], { backgroundColor: 'white' }) };
   if (q.sc === 'frame' && q.plain) return { width: W, height: H, issues, tree: full([]) };
   if (q.sc === 'job' || q.sc === 'follow') return drawWhite(q, flag, load, issues);
+  if (q.sc === 'thumb') return drawThumb(q, flag, issues);
 
   // --- Fallback background: brand gradient, rings, a big flag -------------------
   if (q.sc === 'bg') {
@@ -417,12 +422,60 @@ async function drawWhite(q: ReelParams, flag: string | null, load: Loader, issue
   };
 }
 
+/**
+ * The cover. What makes people tap a reel in a grid or a feed: few words, very big, high
+ * contrast, one line in yellow (the number or the punch), a face or a flag. All of it inside
+ * the 3:4 middle, so the profile grid shows it whole.
+ */
+function drawThumb(q: ReelParams, flag: string | null, issues: Issue[]): { tree: El; issues: Issue[]; width: number; height: number } {
+  const CROP = { top: 240 + 70, bottom: H - 240 - 150 }; // inside the 3:4 crop, clear of the grid's own edges
+  const room = CROP.bottom - CROP.top;
+  const flagH = flag ? 170 + 40 : 0;
+  const ladder = [176, 160, 148, 136, 124, 112, 100, 90];
+  let chosen: { lines: Line[]; size: number } | null = null;
+  // The biggest words that fit in 4 lines (else 5): a cover is read in half a second.
+  for (const most of [4, 5]) {
+    for (const size of ladder) {
+      const lines = layout(q.l, size);
+      const hh = lines.length * Math.round(size * 1.3) + Math.max(0, lines.length - 1) * Math.round(size * 0.1);
+      if (lines.length <= most && hh + flagH <= room && wordsFit(q.l, size)) {
+        chosen = { lines, size };
+        break;
+      }
+    }
+    if (chosen) break;
+  }
+  if (!chosen) {
+    const size = ladder[ladder.length - 1];
+    chosen = { lines: layout(q.l, size).slice(0, 5), size };
+    issues.push({ level: q.l.length ? 'warning' : 'error', message: q.l.length ? 'Cover text shortened to fit' : 'The cover has no text' });
+  }
+  const boxes = lineBoxes(chosen.lines, chosen.size, 99);
+  return {
+    width: W,
+    height: H,
+    issues,
+    tree: h(
+      'div',
+      { width: W, height: H, position: 'relative', fontFamily: SANS },
+      // A dark veil so white and yellow boxes pop over any footage.
+      h('div', { position: 'absolute', left: 0, top: 0, width: W, height: H, backgroundImage: 'linear-gradient(180deg, rgba(11,22,51,0.55) 0%, rgba(11,22,51,0.25) 45%, rgba(11,22,51,0.65) 100%)' }),
+      h(
+        'div',
+        { position: 'absolute', left: SAFE.left, top: CROP.top, width: BOX_W + 80, height: room, flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' },
+        flag ? h('div', { width: 170, height: 170, borderRadius: 999, border: '9px solid white', overflow: 'hidden', backgroundColor: 'white', flexShrink: 0, marginBottom: 40 }, img(flag, { width: 170, height: 170, objectFit: 'cover' })) : null,
+        boxes.el
+      )
+    ),
+  };
+}
+
 const clean = (s: string | null, max: number) => (s ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 export function parseReel(q: URLSearchParams): ReelParams | null {
   if (q.get('t') !== 'reel') return null;
   const sc = q.get('sc') as ReelScene;
-  if (!['frame', 'hook', 'list', 'cta', 'bg', 'job', 'follow'].includes(sc)) return null;
+  if (!['frame', 'hook', 'list', 'cta', 'bg', 'job', 'follow', 'thumb'].includes(sc)) return null;
   const kc = q.get('kc');
   const l = (q.get('l') ?? '').split('~').map((x) => clean(x, 240)).filter(Boolean).slice(0, 6);
   const rows = (q.get('rows') ?? '').split('~').map((r) => r.split('|').map((c) => clean(c, 160))).filter((r) => r.some(Boolean)).slice(0, 4);

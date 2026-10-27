@@ -20,7 +20,14 @@
 //
 // Sound: a track from the bucket folder social-videos/music/ (MP3 or M4A you
 // have the right to use — upload them in Admin → Social media → Content
-// ideas), a different one each time. No tracks → a silent audio track.
+// ideas). Picked by the reel's mood (tracks named "<mood>--name.mp3": energetic,
+// upbeat, chill, emotional, cinematic), never one of the last 6 used, and started
+// at the track's DROP (where the energy jumps) — the first second of a reel decides
+// whether people stay, so it opens on the beat, not on a quiet intro.
+// No tracks → a silent audio track.
+//
+// Cover: the recipe's `thumb` (big words, flag, logo — a transparent PNG) is laid over a
+// frame of the finished video. Without it, a plain frame of the video, as before.
 //
 // Environment:
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY   required
@@ -53,7 +60,7 @@ function run(cmd, args) {
  * layers:  [{ file, at, end, last }] — text layers; `last` = the final step of a scene (it fades out)
  * audio:   optional music file (looped, faded in and out); none → silence
  */
-export async function render({ bg, frame, layers, duration, out, audio = null }) {
+export async function render({ bg, frame, layers, duration, out, audio = null, audioStart = 0 }) {
   const D = Number(duration.toFixed(2));
   const args = ['-y', '-hide_banner', '-loglevel', 'error'];
   // Slideshow timing: n photos share the reel; neighbours overlap by FADE seconds.
@@ -67,7 +74,7 @@ export async function render({ bg, frame, layers, duration, out, audio = null })
   const nb = slides.length || 1;
   args.push('-loop', '1', '-framerate', String(FPS), '-t', String(D), '-i', frame);
   for (const l of layers) args.push('-loop', '1', '-framerate', String(FPS), '-t', (l.end - l.at).toFixed(2), '-i', l.file);
-  if (audio) args.push('-stream_loop', '-1', '-i', audio);
+  if (audio) args.push('-ss', Math.max(0, audioStart).toFixed(2), '-stream_loop', '-1', '-i', audio);
   else args.push('-f', 'lavfi', '-t', String(D), '-i', 'anullsrc=r=44100:cl=stereo');
 
   const f = [];
@@ -105,6 +112,79 @@ export async function render({ bg, frame, layers, duration, out, audio = null })
 }
 
 export const cover = (video, at, out) => run('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-ss', at.toFixed(2), '-i', video, '-frames:v', '1', '-q:v', '3', out]);
+
+/** The thumbnail: a frame of the video with the cover text layer (veil, big words, flag) on top. */
+export const thumbnail = (video, at, layer, out) =>
+  run('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-ss', at.toFixed(2), '-i', video, '-i', layer, '-filter_complex', `[0:v]scale=${W}:${H}[b];[1:v]scale=${W}:${H},format=rgba[t];[b][t]overlay=0:0:format=auto`, '-frames:v', '1', '-q:v', '2', out]);
+
+// --- Music: mood, no repeats, start at the drop ------------------------------------------
+export const MOODS = ['energetic', 'upbeat', 'chill', 'emotional', 'cinematic'];
+/** "energetic--city-run.mp3" → "energetic"; no prefix → null (fits any mood). */
+export const moodOf = (name) => {
+  const m = String(name).toLowerCase().match(/^([a-z]+)--/);
+  return m && MOODS.includes(m[1]) ? m[1] : null;
+};
+
+/** A track for this reel: its mood first, not one of the recently used, stable for the same post. */
+export function pickTrack(tracks, mood, recent, key) {
+  const fresh = tracks.filter((t) => !recent.includes(t));
+  const pools = [fresh.filter((t) => moodOf(t) === mood), fresh.filter((t) => moodOf(t) === null), fresh, tracks];
+  const pool = pools.find((p) => p.length) ?? [];
+  return pool.length ? pool[hash(key) % pool.length] : null;
+}
+
+/** Loudness per 0.25 s window of the first 120 s of a track (mono, 8 kHz). */
+async function energy(file) {
+  const pcm = await new Promise((resolve, reject) => {
+    const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-t', '120', '-i', file, '-ac', '1', '-ar', '8000', '-f', 's16le', '-'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const chunks = [];
+    p.stdout.on('data', (d) => chunks.push(d));
+    p.on('error', reject);
+    p.on('close', (code) => (code === 0 ? resolve(Buffer.concat(chunks)) : reject(new Error(`ffmpeg ${code}`))));
+  });
+  const win = 2000; // 0.25 s at 8 kHz
+  const out = [];
+  for (let i = 0; i + win * 2 <= pcm.length; i += win * 2) {
+    let sum = 0;
+    for (let j = i; j < i + win * 2; j += 2) {
+      const v = pcm.readInt16LE(j) / 32768;
+      sum += v * v;
+    }
+    out.push(Math.sqrt(sum / win));
+  }
+  return out;
+}
+
+/**
+ * Where the track "drops": the 0.25 s step after which the next 2 s are loudest compared with
+ * the 2 s before (from 2 s in; the reel must still fit after it). Answers seconds, 0 when unclear.
+ */
+export function dropAt(levels, reelSeconds) {
+  const step = 0.25;
+  const span = 8; // 2 s
+  const last = levels.length - Math.ceil(reelSeconds / step);
+  let best = 0;
+  let bestGain = 0;
+  for (let i = span; i <= last && i < levels.length - span; i++) {
+    const before = levels.slice(i - span, i).reduce((a, b) => a + b, 0) / span;
+    const after = levels.slice(i, i + span).reduce((a, b) => a + b, 0) / span;
+    const gain = after - before * 1.15;
+    if (gain > bestGain && after > 0.05) {
+      bestGain = gain;
+      best = i;
+    }
+  }
+  // Start a beat early, so the drop lands right as the first words appear.
+  return best ? Math.max(0, best * step - 0.35) : 0;
+}
+
+export async function findDrop(file, reelSeconds) {
+  try {
+    return dropAt(await energy(file), reelSeconds);
+  } catch {
+    return 0;
+  }
+}
 
 // ---------------------------------------------------------------------------
 
@@ -174,6 +254,8 @@ async function main() {
   // Stock videos used by recent reels, so the same clip doesn't come back.
   const recent = await (await rest('social_posts?select=meta&video_url=not.is.null&order=created_at.desc&limit=80')).json().catch(() => []);
   const used = new Set((Array.isArray(recent) ? recent : []).map((r) => r.meta?.reel?.bg_used?.id).filter(Boolean).map(String));
+  // The last few tracks, newest first — the next reel doesn't repeat them.
+  const recentTracks = (Array.isArray(recent) ? recent : []).map((r) => r.meta?.reel?.music).filter(Boolean).slice(0, 6);
 
   let done = 0;
   const problems = [];
@@ -269,12 +351,15 @@ async function main() {
       // Sound.
       let audio = null;
       let track = null;
+      let audioStart = 0;
       if (tracks.length) {
-        track = tracks[hash(`${post.id}:music:${reel.bg?.salt ?? 0}`) % tracks.length];
+        track = pickTrack(tracks, reel.mood ?? 'upbeat', recentTracks, `${post.id}:music:${reel.bg?.salt ?? 0}`);
         try {
           const ext = track.toLowerCase().endsWith('.m4a') ? 'm4a' : 'mp3';
           await download(`${base}/storage/v1/object/public/social-videos/music/${encodeURIComponent(track)}`, join(dir, `music.${ext}`), 30_000_000);
           audio = join(dir, `music.${ext}`);
+          audioStart = await findDrop(audio, reel.duration);
+          recentTracks.unshift(track);
         } catch {
           audio = null;
           track = null;
@@ -283,7 +368,7 @@ async function main() {
 
       const out = join(dir, 'reel.mp4');
       try {
-        await render({ bg, frame, layers, duration: reel.duration, out, audio });
+        await render({ bg, frame, layers, duration: reel.duration, out, audio, audioStart });
       } catch (e) {
         // A track ffmpeg can't read must not cost the reel — and neither must a slideshow it can't build.
         if (!audio && bg.kind !== 'slides') throw e;
@@ -296,7 +381,22 @@ async function main() {
         await render({ bg, frame, layers, duration: reel.duration, out });
       }
       const jpg = join(dir, 'cover.jpg');
-      await cover(out, Math.min(reel.cover_at ?? 2.4, reel.duration - 0.5), jpg);
+      const coverAt = Math.min(reel.cover_at ?? 2.4, reel.duration - 0.5);
+      let thumbMade = false;
+      if (reel.thumb) {
+        try {
+          const layer = join(dir, 'thumb.png');
+          const got = await download(reel.thumb, layer, 8_000_000);
+          if (got.type.includes('png')) {
+            // The cover sits on the footage from before the text appears (the first 0.2 s), so words don't overlap.
+            await thumbnail(out, 0.2, layer, jpg);
+            thumbMade = true;
+          }
+        } catch {
+          thumbMade = false;
+        }
+      }
+      if (!thumbMade) await cover(out, coverAt, jpg);
       const size = (await stat(out)).size;
       if (size < 150_000) throw new Error('The video came out empty');
 
@@ -310,7 +410,7 @@ async function main() {
         status: reel.after === 'approved' ? 'approved' : 'awaiting_approval',
         video_url: `${pub}.mp4`,
         images: [{ url: `${pub}.jpg`, width: W, height: H }],
-        meta: { ...post.meta, reel: { ...reel, bg_used: bgUsed, music: track, rendered_at: new Date().toISOString(), seconds: reel.duration, bytes: size } },
+        meta: { ...post.meta, reel: { ...reel, bg_used: bgUsed, music: track, music_start: audioStart || null, thumb_made: thumbMade, rendered_at: new Date().toISOString(), seconds: reel.duration, bytes: size } },
         error: null,
       };
       // Only if it is still waiting for us (someone may have skipped or rewritten it meanwhile).
@@ -347,8 +447,11 @@ const local = process.argv.indexOf('--local');
 if (local > 0) {
   const recipe = JSON.parse(await readFile(process.argv[local + 1], 'utf8'));
   const out = process.argv[process.argv.indexOf('--out') + 1] || 'reel.mp4';
-  await render({ ...recipe, out });
-  await cover(out, recipe.cover_at ?? 2.4, out.replace(/\.mp4$/, '.jpg'));
+  const audioStart = recipe.audio && recipe.audioStart == null ? await findDrop(recipe.audio, recipe.duration) : (recipe.audioStart ?? 0);
+  await render({ ...recipe, out, audioStart });
+  if (recipe.thumb) await thumbnail(out, 0.2, recipe.thumb, out.replace(/\.mp4$/, '.jpg'));
+  else await cover(out, recipe.cover_at ?? 2.4, out.replace(/\.mp4$/, '.jpg'));
+  if (audioStart) console.log('music starts at', audioStart.toFixed(2), 's (the drop)');
   console.log('wrote', out);
 } else {
   await main();

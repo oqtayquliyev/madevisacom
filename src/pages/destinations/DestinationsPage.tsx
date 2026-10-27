@@ -12,6 +12,8 @@ import { countryVerdict, useDestinationProfile, type RouteStatus } from '@/lib/d
 import { useDestinationStats, type CountryStats } from '@/lib/destinationStats';
 import { ProfileCard, RateBar, StatusBadge } from '@/pages/destinations/DestinationUI';
 import { WRAP, countryName, nav } from '@/lib/pageLayout';
+import { MOVE } from '@/data/moveMath';
+import { usd } from '@/lib/moveMath';
 
 type DestinationsPageProps = {
   go: (view: View) => void;
@@ -228,7 +230,7 @@ export function DestinationsPage({ go, onAuth }: DestinationsPageProps) {
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {shown.map((r) => (
-              <CountryCard key={r.guide.code} guide={r.guide} stats={r.stats} loading={!stats} status={me.citizenship ? r.verdict.status : null} openRoutes={r.verdict.openCount} />
+              <CountryCard key={r.guide.code} guide={r.guide} stats={r.stats} loading={!stats} status={me.citizenship ? r.verdict.status : null} openRoutes={r.verdict.openCount} home={me.citizenship} />
             ))}
           </div>
 
@@ -288,7 +290,17 @@ function HeroFigure({ label, value }: { label: string; value: string }) {
   );
 }
 
-function CountryCard({ guide, stats, loading, status, openRoutes }: { guide: VisaGuide; stats: CountryStats | null; loading: boolean; status: RouteStatus | null; openRoutes: number }) {
+/** Move math for a country: average take-home minus rent there, vs at home (rough estimates, src/data/moveMath.ts). */
+function moneyLine(dest: string, home: string | null): { there: number; delta: number | null } | null {
+  const d = MOVE[dest];
+  if (!d) return null;
+  const there = d.net - d.rent;
+  const h = home ? MOVE[home] : undefined;
+  return { there, delta: h && home !== dest ? there - (h.net - h.rent) : null };
+}
+
+function CountryCard({ guide, stats, loading, status, openRoutes, home }: { guide: VisaGuide; stats: CountryStats | null; loading: boolean; status: RouteStatus | null; openRoutes: number; home: string | null }) {
+  const money = moneyLine(guide.code, home);
   const weekly = useMemo(() => (stats ? weeklyCounts(stats.datesAll, 8) : (Array(8).fill(0) as number[])), [stats]);
   const href = destinationPath(guide);
   return (
@@ -316,6 +328,12 @@ function CountryCard({ guide, stats, loading, status, openRoutes }: { guide: Vis
         <Metric label="Sponsored" value={loading ? '…' : stats?.rate != null ? `${stats.rate}%` : '—'} />
         <Metric label="Routes for you" value={status ? String(openRoutes) : '—'} />
       </dl>
+      {money && (
+        <p className="mt-2 text-[13px] leading-5 text-ink-600" title="Estimate: average take-home pay minus rent for a 1-bedroom flat, per month">
+          Left after rent: <strong className="text-ink-900">≈ {usd(money.there)}/mo</strong>
+          {money.delta != null && money.delta > 0 && <strong className="text-emerald-700"> · {usd(money.delta)} more than at home</strong>}
+        </p>
+      )}
 
       <div className="mt-auto flex items-end justify-between gap-4 pt-4">
         <p className="text-[13px] text-ink-500">

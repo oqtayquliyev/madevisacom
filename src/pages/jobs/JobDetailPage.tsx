@@ -11,7 +11,9 @@ import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { MatchButton } from '@/components/cv/MatchButton';
-import { Paywall } from '@/components/pro/Paywall';
+import { JobEdgeBlock } from '@/components/jobs/JobEdgeBlock';
+import { AUTO_POPUP_FROM_VIEW, countJobView, freeAppliedJobs, maskEmail, spendFreeApply } from '@/lib/conversion';
+import { trackPaywall } from '@/lib/paywallStats';
 import { peekJobPreview } from '@/lib/jobPreview';
 import { useMembership } from '@/lib/plans';
 import { MatchPanel } from '@/components/cv/MatchPanel';
@@ -22,7 +24,7 @@ import { useJobMatch } from '@/lib/cv/checks';
 import type { JobInput } from '@/lib/cv/jobProfile';
 import { SalaryCheck } from '@/components/jobs/SalaryCheck';
 import { AlertSignup } from '@/components/jobs/AlertSignup';
-import { UkSponsorPill } from '@/components/companies/SponsorProof';
+import { SponsorRecordPill } from '@/components/companies/SponsorProof';
 import { briefEligibility } from '@/lib/briefs';
 import { fetchSponsoredJobById, fetchSponsoredJobByShortId, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { jobPath, parseJobPath } from '@/lib/jobUrl';
@@ -62,6 +64,19 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // Non-members see the job for a moment (title and ad), then it blurs and the membership card comes up.
   const [peeking, setPeeking] = useState(true);
   useEffect(() => setPeeking(true), [id]);
+  // The card comes up by itself only from the AUTO_POPUP_FROM_VIEW-th job a visitor opens;
+  // before that, only when they press Apply. (Seeing a few jobs first is what makes them want one.)
+  const [viewNumber, setViewNumber] = useState(0);
+  // The one free application per browser: this job's own link, once (src/lib/conversion.ts).
+  const [freeUnlocked, setFreeUnlocked] = useState(false);
+  const [freeNote, setFreeNote] = useState(false);
+  useEffect(() => {
+    setFreeUnlocked(freeAppliedJobs().includes(id));
+    setFreeNote(false);
+  }, [id]);
+  useEffect(() => {
+    if (memberReady && !member) setViewNumber(countJobView(id));
+  }, [id, member, memberReady]);
   // Opened from the list: its title, company and place show at once while the full ad loads.
   const preview = useMemo(() => peekJobPreview(window.location.pathname), [id]); // eslint-disable-line react-hooks/exhaustive-deps
   const { profile: visitor } = usePersonalization();
@@ -253,7 +268,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             : 'Location on source';
   const flagCode = !countryOk && sourcePlace?.code ? sourcePlace.code : job.countryCode;
   const contact = cleaned?.contact ?? {};
-  const hasSourceUrl = member && Boolean(job.url && job.url !== '#');
+  const hasSourceUrl = (member || freeUnlocked) && Boolean(job.url && job.url !== '#');
   const shareLabel = copied ? 'Link copied' : 'Share';
 
   // Every fact in the details box is either real data from the listing
@@ -280,8 +295,6 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // outside the covered countries start the builder with a country picker.
   const offerEl = raw ? briefEligibility({ countryCode: raw.country?.iso_code ?? (countryOk ? job.countryCode : null), visa: visa ?? null, closed: Boolean(job.closed), fallback: 'DE' }) : null;
   // Already in your country (or free to work there): no visa, so no sponsorship document.
-  // UK jobs: show the Home Office sponsor-licence badge when the company is on the register.
-  const ukJob = (raw?.country?.iso_code ?? (countryOk ? job.countryCode : null)) === 'GB';
   const localJob = isLocalJobFor(raw?.country?.iso_code ?? (countryOk ? job.countryCode : null), visitor);
   const offerOk = Boolean(offerEl?.ok) && !localJob;
   const offerCountry = offerEl?.ok && offerEl.picked ? offerEl.code : null;
@@ -347,10 +360,22 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const docFor = offerOk && raw ? { jobId: raw.id, country: offerCountry, dest: offerEl?.ok && !offerEl.picked ? offerEl.code : null, visaOffered: visa === 'offered' } : null;
 
   // Not a member (or still finding out): Apply is a locked button and the job's own address isn't on the page.
-  const locked = !closed && memberReady && !member;
+  const locked = !closed && memberReady && !member && !freeUnlocked;
   const covered = locked && !peeking;
-  // Apply / Check your match pressed by a non-member: the membership card at once.
+  const autoPopup = viewNumber >= AUTO_POPUP_FROM_VIEW;
+  // Apply pressed by a non-member: their free application if it's still there, else the membership card.
   const openPaywall = locked ? () => setPeeking(false) : undefined;
+  const pressApply = locked
+    ? () => {
+        if (spendFreeApply(id)) {
+          trackPaywall('free_apply', 'job_page');
+          setFreeUnlocked(true);
+          setFreeNote(true);
+          return;
+        }
+        setPeeking(false);
+      }
+    : undefined;
   const lockClicks = locked
     ? (e: React.MouseEvent) => {
         if (!(e.target as HTMLElement).closest('button, a, input, label, [role="button"]')) return;
@@ -364,11 +389,11 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       <span className={`inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-full bg-ink-200 px-7 py-3.5 text-sm font-bold text-ink-500 ${extra.includes('flex-1') ? 'flex-1 md:flex-none' : ''}`}>
         Closed
       </span>
-    ) : !member ? (
+    ) : !member && !freeUnlocked ? (
       <button
         type="button"
         disabled={!memberReady}
-        onClick={openPaywall}
+        onClick={pressApply}
         aria-label="Apply (members only)"
         className={`inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${extra}`}
       >
@@ -397,8 +422,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="jobs" />
-      {locked && <PeekTimer onDone={() => setPeeking(false)} />}
-      {covered && <Paywall job={{ title: job.title, company: job.company }} source="job_page" />}
+      {locked && autoPopup && <PeekTimer onDone={() => setPeeking(false)} />}
       {matchKey && !closed && member && <ApplySheet jobKey={matchKey} company={job.company} match={match} doc={docFor} armed={applied} onAuth={onAuth} />}
       {/* One of your best matches? A small card in the corner lists the others. Not while the apply sheet is up. */}
       {matchKey && !applied && !locked && <OtherMatchesPopup currentId={matchKey} onAuth={onAuth} />}
@@ -444,11 +468,11 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               ) : (
                 <p className="truncate text-base font-bold sm:text-lg">{job.company}</p>
               )}
-              {(job.sourceType === 'company_submitted' || isNewCompany(job.companyAddedAt) || ukJob) && (
+              {(job.sourceType === 'company_submitted' || isNewCompany(job.companyAddedAt) || raw?.publisher_id) && (
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   {job.sourceType === 'company_submitted' && <DirectListingBadge company={job.company} />}
                   <NewCompanyBadge addedAt={job.companyAddedAt} variant="hero" />
-                  {ukJob && <UkSponsorPill publisherId={raw?.publisher_id} />}
+                  <SponsorRecordPill publisherId={raw?.publisher_id} />
                 </div>
               )}
             </div>
@@ -507,7 +531,12 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                   visaOffered={job.visaStatus === 'offered' || job.visaSponsorship}
                 />
               )}
-              <ContactBox contact={contact} />
+              <ContactBox contact={locked ? { ...contact, email: maskEmail(contact.email) ?? undefined, phone: undefined, website: undefined } : contact} locked={locked} onUnlock={openPaywall} />
+              {freeNote && (
+                <p role="status" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13px] font-semibold text-brand-800 shadow-sm">
+                  This application is on us — Apply is open. Your next one needs the membership.
+                </p>
+              )}
             </div>
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -564,6 +593,29 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
           </div>
         )}
         {raw && !closed && <SaveJobButton jobId={raw.id} onAuth={onAuth} className="mb-5" />}
+        <JobEdgeBlock
+          jobId={raw?.id ?? null}
+          job={{ title: job.title, company: job.company }}
+          locked={locked}
+          covered={covered}
+          onUnlock={openPaywall}
+          showPanel={!closed}
+          contactEmail={contact.email ?? null}
+          postedLabel={postedDate && postedAgeDays < 14 ? postedLabel : null}
+          fromCareers={isImported}
+          hasCv={Boolean(match.cv)}
+          input={{
+            publisherId: raw?.publisher_id ?? job.publisherId,
+            company: job.company,
+            dest: raw?.country?.iso_code ?? (countryOk ? job.countryCode : null),
+            home: visitor.citizenship ?? visitor.currentLocation,
+            needsVisa: !localJob,
+            salary: raw?.salary_status === 'disclosed' ? { min: raw.salary_min, max: raw.salary_max, currency: raw.salary_currency, period: raw.salary_period } : { min: null, max: null, currency: null, period: null },
+            visaOffered: visa === 'offered',
+            ageDays: postedDate ? postedAgeDays : null,
+            match: match.result?.score ?? null,
+          }}
+        />
         {closed && (
           <div className="mb-5 flex flex-col gap-3 rounded-xl border border-ink-200 bg-white p-4 sm:flex-row sm:items-center">
             <p className="min-w-0 flex-1 text-sm leading-6 text-ink-700">
@@ -789,13 +841,32 @@ function employmentDetail(type: string, schedule: string | null, term: string | 
 }
 
 /** Contact details the company printed in the description (moved out of the text). */
-function ContactBox({ contact }: { contact: JobContact }) {
+function ContactBox({ contact, locked = false, onUnlock }: { contact: JobContact; locked?: boolean; onUnlock?: () => void }) {
   const rows = [
     contact.email && { icon: Mail, text: contact.email, href: `mailto:${contact.email}` },
     contact.phone && { icon: Phone, text: contact.phone, href: `tel:${contact.phone.replace(/[^\d+]/g, '')}` },
     contact.website && { icon: Globe, text: contact.website.replace(/^https?:\/\//, '').replace(/\/$/, ''), href: contact.website },
   ].filter(Boolean) as { icon: typeof Mail; text: string; href: string }[];
   if (!rows.length) return null;
+  // Non-members: the email masked (u••••@f•••.no), nothing to click but the unlock.
+  if (locked) {
+    return (
+      <button
+        type="button"
+        onClick={onUnlock}
+        className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-white/10 px-4 py-3 text-left text-sm ring-1 ring-inset ring-white/20 hover:bg-white/15"
+      >
+        <span className="text-xs font-semibold text-white/70">{contact.name ? `Contact: ${contact.name}` : 'Recruiter contact'}</span>
+        <span className="flex items-center gap-1.5 font-mono font-semibold text-white">
+          <Mail className="h-4 w-4 shrink-0 text-white/80" />
+          {rows[0].text}
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-brand-700">
+          <Lock className="h-3 w-3" /> Unlock
+        </span>
+      </button>
+    );
+  }
   return (
     <div className="mt-5 flex flex-col gap-2 rounded-xl bg-white/10 px-4 py-3 text-sm ring-1 ring-inset ring-white/20 sm:inline-flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
       <span className="text-xs font-semibold text-white/70">{contact.name ? `Contact: ${contact.name}` : 'Contact'}</span>

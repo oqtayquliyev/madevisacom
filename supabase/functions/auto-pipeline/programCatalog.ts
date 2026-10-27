@@ -571,6 +571,20 @@ FORMATS.push(
     platforms: ['instagram', 'facebook', 'tiktok'], parts: ['early', 'morning', 'lunch', 'afternoon', 'evening', 'night'], weight: 3, cooldown: 2, perDay: 3, needs: REEL_NEEDS,
   },
   {
+    key: 'reel_movemath', pillar: 'market', name: 'Reel: move math (money, fast)', video: true,
+    idea: 'The money reel: “$1,900 a month left in Germany” in yellow, then take-home, rent and what is left there vs at home (India, Nigeria, Pakistan… in turn), three fast steps. The kind of numbers people screenshot and argue about in the comments.',
+    example: '$1,900 a month left in Germany — vs about $100 in Pakistan.',
+    source: 'Move math estimates (average take-home and rent per country)', link: '/destinations/<country>', visual: 'Reel, about 9 seconds',
+    platforms: REEL_ON, parts: ['lunch', 'evening', 'night'], weight: 2.5, cooldown: 20, needs: REEL_NEEDS,
+  },
+  {
+    key: 'reel_sponsor_jobs', pillar: 'jobs', name: 'Reel: already sponsors visas (fast)', video: true, fresh: true,
+    idea: 'Like the fast job reel, but only UK companies on the Home Office register of licensed sponsors: one white screen per job with “Licensed UK visa sponsor”, then Follow.',
+    example: 'Revolut is hiring · Data Analyst · London — Licensed UK visa sponsor',
+    source: 'Fresh UK jobs at companies on the sponsor register', link: 'Each job page (caption)', visual: 'Reel, about 7 seconds, white',
+    platforms: ['instagram', 'facebook', 'tiktok'], parts: ['morning', 'lunch', 'evening'], weight: 2, cooldown: 8, needs: REEL_NEEDS,
+  },
+  {
     key: 'reel_news', pillar: 'news', name: 'Reel: news', video: true,
     idea: 'A News desk item as a reel: the headline over footage of the country, the key facts, the source.',
     example: 'Portugal opens applications for its job-seeker visa.',
@@ -631,6 +645,8 @@ export type ProgramSettings = {
   look?: 'photo' | 'graphic';
   /** A real person on the team whose name signs the captions ("— Leyla, MadeVisa"). Empty = no signature. */
   host?: string;
+  /** This week's trending sounds (names), one suggested per reel for posting by hand (social_program.trending_sounds). */
+  sounds?: string[];
 };
 
 /** The pause between any two posts, on any network: the planner draws between half of this and this (15–30 minutes). */
@@ -683,7 +699,55 @@ export type ReelRecipe = {
   cover_at: number;
   /** The status the post gets once rendered. */
   after: 'approved' | 'awaiting_approval';
+  /** The thumbnail text layer (/api/og/post?t=reel&sc=thumb): drawn over a frame of the video for the cover. */
+  thumb?: string;
+  /** The kind of music to pick: tracks named "<mood>--name.mp3" in the library. */
+  mood?: ReelMood;
+  /** A trending sound to add in the app when posting by hand (from the weekly list). */
+  sound?: string | null;
 };
+
+export type ReelMood = 'energetic' | 'upbeat' | 'chill' | 'emotional' | 'cinematic';
+export const REEL_MOODS: ReelMood[] = ['energetic', 'upbeat', 'chill', 'emotional', 'cinematic'];
+
+/** Music that fits the post: fast job reels hit hard, stories and outcomes are emotional, know-how is calm. */
+export function moodFor(pillar: Pillar, plain: boolean): ReelMood {
+  if (plain || pillar === 'jobs') return 'energetic';
+  if (pillar === 'proof' || pillar === 'community') return 'emotional';
+  if (pillar === 'visa' || pillar === 'news') return 'chill';
+  if (pillar === 'market') return 'cinematic';
+  return 'upbeat';
+}
+
+/**
+ * Thumbnail words from a headline: the 3–6 words that stop a scroll. Drops the soft start
+ * ("Here are", "Did you know"), keeps numbers, money and country names. "~" separates lines.
+ */
+export function thumbLines(headline: string): string {
+  const words = headline
+    .replace(/^(here are|here's|here is|did you know( that)?|this is|these are|meet|new:?)\s+/i, '')
+    .replace(/[“”"]/g, '')
+    .replace(/[.!?:;]+$/, '')
+    .split(/\s+/)
+    .filter(Boolean);
+  const cut = words.slice(0, 7);
+  const lines: string[] = [];
+  let line: string[] = [];
+  for (const w of cut) {
+    if (line.join(' ').length + w.length > 13 && line.length) {
+      lines.push(line.join(' '));
+      line = [];
+    }
+    line.push(w);
+  }
+  if (line.length) lines.push(line.join(' '));
+  // The punchiest line (a number, money, a percentage) gets the yellow box.
+  const hot = lines.findIndex((l) => /[\d$€£%]/.test(l));
+  return lines
+    .slice(0, 4)
+    .map((l, i) => (i === (hot >= 0 ? hot : lines.length - 1) ? `!${l}` : l))
+    .join('~');
+}
 
 export function reelLayers(scenes: ReelScene[]): { layers: ReelLayer[]; duration: number; cover_at: number } {
   const layers: ReelLayer[] = [];

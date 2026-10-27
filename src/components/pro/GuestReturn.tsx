@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { refreshMyPlan, useMembership } from '@/lib/plans';
 import { confirmEmailVerified } from '@/lib/emailVerification';
-import { clearGuestClaim, readGuestClaim, type GuestClaim } from '@/lib/guestClaim';
+import { CLAIM_EVENT, clearGuestClaim, readGuestClaim, type GuestClaim } from '@/lib/guestClaim';
 import { nav } from '@/lib/pageLayout';
 
 // Someone paid on Gumroad without a MadeVisa account. When they come back to the site
@@ -35,6 +35,16 @@ export function GuestReturn() {
     }
   });
   const asking = useRef(false);
+
+  // A guest just started paying on this page (Gumroad's form opened over it): start looking.
+  useEffect(() => {
+    const onClaim = () => {
+      setClaim(readGuestClaim());
+      setHidden(false);
+    };
+    window.addEventListener(CLAIM_EVENT, onClaim);
+    return () => window.removeEventListener(CLAIM_EVENT, onClaim);
+  }, []);
 
   // Signed in as a member already (on this or another tab): nothing left to do.
   useEffect(() => {

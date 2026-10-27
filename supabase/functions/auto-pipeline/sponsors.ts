@@ -8,6 +8,7 @@
 // clearly complete, so a broken download never wipes the data.
 
 import type { Service } from './shared.ts';
+import { decodeText, parseIndRegister, parseUscisHub, pickUscisCsv, type RegisterRow } from '../_shared/sponsorParsers.ts';
 
 const PAGE = 'https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers';
 const BATCH = 2000;
@@ -45,7 +46,11 @@ function parseCsv(text: string): string[][] {
 }
 
 export async function runSponsors(service: Service): Promise<void> {
-  const log = (ok: boolean, summary: string) => service.rpc('pipeline_finished', { p_kind: 'sponsors', p_ok: ok, p_summary: summary.slice(0, 1500), p_detail: null });
+  // The other registers first, each on its own, so one failing never stops the rest (or the UK one).
+  const seenDay = new Date().toISOString().slice(0, 10);
+  const nl = await runRegister(service, 'NL', seenDay, loadNl).catch((e) => `NL: ${e instanceof Error ? e.message : String(e)}`);
+  const us = await runRegister(service, 'US', seenDay, loadUs).catch((e) => `US: ${e instanceof Error ? e.message : String(e)}`);
+  const log = (ok: boolean, summary: string) => service.rpc('pipeline_finished', { p_kind: 'sponsors', p_ok: ok, p_summary: [summary, nl, us].join(' · ').slice(0, 1500), p_detail: null });
 
   const page = await fetch(PAGE, { headers: { 'User-Agent': 'MadeVisa sponsor-register import (hello@madevisa.com)' } });
   if (!page.ok) return void (await log(false, `gov.uk page: HTTP ${page.status}`));
@@ -89,5 +94,52 @@ export async function runSponsors(service: Service): Promise<void> {
     saved += Number(data) || 0;
   }
   const { data: done, error } = await service.rpc('uk_sponsors_finish', { p_seen: seen, p_url: url, p_min: 50000 });
-  await log(!error, error ? `Finishing: ${error.message}` : `UK register ${seen}: ${rows.length - 1} rows, ${all.length} organisations · ${String(done)}`);
+  await log(!error, error ? `UK finishing: ${error.message}` : `UK register ${seen}: ${rows.length - 1} rows, ${all.length} organisations · ${String(done)}`);
+}
+
+// ---------------------------------------------------------------------------
+// NL (IND recognised sponsors) and US (USCIS H-1B Employer Data Hub) → public.sponsor_registers
+// ---------------------------------------------------------------------------
+const UA = { 'User-Agent': 'MadeVisa sponsor-register import (hello@madevisa.com)', Accept: 'text/html,text/csv,*/*' };
+
+/** IND publishes one register per residence purpose; the work ones matter for jobs. */
+const IND_PAGES: [string, string][] = [
+  ['https://ind.nl/en/public-register-recognised-sponsors/public-register-regular-labour-and-highly-skilled-migrants', 'Highly skilled migrants and regular labour'],
+  ['https://ind.nl/en/public-register-recognised-sponsors/public-register-research', 'Researchers'],
+];
+
+async function loadNl(): Promise<{ rows: RegisterRow[]; url: string; min: number }> {
+  const rows: RegisterRow[] = [];
+  for (const [url, category] of IND_PAGES) {
+    const r = await fetch(url, { headers: UA });
+    if (!r.ok) throw new Error(`IND page HTTP ${r.status}`);
+    rows.push(...parseIndRegister(await r.text(), category));
+  }
+  return { rows, url: IND_PAGES[0][0], min: 3000 };
+}
+
+async function loadUs(): Promise<{ rows: RegisterRow[]; url: string; min: number }> {
+  const page = 'https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub/h-1b-employer-data-hub-files';
+  const r = await fetch(page, { headers: UA });
+  if (!r.ok) throw new Error(`USCIS page HTTP ${r.status}`);
+  const url = pickUscisCsv(await r.text());
+  if (!url) throw new Error('no CSV link on the USCIS page — its layout may have changed');
+  const f = await fetch(url, { headers: UA });
+  if (!f.ok) throw new Error(`USCIS CSV HTTP ${f.status}`);
+  const parsed = parseUscisHub(decodeText(new Uint8Array(await f.arrayBuffer())));
+  if (parsed.error) throw new Error(parsed.error);
+  return { rows: parsed.rows, url, min: 15000 };
+}
+
+async function runRegister(service: Service, country: string, seen: string, load: () => Promise<{ rows: RegisterRow[]; url: string; min: number }>): Promise<string> {
+  const { rows, url, min } = await load();
+  if (rows.length < min) return `${country}: only ${rows.length} rows — skipped, old data kept`;
+  const begun = await service.rpc('sponsor_registers_begin', { p_country: country, p_seen: seen });
+  if (begun.error) return `${country}: ${begun.error.message} (has migration 20261231120000 been run?)`;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const { error } = await service.rpc('sponsor_registers_upsert', { p_country: country, p_rows: rows.slice(i, i + BATCH), p_seen: seen });
+    if (error) return `${country}: batch ${i / BATCH + 1}: ${error.message}`;
+  }
+  const { data, error } = await service.rpc('sponsor_registers_finish', { p_country: country, p_seen: seen, p_url: url, p_min: Math.round(min * 0.8) });
+  return error ? `${country} finishing: ${error.message}` : String(data);
 }
