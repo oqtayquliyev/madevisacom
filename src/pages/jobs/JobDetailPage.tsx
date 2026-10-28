@@ -13,6 +13,9 @@ import { jobs as curatedJobs } from '@/data/jobs';
 import { MatchButton } from '@/components/cv/MatchButton';
 import { JobEdgeBlock } from '@/components/jobs/JobEdgeBlock';
 import { AUTO_POPUP_FROM_VIEW, countJobView, freeAppliedJobs, maskEmail, spendFreeApply } from '@/lib/conversion';
+import { fetchApplyLink } from '@/lib/applyLink';
+import { agoLabel, jobReality } from '@/lib/jobReality';
+import { RealityPill, ScamWarning } from '@/components/jobs/JobReality';
 import { trackPaywall } from '@/lib/paywallStats';
 import { peekJobPreview } from '@/lib/jobPreview';
 import { useMembership } from '@/lib/plans';
@@ -77,6 +80,28 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   useEffect(() => {
     if (memberReady && !member) setViewNumber(countJobView(id));
   }, [id, member, memberReady]);
+  // The company's apply address comes from the server, only for those allowed to have it
+  // (members, the job's company, admins, or a free application) — src/lib/applyLink.ts.
+  const [applyUrl, setApplyUrl] = useState<string | null>(null);
+  useEffect(() => {
+    setApplyUrl(null);
+    if (!raw?.id || !memberReady) return;
+    let alive = true;
+    void fetchApplyLink(raw.id).then(async (r) => {
+      if (!alive) return;
+      if (r.kind === 'open') {
+        setApplyUrl(r.url);
+        if (r.why === 'free') setFreeUnlocked(true);
+      } else if (r.kind === 'error' && member) {
+        // The server function isn't there yet (migration not run): members read it directly, as before.
+        const full = await fetchSponsoredJobById(raw.id, { private: true });
+        if (alive) setApplyUrl(full?.application_url || full?.official_url || null);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, [raw?.id, member, memberReady]);
   // Opened from the list: its title, company and place show at once while the full ad loads.
   const preview = useMemo(() => peekJobPreview(window.location.pathname), [id]); // eslint-disable-line react-hooks/exhaustive-deps
   const { profile: visitor } = usePersonalization();
@@ -268,7 +293,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             : 'Location on source';
   const flagCode = !countryOk && sourcePlace?.code ? sourcePlace.code : job.countryCode;
   const contact = cleaned?.contact ?? {};
-  const hasSourceUrl = (member || freeUnlocked) && Boolean(job.url && job.url !== '#');
+  // Curated jobs (not from the database) carry their link; database jobs get it from the server.
+  const sourceUrl = raw ? applyUrl : job.url && job.url !== '#' ? job.url : null;
+  const hasSourceUrl = (member || freeUnlocked) && Boolean(sourceUrl);
   const shareLabel = copied ? 'Link copied' : 'Share';
 
   // Every fact in the details box is either real data from the listing
@@ -280,7 +307,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // While the server is still reading the description (first view only),
   // show a placeholder bar instead of a premature "See on source".
   const pendingBar = <span className="inline-block h-4 w-20 animate-pulse rounded bg-ink-100 align-middle" aria-label="Loading" />;
-  const see = factsPending ? pendingBar : isDirect ? <span className="font-medium text-ink-400">Not mentioned</span> : <SourceLink url={hasSourceUrl ? job.url : null} />;
+  const see = factsPending ? pendingBar : isDirect ? <span className="font-medium text-ink-400">Not mentioned</span> : <SourceLink url={hasSourceUrl ? sourceUrl : null} />;
   // The place as the posting states it ("Chicago, Illinois, United States"), else the listing's own.
   const locationValue = sourcePlace?.label ?? (placeLabel !== 'Location on source' ? placeLabel : null);
   // Stored fields win; anything still missing is read from the
@@ -359,6 +386,9 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   const closedAgo = job.closedAt ? formatRelativeTime(job.closedAt, '').toLowerCase() : null;
   const docFor = offerOk && raw ? { jobId: raw.id, country: offerCountry, dest: offerEl?.ok && !offerEl.picked ? offerEl.code : null, visaOffered: visa === 'offered' } : null;
 
+  // Is this job real, live and safe? (src/lib/jobReality.ts)
+  const reality = jobReality({ sourceType: job.sourceType ?? null, lastSeenAt: job.lastSeenAt, postedAt: postedDate, closed, text: cleaned?.html ?? job.description ?? null, contactEmail: contact.email ?? null, company: job.company });
+
   // Not a member (or still finding out): Apply is a locked button and the job's own address isn't on the page.
   const locked = !closed && memberReady && !member && !freeUnlocked;
   const covered = locked && !peeking;
@@ -366,12 +396,18 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   // Apply pressed by a non-member: their free application if it's still there, else the membership card.
   const openPaywall = locked ? () => setPeeking(false) : undefined;
   const pressApply = locked
-    ? () => {
-        if (spendFreeApply(id)) {
-          trackPaywall('free_apply', 'job_page');
-          setFreeUnlocked(true);
-          setFreeNote(true);
-          return;
+    ? async () => {
+        // The free application is granted by the server (once per account / browser), never by the page alone.
+        if (raw?.id) {
+          const r = await fetchApplyLink(raw.id, { spend: true });
+          if (r.kind === 'open') {
+            spendFreeApply(id);
+            trackPaywall('free_apply', 'job_page');
+            setApplyUrl(r.url);
+            setFreeUnlocked(true);
+            setFreeNote(true);
+            return;
+          }
         }
         setPeeking(false);
       }
@@ -402,10 +438,16 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
       </button>
     ) : (
     <a
-      href={job.url}
+      href={sourceUrl ?? '#'}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={() => {
+      aria-disabled={!sourceUrl || undefined}
+      onClick={(e) => {
+        // The address is still on its way from the server: nothing to open yet.
+        if (!sourceUrl) {
+          e.preventDefault();
+          return;
+        }
         // Signed-in users: remember this application so they can report the
         // outcome later — that's what builds company response statistics.
         if (raw?.publisher_id) recordApplication({ publisherId: raw.publisher_id, kind: 'job', listingId: raw.id, title: job.title });
@@ -531,6 +573,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
                   visaOffered={job.visaStatus === 'offered' || job.visaSponsorship}
                 />
               )}
+              {!closed && <RealityPill reality={reality} />}
               <ContactBox contact={locked ? { ...contact, email: maskEmail(contact.email) ?? undefined, phone: undefined, website: undefined } : contact} locked={locked} onUnlock={openPaywall} />
               {freeNote && (
                 <p role="status" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13px] font-semibold text-brand-800 shadow-sm">
@@ -592,6 +635,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             </div>
           </div>
         )}
+        {!closed && <ScamWarning reality={reality} />}
         {raw && !closed && <SaveJobButton jobId={raw.id} onAuth={onAuth} className="mb-5" />}
         <JobEdgeBlock
           jobId={raw?.id ?? null}
@@ -602,6 +646,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
           showPanel={!closed}
           contactEmail={contact.email ?? null}
           postedLabel={postedDate && postedAgeDays < 14 ? postedLabel : null}
+          checkedLabel={isImported && reality.checkedHours != null && reality.checkedHours <= 72 ? agoLabel(reality.checkedHours) : null}
           fromCareers={isImported}
           hasCv={Boolean(match.cv)}
           input={{

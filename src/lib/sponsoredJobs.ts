@@ -78,8 +78,16 @@ const columns =
 // fetchSponsoredJobById). For a catalog of hundreds to thousands of
 // jobs, this is the difference between transferring and JSON-parsing a
 // few hundred KB total vs. tens of MB just to render a list of titles.
-const LIST_COLUMNS =
+const LIST_COLUMNS_ALL =
   'id, publisher_id, title, category, employment_type, job_function, remote, country_id, city, compensation_text, salary_status, salary_min, salary_max, salary_currency, salary_period, visa_sponsorship, experience_level, education_level, languages, application_deadline, spots_available, image_url, citizenship_any, citizenship_allowed, citizenship_excluded, min_age, max_age, official_url, application_url, contact_email, status, created_at, approved_at, expires_at, source_posted_at, additional_locations, origin, publisher:program_publishers(id, name, org_type, logo_url, owner_id, created_at), country:countries(id, name, iso_code)';
+
+// The company's apply address and the job's contact email are for members (and the job's own
+// company/admins): visitors can't read them from the database at all (migration
+// 20261231130000_trust_layer.sql), so public reads never ask for them. job_apply_link() hands
+// them out (src/lib/applyLink.ts).
+const PRIVATE_COLUMNS = /,\s*(official_url|application_url|contact_email)\b/g;
+export const withoutPrivateColumns = (cols: string) => cols.replace(PRIVATE_COLUMNS, '');
+const LIST_COLUMNS = withoutPrivateColumns(LIST_COLUMNS_ALL);
 
 export function toEligibilityCriteria(job: SponsoredJob): EligibilityCriteria {
   return {
@@ -719,13 +727,21 @@ export async function updateMySponsoredJob(
 // keeps working even if the newest migration hasn't been run yet — a
 // missing column must never make jobs disappear again.
 const detailColumns = `${columns.replace(', publisher:', ', last_seen_at, work_arrangement, visa_status, publisher:')}`;
+/** Public reads: the same, without the apply address and contact (see PRIVATE_COLUMNS). */
+const pub = (cols: string, priv: boolean) => (priv ? cols : withoutPrivateColumns(cols));
 const detailFullColumns = detailColumns.replace(', publisher:', ', facts, closed_at, publisher:');
 
 type DetailQuery = (cols: string) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
 // Plus the stored detector results (20261007090000 migration).
 const detailWithFactsColumns = detailColumns.replace(', publisher:', ', facts, publisher:');
 const isMissingColumn = (e: { message: string; code?: string }) => /column|schema cache/i.test(e.message) || e.code === '42703';
-async function withDetailColumns(run: DetailQuery, runLiveOnly?: DetailQuery) {
+async function withDetailColumns(run: DetailQuery, runLiveOnly?: DetailQuery, priv = false) {
+  const inner = run;
+  run = (cols) => inner(pub(cols, priv));
+  if (runLiveOnly) {
+    const live = runLiveOnly;
+    runLiveOnly = (cols) => live(pub(cols, priv));
+  }
   // Newest: facts + closed_at, and recently closed jobs too.
   if (!closedColumnMissing) {
     const full = await run(detailFullColumns);
@@ -741,11 +757,17 @@ async function withDetailColumns(run: DetailQuery, runLiveOnly?: DetailQuery) {
   return first;
 }
 
-/** Fetches one published sponsored job by id — for the public job detail page. */
-export async function fetchSponsoredJobById(id: string): Promise<SponsoredJob | null> {
+/**
+ * Fetches one published sponsored job by id — for the public job detail page.
+ * `private: true` (the sponsorship-document builder) also reads the apply address and the
+ * contact, which only works when signed in; signed out it falls back to the public columns.
+ */
+export async function fetchSponsoredJobById(id: string, opts: { private?: boolean } = {}): Promise<SponsoredJob | null> {
+  const priv = Boolean(opts.private) && Boolean((await supabase.auth.getSession()).data.session);
   const { data, error } = await withDetailColumns(
     (cols) => supabase.from('sponsored_jobs').select(cols).eq('id', id).or(liveOrRecentlyClosed(nowIso())).maybeSingle(),
-    (cols) => supabase.from('sponsored_jobs').select(cols).eq('id', id).eq('status', 'published').maybeSingle()
+    (cols) => supabase.from('sponsored_jobs').select(cols).eq('id', id).eq('status', 'published').maybeSingle(),
+    priv
   );
 
   if (error) {

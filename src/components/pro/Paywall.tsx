@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Check, Eye, Gift, Loader2, Lock, Mail, MessageCircleReply, ShieldCheck, Sparkles, Star, Wallet, X, Zap } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Check, Eye, Gift, Loader2, Lock, Mail, MessageCircleReply, ShieldCheck, Sparkles, Star, Wallet, X, Zap } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSiteStats } from '@/lib/siteStats';
 import { moreJobsHeadline, readLastSearch } from '@/lib/lastSearch';
@@ -14,6 +14,7 @@ import { nav } from '@/lib/pageLayout';
 import { usePersonalization } from '@/lib/personalization';
 import { DOWNSELL_CODE, DOWNSELL_PRICE, GUARANTEE, downsellDue, markDownsellShown, quotesFor } from '@/lib/conversion';
 import { CircleFlag } from '@/components/common/CircleFlag';
+import { PROOF_MIN_REPLIES, usePublicOutcomes } from '@/lib/outcomes';
 import { Blur } from '@/components/common/Blur';
 import { TESTIMONIALS } from '@/data/testimonials';
 
@@ -60,6 +61,8 @@ export type PaywallTeaser = {
   contact?: string | null;
   /** "6 hours ago" — when the company published it. */
   postedLabel?: string | null;
+  /** "3 hours ago": last seen live on the company's careers page. */
+  checkedLabel?: string | null;
   /** Posted on the company's own careers page (imported), not a job board. */
   fromCareers?: boolean;
   /** Real count of page views today; shown from 3 up. */
@@ -94,6 +97,9 @@ export function Paywall({ job, onClose, source, teaser }: Props) {
   const headline = useMemo(() => moreJobsHeadline(readLastSearch(), stats?.publishedJobs), [stats?.publishedJobs]);
   const quotes = useMemo(() => quotesFor(ALL_QUOTES, visitor.citizenship ?? visitor.currentLocation), [visitor.citizenship, visitor.currentLocation]);
   const [quote, setQuote] = useState(0);
+  // Real outcomes members tracked (last 30 days) — shown only when there are enough to mean something.
+  const outcomes = usePublicOutcomes();
+  const proof = outcomes && outcomes.replies >= PROOF_MIN_REPLIES ? outcomes : null;
 
   useEffect(() => {
     trackBilling('upgrade_prompt_shown', { source });
@@ -186,6 +192,7 @@ export function Paywall({ job, onClose, source, teaser }: Props) {
   const rows: { icon: ReactNode; label: ReactNode; locked?: ReactNode }[] = [];
   if (teaser) {
     if (teaser.postedLabel) rows.push({ icon: <Zap className="h-3.5 w-3.5" />, label: <>Posted {teaser.postedLabel}{teaser.fromCareers && company ? <> on {company}’s careers page</> : null}</> });
+    if (teaser.checkedLabel && company) rows.push({ icon: <BadgeCheck className="h-3.5 w-3.5" />, label: <>Checked live on {company}’s site {teaser.checkedLabel}</> });
     if (teaser.viewsToday != null && teaser.viewsToday >= 3) rows.push({ icon: <Eye className="h-3.5 w-3.5" />, label: <>{teaser.viewsToday} people looked at this job today</> });
     if (teaser.contact) rows.push({ icon: <Mail className="h-3.5 w-3.5" />, label: 'Recruiter email', locked: <span className="font-mono text-[12.5px] text-ink-700">{teaser.contact}</span> });
     if (teaser.sponsorRecords) rows.push({ icon: <ShieldCheck className="h-3.5 w-3.5" />, label: 'Official visa-sponsor record', locked: <Blur w={64} /> });
@@ -301,6 +308,12 @@ export function Paywall({ job, onClose, source, teaser }: Props) {
               <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-[12px] font-semibold text-emerald-700">
                 <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden /> {GUARANTEE}
               </p>
+              {proof && (
+                <p className="mt-1.5 text-center text-[12px] font-semibold text-ink-600">
+                  {proof.replies.toLocaleString('en-US')} employer replies
+                  {proof.interviews ? ` and ${proof.interviews.toLocaleString('en-US')} interviews` : ''} tracked by members in the last {proof.days} days
+                </p>
+              )}
 
               <ul className="mt-3.5 space-y-1.5">
                 {benefits.map((t) => (

@@ -6,6 +6,7 @@ import { reloadForNewVersion } from '@/lib/lazyPage';
 import { AuthProvider } from '@/lib/auth';
 import { MfaGate } from '@/components/auth/MfaGate';
 import { GuestReturn } from '@/components/pro/GuestReturn';
+import { OutcomeCheckIn } from '@/components/pro/OutcomeCheckIn';
 import { PersonalizationProvider } from '@/lib/personalization';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
@@ -68,6 +69,7 @@ createRoot(document.getElementById('root')!).render(
           </Suspense>
         </MfaGate>
         <GuestReturn />
+        <OutcomeCheckIn />
         <Analytics />
         <SpeedInsights />
       </PersonalizationProvider>

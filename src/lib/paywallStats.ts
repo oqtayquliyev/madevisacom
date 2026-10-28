@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 
 const KEY = 'mv:pwVisitor';
 
-function visitorId(): string {
+export function visitorId(): string {
   try {
     let id = window.localStorage.getItem(KEY);
     if (!id) {

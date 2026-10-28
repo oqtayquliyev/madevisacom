@@ -205,7 +205,7 @@ function NewOffer({ go, onAuth }: Props) {
       };
     }
     if (!jobId) return setState({ k: 'missing' });
-    fetchSponsoredJobById(jobId).then(async (raw) => {
+    fetchSponsoredJobById(jobId, { private: true }).then(async (raw) => {
       if (!alive) return;
       if (!raw) return setState({ k: 'missing' });
       const board = sponsoredJobToBoardJob(raw);

@@ -16,12 +16,14 @@ type Props = {
   onUnlock?: () => void;
   contactEmail?: string | null;
   postedLabel?: string | null;
+  /** "3 hours ago": when the job was last seen live on the company's careers page. */
+  checkedLabel?: string | null;
   fromCareers?: boolean;
   hasCv: boolean;
   showPanel: boolean;
 };
 
-export function JobEdgeBlock({ input, jobId, job, locked, covered, onUnlock, contactEmail, postedLabel, fromCareers, hasCv, showPanel }: Props) {
+export function JobEdgeBlock({ input, jobId, job, locked, covered, onUnlock, contactEmail, postedLabel, checkedLabel, fromCareers, hasCv, showPanel }: Props) {
   const edge = useJobEdge(input);
   const [views, setViews] = useState<number | null>(null);
   useEffect(() => {
@@ -43,6 +45,7 @@ export function JobEdgeBlock({ input, jobId, job, locked, covered, onUnlock, con
           teaser={{
             contact: maskEmail(contactEmail),
             postedLabel,
+            checkedLabel,
             fromCareers,
             viewsToday: views,
             sponsorRecords: edge.sponsor?.length ?? 0,
