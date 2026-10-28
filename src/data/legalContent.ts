@@ -528,8 +528,8 @@ export const legalPages: Record<string, LegalPageContent> = {
     description: 'MadeVisa Membership: price, what it includes and its limits, billing, renewal, cancellation and refunds.',
     intro: `These terms apply to MadeVisa’s paid plan for job seekers, the MadeVisa Membership. Last updated ${LEGAL_LAST_UPDATED}.`,
     summary: [
-      'The MadeVisa Membership is $4.99 for 3 months, or $2.29 a month, in US dollars, the same in every country.',
-      'Billed every 3 months or every month (the one you choose) until you cancel. Cancel anytime: you keep the membership until the end of the period you paid for.',
+      'The MadeVisa Membership is $2.99 for 3 months, in US dollars, the same in every country.',
+      'Billed every 3 months until you cancel. Cancel anytime: you keep the membership until the end of the 3 months you paid for.',
       'Payments are taken by Gumroad, the seller named on your receipt. MadeVisa never sees your card.',
       'You can pay without a MadeVisa account: we create one for the email you pay with, or add the membership to your existing account with that email.',
       'Full refund within 14 days of first joining, as long as you haven’t used any of its paid features yet.',
@@ -540,7 +540,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         heading: 'The membership',
         paragraphs: [
           'Free: browsing every job, with search and filters, 1 sponsorship document a month, up to 5 saved jobs and 1 job alert.',
-          'MadeVisa Membership ($4.99 for 3 months, or $2.29 a month): applying to every job on MadeVisa (the Apply button on each job page), jobs straight from company career pages, remote and online job listings, CV match and personalised CV suggestions on every job, the companies that sponsor visas in each country with their reply data, 20 sponsorship documents a month, up to 5 job alerts and unlimited saved jobs.',
+          'MadeVisa Membership ($2.99 for 3 months): applying to every job on MadeVisa (the Apply button on each job page), jobs straight from company career pages, remote and online job listings, CV match and personalised CV suggestions on every job, the companies that sponsor visas in each country with their reply data, 20 sponsorship documents a month, up to 5 job alerts and unlimited saved jobs.',
           'MadeVisa helps you find and apply for jobs. The membership does not guarantee interviews, a job, visa sponsorship or a visa decision.',
         ],
       },
@@ -561,7 +561,7 @@ export const legalPages: Record<string, LegalPageContent> = {
       {
         heading: 'Billing and renewal',
         paragraphs: [
-          'The membership is billed in US dollars, starting on the day you subscribe: every 3 months ($4.99) or every month ($2.29), the one you chose at checkout. It renews at the end of each period at the same price until you cancel. Gumroad adds sales tax or VAT where it applies; the amount is shown on Gumroad’s checkout before you pay. Your bank may convert the amount into your currency.',
+          'The membership is billed in US dollars, starting on the day you subscribe: $2.99 every 3 months. It renews at the end of each 3 months at the same price until you cancel. Gumroad adds sales tax or VAT where it applies; the amount is shown on Gumroad’s checkout before you pay. Your bank may convert the amount into your currency.',
           'Your membership starts once Gumroad confirms the payment to MadeVisa, usually within a minute. If a renewal fails, Gumroad tries again and asks you to update your payment method; your membership stays on for a few days while it does, then pauses until a payment goes through.',
         ],
       },
@@ -590,7 +590,7 @@ export const legalPages: Record<string, LegalPageContent> = {
       {
         heading: 'Members of earlier plans',
         paragraphs: [
-          'MadeVisa used to sell other plans (Pro, and Starter at $2.99 a month). If you are on one of them, nothing changes for you: you keep everything in the membership and keep paying the price you agreed to until you cancel.',
+          'MadeVisa used to sell other plans (Pro, and Starter at $2.99 a month). If you are on one of them, nothing changes for you: you keep everything in the membership and keep paying the price and billing period you agreed to (for example $2.29 a month) until you cancel.',
         ],
       },
       {

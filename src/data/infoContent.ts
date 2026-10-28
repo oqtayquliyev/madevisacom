@@ -77,7 +77,7 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
           { icon: 'calendar', title: 'Honest dates', text: 'A job posted two weeks ago says two weeks ago. We never refresh dates to make listings look new.' },
           { icon: 'scale', title: 'Outcomes over opinions', text: 'Scores come from what actually happened to applicants, not star ratings. The method is the same for every company — and sponsorship never changes it.' },
           { icon: 'lock', title: 'Your data stays yours', text: 'We never sell data and never pass your details to employers. Your email, phone and nationality are never shown publicly.' },
-          { icon: 'gift', title: 'Free to search, fair to pay', text: 'Browsing every job and the visa guides are free. Applying through MadeVisa, CV match and sponsorship proposals are part of one membership at $2.29 a month — and no employer should ever ask you to pay to be hired.' },
+          { icon: 'gift', title: 'Free to search, fair to pay', text: 'Browsing every job and the visa guides are free. Applying through MadeVisa, CV match and sponsorship proposals are part of one membership at $2.99 for 3 months — and no employer should ever ask you to pay to be hired.' },
         ],
       },
       {
@@ -120,7 +120,7 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
       },
     ],
     faq: [
-      { q: 'Is MadeVisa free?', a: 'Browsing every job, Company Scores and visa guides are free. Applying to jobs, CV match and sponsorship proposals are part of the MadeVisa Membership ($2.29 a month; 20 proposals a month), the same price in every country. Companies can pay to sponsor a listing; sponsored listings are always labelled and never change scores.' },
+      { q: 'Is MadeVisa free?', a: 'Browsing every job, Company Scores and visa guides are free. Applying to jobs, CV match and sponsorship proposals are part of the MadeVisa Membership ($2.99 for 3 months; 20 proposals a month), the same price in every country. Companies can pay to sponsor a listing; sponsored listings are always labelled and never change scores.' },
       { q: 'What is a sponsorship proposal?', a: 'A document you attach to an application to open the conversation about sponsorship: the route that may apply, what it usually asks of the employer, and who you suggest pays each visa-related cost. Every line shows its source and whether it is known, your proposal, or still needs confirmation. It is not a contract, a job offer or a visa guarantee; its terms count only once you and the employer put them into the employment contract or a signed agreement.' },
       { q: 'Where do the jobs come from?', a: 'Mostly straight from employers’ own career pages, plus jobs companies post with us directly. Every listing links to the original posting, where you apply.' },
       { q: 'How fresh are the listings?', a: 'New roles arrive throughout the day, and jobs that close on the employer’s page are marked closed and then removed. Each listing shows when the employer posted it.' },
@@ -186,7 +186,7 @@ export const infoPages: Record<'about' | 'how-it-works', InfoPageContent> = {
       { q: 'Why does a job show “Location on source”?', a: 'Some employers don’t state a clear location in the ad. Rather than guess, we point you to the original posting, where the employer gives the details.' },
       { q: 'Do I need an account?', a: 'No — you can search every job without one, and even pay for the membership without one: we create the account for the email you pay with. An account keeps your CV, shows the skills you’re missing, and lets you save jobs, track applications and get check-in reminders.' },
       { q: 'Can I trust a Company Score with only a few applicants?', a: 'Scores only appear once several people have shared an outcome, and while data is early they show as a range. The more people track, the sharper they get.' },
-      { q: 'How much does a sponsorship proposal cost?', a: 'Free accounts get 1 a month; the MadeVisa Membership ($2.29 a month) includes 20 a month, with CV match on every job. Credits bought before October 2026 still work; see the Sponsorship Document Terms.' },
+      { q: 'How much does a sponsorship proposal cost?', a: 'Free accounts get 1 a month; the MadeVisa Membership ($2.99 for 3 months) includes 20 a month, with CV match on every job. Credits bought before October 2026 still work; see the Sponsorship Document Terms.' },
       { q: 'Is checking my CV against a job free?', a: 'CV match is part of the MadeVisa Membership: your match score on every job, the skills your CV is missing, the experience the employer also wants, and the full report on what to change. Browsing jobs and 1 sponsorship document a month are free.' },
       { q: 'Is the visa information official?', a: 'Each guide summarises the official rules and links to the government source, with the month it was last checked. Always confirm with the official source before you apply.' },
     ],

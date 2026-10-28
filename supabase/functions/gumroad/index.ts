@@ -1,6 +1,6 @@
 // supabase/functions/gumroad/index.ts
 //
-// Card payments for the MadeVisa Membership ($2.29 / month), through Gumroad
+// Card payments for the MadeVisa Membership ($2.99 / 3 months), through Gumroad
 // (the seller of record). The membership is the Gumroad membership product
 // connected as 'starter'; the retired Pro product is still read so its members
 // keep their plan. The product a payment belongs to decides the plan.

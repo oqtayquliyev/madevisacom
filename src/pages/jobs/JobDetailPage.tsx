@@ -52,9 +52,12 @@ type JobDetailPageProps = {
   id: string;
   go: (view: View) => void;
   onAuth?: (page: 'login' | 'register') => void;
+  /** Shown inside the job popup over the list (src/components/jobs/JobModal.tsx): no site header or footer, and "All jobs" closes it. */
+  embedded?: boolean;
+  onClose?: () => void;
 };
 
-export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
+export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: JobDetailPageProps) {
   const [job, setJob] = useState<Job | null | undefined>(undefined);
   const [raw, setRaw] = useState<SponsoredJob | null>(null);
   const [copied, setCopied] = useState(false);
@@ -253,10 +256,10 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
   };
 
   if (job === undefined) {
-    if (preview) return <JobPreviewShell job={preview} go={go} onAuth={onAuth} />;
+    if (preview) return <JobPreviewShell job={preview} go={go} onAuth={onAuth} embedded={embedded} />;
     return (
-      <div className="min-h-screen bg-[#f8fafc]">
-        <LandingHeader go={go} onAuth={onAuth} active="jobs" />
+      <div className={`${embedded ? '' : 'min-h-screen'} bg-[#f8fafc]`}>
+        {!embedded && <LandingHeader go={go} onAuth={onAuth} active="jobs" />}
         <div className="grid h-96 place-items-center">
           <Loader2 className="h-6 w-6 animate-spin text-ink-300" />
         </div>
@@ -462,8 +465,8 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
     );
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-ink-900">
-      <LandingHeader go={go} onAuth={onAuth} active="jobs" />
+    <div className={`${embedded ? '' : 'min-h-screen'} bg-[#f8fafc] text-ink-900`}>
+      {!embedded && <LandingHeader go={go} onAuth={onAuth} active="jobs" />}
       {locked && autoPopup && <PeekTimer onDone={() => setPeeking(false)} />}
       {matchKey && !closed && member && <ApplySheet jobKey={matchKey} company={job.company} match={match} doc={docFor} armed={applied} onAuth={onAuth} />}
       {/* One of your best matches? A small card in the corner lists the others. Not while the apply sheet is up. */}
@@ -481,6 +484,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
               // so they come back automatically. Falls back to go('jobs')
               // only when there's nowhere to go back to (e.g. this page
               // was opened directly/in a new tab).
+              if (embedded && onClose) return onClose();
               if (window.history.length > 1) window.history.back();
               else go('jobs');
             }}
@@ -759,7 +763,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
         )}
       </main>
 
-      <LandingFooter go={go} onAuth={onAuth} />
+      {!embedded && <LandingFooter go={go} onAuth={onAuth} />}
     </div>
   );
 }
@@ -1081,11 +1085,11 @@ function PeekTimer({ onDone }: { onDone: () => void }) {
 }
 
 /** The job as the list knew it, while the full ad loads (opened from /jobs). */
-function JobPreviewShell({ job, go, onAuth }: { job: Job; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void }) {
+function JobPreviewShell({ job, go, onAuth, embedded = false }: { job: Job; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void; embedded?: boolean }) {
   const place = [job.city, job.country].filter((v, i, a) => v && a.indexOf(v) === i).join(', ');
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-ink-900" aria-busy="true">
-      <LandingHeader go={go} onAuth={onAuth} active="jobs" />
+    <div className={`${embedded ? '' : 'min-h-screen'} bg-[#f8fafc] text-ink-900`} aria-busy="true">
+      {!embedded && <LandingHeader go={go} onAuth={onAuth} active="jobs" />}
       <section className="bg-brand-700 text-white">
         <div className="mx-auto max-w-4xl px-5 pb-10 pt-6 sm:px-8 sm:pb-14 sm:pt-8">
           <p className="flex items-center gap-1.5 text-xs font-semibold text-white/70">

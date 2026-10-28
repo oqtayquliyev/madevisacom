@@ -4,7 +4,7 @@ import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { nav } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
-import { MEMBERSHIP_PRICE, useMyPlan, type MembershipBilling } from '@/lib/plans';
+import { MEMBERSHIP_PRICE_LABEL, useMyPlan } from '@/lib/plans';
 import { goToMembershipCheckout } from '@/lib/gumroad';
 import { cleanSource, trackBilling } from '@/lib/billing';
 import { readReturn } from '@/lib/returnTo';
@@ -26,8 +26,6 @@ export function CheckoutPage(_props: Props) {
   const { user, loading: authLoading } = useAuth();
   const my = useMyPlan();
   const source = useMemo(() => cleanSource(new URLSearchParams(window.location.search).get('source')) ?? 'checkout', []);
-  // ?billing=quarterly → 3 months; anything else → monthly.
-  const billing = useMemo<MembershipBilling>(() => (new URLSearchParams(window.location.search).get('billing') === 'quarterly' ? 'quarterly' : 'monthly'), []);
   const [state, setState] = useState<State>({ at: 'opening' });
   const started = useRef(false);
 
@@ -39,7 +37,7 @@ export function CheckoutPage(_props: Props) {
     return () => window.removeEventListener('pageshow', onShow);
   }, []);
 
-  useSeo({ title: 'Opening secure payment', description: `MadeVisa Membership, ${MEMBERSHIP_PRICE} a month. Secure payment by Gumroad.`, path: '/checkout', noindex: true });
+  useSeo({ title: 'Opening secure payment', description: `MadeVisa Membership, ${MEMBERSHIP_PRICE_LABEL}. Secure payment by Gumroad.`, path: '/checkout', noindex: true });
 
   useEffect(() => {
     if (authLoading || (user && my.loading) || started.current) return;
@@ -49,12 +47,12 @@ export function CheckoutPage(_props: Props) {
       setState({ at: 'member' });
       return;
     }
-    void goToMembershipCheckout({ signedIn: Boolean(user), email: user?.email ?? null, source, billing }).then((r) => {
+    void goToMembershipCheckout({ signedIn: Boolean(user), email: user?.email ?? null, source }).then((r) => {
       if (r.kind === 'already') setState({ at: 'already', manageUrl: r.manageUrl });
       // The payment form opens over this page now: once it's closed, offer the way on instead of a spinner.
       else window.setTimeout(() => setBack(true), 2500);
     });
-  }, [authLoading, user, my.loading, my.isPaid, source, billing]);
+  }, [authLoading, user, my.loading, my.isPaid, source]);
 
 
   const leave = () => nav(readReturn() ?? '/jobs');
@@ -67,7 +65,7 @@ export function CheckoutPage(_props: Props) {
             <Loader2 className="mx-auto h-9 w-9 animate-spin text-brand-600" aria-hidden />
             <h1 className="mt-5 font-title text-2xl font-bold tracking-tight text-ink-950">Opening secure payment…</h1>
             <p className="mt-2 text-sm leading-6 text-ink-600">
-              MadeVisa Membership · <strong className="text-ink-900">{MEMBERSHIP_PRICE}/month</strong>. Cancel anytime.
+              MadeVisa Membership · <strong className="text-ink-900">{MEMBERSHIP_PRICE_LABEL}</strong>
             </p>
             <p className="mt-6 inline-flex items-center gap-1.5 text-xs text-ink-500">
               <Lock className="h-3.5 w-3.5" aria-hidden /> Secure payment by Gumroad

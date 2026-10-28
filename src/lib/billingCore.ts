@@ -87,7 +87,7 @@ export type CatalogPlan = {
   id: PlanId;
   name: string;
   rank: number;
-  interval: 'monthly' | null;
+  interval: 'monthly' | 'quarterly' | null;
   /** Cents. */
   price_amount: number;
   currency: string;
@@ -115,7 +115,7 @@ export function fallbackCatalog(): Catalog {
       id,
       name: PLANS[id].name,
       rank,
-      interval: PLANS[id].interval ? 'monthly' : null,
+      interval: PLANS[id].interval === 'quarter' ? 'quarterly' : PLANS[id].interval ? 'monthly' : null,
       price_amount: PLANS[id].priceCents,
       currency: PLANS[id].currency,
       available: false,
@@ -154,7 +154,7 @@ export const longDate = (d: Date | string) => new Date(d).toLocaleDateString('en
 export type OrderSummary = {
   plan: PaidPlanId;
   name: string;
-  billing: 'Monthly';
+  billing: 'Monthly' | 'Every 3 months';
   currency: string;
   /** Cents due today, before any tax Gumroad adds. */
   dueToday: number;
@@ -172,14 +172,15 @@ export type OrderSummary = {
  */
 export function orderSummary(plan: CatalogPlan, now: Date, confirmedCents?: number | null): OrderSummary {
   const cents = confirmedCents ?? plan.price_amount;
+  const quarterly = plan.interval === 'quarterly';
   return {
     plan: plan.id === 'starter' ? 'starter' : 'pro',
     name: plan.name,
-    billing: 'Monthly',
+    billing: quarterly ? 'Every 3 months' : 'Monthly',
     currency: plan.currency,
     dueToday: cents,
     renewalAmount: cents,
-    renewsOn: nextMonth(now),
+    renewsOn: quarterly ? nextMonth(nextMonth(nextMonth(now))) : nextMonth(now),
     confirmed: confirmedCents != null,
   };
 }

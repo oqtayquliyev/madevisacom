@@ -1,4 +1,5 @@
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
+import { openJobModal } from '@/lib/jobModal';
 import { NEW_TAB } from '@/lib/navLink';
 import { AlertSignup } from '@/components/jobs/AlertSignup';
 import { Fragment, startTransition, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -43,7 +44,6 @@ import { useMembership } from '@/lib/plans';
 import { Paywall } from '@/components/pro/Paywall';
 import { isJobViewed, markJobViewed, viewedJobIds } from '@/lib/viewedJobs';
 import { rememberJobPreview } from '@/lib/jobPreview';
-import { nav } from '@/lib/pageLayout';
 import { useSeo } from '@/lib/seo';
 import { SEO_META } from '@/lib/seoMeta';
 import { PersonalizationBar } from '@/components/opportunities/PersonalizationBar';
@@ -145,8 +145,6 @@ function readListPlace(): ListPlace | null {
     return null;
   }
 }
-/** Phones and tablets: a job opens in the same tab (a new tab means loading the whole site again). */
-const sameTab = () => typeof window !== 'undefined' && (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
 const DAY_MS = 86_400_000;
 
 /** Posted in the last 24 hours — worth applying early. */
@@ -405,11 +403,12 @@ function JobCard({ job, onLocked, onOpen }: { job: Job; /** Not a member: pickin
       onClick={(e) => {
         markJobViewed(job.id, { id: job.id, title: job.title, organization: job.company, country: job.country, countryCode: job.countryCode, url: job.url });
         rememberJobPreview(job);
-        // Phones: open it right here (instant, and Back returns to this spot in the list).
-        if (!sameTab() || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        // Ctrl/Cmd/middle-click: a new tab, like any link. A plain click: the job opens as a popup
+        // over this list, with its own address in the URL bar; Back or × returns to this exact spot.
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
         e.preventDefault();
         onOpen?.();
-        nav(href);
+        openJobModal(href);
       }}
       className={`${cardClass} cursor-pointer`}
     >
@@ -690,6 +689,8 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
     if (visaOnly) params.set('visa', '1');
 
     const query = params.toString();
+    // A job popup is open over the list: its address stays in the URL bar.
+    if (window.location.pathname !== '/jobs') return;
     window.history.replaceState({}, '', query ? `/jobs?${query}` : '/jobs');
   }, [search, country, category, jobType, remoteOnly, flexOnly, city, company, salaryOnly, experienceLevel, datePosted, sortBy, directOnly, studentOnly, visaOnly]);
 

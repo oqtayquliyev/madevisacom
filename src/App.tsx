@@ -23,6 +23,8 @@ const PendingConfirmationPage = lazyPage(() => import('@/pages/auth/PendingConfi
 const NotFoundPage = lazyPage(() => import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 const JobsPage = lazyPage(() => import('@/pages/landing/jobs/JobsPage').then((m) => ({ default: m.JobsPage })));
 const JobDetailPage = lazyPage(() => import('@/pages/jobs/JobDetailPage').then((m) => ({ default: m.JobDetailPage })));
+import { JobModal } from '@/components/jobs/JobModal';
+import { closeJobModal, readJobModal, type JobModalState } from '@/lib/jobModal';
 const CompaniesPage = lazyPage(() => import('@/pages/companies/CompaniesPage').then((m) => ({ default: m.CompaniesPage })));
 const CompanyProfilePage = lazyPage(() => import('@/pages/companies/CompanyProfilePage').then((m) => ({ default: m.CompanyProfilePage })));
 const FeedbackPage = lazyPage(() => import('@/pages/feedback/FeedbackPage').then((m) => ({ default: m.FeedbackPage })));
@@ -122,6 +124,8 @@ export default function App() {
   // genuinely changes on a real navigation, so setting it guarantees
   // the re-render actually happens.
   const [path, setPath] = useState(window.location.pathname);
+  // A job opened as a popup over the list keeps its own URL; the list stays mounted under it (src/lib/jobModal.ts).
+  const [jobModal, setJobModal] = useState<JobModalState | null>(() => readJobModal());
 
   const [pendingSignup, setPendingSignup] = useState<PendingSignup | null>(null);
 
@@ -190,6 +194,7 @@ export default function App() {
     const onPopState = () => {
       const pathname = window.location.pathname;
       setPath(pathname);
+      setJobModal(pathname.startsWith('/jobs/') ? readJobModal() : null);
 
       const matchedAuthPage = authPathToPage[pathname];
       if (matchedAuthPage) {
@@ -225,8 +230,20 @@ export default function App() {
     );
   }
 
-  if (path === '/jobs') {
-    return <JobsPage go={go} onAuth={goToAuth} goToJob={goToPath} />;
+  // The list, and — when a job was opened from it — that job in a popup on top. Same tree either
+  // way, so the list keeps its filters, loaded jobs and scroll while the popup is open.
+  const jobOverList = jobModal && path.startsWith('/jobs/') ? path.slice('/jobs/'.length) : null;
+  if (path === '/jobs' || jobOverList) {
+    return (
+      <>
+        <JobsPage go={go} onAuth={goToAuth} goToJob={goToPath} />
+        {jobOverList ? (
+          <JobModal label="Job">
+            <JobDetailPage key={jobOverList} id={jobOverList} go={go} onAuth={goToAuth} embedded onClose={closeJobModal} />
+          </JobModal>
+        ) : null}
+      </>
+    );
   }
 
   if (path === '/programs') {

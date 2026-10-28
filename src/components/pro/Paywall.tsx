@@ -6,11 +6,12 @@ import { useSiteStats } from '@/lib/siteStats';
 import { moreJobsHeadline, readLastSearch } from '@/lib/lastSearch';
 import { goToMembershipCheckout } from '@/lib/gumroad';
 import { preloadGumroad } from '@/lib/gumroadOverlay';
-import { MEMBERSHIP_PRICE, QUARTER_PER_MONTH, QUARTER_PRICE, QUARTER_SAVING, type MembershipBilling } from '@/lib/plans';
+import { MEMBERSHIP_PER_MONTH, MEMBERSHIP_PRICE } from '@/lib/plans';
 import { trackBilling } from '@/lib/billing';
 import { trackPaywall } from '@/lib/paywallStats';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { nav } from '@/lib/pageLayout';
+import { closeJobModal, readJobModal } from '@/lib/jobModal';
 import { usePersonalization } from '@/lib/personalization';
 import { DOWNSELL_CODE, DOWNSELL_PRICE, GUARANTEE, downsellDue, markDownsellShown, quotesFor } from '@/lib/conversion';
 import { CircleFlag } from '@/components/common/CircleFlag';
@@ -28,7 +29,7 @@ import { TESTIMONIALS } from '@/data/testimonials';
 //      real answers they can almost read
 //   3. proof the job is live: posted on the company's careers page X hours ago, N people
 //      looked at it today (real counts, from 3 up)
-//   4. one specific button: "Unlock this job — $2.29/month", and a guarantee under it
+//   4. one specific button: "Unlock this job — $2.99" (3 months), and a guarantee under it
 //   5. a member from their own country (or in English)
 // Leaving (Back / close / mouse to the tab bar) shows the "first month for less" offer
 // once a week, when a Gumroad offer code is set. "Subscribe" opens Gumroad's payment
@@ -36,11 +37,11 @@ import { TESTIMONIALS } from '@/data/testimonials';
 
 /** What's included — short, so the card stays one screen tall on a phone. **words** are drawn bold. */
 const INCLUDED = [
-  'Apply to **this job** and **every job** on MadeVisa',
-  '**Sponsor proof**, **move math** and **reply odds** on every job',
-  'Jobs straight from **company career pages**, beyond **LinkedIn**',
-  '**CV match** and **CV suggestions** on every job',
-  '**Remote** and **online** job listings',
+  '**Apply to every job** for 3 months',
+  '**60 sponsorship documents** for visa jobs',
+  '**CV match** and **sponsor proof** on every job',
+  '**5 job alerts**: new jobs every day',
+  '**Checked live**, scam-screened jobs',
 ];
 
 /** "a **b** c" → a <strong>b</strong> c */
@@ -90,8 +91,6 @@ export function Paywall({ job, onClose, source, teaser }: Props) {
   const stats = useSiteStats();
   const { profile: visitor } = usePersonalization();
   const [busy, setBusy] = useState(false);
-  // 3 months is picked first: one easy payment for the whole job search.
-  const [billing, setBilling] = useState<MembershipBilling>('quarterly');
   const [already, setAlready] = useState<string | null>(null);
   const [offer, setOffer] = useState(false);
   const leaveAfterOffer = useRef<(() => void) | null>(null);
@@ -171,8 +170,7 @@ export function Paywall({ job, onClose, source, teaser }: Props) {
     setBusy(true);
     trackBilling('upgrade_prompt_clicked', { source, offer: Boolean(offerCode) });
     trackPaywall(offerCode ? 'downsell_click' : 'click', source);
-    // The first-month offer is a monthly price; otherwise the plan they picked.
-    const r = await goToMembershipCheckout({ signedIn: Boolean(user), email: user?.email ?? null, source, offerCode, billing: offerCode ? 'monthly' : billing });
+    const r = await goToMembershipCheckout({ signedIn: Boolean(user), email: user?.email ?? null, source, offerCode });
     if (r.kind === 'already') {
       setBusy(false);
       setAlready(r.manageUrl);
@@ -206,7 +204,8 @@ export function Paywall({ job, onClose, source, teaser }: Props) {
   const shown = rows.slice(0, 4);
   const benefits = shown.length >= 3 ? INCLUDED.slice(0, 3) : INCLUDED;
 
-  const backOut = onClose ? () => leave(onClose) : () => leave(() => nav('/jobs'));
+  // Over a job popup: back to the list as it was (filters, scroll); on a job page: the jobs list.
+  const backOut = onClose ? () => leave(onClose) : () => leave(() => (readJobModal() ? closeJobModal() : nav('/jobs')));
 
   return createPortal(
     <div className="fixed inset-0 z-[90] flex items-end justify-center bg-ink-950/55 backdrop-blur-[2px] sm:items-center sm:p-4" onClick={onClose ? (e) => e.target === e.currentTarget && leave(onClose) : undefined}>
@@ -272,8 +271,12 @@ export function Paywall({ job, onClose, source, teaser }: Props) {
             )}
 
             <div className="mt-4 rounded-xl border border-ink-900 px-4 pb-4 pt-4 sm:px-5">
-              <p className="text-center text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500">MadeVisa Membership</p>
-              <PlanPicker billing={billing} onChange={setBilling} />
+              <p className="text-center text-[11px] font-bold uppercase tracking-[0.12em] text-brand-700">Your 3-month job partner</p>
+              <p className="mt-1.5 text-center text-[34px] font-bold leading-none tracking-tight">
+                {MEMBERSHIP_PRICE}
+                <span className="text-[17px] font-semibold text-ink-700"> for 3 months</span>
+              </p>
+              <p className="mt-1.5 text-center text-[13px] font-bold text-emerald-700">That’s {MEMBERSHIP_PER_MONTH} a month · one payment</p>
 
               {already ? (
                 <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2.5 text-center text-[13px] font-semibold text-emerald-800">
@@ -295,7 +298,7 @@ export function Paywall({ job, onClose, source, teaser }: Props) {
                     </>
                   ) : (
                     <>
-                      {job?.title ? 'Unlock this job' : 'Unlock every job'} — {billing === 'quarterly' ? `${QUARTER_PRICE} for 3 months` : `${MEMBERSHIP_PRICE}/month`}
+                      {job?.title ? 'Unlock this job' : 'Start my 3 months'} — {MEMBERSHIP_PRICE}
                     </>
                   )}
                 </button>
@@ -373,11 +376,11 @@ function DownsellView({ busy, onTake, onNo }: { busy: boolean; onTake: () => voi
         <Gift className="h-6 w-6" aria-hidden />
       </span>
       <h2 id="paywall-title" className="mt-4 font-title text-[26px] font-bold leading-tight tracking-tight">
-        Wait — your first month
+        Wait — your first 3 months
         <span className="block">for {DOWNSELL_PRICE}.</span>
       </h2>
       <p className="mx-auto mt-2 max-w-[320px] text-[14px] leading-5 text-ink-600">
-        Try every job, sponsor proof and CV match for a month. Then {MEMBERSHIP_PRICE}/month, cancel anytime.
+        Every job, sponsor proof and CV match. Then {MEMBERSHIP_PRICE} every 3 months, cancel anytime.
       </p>
       <button
         type="button"
@@ -395,29 +398,3 @@ function DownsellView({ busy, onTake, onNo }: { busy: boolean; onTake: () => voi
   );
 }
 
-/** Two plans side by side: 3 months (picked first) and monthly. */
-function PlanPicker({ billing, onChange }: { billing: MembershipBilling; onChange: (b: MembershipBilling) => void }) {
-  const opt = (id: MembershipBilling, title: string, price: string, per: string, badge?: string) => {
-    const on = billing === id;
-    return (
-      <button
-        type="button"
-        role="radio"
-        aria-checked={on}
-        onClick={() => onChange(id)}
-        className={`relative flex flex-1 flex-col items-start rounded-lg px-3 py-2.5 text-left transition ${on ? 'bg-white ring-2 ring-ink-950' : 'bg-ink-50 ring-1 ring-ink-200 hover:ring-ink-400'}`}
-      >
-        {badge && <span className="absolute -top-2.5 right-2 rounded-full bg-emerald-600 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-white">{badge}</span>}
-        <span className="text-[13px] font-bold text-ink-700">{title}</span>
-        <span className="mt-0.5 text-[22px] font-bold leading-none tracking-tight text-ink-950">{price}</span>
-        <span className="mt-1 text-[12px] font-semibold text-ink-500">{per}</span>
-      </button>
-    );
-  };
-  return (
-    <div role="radiogroup" aria-label="Choose your plan" className="mt-3 flex gap-2.5">
-      {opt('quarterly', '3 months', QUARTER_PRICE, `${QUARTER_PER_MONTH}/month`, `Save ${QUARTER_SAVING}`)}
-      {opt('monthly', 'Monthly', MEMBERSHIP_PRICE, 'Cancel anytime')}
-    </div>
-  );
-}

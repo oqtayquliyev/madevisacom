@@ -6,7 +6,7 @@ import { MEMBERSHIP_URL } from '@/lib/plans';
 
 // Admin → Plans → Card payments.
 //
-// Connect the membership's Gumroad product (stored as plan 'starter', $2.29); from then on
+// Connect the membership's Gumroad product (stored as plan 'starter', $2.99 every 3 months); from then on
 // the checkout page sends buyers to it and the plan switches on and off by
 // itself. Shown here: each plan's product and whether its price matches, the
 // switch for everyone, the checkout funnel, members who pay by card, and what
@@ -249,7 +249,7 @@ export function GumroadCard() {
                   <span className="min-w-0 flex-1 basis-full sm:basis-0">
                     <span className="block truncate font-medium text-ink-900">{m.name || m.email || 'A buyer'}</span>
                     <span className="block truncate text-xs text-ink-500">
-                      {[m.name ? m.email : null, m.price_cents != null ? `${dollars(m.price_cents)} ${m.recurrence === 'yearly' ? 'a year' : 'a month'}` : m.recurrence, m.card_country ? `paid from ${m.card_country}` : null].filter(Boolean).join(' · ')}
+                      {[m.name ? m.email : null, m.price_cents != null ? `${dollars(m.price_cents)} ${m.recurrence === 'yearly' ? 'a year' : m.recurrence === 'quarterly' ? 'every 3 months' : 'a month'}` : m.recurrence, m.card_country ? `paid from ${m.card_country}` : null].filter(Boolean).join(' · ')}
                     </span>
                   </span>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${m.plan === 'starter' ? 'bg-sky-100 text-sky-800' : 'bg-brand-100 text-brand-800'}`}>{m.plan === 'starter' ? 'Starter' : 'Pro'}</span>
@@ -327,7 +327,7 @@ function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: s
     <div className="rounded-lg border border-ink-200 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-sm font-bold text-ink-950">
-          {name} · {dollars(p.price_cents)} a month
+          {name} · {dollars(p.price_cents)} {p.plan === 'starter' ? 'every 3 months' : 'a month'}
         </p>
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${!connected ? 'bg-amber-100 text-amber-900' : priceOk ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
           {!connected ? 'Not connected' : priceOk ? 'Connected' : 'Price on Gumroad differs — checkout off'}
@@ -340,7 +340,7 @@ function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: s
             <a href={p.product_url ?? '#'} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand-700 hover:underline">
               {p.product_name || 'The product'} <ExternalLink className="h-3 w-3" />
             </a>{' '}
-            · Gumroad charges {p.provider_price_cents != null ? dollars(p.provider_price_cents) : '—'} a month · connected {day(p.connected_at)}
+            · Gumroad charges {p.provider_price_cents != null ? dollars(p.provider_price_cents) : '—'} {p.plan === 'starter' ? 'every 3 months' : 'a month'} · connected {day(p.connected_at)}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <button onClick={() => void onConnect(p.product_url ?? '')} disabled={busy !== null} className="inline-flex items-center gap-1.5 rounded-md border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50" title="Reads the product from Gumroad again and repairs the notifications">

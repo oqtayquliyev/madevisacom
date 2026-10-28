@@ -287,7 +287,7 @@ export const FORMATS: FormatDef[] = [
   // --- Your application: CV match first, then the sponsorship document -----------
   {
     key: 'match_check', pillar: 'plan', name: 'How well does your CV match?',
-    idea: 'The button next to Apply: one press compares your CV with the ad and gives a score. Part of the MadeVisa Membership ($2.29 a month).',
+    idea: 'The button next to Apply: one press compares your CV with the ad and gives a score. Part of the MadeVisa Membership ($2.99 for 3 months).',
     example: 'Before you apply: how well does your CV actually match this ad?',
     source: 'CV match', link: '/cv-match', visual: 'Photo with one line, then a card',
     platforms: FEED, parts: ['lunch', 'evening', 'night'], weight: 3, cooldown: 40,
@@ -301,7 +301,7 @@ export const FORMATS: FormatDef[] = [
   },
   {
     key: 'match_missing', pillar: 'plan', name: 'The skill your CV forgot',
-    idea: 'Why a skill you have but didn’t write down counts as missing — for the match score and for a recruiter’s search. Part of the MadeVisa Membership ($2.29 a month).',
+    idea: 'Why a skill you have but didn’t write down counts as missing — for the match score and for a recruiter’s search. Part of the MadeVisa Membership ($2.99 for 3 months).',
     example: 'You know Excel. Your CV doesn’t say so. To a recruiter’s search, you don’t.',
     source: 'CV match — missing skills', link: '/cv-match', visual: 'Big statement',
     platforms: FEED, parts: ['morning', 'lunch', 'evening'], weight: 2.5, cooldown: 60,
@@ -315,14 +315,14 @@ export const FORMATS: FormatDef[] = [
   },
   {
     key: 'match_free', pillar: 'plan', name: 'What’s free, what the membership adds',
-    idea: 'Plainly: browsing every job is free; applying, CV match and 20 sponsorship documents a month are in the MadeVisa Membership at $2.29 a month.',
+    idea: 'Plainly: browsing every job is free; applying, CV match and 20 sponsorship documents a month are in the MadeVisa Membership at $2.99 for 3 months.',
     example: 'What you get without paying, and what the plan adds.',
     source: 'Pricing', link: '/pricing', visual: 'Fact card',
     platforms: FEED, parts: ['lunch', 'evening'], weight: 1, cooldown: 240,
   },
   {
     key: 'chat_feature', pillar: 'plan', name: 'Chat bubbles: one feature',
-    idea: 'A short, funny text-message chat about one thing the membership does — jobs beyond LinkedIn, fresh jobs, remote listings, CV match, CV suggestions, visa sponsors, sponsorship documents, the $2.29 price — on a pastel card, like a phone ad. A different feature each time; twice a week.',
+    idea: 'A short, funny text-message chat about one thing the membership does — jobs beyond LinkedIn, fresh jobs, remote listings, CV match, CV suggestions, visa sponsors, sponsorship documents, the $2.99 price — on a pastel card, like a phone ad. A different feature each time; twice a week.',
     example: 'Other job boards: reposts. MadeVisa: the company’s own page. “wait, it’s not on LinkedIn yet?” “nope 👀”',
     source: 'The membership’s features (pricing page)', link: '/pricing', visual: 'Chat bubbles on a pastel card',
     platforms: VISUAL, parts: ['lunch', 'evening', 'night'], weight: 2.5, cooldown: 48, weekly: 2,

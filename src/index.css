@@ -159,3 +159,15 @@ h1, h2 {
   0% { transform: translateX(-110%); }
   100% { transform: translateX(320%); }
 }
+
+/* Job popup over the list: slides up on phones, fades and rises a little on larger screens. */
+@keyframes job-modal-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.job-modal-in {
+  animation: job-modal-up 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .job-modal-in { animation: none; }
+}

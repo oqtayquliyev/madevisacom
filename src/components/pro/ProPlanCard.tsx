@@ -22,9 +22,9 @@ export function PlanCard({ source, compact = false }: { plan?: PaidPlanId | 'fre
       <p className="text-sm font-bold uppercase tracking-[0.1em] text-brand-700">{info.name}</p>
       <p className="mt-2 text-5xl font-bold tracking-tight text-ink-950" data-plan-price={MEMBERSHIP_PLAN}>
         {MEMBERSHIP_PRICE}
-        <span className="text-base font-medium text-ink-500"> / month</span>
+        <span className="text-base font-medium text-ink-500"> for 3 months</span>
       </p>
-      <p className="mt-1 text-[13px] text-ink-500">USD, billed monthly · cancel anytime</p>
+      <p className="mt-1 text-[14px] font-semibold text-ink-600">Your job-landing partner for 3 months</p>
 
       <ul className="mt-5 flex-1 space-y-2.5">
         {benefits.map((b) => (
@@ -54,7 +54,7 @@ export function PlanCard({ source, compact = false }: { plan?: PaidPlanId | 'fre
           }}
           className="mt-6 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 py-3 text-sm font-semibold text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
         >
-          Get Started for {MEMBERSHIP_PRICE}/month <ArrowRight className="h-4 w-4" aria-hidden />
+          Start my 3 months · {MEMBERSHIP_PRICE} <ArrowRight className="h-4 w-4" aria-hidden />
         </a>
       )}
     </div>

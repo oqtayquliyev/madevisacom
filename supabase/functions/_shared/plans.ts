@@ -35,16 +35,10 @@ export const MEMBERSHIP_PLAN: PaidPlanId = 'starter';
 /** THE Gumroad link for the membership. Every "Subscribe" button ends here (the email, and for accounts a checkout id, are added to it). */
 export const MEMBERSHIP_URL = 'https://madevisa.gumroad.com/l/membership?wanted=true';
 
-/**
- * The membership can be paid monthly or every 3 months (the same Gumroad product, two
- * billing periods on its one tier). The 3-month price must match the "Quarterly" price set
- * on the product in Gumroad — checkout refuses to open it otherwise.
- */
-export type MembershipBilling = 'monthly' | 'quarterly';
-export const BILLINGS: readonly MembershipBilling[] = ['monthly', 'quarterly'];
-export const isBilling = (v: unknown): v is MembershipBilling => v === 'monthly' || v === 'quarterly';
-/** $4.99 for 3 months. */
-export const QUARTER_PRICE_CENTS = 499;
+/** Gumroad billing periods. The membership is sold every 3 months ("quarterly"); the retired Pro was monthly. */
+export type Recurrence = 'monthly' | 'quarterly';
+/** How many months one payment of a plan covers. */
+export const RECURRENCE_MONTHS: Record<Recurrence, number> = { monthly: 1, quarterly: 3 };
 
 /** Higher includes everything below it. */
 export const PLAN_RANK: Record<PlanId, number> = { free: 0, starter: 1, pro: 2 };
@@ -106,22 +100,28 @@ export type PlanInfo = {
   /** Price in minor units (cents). */
   priceCents: number;
   currency: 'USD';
-  interval: 'month' | null;
+  interval: 'month' | 'quarter' | null;
+  /** The Gumroad billing period the product must sell (paid plans). */
+  recurrence?: Recurrence;
   /** One line under the name. */
   tagline: string;
   /** Most tangible first. Only what exists today. */
   benefits: Benefit[];
 };
 
-/** The membership's benefits, in the order the pricing page and the paywall show them. */
+/**
+ * What one membership (3 months) gives you, counted. Titles are what the site shows; the
+ * text is for the Gumroad page and tooltips. Only what exists today.
+ */
 const MEMBERSHIP_BENEFITS: Benefit[] = [
-  { title: 'Discover jobs beyond LinkedIn and Indeed', text: 'Access opportunities sourced directly from company career pages, including jobs you might otherwise miss on major job platforms.' },
-  { title: 'Smart access to newly published jobs', text: 'Discover fresh openings from company career pages and get straight to the original application page, faster.' },
-  { title: 'Remote and online job listings', text: 'Work-from-anywhere, remote and hybrid roles from the same company career pages, marked on every listing.' },
-  { title: 'CV match for every job', text: 'See how well your experience aligns with each role and identify opportunities worth pursuing.' },
-  { title: 'Personalised CV improvement suggestions', text: 'Get job-specific recommendations to better align your CV with the requirements of each position.' },
-  { title: 'Find companies that sponsor work visas', text: 'Discover relevant opportunities from employers that offer visa sponsorship, with details to help you assess each job before applying.' },
-  { title: 'Sponsorship documents included', text: '20 sponsorship documents a month (at most 30 in any 7 days): the proposal you send an employer when a job needs a visa.' },
+  { title: 'Apply to every job for 3 months', text: 'Unlimited applications to every job on MadeVisa, straight from company career pages — including roles you won’t see on LinkedIn or Indeed.' },
+  { title: '60 sponsorship documents', text: '20 a month: the proposal you send an employer when a job needs a visa — the route that may apply, what it asks of them, and the costs you offer to share.' },
+  { title: 'CV match on every job', text: 'Your match score, the skills the ad asks for that your CV doesn’t show, and what to change before you apply.' },
+  { title: 'Visa sponsor proof on every job', text: 'Official government records that the company sponsors visas: UK Home Office, US H-1B approvals, Netherlands IND.' },
+  { title: 'Move math and reply odds', text: 'What’s left each month after tax and rent there compared with home, and how likely the company is to reply.' },
+  { title: '5 job alerts, new jobs every day', text: 'Tell us what you want once; new matching jobs come to you daily for the whole 3 months.' },
+  { title: 'Jobs checked live and scam-screened', text: 'Every imported job is re-checked on the company’s careers page, and ads that ask for fees are flagged.' },
+  { title: 'Unlimited saved jobs and a tracker', text: 'Save every job you like and track every application until the company replies.' },
 ];
 
 export const PLANS: Record<PlanId, PlanInfo> = {
@@ -137,10 +137,11 @@ export const PLANS: Record<PlanId, PlanInfo> = {
   starter: {
     id: 'starter',
     name: 'MadeVisa Membership',
-    priceCents: 229,
+    priceCents: 299,
     currency: 'USD',
-    interval: 'month',
-    tagline: 'One affordable plan. Everything you need to search smarter and apply with confidence.',
+    interval: 'quarter',
+    recurrence: 'quarterly',
+    tagline: 'Your job-landing partner for 3 months.',
     benefits: MEMBERSHIP_BENEFITS,
   },
   pro: {
@@ -149,6 +150,7 @@ export const PLANS: Record<PlanId, PlanInfo> = {
     priceCents: 899,
     currency: 'USD',
     interval: 'month',
+    recurrence: 'monthly',
     tagline: 'No longer sold. Members who have it keep everything in the membership.',
     benefits: MEMBERSHIP_BENEFITS,
   },
@@ -160,17 +162,17 @@ export function usd(cents: number): string {
   return `$${Number.isInteger(d) ? d : d.toFixed(2)}`;
 }
 
-/** "$2.29 / month" */
-export const priceLabel = (plan: PlanId): string => (plan === 'free' ? '$0' : `${usd(PLANS[plan].priceCents)} / month`);
+/** "$2.99 for 3 months" / "$8.99 a month" */
+export const priceLabel = (plan: PlanId): string => (plan === 'free' ? '$0' : PLANS[plan].interval === 'quarter' ? `${usd(PLANS[plan].priceCents)} for 3 months` : `${usd(PLANS[plan].priceCents)} a month`);
 
-/** "$2.29" — the membership's price. */
+/** "$2.99" — the membership's price (one payment, 3 months). */
 export const MEMBERSHIP_PRICE = usd(PLANS[MEMBERSHIP_PLAN].priceCents);
-/** "$4.99" — 3 months of membership. */
-export const QUARTER_PRICE = usd(QUARTER_PRICE_CENTS);
-/** "$1.66" — what 3 months cost per month. */
-export const QUARTER_PER_MONTH = usd(Math.floor(QUARTER_PRICE_CENTS / 3));
-/** "27%" — saved against 3 monthly payments. */
-export const QUARTER_SAVING = `${Math.round(100 - (100 * QUARTER_PRICE_CENTS) / (3 * PLANS[MEMBERSHIP_PLAN].priceCents))}%`;
+/** "3 months" — what one payment covers. */
+export const MEMBERSHIP_TERM = '3 months';
+/** "$2.99 for 3 months" */
+export const MEMBERSHIP_PRICE_LABEL = `${MEMBERSHIP_PRICE} for ${MEMBERSHIP_TERM}`;
+/** "$1" — what it comes to per month. */
+export const MEMBERSHIP_PER_MONTH = usd(Math.round(PLANS[MEMBERSHIP_PLAN].priceCents / 3));
 
 /** Plans in order, for comparisons. */
 export const PLAN_ORDER: PlanId[] = ['free', 'starter', 'pro'];

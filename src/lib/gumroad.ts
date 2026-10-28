@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
-import { MEMBERSHIP_PLAN, MEMBERSHIP_URL, refreshMyPlan, type MembershipBilling, type PaidPlanId, type PlanId } from '@/lib/plans';
+import { MEMBERSHIP_PLAN, MEMBERSHIP_URL, PLANS, refreshMyPlan, type PaidPlanId, type PlanId } from '@/lib/plans';
 import { trackBilling } from '@/lib/billing';
 import { readCheckout, type CheckoutResult } from '@/lib/billingCore';
 import { startGuestClaim } from '@/lib/guestClaim';
@@ -70,15 +70,17 @@ async function invoke(body: Record<string, unknown>): Promise<Record<string, unk
 }
 
 /** Prepare a checkout for the signed-in person. `source` says which button led here (for the funnel in Admin → Plans). */
-export async function startCheckout(_plan: PaidPlanId, source: string | null, billing: MembershipBilling = 'monthly'): Promise<CheckoutResult> {
-  return readCheckout(MEMBERSHIP_PLAN, await invoke({ action: 'checkout', plan: MEMBERSHIP_PLAN, billing, source }));
+export async function startCheckout(_plan: PaidPlanId, source: string | null): Promise<CheckoutResult> {
+  return readCheckout(MEMBERSHIP_PLAN, await invoke({ action: 'checkout', plan: MEMBERSHIP_PLAN, billing: RECURRENCE, source }));
 }
 
 /** The membership's Gumroad page (MEMBERSHIP_URL), with the email filled in when we know it. */
-function membershipPage(email: string | null | undefined, billing: MembershipBilling = 'monthly'): string {
+/** The membership's one billing period: every 3 months. */
+const RECURRENCE = PLANS[MEMBERSHIP_PLAN].recurrence ?? 'quarterly';
+
+function membershipPage(email: string | null | undefined): string {
   const u = new URL(MEMBERSHIP_URL);
-  // Opens Gumroad on the chosen billing period (monthly, or every 3 months).
-  u.searchParams.set('recurrence', billing);
+  u.searchParams.set('recurrence', RECURRENCE);
   if (email) u.searchParams.set('email', email);
   return u.toString();
 }
@@ -113,11 +115,10 @@ export function withOfferCode(url: string, code: string | null | undefined): str
  * payment then lands on the account with that email, or a new account is made for it.
  * `offerCode`: a Gumroad offer code (the "first month for less" offer), when one is set.
  */
-export async function goToMembershipCheckout(opts: { signedIn: boolean; email?: string | null; source: string; offerCode?: string | null; billing?: MembershipBilling }): Promise<PayOutcome> {
-  const billing: MembershipBilling = opts.billing ?? 'monthly';
-  trackBilling('checkout_started', { plan: MEMBERSHIP_PLAN, source: opts.source, guest: !opts.signedIn, offer: Boolean(opts.offerCode), billing });
+export async function goToMembershipCheckout(opts: { signedIn: boolean; email?: string | null; source: string; offerCode?: string | null }): Promise<PayOutcome> {
+  trackBilling('checkout_started', { plan: MEMBERSHIP_PLAN, source: opts.source, guest: !opts.signedIn, offer: Boolean(opts.offerCode) });
   if (opts.signedIn) {
-    const r = await startCheckout(MEMBERSHIP_PLAN, opts.source, billing);
+    const r = await startCheckout(MEMBERSHIP_PLAN, opts.source);
     if (r.kind === 'ready') {
       const done = `/checkout/complete?c=${encodeURIComponent(r.checkout.checkout_id)}&plan=${MEMBERSHIP_PLAN}`;
       const how = await openGumroadCheckout(withOfferCode(r.checkout.url, opts.offerCode), {
@@ -131,13 +132,13 @@ export async function goToMembershipCheckout(opts: { signedIn: boolean; email?: 
     }
     if (r.kind === 'already' || r.kind === 'switch') return { kind: 'already', manageUrl: r.manageUrl };
     trackBilling('checkout_unavailable', { plan: MEMBERSHIP_PLAN, source: opts.source });
-    window.location.assign(withOfferCode(membershipPage(opts.email, billing), opts.offerCode));
+    window.location.assign(withOfferCode(membershipPage(opts.email), opts.offerCode));
     return { kind: 'leaving' };
   }
   // No account: the membership's page. The payment is matched to an account by its email (or one is made).
   // The token (?mvg=) comes back with the sale, so this browser can sign them in and return them here
   // (GuestReturn watches for it — it starts looking the moment the claim is made).
-  const u = new URL(withOfferCode(membershipPage(opts.email, billing), opts.offerCode));
+  const u = new URL(withOfferCode(membershipPage(opts.email), opts.offerCode));
   u.searchParams.set('mvg', startGuestClaim(window.location.pathname + window.location.search));
   const how = await openGumroadCheckout(u.toString());
   trackBilling('checkout_viewed', { mode: how, source: opts.source, guest: true });
