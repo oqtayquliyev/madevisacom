@@ -639,7 +639,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
         {raw && !closed && <SaveJobButton jobId={raw.id} onAuth={onAuth} className="mb-5" />}
         <JobEdgeBlock
           jobId={raw?.id ?? null}
-          job={{ title: job.title, company: job.company }}
+          job={{ title: job.title, company: job.company, category: raw?.job_function ?? job.category }}
           locked={locked}
           covered={covered}
           onUnlock={openPaywall}

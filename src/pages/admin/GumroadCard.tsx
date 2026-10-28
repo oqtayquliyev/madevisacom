@@ -360,8 +360,7 @@ function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: s
         <>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5 text-ink-600">
             <li>
-              The product is <strong>madevisa.gumroad.com/l/membership</strong>: a <strong>Membership</strong> with one tier at a <strong>monthly price of {dollars(p.price_cents)}</strong>. Switch Gumroad’s purchasing-power discount off for it. Publish it.
-            </li>
+              The product is <strong>madevisa.gumroad.com/l/membership</strong>: a <strong>Membership</strong> with one tier and <strong>only the “Every 3 months” price, {dollars(p.price_cents)}</strong> (monthly and every other period switched off). Switch Gumroad’s purchasing-power discount off for it. Publish it. If Connect still says “no monthly price”, the payment function is the old one: run <code>supabase functions deploy gumroad --no-verify-jwt</code>.</li>
             <li>Optional: in the product’s content, add a button to https://madevisa.com/checkout/complete so buyers can come back.</li>
             <li>Press Connect (the link is already filled in).</li>
           </ol>

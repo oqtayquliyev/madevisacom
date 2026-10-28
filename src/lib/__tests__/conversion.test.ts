@@ -107,3 +107,17 @@ describe('reel covers and music', () => {
     expect(moodFor('visa', false)).toBe('chill');
   });
 });
+
+import { headlineForJob } from '@/lib/lastSearch';
+describe('popup headline follows the job', () => {
+  const last = { q: 'graphic designer', n: 1858, at: Date.now() };
+  it('uses the last search only when the job fits it', () => {
+    expect(headlineForJob({ title: 'Senior Graphic Designer' }, { label: 'Design', n: 900 }, last, 6000)).toBe('1,857 more graphic designer jobs');
+  });
+  it('otherwise talks about the job’s own field', () => {
+    expect(headlineForJob({ title: '2027 Internship - Frontend Engineer (UI)' }, { label: 'Engineering', n: 2432 }, last, 6000)).toBe('2,431 more engineering jobs');
+  });
+  it('falls back to every live job', () => {
+    expect(headlineForJob({ title: 'Something' }, null, last, 5979)).toBe('5,978 more jobs');
+  });
+});

@@ -39,3 +39,23 @@ export function moreJobsHeadline(last: LastSearch | null, liveJobs: number | nul
   if (liveJobs && liveJobs > 1) return `${fmt(liveJobs - 1)} more jobs`;
   return null;
 }
+
+/**
+ * The popup headline for a specific job: "2,431 more engineering jobs" from the job's own field
+ * (same classifier and daily counts as /jobs). The visitor's last search only when this job
+ * actually fits it ("graphic designer" → a Graphic Designer job), so the headline never
+ * talks about one field while the visitor looks at another. Else the site's live count.
+ */
+export function headlineForJob(
+  job: { title: string },
+  field: { label: string; n: number } | null,
+  last: LastSearch | null,
+  liveJobs: number | null | undefined,
+): string | null {
+  const fmt = (n: number) => n.toLocaleString('en-US');
+  const words = (last?.q ?? '').toLowerCase().replace(/\bjobs?$/, '').split(/\s+/).filter((w) => w.length > 2);
+  const title = job.title.toLowerCase();
+  if (last && last.n > 1 && words.length && words.every((w) => title.includes(w))) return moreJobsHeadline(last, liveJobs);
+  if (field && field.n > 1) return `${fmt(field.n - 1)} more ${field.label.toLowerCase().replace(/\bjobs?$/, '').trim()} jobs`;
+  return moreJobsHeadline(null, liveJobs);
+}

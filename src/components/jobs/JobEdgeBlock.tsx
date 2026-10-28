@@ -9,7 +9,7 @@ import { maskEmail, pingJobView } from '@/lib/conversion';
 type Props = {
   input: EdgeInput;
   jobId: string | null;
-  job: { title: string; company: string };
+  job: { title: string; company: string; category?: string | null };
   locked: boolean;
   /** The card is up (non-member, after the peek or after pressing Apply). */
   covered: boolean;

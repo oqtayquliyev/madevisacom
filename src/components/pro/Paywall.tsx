@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom';
 import { ArrowLeft, BadgeCheck, Check, Eye, Gift, Loader2, Lock, Mail, MessageCircleReply, ShieldCheck, Sparkles, Star, Wallet, X, Zap } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSiteStats } from '@/lib/siteStats';
-import { moreJobsHeadline, readLastSearch } from '@/lib/lastSearch';
+import { headlineForJob, moreJobsHeadline, readLastSearch } from '@/lib/lastSearch';
+import { useJobFacets } from '@/lib/jobFacets';
+import { classifyJob } from '@/lib/jobTaxonomy';
 import { goToMembershipCheckout } from '@/lib/gumroad';
 import { preloadGumroad } from '@/lib/gumroadOverlay';
 import { MEMBERSHIP_PER_MONTH, MEMBERSHIP_PRICE } from '@/lib/plans';
@@ -78,7 +80,7 @@ export type PaywallTeaser = {
 
 type Props = {
   /** The job behind the card, when there is one. */
-  job?: { title: string; company?: string | null } | null;
+  job?: { title: string; company?: string | null; category?: string | null } | null;
   /** Without onClose the card can't be dismissed (a job page); "Back to jobs" is the way out. */
   onClose?: () => void;
   /** Which screen showed it (Admin → Paywall). */
@@ -95,7 +97,14 @@ export function Paywall({ job, onClose, source, teaser }: Props) {
   const [offer, setOffer] = useState(false);
   const leaveAfterOffer = useRef<(() => void) | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
-  const headline = useMemo(() => moreJobsHeadline(readLastSearch(), stats?.publishedJobs), [stats?.publishedJobs]);
+  const facets = useJobFacets();
+  // About THIS job's field when there is a job ("2,431 more engineering jobs"); the last search only when the job fits it.
+  const headline = useMemo(() => {
+    if (!job?.title) return moreJobsHeadline(readLastSearch(), stats?.publishedJobs);
+    const cat = classifyJob(job.title, job.category ?? null);
+    const n = cat ? facets?.categories?.[cat.label] : undefined;
+    return headlineForJob(job, cat && n ? { label: cat.label, n } : null, readLastSearch(), facets?.total ?? stats?.publishedJobs);
+  }, [job, facets, stats?.publishedJobs]);
   const quotes = useMemo(() => quotesFor(ALL_QUOTES, visitor.citizenship ?? visitor.currentLocation), [visitor.citizenship, visitor.currentLocation]);
   const [quote, setQuote] = useState(0);
   // Real outcomes members tracked (last 30 days) — shown only when there are enough to mean something.
