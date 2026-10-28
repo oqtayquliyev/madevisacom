@@ -92,7 +92,7 @@ export function ReelPreview({ post, rendererAlive }: { post: Post; rendererAlive
           <Loader2 className={`mt-0.5 h-3 w-3 shrink-0 ${rendererAlive ? 'animate-spin' : ''}`} />
           {rendererAlive
             ? 'The video is being made: footage is added behind these screens. Usually ready within a few minutes, at the latest on the next hourly run.'
-            : 'Waiting for the renderer, which hasn’t reported in. See Content ideas → Reels for the set-up; a reel that isn’t rendered three hours after its time is dropped.'}
+            : 'Waiting for the renderer, which hasn’t reported in. See Content ideas → Reels for the set-up; a reel that isn’t rendered five hours after its time is dropped.'}
         </p>
       )}
     </div>
@@ -285,7 +285,7 @@ export function ReelsSetup({ program }: { program: ProgramRow }) {
           <li>
             On GitHub: Settings → Secrets and variables → Actions → add <span className="font-mono">SUPABASE_URL</span> and <span className="font-mono">SUPABASE_SERVICE_ROLE_KEY</span>. Optional: <span className="font-mono">PEXELS_API_KEY</span> (free at pexels.com/api) for real city footage; without it your country photos or the blue gradient are used.
           </li>
-          <li>Actions → Render reels → Run workflow. When it finishes, this card turns green and reels join the plan within the hour. It then runs by itself every hour.</li>
+          <li>Actions → Render reels → Run workflow. When it finishes, this card turns green and reels join the plan within the hour. It then runs by itself every 3 hours (add the dispatch token below and each reel renders minutes after it is written).</li>
           <li>
             Optional, for speed: add the Supabase secrets <span className="font-mono">GITHUB_DISPATCH_TOKEN</span> (a fine-grained token for this repository with “Contents: read and write”) and <span className="font-mono">GITHUB_REPO</span> (<span className="font-mono">owner/name</span>), and a reel is rendered minutes after it is written instead of on the hour.
           </li>

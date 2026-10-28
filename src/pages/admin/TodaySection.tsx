@@ -23,6 +23,7 @@ export function TodaySection() {
   const [d, setD] = useState<NorthStar | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [size, setSize] = useState<{ database_mb: number; free_limit_mb: number; largest: { table: string; mb: number }[] } | null>(null);
 
   const load = async () => {
     setBusy(true);
@@ -31,6 +32,9 @@ export function TodaySection() {
     if (error) return setErr(/admin_north_star|schema cache|does not exist/i.test(error.message) ? 'Run migration 20261231130000_trust_layer.sql first.' : error.message);
     setErr(null);
     setD(data as NorthStar);
+    // Database size against the Supabase Free limit (migration 20261231140000).
+    const st = await supabase.rpc('admin_storage_report');
+    if (!st.error && st.data) setSize(st.data as typeof size);
   };
   useEffect(() => {
     void load();
@@ -50,6 +54,7 @@ export function TodaySection() {
     if (d.outcomes.still_applied > 10) todo.push(`${nf(d.outcomes.still_applied)} applications are 14+ days old with no answer. The check-in card asks people; also send the check-in email.`);
     if (d.funnel.people_saw_popup >= 100 && d.funnel.people_pressed / d.funnel.people_saw_popup < 0.04) todo.push('Under 4% press the popup button. Test a different headline or the $0.99 offer (Admin → Paywall).');
     if (d.funnel.people_opened_payment > 0 && d.members.new / d.funnel.people_opened_payment < 0.2) todo.push('Most people who open the payment form don’t pay. Try a Gumroad test purchase on your phone to see what they see.');
+    if (size && size.database_mb > size.free_limit_mb * 0.85) todo.unshift(`The database is ${size.database_mb} MB of the free ${size.free_limit_mb} MB. Over the limit Supabase can make it read-only: trim the largest tables below.`);
     if (!todo.length) todo.push('Nothing urgent. Share one real reply story (with permission) on social today.');
   }
 
@@ -103,6 +108,13 @@ export function TodaySection() {
             <Tile label="Median time since check" value={d.jobs.median_hours_since_check == null ? '—' : `${d.jobs.median_hours_since_check} h`} />
             <Tile label="No apply address" value={nf(d.jobs.no_apply_link)} />
           </Group>
+          {size && (
+            <Group title={`Database: ${size.database_mb} MB of ${size.free_limit_mb} MB (Supabase Free)`}>
+              {size.largest.slice(0, 5).map((t) => (
+                <Tile key={t.table} label={t.table} value={`${t.mb} MB`} />
+              ))}
+            </Group>
+          )}
           <Group title="Members and paywall">
             <Tile label="Paying members now" value={nf(d.members.paying)} />
             <Tile label="New members" value={nf(d.members.new)} sub={`${nf(d.members.ended)} ended`} />

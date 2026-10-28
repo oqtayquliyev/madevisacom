@@ -2,6 +2,7 @@ import { ArrowRight, ScanSearch } from 'lucide-react';
 import { nav } from '@/lib/pageLayout';
 import { useCv } from '@/lib/cv/store';
 import { CvUpload } from '@/components/cv/CvUpload';
+import { TitleChips } from '@/components/common/TitleChips';
 import { CvMatchDemo } from '@/components/cv/CvMatchDemo';
 
 /** Landing: what "Check your match" gives you, shown rather than told. */
@@ -17,9 +18,7 @@ export function MatchSection() {
           <h2 id="landing-match" className="mt-2 max-w-xl text-[30px] font-bold leading-[1.1] tracking-tight text-ink-950 sm:text-[40px]">
             Know how well you fit before you apply.
           </h2>
-          <p className="mt-3 max-w-xl text-[16px] leading-7 text-ink-600">
-            Next to Apply on every job: one press compares your CV with the ad — skills, role, years, languages, education — and shows what’s missing. From your CV and from your application.
-          </p>
+          <TitleChips className="mt-4" items={['Skills', 'Role fit', 'Years', 'Languages', 'Education', 'What’s missing']} />
           <div className="mt-6 max-w-md">
             <CvUpload onDone={() => nav('/cv-match')} />
             {cv && (

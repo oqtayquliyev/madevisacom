@@ -10,6 +10,7 @@ import { formatRelativeTime } from '@/lib/dates';
 import { MiniArea } from '@/components/charts/SoftCharts';
 import { HireCountries } from '@/components/companies/HireCountries';
 import { ShareExperienceDialog } from '@/components/companies/ShareExperienceDialog';
+import { TitleChips } from '@/components/common/TitleChips';
 import { SharePromo } from '@/components/companies/SharePromo';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
@@ -198,7 +199,7 @@ export function CompaniesPage({ go, onAuth }: Props) {
       <section className="bg-brand-700 text-white">
         <div className="mx-auto max-w-[1440px] px-5 pb-8 pt-8 sm:px-8 lg:px-10">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Company Scores</h1>
-          <p className="mt-2 max-w-2xl text-[15px] leading-6 text-white/80">Who's hiring, where, and how fast — from real listings and applicant data.</p>
+          <TitleChips tone="dark" className="mt-4" items={['Who’s hiring', 'Where', 'How fast they reply']} />
 
           <div className="mt-6 flex flex-col gap-2 rounded-xl bg-white p-2 shadow-lg shadow-black/10 sm:flex-row sm:items-center">
             <div className="flex min-w-0 flex-1 items-center gap-2 px-2">

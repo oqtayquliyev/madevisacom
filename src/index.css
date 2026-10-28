@@ -10,7 +10,9 @@
   }
   body {
     @apply bg-white text-ink-900 font-sans antialiased;
-    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    /* Geist: tabular-ready figures, slightly tighter for a crisp look. */
+    font-feature-settings: 'ss01';
+    letter-spacing: -0.006em;
   }
   ::selection {
     @apply bg-brand-200 text-brand-900;
@@ -101,11 +103,13 @@
   }
 }
 
-/* Job titles in Fraunces (Tailwind `font-title`): optical sizing draws
-   finer detail at large sizes; a touch tighter, like editorial headlines. */
+/* Big titles (Tailwind `font-title`, Geist): tighter tracking, like the product headlines
+   people trust (Stripe, Linear, Vercel). */
 .font-title {
-  font-optical-sizing: auto;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.03em;
+}
+h1, h2 {
+  letter-spacing: -0.025em;
 }
 
 /* Sponsor offer: a cost row that just changed payer flashes once. */

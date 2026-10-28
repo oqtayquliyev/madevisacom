@@ -528,8 +528,8 @@ export const legalPages: Record<string, LegalPageContent> = {
     description: 'MadeVisa Membership: price, what it includes and its limits, billing, renewal, cancellation and refunds.',
     intro: `These terms apply to MadeVisa’s paid plan for job seekers, the MadeVisa Membership. Last updated ${LEGAL_LAST_UPDATED}.`,
     summary: [
-      'The MadeVisa Membership is $2.29 a month, in US dollars, the same in every country.',
-      'Billed monthly until you cancel. Cancel anytime: you keep the membership until the end of the month you paid for.',
+      'The MadeVisa Membership is $4.99 for 3 months, or $2.29 a month, in US dollars, the same in every country.',
+      'Billed every 3 months or every month (the one you choose) until you cancel. Cancel anytime: you keep the membership until the end of the period you paid for.',
       'Payments are taken by Gumroad, the seller named on your receipt. MadeVisa never sees your card.',
       'You can pay without a MadeVisa account: we create one for the email you pay with, or add the membership to your existing account with that email.',
       'Full refund within 14 days of first joining, as long as you haven’t used any of its paid features yet.',
@@ -540,7 +540,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         heading: 'The membership',
         paragraphs: [
           'Free: browsing every job, with search and filters, 1 sponsorship document a month, up to 5 saved jobs and 1 job alert.',
-          'MadeVisa Membership ($2.29 a month): applying to every job on MadeVisa (the Apply button on each job page), jobs straight from company career pages, remote and online job listings, CV match and personalised CV suggestions on every job, the companies that sponsor visas in each country with their reply data, 20 sponsorship documents a month, up to 5 job alerts and unlimited saved jobs.',
+          'MadeVisa Membership ($4.99 for 3 months, or $2.29 a month): applying to every job on MadeVisa (the Apply button on each job page), jobs straight from company career pages, remote and online job listings, CV match and personalised CV suggestions on every job, the companies that sponsor visas in each country with their reply data, 20 sponsorship documents a month, up to 5 job alerts and unlimited saved jobs.',
           'MadeVisa helps you find and apply for jobs. The membership does not guarantee interviews, a job, visa sponsorship or a visa decision.',
         ],
       },
@@ -561,14 +561,14 @@ export const legalPages: Record<string, LegalPageContent> = {
       {
         heading: 'Billing and renewal',
         paragraphs: [
-          'The membership is billed monthly in US dollars, starting on the day you subscribe, and renews on the same day each month at the same price until you cancel. Gumroad adds sales tax or VAT where it applies; the amount is shown on Gumroad’s checkout before you pay. Your bank may convert the amount into your currency.',
+          'The membership is billed in US dollars, starting on the day you subscribe: every 3 months ($4.99) or every month ($2.29), the one you chose at checkout. It renews at the end of each period at the same price until you cancel. Gumroad adds sales tax or VAT where it applies; the amount is shown on Gumroad’s checkout before you pay. Your bank may convert the amount into your currency.',
           'Your membership starts once Gumroad confirms the payment to MadeVisa, usually within a minute. If a renewal fails, Gumroad tries again and asks you to update your payment method; your membership stays on for a few days while it does, then pauses until a payment goes through.',
         ],
       },
       {
         heading: 'Cancelling',
         paragraphs: [
-          'You can cancel anytime: in Settings → Billing on MadeVisa (which takes you to your membership on Gumroad), or from the link in your Gumroad receipt. Your membership stays on until the end of the month you paid for and is not renewed. Cancelling in MadeVisa’s database alone is not possible: the cancellation is made on Gumroad, which stops the charges.',
+          'You can cancel anytime: in Settings → Billing on MadeVisa (which takes you to your membership on Gumroad), or from the link in your Gumroad receipt. Your membership stays on until the end of the period you paid for (the month, or the 3 months) and is not renewed. Cancelling in MadeVisa’s database alone is not possible: the cancellation is made on Gumroad, which stops the charges.',
           'When the membership ends, your account goes back to Free. Your CV, matches, saved jobs, application history and documents stay in your account.',
         ],
       },
@@ -581,7 +581,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         bullets: [
           'Within 14 days of first joining, if you haven’t used any of its paid features yet: a full refund.',
           'Paid features are: opening a job’s application page through Apply, CV match on a job, your ranked list of matches, and a sponsorship document beyond the free one. Browsing jobs, saving jobs and alerts don’t count.',
-          'Once you have used a paid feature, that month is not refunded. You can still cancel anytime, and you keep the membership until the end of the month you paid for.',
+          'Once you have used a paid feature, that period is not refunded. You can still cancel anytime, and you keep the membership until the end of the month you paid for.',
           'Sponsor-jobs guarantee: within 14 days of first joining, if MadeVisa doesn’t show you at least 10 open jobs in your field (the job title you searched for or gave in CV match) at companies with an official visa-sponsor record (Sponsor proof on the job page), write to us with your receipt and the field: full refund, even if you used paid features. Once per person.',
           'Double charges, or a payment taken after you cancelled: always refunded.',
           'After a refund, or if a payment is disputed with your bank, the membership ends straight away.',

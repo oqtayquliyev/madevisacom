@@ -489,12 +489,12 @@ export async function fetchNewestPublishedJobs(limit = 60): Promise<SponsoredJob
  * newest jobs if the function is missing.
  */
 export async function fetchLandingJobs(n = 5): Promise<SponsoredJob[]> {
-  const KEY = 'mv:landingJobs:v3'; // v3: newest per company, 10-minute cache
+  const KEY = 'mv:landingJobs:v3'; // v3: newest per company, 30-minute cache (fewer downloads on Supabase Free)
   try {
     const raw = window.localStorage.getItem(KEY);
     if (raw) {
       const saved = JSON.parse(raw) as { at: number; rows: SponsoredJob[] };
-      if (Date.now() - saved.at < 10 * 60_000 && saved.rows?.length) return stillLive(saved.rows);
+      if (Date.now() - saved.at < 30 * 60_000 && saved.rows?.length) return stillLive(saved.rows);
     }
   } catch {
     /* ignore */

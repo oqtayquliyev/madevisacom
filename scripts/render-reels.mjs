@@ -428,10 +428,10 @@ async function main() {
     }
   }
 
-  // Old reel files: once published they live on the network; keep ten days here.
+  // Old reel files: once published they live on the network; keep three days here (Supabase Free: 1 GB of files).
   try {
     const list = await (await fetch(`${base}/storage/v1/object/list/social-videos`, { method: 'POST', headers, body: JSON.stringify({ prefix: 'reels', limit: 1000, sortBy: { column: 'created_at', order: 'asc' } }) })).json();
-    const cutoff = Date.now() - 10 * 86_400_000;
+    const cutoff = Date.now() - 3 * 86_400_000;
     const old = (Array.isArray(list) ? list : []).filter((o) => o.created_at && Date.parse(o.created_at) < cutoff).map((o) => `reels/${o.name}`);
     if (old.length) await fetch(`${base}/storage/v1/object/social-videos`, { method: 'DELETE', headers, body: JSON.stringify({ prefixes: old }) });
   } catch {

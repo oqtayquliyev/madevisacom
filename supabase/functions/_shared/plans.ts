@@ -35,6 +35,17 @@ export const MEMBERSHIP_PLAN: PaidPlanId = 'starter';
 /** THE Gumroad link for the membership. Every "Subscribe" button ends here (the email, and for accounts a checkout id, are added to it). */
 export const MEMBERSHIP_URL = 'https://madevisa.gumroad.com/l/membership?wanted=true';
 
+/**
+ * The membership can be paid monthly or every 3 months (the same Gumroad product, two
+ * billing periods on its one tier). The 3-month price must match the "Quarterly" price set
+ * on the product in Gumroad — checkout refuses to open it otherwise.
+ */
+export type MembershipBilling = 'monthly' | 'quarterly';
+export const BILLINGS: readonly MembershipBilling[] = ['monthly', 'quarterly'];
+export const isBilling = (v: unknown): v is MembershipBilling => v === 'monthly' || v === 'quarterly';
+/** $4.99 for 3 months. */
+export const QUARTER_PRICE_CENTS = 499;
+
 /** Higher includes everything below it. */
 export const PLAN_RANK: Record<PlanId, number> = { free: 0, starter: 1, pro: 2 };
 
@@ -154,6 +165,12 @@ export const priceLabel = (plan: PlanId): string => (plan === 'free' ? '$0' : `$
 
 /** "$2.29" — the membership's price. */
 export const MEMBERSHIP_PRICE = usd(PLANS[MEMBERSHIP_PLAN].priceCents);
+/** "$4.99" — 3 months of membership. */
+export const QUARTER_PRICE = usd(QUARTER_PRICE_CENTS);
+/** "$1.66" — what 3 months cost per month. */
+export const QUARTER_PER_MONTH = usd(Math.floor(QUARTER_PRICE_CENTS / 3));
+/** "27%" — saved against 3 monthly payments. */
+export const QUARTER_SAVING = `${Math.round(100 - (100 * QUARTER_PRICE_CENTS) / (3 * PLANS[MEMBERSHIP_PLAN].priceCents))}%`;
 
 /** Plans in order, for comparisons. */
 export const PLAN_ORDER: PlanId[] = ['free', 'starter', 'pro'];

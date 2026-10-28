@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ScanSearch, X } from 'lucide-react';
 import { useCv } from '@/lib/cv/store';
+import { TitleChips } from '@/components/common/TitleChips';
 import { CvUpload } from '@/components/cv/CvUpload';
 
 const KEY = 'mv:cvPromptClosed';
@@ -39,7 +40,7 @@ export function CvPrompt({ className = '', where = 'these jobs' }: { className?:
         <p className="flex items-center gap-2 text-[16px] font-bold leading-snug text-ink-950">
           <ScanSearch className="h-5 w-5 shrink-0 text-brand-700" /> See how well you match {where}
         </p>
-        <p className="mt-1 text-[13.5px] leading-5 text-ink-600">Upload your CV once. Every job then shows your match score and the skills you’re missing before you apply. Free.</p>
+        <TitleChips className="mt-2.5" tone="plain" items={['Match score on every job', 'Missing skills', 'Free']} />
       </div>
       <CvUpload compact />
     </aside>

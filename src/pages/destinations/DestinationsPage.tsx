@@ -13,6 +13,7 @@ import { useDestinationStats, type CountryStats } from '@/lib/destinationStats';
 import { ProfileCard, RateBar, StatusBadge } from '@/pages/destinations/DestinationUI';
 import { WRAP, countryName, nav } from '@/lib/pageLayout';
 import { MOVE } from '@/data/moveMath';
+import { TitleChips } from '@/components/common/TitleChips';
 import { usd } from '@/lib/moveMath';
 
 type DestinationsPageProps = {
@@ -110,10 +111,7 @@ export function DestinationsPage({ go, onAuth }: DestinationsPageProps) {
           <h1 className="max-w-3xl text-[32px] font-bold leading-[1.1] tracking-tight sm:text-[44px]">
             {me.firstName ? `${me.firstName}, here's where you can go` : 'Where you can go, and who is hiring'}
           </h1>
-          <p className="mt-4 max-w-2xl text-[16px] leading-7 text-white/85">
-            Visa routes for {visaGuides.length} countries, checked against {passport ? `your ${passport} passport` : 'your passport'}, with live counts of jobs that sponsor visas and the
-            companies behind them.
-          </p>
+          <TitleChips tone="dark" className="mt-5" items={[`${visaGuides.length} countries`, passport ? `Checked for your ${passport} passport` : 'Checked for your passport', 'Jobs that sponsor visas', 'Money left after rent']} />
           <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
             {me.citizenship ? (
               <HeroFigure label="Countries with a route for you" value={`${totals.open} of ${visaGuides.length}`} />
@@ -254,7 +252,6 @@ export function DestinationsPage({ go, onAuth }: DestinationsPageProps) {
         {complete && otherCountries.length > 0 && (
           <section>
             <h2 className="text-[20px] font-medium text-ink-900">Also hiring on MadeVisa</h2>
-            <p className="mt-0.5 text-[14px] text-ink-500">Countries without a visa guide yet. Open the jobs to see who's hiring.</p>
             <div className="mt-4 flex flex-wrap gap-2">
               {otherCountries.map((s) => (
                 <OtherCountry key={s.code} s={s} />
@@ -321,7 +318,6 @@ function CountryCard({ guide, stats, loading, status, openRoutes, home }: { guid
         {status && <StatusBadge status={status} />}
       </div>
 
-      <p className="mt-3 line-clamp-2 text-[14px] leading-6 text-ink-600">{guide.blurb}</p>
 
       <dl className="mt-4 grid grid-cols-3 gap-2 rounded-lg bg-[#1D4ED8]/5 p-3">
         <Metric label="Open jobs" value={loading ? '…' : (stats?.total ?? 0).toLocaleString()} />

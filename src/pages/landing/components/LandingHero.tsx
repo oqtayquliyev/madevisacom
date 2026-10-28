@@ -22,6 +22,7 @@ import { useSiteStats } from '@/lib/siteStats';
 import { allCountries, type CountryEntry } from '@/data/allCountries';
 import { CircleFlag } from '@/components/common/CircleFlag';
 import { CvUpload } from '@/components/cv/CvUpload';
+import { TitleChips } from '@/components/common/TitleChips';
 import { useCv } from '@/lib/cv/store';
 
 type LandingHeroProps = {
@@ -57,14 +58,6 @@ const journeys: {
     icon: GraduationCap,
   },
 ];
-
-const journeyDescriptions: Record<Journey, string> = {
-  work: 'Find jobs and immigration pathways that fit your profile.',
-  study: 'Find study options that fit your goals and budget.',
-  programs: 'Find programs and training opportunities abroad.',
-  family: 'Find pathways for moving with your family.',
-  relocation: 'Find real job vacancies abroad.',
-};
 
 const SOON_COPY: Partial<Record<Journey, { title: string; text: string; points: string[] }>> = {
   programs: {
@@ -321,9 +314,6 @@ function JourneyCostEstimate({
         </div>
       </div>
 
-      <p className="mt-2.5 text-[11px] text-ink-400">
-        Estimates only, not a live quote — actual costs vary by case. Tap a line for details.
-      </p>
     </div>
   );
 }
@@ -469,9 +459,7 @@ export function LandingHero(_props: LandingHeroProps) {
               Find a job abroad. See how well you match it.
             </h1>
 
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75 sm:mt-4 sm:text-lg sm:leading-7">
-              Upload your CV once. Every live job from company career pages shows your match score and what’s missing before you apply.
-            </p>
+            <TitleChips tone="dark" className="mt-4 sm:mt-6" items={['Jobs from company career pages', 'Visa sponsor proof', 'CV match on every job', 'Checked live, scam-screened']} />
 
             <div className="mt-5 max-w-md sm:mt-7">
               <CvUpload tone="light" compact onDone={() => nav('/cv-match')} />
@@ -489,7 +477,6 @@ export function LandingHero(_props: LandingHeroProps) {
                   <Search className="h-4 w-4" /> Open a job and check your match
                 </a>
               )}
-              {!hasCv && <p className="mt-2 text-[12px] text-white/65">Free. Your CV goes to an employer only when you ask.</p>}
             </div>
 
           </div>
@@ -571,9 +558,7 @@ export function LandingHero(_props: LandingHeroProps) {
 
                 </div>
 
-                <p className="mt-1 text-sm text-ink-500">
-                  {journeyDescriptions[activeJourney]}
-                </p>
+
               </div>
 
               <div className="text-xs font-medium text-ink-400">

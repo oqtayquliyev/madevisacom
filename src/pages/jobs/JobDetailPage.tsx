@@ -605,11 +605,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
           {showSignupInvite && (
             <div className="mt-6 flex flex-col gap-3 rounded-xl bg-white/10 p-4 ring-1 ring-white/25 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-white">Keep track of your job search</p>
-                <p className="mt-0.5 text-xs leading-5 text-white/80">
-                  You've looked at {guestViews} jobs. Create a free account to track the jobs you apply to and see how
-                  fast companies respond.
-                </p>
+                <p className="text-[15px] font-bold text-white">Track your {guestViews} jobs and who replies</p>
               </div>
               <div className="flex shrink-0 gap-2">
                 <button onClick={() => onAuth?.('register')} className="rounded-full bg-white px-4 py-2 text-xs font-bold text-brand-700 hover:bg-brand-50">
@@ -748,11 +744,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
             </div>
           </div>
 
-          {job.sourceType === 'company_careers' && (
-            <p className="mt-4 text-xs leading-5 text-ink-400">
-              Added by MadeVisa from the company&apos;s public careers page. Availability may change on the original source.
-            </p>
-          )}
+          {job.sourceType === 'company_careers' && <p className="mt-4 text-[13px] font-semibold text-ink-500">From {job.company}’s careers page</p>}
         </div>
 
 
@@ -761,9 +753,7 @@ export function JobDetailPage({ id, go, onAuth }: JobDetailPageProps) {
 
         {raw && (
           <div className="mt-4 flex flex-col gap-3 rounded-xl border border-ink-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs leading-5 text-ink-500">
-              <strong className="text-ink-700">We’re a new platform</strong> — still improving how job descriptions read and adding more details. Something wrong or missing? Let us know.
-            </p>
+            <p className="text-[15px] font-bold text-ink-900">Something wrong with this job?</p>
             <ReportJobButton jobId={raw.id} className="shrink-0 self-start sm:self-auto" />
           </div>
         )}

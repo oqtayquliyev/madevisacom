@@ -1016,7 +1016,7 @@ async function publishDue(service: Service, platforms: Map<Platform, PlatformRow
   // "Post by hand" program posts nobody posted within a day and a half are dropped, so they don't pile up.
   await service.from('social_posts').update({ status: 'expired', error: 'Not posted by hand in time' }).eq('origin', 'program').eq('status', 'manual').lt('scheduled_at', new Date(Date.now() - 36 * 3_600_000).toISOString());
   // A reel whose video never arrived (the render workflow isn't running, or failed without saying so).
-  await service.from('social_posts').update({ status: 'expired', error: 'The video wasn’t rendered in time. Check Actions → Render reels on GitHub.' }).eq('status', 'rendering').lt('scheduled_at', new Date(Date.now() - 3 * 3_600_000).toISOString());
+  await service.from('social_posts').update({ status: 'expired', error: 'The video wasn’t rendered in time. Check Actions → Render reels on GitHub.' }).eq('status', 'rendering').lt('scheduled_at', new Date(Date.now() - 5 * 3_600_000).toISOString()); // 5 h: the renderer's safety-net run is every 3 hours
   const COLS = 'id, platform, format, caption, headline, images, job_ids, attempts, validation, target, origin, scheduled_at';
   const due = () => service.from('social_posts');
   const first = await due().select(`${COLS}, video_url, meta`).eq('status', 'approved').lte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(8);

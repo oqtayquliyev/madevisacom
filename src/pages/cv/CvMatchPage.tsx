@@ -235,7 +235,7 @@ export function CvMatchPage({ go, onAuth }: Props) {
                     Show my matches <ArrowRight className="h-4 w-4" />
                   </button>
                 )}
-                <p className="mt-2 text-[12px] text-ink-500">Read on your device; sent to an employer only when you ask.</p>
+                <p className="mt-2 text-[13px] font-semibold text-ink-600">Private · read on your device</p>
               </div>
             ) : (
               <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px] text-white/85">

@@ -199,7 +199,7 @@ export type Checkout = {
   url: string;
   checkout_id: string;
   plan: PaidPlanId;
-  billing: 'monthly';
+  billing: 'monthly' | 'quarterly';
   /** What Gumroad will charge (before any tax it adds), as the server confirmed it. */
   price_cents: number;
   currency: string;

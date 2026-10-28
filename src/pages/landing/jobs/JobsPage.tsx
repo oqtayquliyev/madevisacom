@@ -51,6 +51,7 @@ import { jobPath } from '@/lib/jobUrl';
 import { experienceBucket } from '@/lib/jobText';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import { NewCompanyBadge } from '@/components/common/NewCompanyBadge';
+import { TitleChips } from '@/components/common/TitleChips';
 import { AuthDialog } from '@/components/auth/AuthDialog';
 
 type JobsPageProps = {
@@ -172,7 +173,8 @@ type SortOption = 'newest' | 'relevant';
 
 /** This device's copy of the newest jobs, kept 10 minutes: a repeat visit shows the list at once. */
 const QUICK_KEY = 'mv:newestJobs';
-const QUICK_TTL_MS = 10 * 60_000;
+// 30 minutes: on Supabase Free every full download of the list counts against 5 GB a month.
+const QUICK_TTL_MS = 30 * 60_000;
 function readQuickCopy(): Job[] | null {
   try {
     const v = JSON.parse(window.localStorage.getItem(QUICK_KEY) ?? 'null') as { at: number; rows: SponsoredJob[] } | null;
@@ -974,9 +976,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
           <h1 className="font-slab text-3xl font-bold leading-[1.3] tracking-tight text-white sm:text-4xl sm:leading-[1.3]">
             Discover <span className="rounded-md bg-white px-2 font-extrabold text-brand-700 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] sm:px-2.5">jobs</span> beyond traditional job boards.
           </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-white/80 sm:text-base">
-            We collect roles from company career pages and multiple sources, so you can find opportunities you may not see on LinkedIn or other job sites.
-          </p>
+          <TitleChips tone="dark" className="mt-4" items={['Straight from company career pages', 'New jobs every day', 'Checked live daily']} />
 
           <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
             <PersonalizationBar tone="dark" variant="location" />
@@ -1183,9 +1183,6 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-ink-900">Jobs in demand</h2>
-            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-ink-500">
-              Straight from company career pages, updated every day
-            </p>
           </div>
 
           <div className="flex flex-col items-stretch gap-2.5 sm:items-end">
@@ -1281,7 +1278,6 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
                       <BadgeCheck className="h-4 w-4 text-emerald-600" />
                       Posted directly on MadeVisa
                     </h3>
-                    <p className="text-xs text-ink-500">Roles companies published here themselves — apply straight to the employer.</p>
                   </div>
                   {directJobs.length > 2 && (
                     <button type="button" onClick={() => setDirectOnly(true)} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800">
@@ -1302,7 +1298,6 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
                   {i === relatedStart && (
                     <div className="mt-2 border-t border-ink-200 pt-5 lg:col-span-2">
                       <p className="text-sm font-bold text-ink-900">More {relatedGroup} jobs</p>
-                      <p className="text-xs text-ink-500">Other roles in the same field, newest first.</p>
                     </div>
                   )}
                   <JobCard job={job} onLocked={onLocked} onOpen={saveListPlace} />
@@ -1341,10 +1336,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
           </>
         )}
 
-        <p className="mt-10 text-xs leading-5 text-ink-400">
-          MadeVisa collects vacancies from publicly available company career pages. Job availability can change after we import a
-          listing, so always verify the current status on the company's <span className="text-brand-600 underline">official careers page</span>.
-        </p>
+        <p className="mt-10 text-[13px] font-semibold text-ink-500">From public company career pages · re-checked daily</p>
       </main>
 
       <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />

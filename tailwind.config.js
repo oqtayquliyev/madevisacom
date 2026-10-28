@@ -4,12 +4,13 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        // Job titles only: Fraunces (`font-title`). Every other heading is Inter,
-        // like the landing page — `font-slab` is kept as a class name and now maps to Inter.
-        title: ['Fraunces', 'ui-serif', 'Georgia', 'serif'],
-        serif: ['Fraunces', 'ui-serif', 'Georgia', 'serif'],
-        slab: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // One family everywhere: Geist (free, open licence) — very legible at small sizes, clean
+        // and modern like the fintech and SaaS products people already trust with a card.
+        // `font-title`, `font-serif` and `font-slab` are kept as class names and map to it too.
+        sans: ['Geist', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        title: ['Geist', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        serif: ['Geist', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        slab: ['Geist', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
         ink: {

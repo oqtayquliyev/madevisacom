@@ -4,7 +4,7 @@ import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { nav } from '@/lib/pageLayout';
 import { useAuth } from '@/lib/auth';
-import { MEMBERSHIP_PRICE, useMyPlan } from '@/lib/plans';
+import { MEMBERSHIP_PRICE, useMyPlan, type MembershipBilling } from '@/lib/plans';
 import { goToMembershipCheckout } from '@/lib/gumroad';
 import { cleanSource, trackBilling } from '@/lib/billing';
 import { readReturn } from '@/lib/returnTo';
@@ -26,6 +26,8 @@ export function CheckoutPage(_props: Props) {
   const { user, loading: authLoading } = useAuth();
   const my = useMyPlan();
   const source = useMemo(() => cleanSource(new URLSearchParams(window.location.search).get('source')) ?? 'checkout', []);
+  // ?billing=quarterly → 3 months; anything else → monthly.
+  const billing = useMemo<MembershipBilling>(() => (new URLSearchParams(window.location.search).get('billing') === 'quarterly' ? 'quarterly' : 'monthly'), []);
   const [state, setState] = useState<State>({ at: 'opening' });
   const started = useRef(false);
 
@@ -47,12 +49,12 @@ export function CheckoutPage(_props: Props) {
       setState({ at: 'member' });
       return;
     }
-    void goToMembershipCheckout({ signedIn: Boolean(user), email: user?.email ?? null, source }).then((r) => {
+    void goToMembershipCheckout({ signedIn: Boolean(user), email: user?.email ?? null, source, billing }).then((r) => {
       if (r.kind === 'already') setState({ at: 'already', manageUrl: r.manageUrl });
       // The payment form opens over this page now: once it's closed, offer the way on instead of a spinner.
       else window.setTimeout(() => setBack(true), 2500);
     });
-  }, [authLoading, user, my.loading, my.isPaid, source]);
+  }, [authLoading, user, my.loading, my.isPaid, source, billing]);
 
 
   const leave = () => nav(readReturn() ?? '/jobs');

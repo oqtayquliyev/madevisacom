@@ -387,7 +387,6 @@ export function LocationMatchSection({
           <p className="text-sm font-semibold text-ink-500">
             New jobs will appear here
           </p>
-          <p className="text-xs text-ink-400">Check back soon — new sponsored listings appear here automatically.</p>
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -448,7 +447,6 @@ function CostBreakdownPopover({ est, onClose }: { est: JourneyCostBreakdown; onC
         {est.includeWorkPermit && <div className="flex justify-between"><span>Work permit fee</span><span className="font-semibold">${est.workPermitFeeUSD.toLocaleString()}</span></div>}
         {est.includeProgram && <div className="flex justify-between"><span>Program cost (avg.)</span><span className="font-semibold">${est.programAverageUSD.toLocaleString()}</span></div>}
       </div>
-      <p className="mt-3 text-[10px] leading-4 text-ink-400">Rough estimate for planning purposes — actual costs vary by provider and circumstances.</p>
     </div>
   );
 }

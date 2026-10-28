@@ -1,5 +1,5 @@
-import { ExternalLink, Lock, MessageCircleReply, ShieldCheck, Users, Wallet } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { ExternalLink, Info, Lock, MessageCircleReply, ShieldCheck, Users, Wallet } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { useSponsorProof, recordLine, REGISTER_NAME, type SponsorRecord } from '@/lib/sponsorProof';
 import { useCompanySignal } from '@/lib/companySignals';
 import { useDiaspora } from '@/lib/diaspora';
@@ -60,11 +60,20 @@ export function useJobEdge(i: EdgeInput): Edge {
 }
 
 function Row({ icon, title, children, locked, onUnlock, note }: { icon: ReactNode; title: string; children: ReactNode; locked: boolean; onUnlock?: () => void; note?: ReactNode }) {
+  // Title-first: the how-and-where details stay one tap away (ⓘ), not as grey text under every answer.
+  const [open, setOpen] = useState(false);
   return (
     <div className="flex gap-3 border-t border-ink-100 py-3.5 first:border-t-0">
       <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700">{icon}</span>
       <div className="min-w-0 flex-1">
-        <p className="text-[12px] font-bold uppercase tracking-wide text-ink-500">{title}</p>
+        <p className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wide text-ink-500">
+          {title}
+          {note && !locked && (
+            <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label={`How we know: ${title}`} className="rounded-full p-0.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700">
+              <Info className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          )}
+        </p>
         <div className="mt-0.5 text-[15px] font-semibold leading-6 text-ink-950">
           {locked ? (
             <button type="button" onClick={onUnlock} className="inline-flex items-center gap-2 text-left" aria-label={`${title}: members only. Unlock`}>
@@ -75,7 +84,7 @@ function Row({ icon, title, children, locked, onUnlock, note }: { icon: ReactNod
             children
           )}
         </div>
-        {note && !locked && <p className="mt-1 text-[12px] leading-5 text-ink-500">{note}</p>}
+        {note && !locked && open && <p className="mt-1.5 rounded-lg bg-ink-50 px-3 py-2 text-[13px] leading-5 text-ink-600">{note}</p>}
       </div>
     </div>
   );

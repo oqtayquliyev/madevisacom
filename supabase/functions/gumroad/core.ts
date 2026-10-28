@@ -4,7 +4,7 @@
 // check, network and secrets are handed in (Deps), so the same code runs in
 // the tests against a pretend Gumroad.
 
-import { isPaidPlanId, MEMBERSHIP_PLAN, MEMBERSHIP_URL, PLANS, type PaidPlanId } from '../_shared/plans.ts';
+import { isBilling, isPaidPlanId, MEMBERSHIP_PLAN, MEMBERSHIP_URL, PLANS, QUARTER_PRICE_CENTS, type MembershipBilling, type PaidPlanId } from '../_shared/plans.ts';
 
 // deno-lint-ignore no-explicit-any
 type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -307,7 +307,7 @@ async function webhook(deps: Deps, req: Request, key: string): Promise<Response>
 // ---------------------------------------------------------------------------
 /** What a buyer would actually be charged, read from the product itself. */
 export type ProductCheck =
-  | { ok: true; product: Json; monthlyCents: number; url: string }
+  | { ok: true; product: Json; monthlyCents: number; quarterlyCents: number | null; url: string }
   | { ok: false; reason: string };
 
 /**
@@ -334,7 +334,9 @@ export function checkProduct(product: Json, plan: PaidPlanId): ProductCheck {
   if (product.published === false) return { ok: false, reason: `${name} is not published yet. Publish it in Gumroad.` };
   const url = String(product.short_url ?? '');
   if (!/^https:\/\/([a-z0-9-]+\.)*gumroad\.com\//i.test(url)) return { ok: false, reason: `${name} has no Gumroad link.` };
-  return { ok: true, product, monthlyCents: monthly, url };
+  // The 3-month price, when the tier has one (Gumroad: "Quarterly").
+  const quarterly = Number(prices.quarterly?.price_cents ?? 0) || null;
+  return { ok: true, product, monthlyCents: monthly, quarterlyCents: quarterly, url };
 }
 
 const manageLink = (subscriptionId: string) => `https://gumroad.com/subscriptions/${encodeURIComponent(subscriptionId)}/manage`;
@@ -346,7 +348,8 @@ async function checkout(deps: Deps, cfg: Config, user: { id: string; email: stri
   // One plan is sold: the membership. Old links that still say "pro" get the membership too.
   if (body?.plan != null && !isPaidPlanId(body.plan)) return json({ error: 'Choose the MadeVisa Membership.' }, 400);
   const plan: PaidPlanId = MEMBERSHIP_PLAN;
-  if (body?.billing && body.billing !== 'monthly') return json({ error: 'The membership is billed monthly. Reload the page and try again.' }, 400);
+  if (body?.billing != null && !isBilling(body.billing)) return json({ error: 'Choose monthly or 3 months. Reload the page and try again.' }, 400);
+  const billing: MembershipBilling = body?.billing === 'quarterly' ? 'quarterly' : 'monthly';
   const source = typeof body?.source === 'string' && /^[a-z0-9_]{1,40}$/.test(body.source) ? body.source : null;
 
   const state = (await deps.rpc('gumroad_user', { p_user: user.id })).data ?? {};
@@ -366,6 +369,11 @@ async function checkout(deps: Deps, cfg: Config, user: { id: string; email: stri
     return json({ error: `${PLANS[plan].name} can’t be bought right now. Please try again later, or write to hello@madevisa.com.` });
   }
   if (pp.provider_price_cents !== checked.monthlyCents) await deps.rpc('gumroad_plan_save', { p_plan: plan, p: { price_cents: checked.monthlyCents } });
+  // 3 months: the product must charge exactly the 3-month price shown on MadeVisa.
+  if (billing === 'quarterly' && checked.quarterlyCents !== QUARTER_PRICE_CENTS) {
+    await deps.rpc('gumroad_save', { p: { last_error: `${new Date().toISOString().slice(0, 16)} 3-month checkout refused: the product's quarterly price is ${checked.quarterlyCents == null ? 'not set' : `$${(checked.quarterlyCents / 100).toFixed(2)}`}, MadeVisa shows $${(QUARTER_PRICE_CENTS / 100).toFixed(2)}` } });
+    return json({ error: 'The 3-month plan can’t be bought right now. Choose monthly, or try again later.' });
+  }
 
   const begun = await deps.rpc('gumroad_checkout_begin', { p_user: user.id, p_plan: plan, p_source: source });
   if (begun.error) {
@@ -378,7 +386,7 @@ async function checkout(deps: Deps, cfg: Config, user: { id: string; email: stri
 
   // Always THE membership link (MEMBERSHIP_URL), whatever short link the product has.
   const url = new URL(MEMBERSHIP_URL);
-  url.searchParams.set('recurrence', 'monthly');
+  url.searchParams.set('recurrence', billing);
   if (user.email) url.searchParams.set('email', user.email);
   // Comes back with the payment and says which account it is for (never which plan: the product says that).
   url.searchParams.set('mv', c.id);
@@ -398,7 +406,7 @@ async function checkout(deps: Deps, cfg: Config, user: { id: string; email: stri
     );
   }
 
-  return json({ url: url.toString(), checkout_id: c.id, plan, billing: 'monthly', price_cents: c.price_cents, currency: c.currency ?? 'USD', email: user.email });
+  return json({ url: url.toString(), checkout_id: c.id, plan, billing, price_cents: billing === 'quarterly' ? QUARTER_PRICE_CENTS : c.price_cents, currency: c.currency ?? 'USD', email: user.email });
 }
 
 // ---------------------------------------------------------------------------
@@ -416,13 +424,14 @@ async function guestCheckout(_deps: Deps, cfg: Config, body: Json): Promise<Resp
   const plan = MEMBERSHIP_PLAN;
   if (!cfg.enabled) return json({ error: 'off' });
   const source = typeof body?.source === 'string' && /^[a-z0-9_]{1,40}$/.test(body.source) ? body.source : null;
+  const billing: MembershipBilling = body?.billing === 'quarterly' ? 'quarterly' : 'monthly';
   const url = new URL(MEMBERSHIP_URL);
-  url.searchParams.set('recurrence', 'monthly');
+  url.searchParams.set('recurrence', billing);
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
   if (EMAIL.test(email)) url.searchParams.set('email', email);
   if (source) url.searchParams.set('mvs', source);
   url.searchParams.set('referrer', `${SITE}/checkout`);
-  return json({ url: url.toString(), plan, billing: 'monthly', price_cents: PLANS[plan].priceCents, currency: 'USD', guest: true });
+  return json({ url: url.toString(), plan, billing, price_cents: billing === 'quarterly' ? QUARTER_PRICE_CENTS : PLANS[plan].priceCents, currency: 'USD', guest: true });
 }
 
 // ---------------------------------------------------------------------------
