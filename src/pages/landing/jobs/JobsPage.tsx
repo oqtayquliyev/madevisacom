@@ -40,8 +40,6 @@ import { JobSignals } from '@/components/jobs/JobSignals';
 import { useJobFacets } from '@/lib/jobFacets';
 import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, searchPublishedJobs, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { rememberSearch } from '@/lib/lastSearch';
-import { useMembership } from '@/lib/plans';
-import { Paywall } from '@/components/pro/Paywall';
 import { isJobViewed, markJobViewed, viewedJobIds } from '@/lib/viewedJobs';
 import { rememberJobPreview } from '@/lib/jobPreview';
 import { useSeo } from '@/lib/seo';
@@ -305,7 +303,7 @@ function withClosedLast(jobs: Job[]): Job[] {
   return [...jobs.filter((j) => !j.closed), ...jobs.filter((j) => j.closed)];
 }
 
-function JobCard({ job, onLocked, onOpen }: { job: Job; /** Not a member: picking an outside listing opens the membership card instead. */ onLocked?: (job: Job) => void; /** Opening it in this tab (phones). */ onOpen?: () => void }) {
+function JobCard({ job, onLocked, onOpen }: { job: Job; /** Signed out: picking an outside listing asks for a free account first. */ onLocked?: (job: Job) => void; /** Opening it in this tab (phones). */ onOpen?: () => void }) {
   const isExternal = job.sourceType === 'live_feed';
   const viewed = isJobViewed(job.id);
   const closed = Boolean(job.closed);
@@ -535,11 +533,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
   // Every job: loaded when someone searches, filters, goes past the newest ones, or already has a copy.
   const [fullJobs, setFullJobs] = useState<Job[] | null>(lastFullJobs);
   const [loadingFull, setLoadingFull] = useState(false);
-  const { session } = useAuth();
-  const { member, ready: memberReady } = useMembership();
-  // An outside listing picked by someone who isn't a member: the membership card, here on the list.
-  const [lockedJob, setLockedJob] = useState<Job | null>(null);
-  const onLocked = memberReady && !member ? setLockedJob : undefined;
+  const { session, loading: authLoading } = useAuth();
 
   useEffect(() => {
     let cancelled = false;
@@ -839,6 +833,8 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
 
   // Free accounts are made right here, in a dialog (job alerts).
   const [authOpen, setAuthOpen] = useState(false);
+  // Every job is open to everyone; an outside listing picked while signed out asks for a free account first.
+  const onLocked = !authLoading && !session ? () => setAuthOpen(true) : undefined;
 
   // Everyone sees every job: the next page, from the full list (loading it first when needed).
   // Placeholders only while something is really on its way: a search being answered, or (no search) the full list.
@@ -1341,7 +1337,6 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
       </main>
 
       <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
-      {lockedJob && <Paywall job={{ title: lockedJob.title, company: lockedJob.company }} onClose={() => setLockedJob(null)} source="jobs_list" />}
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );

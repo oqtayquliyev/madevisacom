@@ -12,11 +12,13 @@ import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { MatchButton } from '@/components/cv/MatchButton';
 import { JobEdgeBlock } from '@/components/jobs/JobEdgeBlock';
-import { AUTO_POPUP_FROM_VIEW, countJobView, freeAppliedJobs, maskEmail, spendFreeApply } from '@/lib/conversion';
+import { SponsorDocPreviewButton } from '@/components/jobs/SponsorDocPreview';
+import { maskEmail } from '@/lib/conversion';
+import { AuthDialog } from '@/components/auth/AuthDialog';
+import { Paywall, type PaywallReason } from '@/components/pro/Paywall';
 import { fetchApplyLink } from '@/lib/applyLink';
-import { agoLabel, jobReality } from '@/lib/jobReality';
+import { jobReality } from '@/lib/jobReality';
 import { RealityPill, ScamWarning } from '@/components/jobs/JobReality';
-import { trackPaywall } from '@/lib/paywallStats';
 import { peekJobPreview } from '@/lib/jobPreview';
 import { useMembership } from '@/lib/plans';
 import { MatchPanel } from '@/components/cv/MatchPanel';
@@ -64,39 +66,36 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
   // Set when Apply is clicked — arms the "Your application" sheet; reset for each job.
   const [applied, setApplied] = useState(false);
   useEffect(() => setApplied(false), [id]);
-  const { session } = useAuth();
-  // Applying is for members: everyone else gets the membership card over the page, and Apply stays locked.
+  const { session, loading: authLoading } = useAuth();
+  // Every job is open to everyone. Applying needs a free account; CV match, "Your edge",
+  // sponsorship documents and the rest are the membership.
   const { member, ready: memberReady } = useMembership();
-  // Non-members see the job for a moment (title and ad), then it blurs and the membership card comes up.
-  const [peeking, setPeeking] = useState(true);
-  useEffect(() => setPeeking(true), [id]);
-  // The card comes up by itself only from the AUTO_POPUP_FROM_VIEW-th job a visitor opens;
-  // before that, only when they press Apply. (Seeing a few jobs first is what makes them want one.)
-  const [viewNumber, setViewNumber] = useState(0);
-  // The one free application per browser: this job's own link, once (src/lib/conversion.ts).
-  const [freeUnlocked, setFreeUnlocked] = useState(false);
-  const [freeNote, setFreeNote] = useState(false);
+  // Signed out: the sign-up popup comes up first on every job they open (they can close it and read on).
+  const [gate, setGate] = useState(false);
   useEffect(() => {
-    setFreeUnlocked(freeAppliedJobs().includes(id));
-    setFreeNote(false);
-  }, [id]);
+    if (!authLoading && !session) setGate(true);
+  }, [id, authLoading, session]);
   useEffect(() => {
-    if (memberReady && !member) setViewNumber(countJobView(id));
-  }, [id, member, memberReady]);
-  // The company's apply address comes from the server, only for those allowed to have it
-  // (members, the job's company, admins, or a free application) — src/lib/applyLink.ts.
+    if (session) setGate(false);
+  }, [session]);
+  // Which paid feature they reached for: the membership card says so.
+  const [paywall, setPaywall] = useState<PaywallReason | null>(null);
+  useEffect(() => setPaywall(null), [id]);
+  // CV match / "Your edge": folded away until opened (members).
+  const [tool, setTool] = useState<'match' | 'edge' | null>(null);
+  useEffect(() => setTool(null), [id]);
+  // The company's apply address comes from the server, for any signed-in account
+  // (src/lib/applyLink.ts); signed-out visitors are asked to sign up first.
   const [applyUrl, setApplyUrl] = useState<string | null>(null);
   useEffect(() => {
     setApplyUrl(null);
-    if (!raw?.id || !memberReady) return;
+    if (!raw?.id || !session) return;
     let alive = true;
     void fetchApplyLink(raw.id).then(async (r) => {
       if (!alive) return;
-      if (r.kind === 'open') {
-        setApplyUrl(r.url);
-        if (r.why === 'free') setFreeUnlocked(true);
-      } else if (r.kind === 'error' && member) {
-        // The server function isn't there yet (migration not run): members read it directly, as before.
+      if (r.kind === 'open') setApplyUrl(r.url);
+      else {
+        // Before migration 20261231160000 the server still keeps it to members: signed-in accounts read it directly.
         const full = await fetchSponsoredJobById(raw.id, { private: true });
         if (alive) setApplyUrl(full?.application_url || full?.official_url || null);
       }
@@ -104,7 +103,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
     return () => {
       alive = false;
     };
-  }, [raw?.id, member, memberReady]);
+  }, [raw?.id, session]);
   // Opened from the list: its title, company and place show at once while the full ad loads.
   const preview = useMemo(() => peekJobPreview(window.location.pathname), [id]); // eslint-disable-line react-hooks/exhaustive-deps
   const { profile: visitor } = usePersonalization();
@@ -298,7 +297,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
   const contact = cleaned?.contact ?? {};
   // Curated jobs (not from the database) carry their link; database jobs get it from the server.
   const sourceUrl = raw ? applyUrl : job.url && job.url !== '#' ? job.url : null;
-  const hasSourceUrl = (member || freeUnlocked) && Boolean(sourceUrl);
+  const hasSourceUrl = Boolean(session) && Boolean(sourceUrl);
   const shareLabel = copied ? 'Link copied' : 'Share';
 
   // Every fact in the details box is either real data from the listing
@@ -392,52 +391,36 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
   // Is this job real, live and safe? (src/lib/jobReality.ts)
   const reality = jobReality({ sourceType: job.sourceType ?? null, lastSeenAt: job.lastSeenAt, postedAt: postedDate, closed, text: cleaned?.html ?? job.description ?? null, contactEmail: contact.email ?? null, company: job.company });
 
-  // Not a member (or still finding out): Apply is a locked button and the job's own address isn't on the page.
-  const locked = !closed && memberReady && !member && !freeUnlocked;
-  const covered = locked && !peeking;
-  const autoPopup = viewNumber >= AUTO_POPUP_FROM_VIEW;
-  // Apply pressed by a non-member: their free application if it's still there, else the membership card.
-  const openPaywall = locked ? () => setPeeking(false) : undefined;
-  const pressApply = locked
-    ? async () => {
-        // The free application is granted by the server (once per account / browser), never by the page alone.
-        if (raw?.id) {
-          const r = await fetchApplyLink(raw.id, { spend: true });
-          if (r.kind === 'open') {
-            spendFreeApply(id);
-            trackPaywall('free_apply', 'job_page');
-            setApplyUrl(r.url);
-            setFreeUnlocked(true);
-            setFreeNote(true);
-            return;
-          }
-        }
-        setPeeking(false);
-      }
-    : undefined;
-  const lockClicks = locked
-    ? (e: React.MouseEvent) => {
-        if (!(e.target as HTMLElement).closest('button, a, input, label, [role="button"]')) return;
-        e.preventDefault();
-        e.stopPropagation();
-        setPeeking(false);
-      }
-    : undefined;
+  // Signed out: Apply and the recruiter's contact ask for a free account first.
+  const locked = !closed && !authLoading && !session;
+  const askSignup = () => setGate(true);
+  // Paid features (CV match, "Your edge", sponsorship documents): signed out → sign up; free account → the membership card.
+  const isMember = memberReady && member;
+  const needPaid = (reason: PaywallReason) => () => (session ? setPaywall(reason) : setGate(true));
+  const pressApply = locked ? askSignup : undefined;
+  // Members: "Check your match" opens the folded CV match and runs the check.
+  const openMatch = () => {
+    setTool('match');
+    window.setTimeout(() => {
+      document.getElementById('cv-match')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (match.cv && !match.result && !match.busy) void match.check();
+    }, 60);
+  };
+  const matchClick = isMember ? openMatch : needPaid('match');
   const applyButton = (extra = '') =>
     closed ? (
       <span className={`inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-full bg-ink-200 px-7 py-3.5 text-sm font-bold text-ink-500 ${extra.includes('flex-1') ? 'flex-1 md:flex-none' : ''}`}>
         Closed
       </span>
-    ) : !member && !freeUnlocked ? (
+    ) : locked ? (
       <button
         type="button"
-        disabled={!memberReady}
         onClick={pressApply}
-        aria-label="Apply (members only)"
+        aria-label="Apply (free account)"
         className={`inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${extra}`}
       >
-        <Lock className="h-4 w-4" aria-hidden />
         Apply
+        <ArrowUpRight className="h-4 w-4" />
       </button>
     ) : (
     <a
@@ -467,13 +450,21 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
   return (
     <div className={`${embedded ? '' : 'min-h-screen'} bg-[#f8fafc] text-ink-900`}>
       {!embedded && <LandingHeader go={go} onAuth={onAuth} active="jobs" />}
-      {locked && autoPopup && <PeekTimer onDone={() => setPeeking(false)} />}
+      <AuthDialog open={gate && !session} onClose={() => setGate(false)} initial="register" />
+      {paywall && (
+        <Paywall
+          job={{ title: job.title, company: job.company, category: raw?.job_function ?? job.category }}
+          reason={paywall}
+          source={`job_${paywall}`}
+          onClose={() => setPaywall(null)}
+        />
+      )}
       {matchKey && !closed && member && <ApplySheet jobKey={matchKey} company={job.company} match={match} doc={docFor} armed={applied} onAuth={onAuth} />}
       {/* One of your best matches? A small card in the corner lists the others. Not while the apply sheet is up. */}
-      {matchKey && !applied && !locked && <OtherMatchesPopup currentId={matchKey} onAuth={onAuth} />}
+      {matchKey && !applied && isMember && <OtherMatchesPopup currentId={matchKey} onAuth={onAuth} />}
 
       <section className={`${closed ? 'bg-ink-500' : 'bg-brand-700'} text-white transition-colors`}>
-        <div className="mx-auto max-w-4xl px-5 pb-10 pt-6 sm:px-8 sm:pb-14 sm:pt-8">
+        <div className={`mx-auto max-w-4xl px-5 pb-10 sm:px-8 sm:pb-14 ${embedded ? 'pt-14 sm:pt-16' : 'pt-6 sm:pt-8'}`}>
           <button
             onClick={() => {
               // Real browser back navigation, not go('jobs') — that pushes
@@ -578,17 +569,23 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
                 />
               )}
               {!closed && <RealityPill reality={reality} />}
-              <ContactBox contact={locked ? { ...contact, email: maskEmail(contact.email) ?? undefined, phone: undefined, website: undefined } : contact} locked={locked} onUnlock={openPaywall} />
-              {freeNote && (
-                <p role="status" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13px] font-semibold text-brand-800 shadow-sm">
-                  This application is on us — Apply is open. Your next one needs the membership.
-                </p>
-              )}
+              <ContactBox contact={locked ? { ...contact, email: maskEmail(contact.email) ?? undefined, phone: undefined, website: undefined } : contact} locked={locked} onUnlock={askSignup} />
             </div>
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {applyButton('flex-1 bg-white text-brand-700 shadow-sm hover:bg-brand-50 focus-visible:outline-white md:flex-none')}
-              {matchJob && !closed && <MatchButton match={match} variant="hero" onLocked={openPaywall} />}
+              {matchJob && !closed && <MatchButton match={match} variant="hero" onLocked={matchClick} />}
+              {docFor && !closed && (
+                <SponsorDocPreviewButton
+                  jobId={docFor.jobId}
+                  title={job.title}
+                  company={job.company}
+                  dest={raw?.country?.iso_code ?? (countryOk ? job.countryCode ?? null : null)}
+                  country={docFor.country}
+                  onUnlock={isMember ? undefined : needPaid('doc')}
+                  onAuth={() => setGate(true)}
+                />
+              )}
               <span className="relative shrink-0">
                 <button
                   onClick={share}
@@ -624,31 +621,21 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
         </div>
       </section>
 
-      <main
-        aria-hidden={covered || undefined}
-        className={`mx-auto flex max-w-4xl flex-col px-5 py-8 transition-[filter] duration-700 sm:px-8 sm:py-10 md:block ${covered ? 'pointer-events-none select-none blur-[6px]' : ''}`}
-      >
-        {matchJob && !closed && (
-          <div className="mb-5 md:-mt-4 md:mb-6">
-            <div onClickCapture={lockClicks}>
-              <MatchPanel match={match} jobId={matchKey} jobTitle={job.title} company={job.company} doc={docFor} onAuth={onAuth} />
-            </div>
-          </div>
-        )}
+      <main className="mx-auto flex max-w-4xl flex-col px-5 py-8 sm:px-8 sm:py-10 md:block">
         {!closed && <ScamWarning reality={reality} />}
-        {raw && !closed && <SaveJobButton jobId={raw.id} onAuth={onAuth} className="mb-5" />}
+        {/* CV match and "Your edge": two quiet rows, opened on demand (members). */}
         <JobEdgeBlock
           jobId={raw?.id ?? null}
-          job={{ title: job.title, company: job.company, category: raw?.job_function ?? job.category }}
-          locked={locked}
-          covered={covered}
-          onUnlock={openPaywall}
-          showPanel={!closed}
-          contactEmail={contact.email ?? null}
-          postedLabel={postedDate && postedAgeDays < 14 ? postedLabel : null}
-          checkedLabel={isImported && reality.checkedHours != null && reality.checkedHours <= 72 ? agoLabel(reality.checkedHours) : null}
-          fromCareers={isImported}
-          hasCv={Boolean(match.cv)}
+          company={job.company}
+          member={isMember}
+          showEdge={!closed}
+          onLocked={needPaid}
+          tool={tool}
+          onTool={(t) => setTool((cur) => (cur === t ? null : t))}
+          matchScore={match.result ? { score: match.result.score, label: match.result.label } : null}
+          match={
+            matchJob && !closed ? <MatchPanel match={match} jobId={matchKey} jobTitle={job.title} company={job.company} doc={docFor} onAuth={onAuth} /> : null
+          }
           input={{
             publisherId: raw?.publisher_id ?? job.publisherId,
             company: job.company,
@@ -661,6 +648,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
             match: match.result?.score ?? null,
           }}
         />
+        {raw && !closed && <SaveJobButton jobId={raw.id} onAuth={onAuth} className="mb-5" />}
         {closed && (
           <div className="mb-5 flex flex-col gap-3 rounded-xl border border-ink-200 bg-white p-4 sm:flex-row sm:items-center">
             <p className="min-w-0 flex-1 text-sm leading-6 text-ink-700">
@@ -703,9 +691,6 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
             />
           )}
 
-          {raw && (raw.job_function || raw.country?.name) && (
-            <AlertSignup className="mt-4" keywords={raw.job_function ?? ''} country={raw.country?.name ?? null} onAuth={onAuth} />
-          )}
 
           {cleaned?.html && <CollapsibleDescription html={cleaned.html} />}
 
@@ -730,7 +715,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {applyButton('flex-1 bg-brand-600 text-white shadow-soft-lg hover:bg-brand-700 focus-visible:outline-brand-600 md:flex-none')}
-              {matchJob && !closed && <MatchButton match={match} variant="body" onLocked={openPaywall} />}
+              {matchJob && !closed && <MatchButton match={match} variant="body" onLocked={matchClick} />}
               <span className="relative shrink-0">
                 <button
                   onClick={share}
@@ -760,6 +745,11 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
             <p className="text-[15px] font-bold text-ink-900">Something wrong with this job?</p>
             <ReportJobButton jobId={raw.id} className="shrink-0 self-start sm:self-auto" />
           </div>
+        )}
+
+        {/* "Email me these jobs": last, under everything. */}
+        {raw && (raw.job_function || raw.country?.name) && (
+          <AlertSignup className="mt-4" keywords={raw.job_function ?? ''} country={raw.country?.name ?? null} onAuth={onAuth} />
         )}
       </main>
 
@@ -1073,16 +1063,6 @@ function buildJobPostingJsonLd(job: Job, raw: SponsoredJob, path: string): Recor
   return data;
 }
 
-/** Two seconds to look at the job, then the membership card (non-members). */
-function PeekTimer({ onDone }: { onDone: () => void }) {
-  const done = useRef(onDone);
-  done.current = onDone;
-  useEffect(() => {
-    const t = window.setTimeout(() => done.current(), 2000);
-    return () => window.clearTimeout(t);
-  }, []);
-  return null;
-}
 
 /** The job as the list knew it, while the full ad loads (opened from /jobs). */
 function JobPreviewShell({ job, go, onAuth, embedded = false }: { job: Job; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void; embedded?: boolean }) {
@@ -1091,7 +1071,7 @@ function JobPreviewShell({ job, go, onAuth, embedded = false }: { job: Job; go: 
     <div className={`${embedded ? '' : 'min-h-screen'} bg-[#f8fafc] text-ink-900`} aria-busy="true">
       {!embedded && <LandingHeader go={go} onAuth={onAuth} active="jobs" />}
       <section className="bg-brand-700 text-white">
-        <div className="mx-auto max-w-4xl px-5 pb-10 pt-6 sm:px-8 sm:pb-14 sm:pt-8">
+        <div className={`mx-auto max-w-4xl px-5 pb-10 sm:px-8 sm:pb-14 ${embedded ? 'pt-14 sm:pt-16' : 'pt-6 sm:pt-8'}`}>
           <p className="flex items-center gap-1.5 text-xs font-semibold text-white/70">
             <ArrowLeft className="h-3.5 w-3.5" /> All jobs
           </p>

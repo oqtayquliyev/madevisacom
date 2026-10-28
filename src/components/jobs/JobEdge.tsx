@@ -90,13 +90,13 @@ function Row({ icon, title, children, locked, onUnlock, note }: { icon: ReactNod
   );
 }
 
-export function JobEdgePanel({ edge, company, locked, onUnlock }: { edge: Edge; company: string; locked: boolean; onUnlock?: () => void }) {
+export function JobEdgePanel({ edge, company, locked, onUnlock, bare = false }: { edge: Edge; company: string; locked: boolean; onUnlock?: () => void; /** Inside a row that already has the title: just the answers. */ bare?: boolean }) {
   const { sponsor, move, odds, diaspora, homeName } = edge;
   const hasSponsor = Boolean(sponsor?.length);
   if (!hasSponsor && !move && !odds && diaspora == null) return null;
   return (
-    <section aria-labelledby="edge-title" className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-ink-200 sm:p-6">
-      <div className="flex items-center justify-between gap-3">
+    <section aria-labelledby={bare ? undefined : 'edge-title'} aria-label={bare ? 'Your edge on this job' : undefined} className={bare ? 'rounded-xl bg-white px-4 py-1 ring-1 ring-ink-100' : 'rounded-2xl bg-white p-5 shadow-sm ring-1 ring-ink-200 sm:p-6'}>
+      <div className={bare ? 'hidden' : 'flex items-center justify-between gap-3'}>
         <h2 id="edge-title" className="text-[18px] font-bold text-ink-950">
           Your edge on this job
         </h2>

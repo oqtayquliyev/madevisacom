@@ -165,9 +165,29 @@ h1, h2 {
   from { transform: translateY(24px); opacity: 0; }
   to { transform: none; opacity: 1; }
 }
+@keyframes job-modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 .job-modal-in {
-  animation: job-modal-up 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: job-modal-up 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.job-modal-backdrop {
+  animation: job-modal-fade 0.2s ease-out;
+}
+/* A thin, quiet scrollbar inside the popup card. */
+.job-modal-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
+}
+.job-modal-scroll::-webkit-scrollbar { width: 8px; }
+.job-modal-scroll::-webkit-scrollbar-track { background: transparent; }
+.job-modal-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 @media (prefers-reduced-motion: reduce) {
-  .job-modal-in { animation: none; }
+  .job-modal-in, .job-modal-backdrop { animation: none; }
 }

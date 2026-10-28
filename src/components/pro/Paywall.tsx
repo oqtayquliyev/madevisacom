@@ -78,7 +78,18 @@ export type PaywallTeaser = {
   hasCv?: boolean;
 };
 
+/** Which paid feature the visitor reached for (the card's title says so). */
+export type PaywallReason = 'match' | 'edge' | 'doc';
+
+const REASON_TITLE: Record<PaywallReason, string> = {
+  match: 'See how your CV matches this job.',
+  edge: 'Your edge on this job.',
+  doc: 'Your sponsorship document.',
+};
+
 type Props = {
+  /** Set when a paid feature on a job opened the card. */
+  reason?: PaywallReason;
   /** The job behind the card, when there is one. */
   job?: { title: string; company?: string | null; category?: string | null } | null;
   /** Without onClose the card can't be dismissed (a job page); "Back to jobs" is the way out. */
@@ -88,7 +99,7 @@ type Props = {
   teaser?: PaywallTeaser;
 };
 
-export function Paywall({ job, onClose, source, teaser }: Props) {
+export function Paywall({ job, onClose, source, teaser, reason }: Props) {
   const { user } = useAuth();
   const stats = useSiteStats();
   const { profile: visitor } = usePersonalization();
@@ -246,7 +257,9 @@ export function Paywall({ job, onClose, source, teaser }: Props) {
         ) : (
           <>
             <h2 id="paywall-title" className="text-center font-title text-[26px] font-bold leading-[1.15] tracking-tight sm:text-[30px]">
-              {headline ? (
+              {reason ? (
+                REASON_TITLE[reason]
+              ) : headline ? (
                 <>
                   {headline}
                   <span className="block">are waiting.</span>
@@ -307,7 +320,7 @@ export function Paywall({ job, onClose, source, teaser }: Props) {
                     </>
                   ) : (
                     <>
-                      {job?.title ? 'Unlock this job' : 'Start my 3 months'} — {MEMBERSHIP_PRICE}
+                      {job?.title && !reason ? 'Unlock this job' : 'Start my 3 months'} — {MEMBERSHIP_PRICE}
                     </>
                   )}
                 </button>

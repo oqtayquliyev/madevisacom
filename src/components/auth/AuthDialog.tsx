@@ -39,7 +39,7 @@ export function AuthDialog({ open, onClose, onDone, initial = 'register' }: { op
 
   if (!open) return null;
   return (
-    <div role="dialog" aria-modal="true" aria-label={mode === 'register' ? 'Create your free account' : 'Sign in'} className="fixed inset-0 z-[80] flex items-end justify-center bg-ink-950/50 p-0 sm:items-center sm:p-4" onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-label={mode === 'register' ? 'Create your free account' : 'Sign in'} data-over-job-modal className="fixed inset-0 z-[80] flex items-end justify-center bg-ink-950/50 p-0 sm:items-center sm:p-4" onClick={onClose}>
       <div className="menu-pop relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-6 shadow-2xl sm:rounded-2xl sm:p-8" onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} aria-label="Close" className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full text-ink-500 hover:bg-ink-100 hover:text-ink-900">
           <X className="h-5 w-5" />

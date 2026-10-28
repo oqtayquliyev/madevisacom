@@ -1,6 +1,6 @@
 // The company's apply address for one job, from the server (job_apply_link, migration
-// 20261231130000_trust_layer.sql). Members, the job's own company and admins get it; everyone
-// else gets ONE free application (per account, or per browser when signed out). The address
+// 20261231160000_free_accounts_apply.sql). Any signed-in account gets it (free or paid), as do
+// the job's own company and admins. Signed-out visitors are asked to sign up first. The address
 // is never in the page for anyone else — not in the HTML, not in the data.
 
 import { supabase } from '@/lib/supabase';
