@@ -1044,8 +1044,8 @@ export function fetchShowcaseJobs(count = 24): Promise<ShowcaseJob[]> {
 
 /**
  * Filters on the server (country, category, date, visa, remote, students): every live job that
- * matches, newest first, up to `limit` — so a filter never shows only the few jobs the page
- * happened to have loaded. The page applies its exact rules on top. Remembered a few minutes.
+ * matches, newest first, a page at a time (`limit` from `offset`) — so a filter never shows only
+ * the few jobs the page happened to have loaded; "Show more jobs" asks for the next page. The page applies its exact rules on top. Remembered a few minutes.
  */
 export type ServerJobFilters = {
   country?: string | null;
@@ -1062,8 +1062,8 @@ const countryIdMemo = new Map<string, Promise<string | null>>();
 const filterMemo = new Map<string, { at: number; rows: Promise<SponsoredJob[]> }>();
 const quoted = (w: string) => `"*${w.replace(/["\\]/g, '')}*"`;
 
-export function fetchFilteredJobs(f: ServerJobFilters, limit = 600): Promise<SponsoredJob[]> {
-  const key = JSON.stringify({ ...f, limit });
+export function fetchFilteredJobs(f: ServerJobFilters, limit = 300, offset = 0): Promise<SponsoredJob[]> {
+  const key = JSON.stringify({ ...f, limit, offset });
   const hit = filterMemo.get(key);
   if (hit && Date.now() - hit.at < 5 * 60_000) return hit.rows;
   const rows = (async () => {
@@ -1085,7 +1085,7 @@ export function fetchFilteredJobs(f: ServerJobFilters, limit = 600): Promise<Spo
     else if (f.flex) q = q.or('remote.eq.true,work_arrangement.in.(remote,hybrid)');
     if (f.students) q = q.or(STUDENT_TERMS.map((w) => `title.ilike.${quoted(w)}`).join(','));
     if (f.categoryTerms?.length) q = q.or(f.categoryTerms.map((w) => `title.ilike.${quoted(w)}`).join(','));
-    const { data, error } = await q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit);
+    const { data, error } = await q.order('created_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + limit - 1);
     if (error) throw error;
     return (data ?? []) as unknown as SponsoredJob[];
   })().catch((e) => {

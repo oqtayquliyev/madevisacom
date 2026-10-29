@@ -46,9 +46,18 @@ const INCLUDED = [
   '**Sponsor proof** and **checked-live** jobs',
 ];
 
-/** "October", "November", "December": this month and the next two (what the 3 months cover). */
-function coveredMonths(now = new Date()): string[] {
-  return [0, 1, 2].map((i) => new Date(now.getFullYear(), now.getMonth() + i, 1).toLocaleString('en-US', { month: 'long' }));
+/**
+ * The 3 months it covers, from the day of payment: today → 29 Nov → 29 Dec → 29 Jan
+ * (a day that doesn't exist, like 31 Feb, becomes the month's last day — as Gumroad renews).
+ */
+export function coveredPeriods(now = new Date()): { ends: Date[]; label: (d: Date) => string } {
+  const plus = (m: number) => {
+    const d = new Date(now.getFullYear(), now.getMonth() + m, 1);
+    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(now.getDate(), last));
+    return d;
+  };
+  return { ends: [plus(1), plus(2), plus(3)], label: (d) => d.toLocaleString('en-GB', { day: 'numeric', month: 'short' }) };
 }
 
 /** The cards Gumroad takes, drawn as small marks (no images to load). */
@@ -335,14 +344,24 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
               </p>
 
               {/* The three months it covers, by name: this month and the next two. */}
-              <p className="mt-3 text-center text-[13px] font-semibold text-ink-600">Your job tool to land your dream job in</p>
-              <div className="mt-2 grid grid-cols-3 gap-2" aria-label="The 3 months your membership covers">
-                {coveredMonths().map((m) => (
-                  <span key={m} className="rounded-lg bg-brand-50 py-2 text-center text-[14px] font-semibold text-brand-800 ring-2 ring-inset ring-brand-500">
-                    {m}
-                  </span>
-                ))}
-              </div>
+              {(() => {
+                const { ends, label } = coveredPeriods();
+                return (
+                  <>
+                    <p className="mt-3 text-center text-[13px] font-semibold text-ink-600">
+                      Your job tool from today to <span className="text-ink-950">{ends[2].toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                    </p>
+                    <div className="mt-2 grid grid-cols-3 gap-2" aria-label="The 3 months your membership covers">
+                      {ends.map((d, i) => (
+                        <span key={i} className="rounded-lg bg-brand-50 py-1.5 text-center ring-2 ring-inset ring-brand-500">
+                          <span className="block text-[11px] font-bold uppercase tracking-wide text-brand-600">Month {i + 1}</span>
+                          <span className="block text-[13.5px] font-semibold text-brand-900">to {label(d)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* The amount, in a box, like a payment form. */}
               <div className="relative mt-5 flex items-center justify-between rounded-xl px-4 py-3 ring-1 ring-inset ring-ink-300">

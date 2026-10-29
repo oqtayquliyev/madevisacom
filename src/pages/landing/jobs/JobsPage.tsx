@@ -219,6 +219,8 @@ function LoadingLatest() {
 const PAGE_SIZE = 12;
 /** Jobs a signed-out visitor sees before the sign-up card. */
 const GUEST_JOBS = 2;
+/** Jobs per server page when a filter is on. */
+const FILTER_PAGE = 300;
 
 /** Round-robins a list across `company` so that, when hundreds of jobs
  *  come from a handful of companies (a big ATS import batch), scrolling
@@ -649,24 +651,38 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
   // not just the ones this page had loaded.
   const filtersOn = country !== 'All countries' || category !== ALL_CATEGORIES || datePosted !== 'Any time' || visaOnly || flexOnly || remoteOnly || studentOnly;
   const filterKey = filtersOn ? JSON.stringify([country, category, datePosted, visaOnly, flexOnly, remoteOnly, studentOnly]) : '';
-  const [serverFiltered, setServerFiltered] = useState<{ key: string; jobs: Job[] } | null>(null);
+  const [serverFiltered, setServerFiltered] = useState<{ key: string; jobs: Job[]; more: boolean } | null>(null);
+  const filterArgs = () => ({
+    country: country !== 'All countries' ? country : null,
+    categoryTerms: category !== ALL_CATEGORIES ? categorySearchTerms(category) : null,
+    sinceDays: datePosted !== 'Any time' ? WINDOW_DAYS[datePosted] : null,
+    visa: visaOnly,
+    flex: flexOnly,
+    remote: remoteOnly,
+    students: studentOnly,
+  });
   useEffect(() => {
     if (!filterKey) return;
     let alive = true;
-    void fetchFilteredJobs({
-      country: country !== 'All countries' ? country : null,
-      categoryTerms: category !== ALL_CATEGORIES ? categorySearchTerms(category) : null,
-      sinceDays: datePosted !== 'Any time' ? WINDOW_DAYS[datePosted] : null,
-      visa: visaOnly,
-      flex: flexOnly,
-      remote: remoteOnly,
-      students: studentOnly,
-    }).then((rows) => alive && startTransition(() => setServerFiltered({ key: filterKey, jobs: rows.map(toBoard) })));
+    void fetchFilteredJobs(filterArgs(), FILTER_PAGE).then(
+      (rows) => alive && startTransition(() => setServerFiltered({ key: filterKey, jobs: rows.map(toBoard), more: rows.length === FILTER_PAGE })),
+    );
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey]);
+  // "Show more jobs" near the end of what the server sent: the next page of the same filters.
+  const [loadingFilterPage, setLoadingFilterPage] = useState(false);
+  const loadNextFilterPage = () => {
+    const cur = serverFiltered;
+    if (!cur || cur.key !== filterKey || !cur.more || loadingFilterPage) return;
+    setLoadingFilterPage(true);
+    void fetchFilteredJobs(filterArgs(), FILTER_PAGE, cur.jobs.length).then((rows) => {
+      setLoadingFilterPage(false);
+      setServerFiltered((now) => (now && now.key === cur.key ? { key: now.key, jobs: [...now.jobs, ...rows.map(toBoard)], more: rows.length === FILTER_PAGE } : now));
+    });
+  };
   const filterBusy = Boolean(filterKey) && serverFiltered?.key !== filterKey && !gaveUpWaiting;
   const baseJobs = useMemo(() => [...sponsoredJobs, ...liveJobs], [liveJobs, sponsoredJobs]);
   const baseIds = useMemo(() => new Set(sponsoredJobs.map((j) => j.id)), [sponsoredJobs]);
@@ -870,7 +886,7 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
       /* fine */
     }
   });
-  const hasMore = visibleCount < filteredJobs.length || (!fullJobs && !hasQuery);
+  const hasMore = visibleCount < filteredJobs.length || (!fullJobs && !hasQuery) || Boolean(filterKey && serverFiltered?.key === filterKey && serverFiltered.more);
 
   // Free accounts are made right here, in a dialog (job alerts).
   const [authOpen, setAuthOpen] = useState<false | 'login' | 'register'>(false);
@@ -890,8 +906,10 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
 
   // Everyone sees every job: the next page, from the full list (loading it first when needed).
   // Placeholders only while something is really on its way: a search being answered, or (no search) the full list.
-  const waitingForMore = visibleCount > filteredJobs.length && (deferredSearch.trim().length >= 2 ? searchBusy : loadingFull);
+  const waitingForMore = visibleCount > filteredJobs.length && (loadingFilterPage || (deferredSearch.trim().length >= 2 ? searchBusy : loadingFull));
   const handleShowMore = () => {
+    // Close to the end of the filtered jobs the server has sent: ask for the next page.
+    if (visibleCount + PAGE_SIZE * 2 >= filteredJobs.length) loadNextFilterPage();
     setLoadingMore(true);
     window.setTimeout(() => {
       setVisibleCount((v) => v + PAGE_SIZE);
