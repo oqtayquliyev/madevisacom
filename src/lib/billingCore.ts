@@ -243,7 +243,7 @@ export const readPlanParam = (_search: string): PaidPlanId => 'starter';
 /** What the plan allows, from the server's catalogue — the limits a buyer sees before paying. */
 export function limitRows(c: Catalog, plan: CatalogPlan): { label: string; value: string }[] {
   const f = plan.features;
-  const lim = (n: number | null | undefined, unit: string) => (n == null ? `No limit` : `${n} ${unit}`);
+  const lim = (n: number | null | undefined, unit: string) => (n == null ? `No limit` : n >= 999 ? 'Unlimited' : `${n} ${unit}`);
   const rows = [
     { label: 'Full CV match report', value: f.cv_full_report?.allowed ? 'Every job' : `Missing skills on ${f.cv_missing_skills?.limit ?? 3} jobs a day` },
     {

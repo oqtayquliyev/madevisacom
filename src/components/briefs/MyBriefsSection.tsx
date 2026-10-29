@@ -268,7 +268,7 @@ export function PlanCard() {
           <p className="text-[13px] font-semibold text-ink-800">Sponsorship documents</p>
           <OfferInfo />
         </div>
-        <p className="mt-1.5 text-[13px] text-ink-700">{credits ? (credits.left > 0 ? allowanceLabel(credits) : has('sponsorship_documents') ? 'All used this month — they renew on the 1st' : '20 a month with the membership') : '…'}</p>
+        <p className="mt-1.5 text-[13px] text-ink-700">{credits ? (credits.left > 0 ? allowanceLabel(credits) : has('sponsorship_documents') ? 'All used this month — they renew on the 1st' : 'Unlimited with the membership') : '…'}</p>
         {credits && credits.left === 0 && !has('sponsorship_documents') && (
           <a href={checkoutHref('starter', 'dashboard_documents')} onClick={(e) => (e.preventDefault(), nav(checkoutHref('starter', 'dashboard_documents')))} className="mt-2 inline-block text-[13px] font-semibold text-[#1D4ED8] hover:underline">
             See the membership

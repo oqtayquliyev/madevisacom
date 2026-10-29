@@ -76,7 +76,7 @@ export const ENTITLEMENTS: Record<PlanId, Record<FeatureId, Entitlement>> = {
     saved_jobs: { allowed: true, limit: null, period: null },
     job_alerts: { allowed: true, limit: 5, period: null },
     sponsorship_insights: { allowed: true, limit: null, period: null },
-    sponsorship_documents: { allowed: true, limit: 20, period: 'month' },
+    sponsorship_documents: { allowed: true, limit: 999, period: 'month' }, // shown as "Unlimited" (fair use: 30 in any 7 days)
   },
   // Retired plan: kept for the members who still have it.
   pro: {
@@ -85,7 +85,7 @@ export const ENTITLEMENTS: Record<PlanId, Record<FeatureId, Entitlement>> = {
     saved_jobs: { allowed: true, limit: null, period: null },
     job_alerts: { allowed: true, limit: 10, period: null },
     sponsorship_insights: { allowed: true, limit: null, period: null },
-    sponsorship_documents: { allowed: true, limit: 50, period: 'month' },
+    sponsorship_documents: { allowed: true, limit: 999, period: 'month' }, // retired plan: same as the membership
   },
 };
 
@@ -115,11 +115,11 @@ export type PlanInfo = {
  */
 const MEMBERSHIP_BENEFITS: Benefit[] = [
   { title: 'Apply to every job for 3 months', text: 'Unlimited applications to every job on MadeVisa, straight from company career pages — including roles you won’t see on LinkedIn or Indeed.' },
-  { title: '60 sponsorship documents', text: '20 a month: the proposal you send an employer when a job needs a visa — the route that may apply, what it asks of them, and the costs you offer to share.' },
-  { title: 'CV match on every job', text: 'Your match score, the skills the ad asks for that your CV doesn’t show, and what to change before you apply.' },
+  { title: 'Unlimited sponsorship documents', text: 'The proposal you send an employer when a job needs a visa — the route that may apply, what it asks of them, and the costs you offer to share. Fair use: up to 30 in any 7 days.' },
+  { title: 'CV tailoring suggestions on every job', text: 'Your match score, the skills the ad asks for that your CV doesn’t show, and what to change before you apply.' },
   { title: 'Visa sponsor proof on every job', text: 'Official government records that the company sponsors visas: UK Home Office, US H-1B approvals, Netherlands IND.' },
   { title: 'Move math and reply odds', text: 'What’s left each month after tax and rent there compared with home, and how likely the company is to reply.' },
-  { title: '5 job alerts, new jobs every day', text: 'Tell us what you want once; new matching jobs come to you daily for the whole 3 months.' },
+  { title: 'The fastest job alerts', text: 'New jobs from company career pages — many never posted on LinkedIn or Indeed — sent to you daily, up to 5 alerts.' },
   { title: 'Jobs checked live and scam-screened', text: 'Every imported job is re-checked on the company’s careers page, and ads that ask for fees are flagged.' },
   { title: 'Unlimited saved jobs and a tracker', text: 'Save every job you like and track every application until the company replies.' },
 ];

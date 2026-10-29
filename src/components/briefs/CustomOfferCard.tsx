@@ -198,7 +198,7 @@ export const CustomOfferCard = forwardRef<HTMLElement, { pick?: OfferCompanyPick
                   <>
                     <p className="text-[15px] font-bold text-ink-950">{credits?.pro ? `All ${credits.quota} used this month` : 'Part of the membership'}</p>
                     <p className="text-[13px] text-ink-500">
-                      {credits?.pro ? 'Your documents renew on the 1st.' : 'The MadeVisa Membership includes 20 sponsorship documents a month and CV match on every job.'}
+                      {credits?.pro ? 'Your documents renew on the 1st.' : 'The MadeVisa Membership includes unlimited sponsorship documents and CV match on every job.'}
                     </p>
                     {!credits?.pro && (
                       <a

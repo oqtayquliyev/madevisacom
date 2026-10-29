@@ -313,7 +313,7 @@ export function MatchPanel({ match, jobId = null, jobTitle, company, doc, closed
                   <p className="text-[13.5px] font-semibold leading-5 text-ink-900">
                     See each part of your score and what to change in your CV for this job.
                     <span className="block text-[12.5px] font-normal text-ink-600">
-                      Full report on every job, no daily limit, plus 20 sponsorship documents a month. <ProPrice />.
+                      Full report on every job, no daily limit, plus unlimited sponsorship documents. <ProPrice />.
                     </span>
                   </p>
                   <button onClick={() => nav(checkoutHref('starter', 'cv_full_report'))} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-ink-950 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-ink-800">
@@ -421,7 +421,7 @@ function SponsorBonus({ company }: { company: string }) {
             <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-white">Included with membership</span>
           </p>
           <p className="mt-1 text-[13px] leading-5 text-ink-700">
-            Send it along with your CV: a short proposal that shows {company} the visa route that may apply, what it asks of them and the costs you offer to share. <b className="text-ink-900">20 a month</b>, ready in seconds.
+            Send it along with your CV: a short proposal that shows {company} the visa route that may apply, what it asks of them and the costs you offer to share. <b className="text-ink-900">Unlimited for members</b>, ready in seconds.
           </p>
         </div>
         <a

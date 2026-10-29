@@ -320,6 +320,7 @@ export function useOfferCredits(): OfferCredits | null {
 
 /** "47 of 50 left this month" / "2 documents left" — what a person can still make. */
 export function allowanceLabel(c: OfferCredits): string {
+  if (c.quota >= 999) return 'Unlimited with your membership';
   if (c.quota > 0) return `${c.proLeft} of ${c.quota} left this month${c.docs > 0 ? ` + ${c.docs} kept` : ''}`;
   return `${docsLabel(c.docs)} left`;
 }

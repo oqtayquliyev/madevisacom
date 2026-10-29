@@ -79,7 +79,7 @@ export function SponsorDocRow({ jobId, company, country, dest = null, visaOffere
             >
               <Lock className="h-3.5 w-3.5" /> Add it with the membership
             </button>
-            <span className="text-[11px] text-ink-500">20 a month · {priceLabel('starter')}</span>
+            <span className="text-[11px] text-ink-500">Unlimited · {priceLabel('starter')}</span>
           </span>
         );
 

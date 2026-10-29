@@ -315,7 +315,7 @@ export const FORMATS: FormatDef[] = [
   },
   {
     key: 'match_free', pillar: 'plan', name: 'What’s free, what the membership adds',
-    idea: 'Plainly: browsing every job is free; applying, CV match and 20 sponsorship documents a month are in the MadeVisa Membership at $2.99 for 3 months.',
+    idea: 'Plainly: browsing every job is free; applying, CV match and unlimited sponsorship documents are in the MadeVisa Membership at $2.99 for 3 months.',
     example: 'What you get without paying, and what the plan adds.',
     source: 'Pricing', link: '/pricing', visual: 'Fact card',
     platforms: FEED, parts: ['lunch', 'evening'], weight: 1, cooldown: 240,

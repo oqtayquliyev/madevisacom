@@ -23,10 +23,10 @@ One payment of $2.99 (that's $1 a month) gives you everything MadeVisa has for 3
 • Apply to every job for 3 months
 Unlimited applications to every job on MadeVisa, straight from company career pages — including roles you won't see on LinkedIn or Indeed.
 
-• 60 sponsorship documents
-20 a month: the proposal you send an employer when a job needs a visa — the route that may apply, what it asks of them, and the costs you offer to share.
+• Unlimited sponsorship documents
+The proposal you send an employer when a job needs a visa — the route that may apply, what it asks of them, and the costs you offer to share (fair use: up to 30 in any 7 days).
 
-• CV match on every job
+• CV tailoring suggestions on every job
 Your match score, the skills the ad asks for that your CV doesn't show, and what to change before you apply.
 
 • Visa sponsor proof on every job
@@ -35,8 +35,8 @@ Official government records that the company sponsors visas: UK Home Office, US 
 • Move math and reply odds
 What's left each month after tax and rent there compared with home, and how likely the company is to reply.
 
-• 5 job alerts, new jobs every day
-Tell us what you want once; new matching jobs come to you daily for the whole 3 months.
+• The fastest job alerts
+New jobs from company career pages — many never posted on LinkedIn or Indeed — sent to you daily, up to 5 alerts.
 
 • Jobs checked live and scam-screened
 Every imported job is re-checked on the company's careers page, and ads that ask for fees are flagged.
@@ -57,7 +57,7 @@ No account needed: pay with your email, and we create your MadeVisa account and 
 
 **Summary** (the "You'll get" line, if your editor shows it):
 ```
-3 months of every job, CV match, sponsor proof and 60 sponsorship documents.
+3 months of every job, CV tailoring, sponsor proof and unlimited sponsorship documents.
 ```
 
 **Call to action** (the button): **Subscribe**.

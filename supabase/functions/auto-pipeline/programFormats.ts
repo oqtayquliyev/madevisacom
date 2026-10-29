@@ -1877,14 +1877,14 @@ const CHATS: Chat[] = [
     id: 'documents', k: 'Sponsorship documents', m: 'Ad says nothing about visas.', h: 'You send the plan anyway.', s: 'A one-page proposal: the route, the steps and who pays what.',
     msgs: [['u', 'the ad doesn’t mention a visa'], ['m', 'send them a sponsorship document'], ['u', 'a what?'], ['m', 'one page: the route, the steps, who pays what']],
     hooks: ['No visa line in the job ad? Don’t give up on it.', 'Make it easy for an employer to say yes.'],
-    body: ['A sponsorship document shows an employer what sponsoring you would involve, with the source for every line.', '20 a month are included in the MadeVisa Membership, $2.99 for 3 months. It’s a proposal, not a guarantee of a visa.'],
+    body: ['A sponsorship document shows an employer what sponsoring you would involve, with the source for every line.', 'Unlimited documents are included in the MadeVisa Membership, $2.99 for 3 months. It’s a proposal, not a guarantee of a visa.'],
     lead: 'How it works:', path: '/offers', tags: ['visasponsorship', 'workvisa', 'jobsabroad', 'movingabroad'], th: 'light',
   },
   {
     id: 'price', k: 'One plan', m: 'A coffee: $4.', h: 'MadeVisa: $2.99 for 3 months.', s: 'Apply to every job, CV match, visa sponsors and more. Cancel anytime.',
     msgs: [['u', 'wait, $2.99? for 3 months?'], ['m', 'yep. one payment, 3 months, everything in it'], ['u', 'cheaper than my coffee'], ['m', 'and it might get you a better one']],
     hooks: ['One plan. $2.99 for 3 months. Cancel anytime.', 'Less than a coffee for 3 months.'],
-    body: ['The MadeVisa Membership: apply to every job, jobs from company career pages, remote listings, CV match and suggestions, companies that sponsor visas and 20 sponsorship documents a month.', 'Same price in every country.'],
+    body: ['The MadeVisa Membership: apply to every job, jobs from company career pages, remote listings, CV match and suggestions, companies that sponsor visas and unlimited sponsorship documents.', 'Same price in every country.'],
     lead: 'See what’s included:', path: '/pricing', tags: ['jobsearch', 'jobsabroad', 'workabroad', 'career'], th: 'blue',
   },
   {
@@ -1945,7 +1945,7 @@ const match_free: Builder = async (c) => {
   const levels: [string, string][] = [
     ['Browse every job', 'Free, no account needed.'],
     ['Apply to every job + CV match', 'MadeVisa Membership.'],
-    ['20 sponsorship documents a month', 'MadeVisa Membership.'],
+    ['Unlimited sponsorship documents', 'MadeVisa Membership.'],
   ];
   const h = 'What’s free, and what the membership adds';
   const caption = write(c.p, [

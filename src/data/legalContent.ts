@@ -477,7 +477,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         heading: 'The membership',
         paragraphs: [
           'Sponsorship documents come with the MadeVisa Membership: free accounts get 1 each calendar month, members 20. Price, billing, cancellation and refunds for the membership are in the Subscription Terms.',
-          'Unused documents don’t carry over to the next month. A fair-use limit of 30 documents in any 7 days applies on every plan. Members who are still on the retired Pro plan keep 50 documents a month for as long as that membership runs.',
+          'Unused documents don’t carry over to the next month. A fair-use limit of 30 documents in any 7 days applies on every plan. Members (including the few still on the retired Pro plan) have unlimited documents within that fair-use limit.',
           'Previewing, adjusting the terms and seeing the demo are free. A document is counted only when you approve it.',
         ],
       },
@@ -540,7 +540,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         heading: 'The membership',
         paragraphs: [
           'Free: browsing every job, with search and filters, 1 sponsorship document a month, up to 5 saved jobs and 1 job alert.',
-          'MadeVisa Membership ($2.99 for 3 months): applying to every job on MadeVisa (the Apply button on each job page), jobs straight from company career pages, remote and online job listings, CV match and personalised CV suggestions on every job, the companies that sponsor visas in each country with their reply data, 20 sponsorship documents a month, up to 5 job alerts and unlimited saved jobs.',
+          'MadeVisa Membership ($2.99 for 3 months): applying to every job on MadeVisa (the Apply button on each job page), jobs straight from company career pages, remote and online job listings, CV match and personalised CV suggestions on every job, the companies that sponsor visas in each country with their reply data, unlimited sponsorship documents (fair use: up to 30 in any 7 days), up to 5 job alerts and unlimited saved jobs.',
           'MadeVisa helps you find and apply for jobs. The membership does not guarantee interviews, a job, visa sponsorship or a visa decision.',
         ],
       },
@@ -548,7 +548,7 @@ export const legalPages: Record<string, LegalPageContent> = {
         heading: 'Fair use',
         paragraphs: ['To keep the service available to everyone, these limits apply:'],
         bullets: [
-          'Sponsorship documents: 20 a calendar month, and at most 30 in any 7 days. Unused documents don’t carry over.',
+          'Sponsorship documents: unlimited, with a fair-use limit of 30 in any 7 days.',
           'Job alerts: 1 on Free, 5 for members, and at most 3 new alerts a day.',
         ],
       },

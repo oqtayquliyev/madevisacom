@@ -9,6 +9,7 @@ const LATER = readFileSync(new URL('../../../supabase/migrations/20261220090000_
 /** One plan: the membership ('starter') at $2.29; Pro no longer sold. */
 const MEMBERSHIP = readFileSync(new URL('../../../supabase/migrations/20261231090000_single_membership_guest_checkout.sql', import.meta.url), 'utf8');
 /** The membership becomes $2.99 every 3 months. */
+const UNLIMITED_DOCS = readFileSync(new URL('../../../supabase/migrations/20261231180000_unlimited_documents.sql', import.meta.url), 'utf8');
 const THREE_MONTHS = readFileSync(new URL('../../../supabase/migrations/20261231150000_three_month_membership.sql', import.meta.url), 'utf8');
 
 describe('the plans', () => {
@@ -42,9 +43,9 @@ describe('the plans', () => {
     expect(text).not.toMatch(/unlimited ai|guarantee|credits?\b|auto apply/);
   });
 
-  it('counts what 3 months give: applying first, then the 60 documents', () => {
+  it('counts what 3 months give: applying first, then unlimited documents', () => {
     expect(PLANS.starter.benefits[0].title).toMatch(/apply to every job for 3 months/i);
-    expect(PLANS.starter.benefits[1].title).toMatch(/60 sponsorship documents/);
+    expect(PLANS.starter.benefits[1].title).toMatch(/Unlimited sponsorship documents/);
   });
 
   it('the membership unlocks every feature', () => {
@@ -66,7 +67,7 @@ describe('the database has the same numbers as the code', () => {
   it('entitlements and limits', () => {
     const rows = [...MIGRATION.matchAll(/\('(free|starter|pro)',\s+'([a-z_]+)',\s+(true|false),\s+(NULL|\d+),\s+(NULL|'day'|'month')\)/g)].filter((r) => r[2] !== 'auto_apply');
     const seeded = new Map(rows.map((r) => [`${r[1]}:${r[2]}`, { allowed: r[3] === 'true', limit: r[4] === 'NULL' ? null : Number(r[4]), period: r[5] === 'NULL' ? null : r[5].replace(/'/g, '') }]));
-    for (const later of [LATER, MEMBERSHIP]) {
+    for (const later of [LATER, MEMBERSHIP, UNLIMITED_DOCS]) {
       for (const m of later.matchAll(/UPDATE public\.plan_entitlements SET allowed = (true|false), usage_limit = (NULL|\d+)\s+WHERE plan_id = '(free|starter|pro)' AND feature IN \(([^)]*)\)/g)) {
         for (const f of m[4].split(',').map((x) => x.trim().replace(/'/g, ''))) {
           const row = seeded.get(`${m[3]}:${f}`);
@@ -103,13 +104,13 @@ describe('what a person has', () => {
     expect(v.isPaid).toBe(true);
     expect(v.isPro).toBe(false);
     expect(v.has('cv_full_report')).toBe(true);
-    expect(v.limit('sponsorship_documents')).toBe(20);
+    expect(v.limit('sponsorship_documents')).toBe(999);
     expect(v.limit('saved_jobs')).toBeNull();
   });
   it('pro', () => {
     const v = view('pro');
     expect(v.isPro).toBe(true);
-    expect(v.limit('sponsorship_documents')).toBe(50);
+    expect(v.limit('sponsorship_documents')).toBe(999);
     expect(v.limit('job_alerts')).toBe(10);
   });
   it('the server’s features win over the code’s', () => {
@@ -150,7 +151,7 @@ describe('order summary', () => {
   it('lists the limits before purchase', () => {
     const server: Catalog = { ...cat, source: 'server' };
     const rows = Object.fromEntries(limitRows(server, starter).map((r) => [r.label, r.value]));
-    expect(rows['Sponsorship documents']).toBe('20 a month, at most 30 in any 7 days');
+    expect(rows['Sponsorship documents']).toBe('Unlimited, at most 30 in any 7 days');
     expect(rows['Saved jobs']).toBe('No limit');
     expect(rows['Job alerts']).toBe('5 alerts at a time');
     expect(rows['Auto Apply']).toBeUndefined();
