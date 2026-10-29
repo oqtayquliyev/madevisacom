@@ -1041,3 +1041,59 @@ export function fetchShowcaseJobs(count = 24): Promise<ShowcaseJob[]> {
   }
   return showcaseCache;
 }
+
+/**
+ * Filters on the server (country, category, date, visa, remote, students): every live job that
+ * matches, newest first, up to `limit` — so a filter never shows only the few jobs the page
+ * happened to have loaded. The page applies its exact rules on top. Remembered a few minutes.
+ */
+export type ServerJobFilters = {
+  country?: string | null;
+  /** Plain words from the category's title rule (jobTaxonomy categorySearchTerms). */
+  categoryTerms?: string[] | null;
+  sinceDays?: number | null;
+  visa?: boolean;
+  flex?: boolean;
+  remote?: boolean;
+  students?: boolean;
+};
+const STUDENT_TERMS = ['intern', 'internship', 'student', 'trainee', 'graduate', 'apprentice', 'werkstudent', 'praktik', 'ausbildung', 'stage', 'stagiaire', 'becario', 'prácticas', 'stagiair'];
+const countryIdMemo = new Map<string, Promise<string | null>>();
+const filterMemo = new Map<string, { at: number; rows: Promise<SponsoredJob[]> }>();
+const quoted = (w: string) => `"*${w.replace(/["\\]/g, '')}*"`;
+
+export function fetchFilteredJobs(f: ServerJobFilters, limit = 600): Promise<SponsoredJob[]> {
+  const key = JSON.stringify({ ...f, limit });
+  const hit = filterMemo.get(key);
+  if (hit && Date.now() - hit.at < 5 * 60_000) return hit.rows;
+  const rows = (async () => {
+    const asOf = nowIso();
+    let q = supabase.from('sponsored_jobs').select(LIST_COLUMNS).eq('status', 'published').or(`expires_at.is.null,expires_at.gt.${asOf}`);
+    if (f.country) {
+      let id = countryIdMemo.get(f.country);
+      if (!id) {
+        id = Promise.resolve(supabase.from('countries').select('id').eq('name', f.country).limit(1)).then(({ data }) => ((data ?? []) as { id: string }[])[0]?.id ?? null);
+        countryIdMemo.set(f.country, id);
+      }
+      const cid = await id;
+      if (!cid) return [];
+      q = q.eq('country_id', cid);
+    }
+    if (f.sinceDays) q = q.gte('created_at', new Date(Date.now() - f.sinceDays * 86_400_000).toISOString());
+    if (f.visa) q = q.or('visa_sponsorship.eq.true,visa_status.eq.offered');
+    if (f.remote) q = q.or('remote.eq.true,work_arrangement.eq.remote');
+    else if (f.flex) q = q.or('remote.eq.true,work_arrangement.in.(remote,hybrid)');
+    if (f.students) q = q.or(STUDENT_TERMS.map((w) => `title.ilike.${quoted(w)}`).join(','));
+    if (f.categoryTerms?.length) q = q.or(f.categoryTerms.map((w) => `title.ilike.${quoted(w)}`).join(','));
+    const { data, error } = await q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit);
+    if (error) throw error;
+    return (data ?? []) as unknown as SponsoredJob[];
+  })().catch((e) => {
+    console.error('fetchFilteredJobs failed', e);
+    filterMemo.delete(key);
+    return [] as SponsoredJob[];
+  });
+  filterMemo.set(key, { at: Date.now(), rows });
+  if (filterMemo.size > 40) filterMemo.delete(filterMemo.keys().next().value as string);
+  return rows;
+}

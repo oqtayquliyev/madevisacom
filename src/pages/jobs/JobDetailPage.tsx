@@ -6,7 +6,7 @@ import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import { NewCompanyBadge } from '@/components/common/NewCompanyBadge';
 import { usePersonalization } from '@/lib/personalization';
 import { isLocalJobFor } from '@/lib/visaFit';
-import { ArrowLeft, ArrowUpRight, Banknote, Lock, Briefcase, Building2,  Check, ChevronDown, FileText, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Navigation, Phone, Plane, Share2, UserRound, Users, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, Banknote, Lock, Briefcase, Building2,  Check, ChevronDown, FileText, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Navigation, Phone, Plane, Share2, UserRound, Users, Zap } from 'lucide-react';
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
@@ -34,7 +34,7 @@ import { SponsorRecordPill } from '@/components/companies/SponsorProof';
 import { briefEligibility } from '@/lib/briefs';
 import { fetchSponsoredJobById, fetchSponsoredJobByShortId, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { jobPath, parseJobPath } from '@/lib/jobUrl';
-import { getGuestJobViewCount, markJobViewed } from '@/lib/viewedJobs';
+import { markJobViewed } from '@/lib/viewedJobs';
 import { useAuth } from '@/lib/auth';
 import { displayJobCategory, isMeaningfulJobType } from '@/lib/jobCategories';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -132,12 +132,6 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose, pane 
   // Opened from the list: its title, company and place show at once while the full ad loads.
   const preview = useMemo(() => peekJobPreview(window.location.pathname), [id]); // eslint-disable-line react-hooks/exhaustive-deps
   const { profile: visitor } = usePersonalization();
-  // Signed-out visitors: after 3 job views, invite them to create an account.
-  const [guestViews, setGuestViews] = useState(0);
-  useEffect(() => {
-    if (!session) setGuestViews(getGuestJobViewCount());
-  }, [id, session]);
-  const showSignupInvite = !session && guestViews >= 3;
 
   // Description with the facts block, repeated copies, apply CTAs and
   // trailing contact lines stripped out (contact shown in its own box),
@@ -214,7 +208,6 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose, pane 
       // Previewed beside the list without being picked: not "viewed", and the list keeps its address.
       if (board && seoRef.current) {
         markJobViewed(board.id, { id: board.id, title: board.title, organization: board.company, country: board.country, countryCode: board.countryCode, url: board.url });
-        setGuestViews(getGuestJobViewCount());
         const canonical = jobPath(board);
         if (window.location.pathname !== canonical) {
           window.history.replaceState(window.history.state, '', canonical + window.location.search + window.location.hash);
@@ -414,6 +407,8 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose, pane 
   // Taken down from the company's careers page: shown greyed for 24 h, no applying.
   const closed = Boolean(job.closed);
   const closedAgo = job.closedAt ? formatRelativeTime(job.closedAt, '').toLowerCase() : null;
+  const homeCode = (visitor.citizenship ?? visitor.currentLocation ?? '').toUpperCase() || null;
+  const destCode = (raw?.country?.iso_code ?? (countryOk ? job.countryCode : null))?.toUpperCase() || null;
   const docFor = offerOk && raw ? { jobId: raw.id, country: offerCountry, dest: offerEl?.ok && !offerEl.picked ? offerEl.code : null, visaOffered: visa === 'offered' } : null;
 
   // Is this job real, live and safe? (src/lib/jobReality.ts)
@@ -647,17 +642,27 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose, pane 
             onUnlock={needPaid('contact')}
           />
 
-          {showSignupInvite && (
+          {locked && docFor && (
+            // Signed out: the sponsorship document for this job, from their country to the job's.
             <div className="mt-6 flex flex-col gap-3 rounded-xl bg-ink-50 p-4 sm:flex-row sm:items-center">
-              <p className="min-w-0 flex-1 text-[15px] font-semibold text-ink-900">Track your {guestViews} jobs and who replies</p>
-              <div className="flex shrink-0 gap-2">
-                <button onClick={() => authHere('register')} className="rounded-full bg-ink-950 px-4 py-2 text-xs font-bold text-white hover:bg-ink-800">
-                  Create free account
-                </button>
-                <button onClick={() => authHere('login')} className="rounded-full px-3 py-2 text-xs font-semibold text-ink-700 ring-1 ring-ink-200 hover:bg-white">
-                  Sign in
-                </button>
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <span className="flex shrink-0 items-center gap-1.5" aria-label={`From ${homeCode ?? 'your country'} to ${destCode ?? 'the job’s country'}`}>
+                  {homeCode ? <CircleFlag countryCode={homeCode} label={homeCode} size={22} /> : <span className="h-[22px] w-[22px] rounded-full bg-ink-200" />}
+                  <ArrowRight className="h-4 w-4 text-ink-400" aria-hidden />
+                  {destCode ? <CircleFlag countryCode={destCode} label={destCode} size={22} /> : <span className="h-[22px] w-[22px] rounded-full bg-ink-200" />}
+                </span>
+                <p className="min-w-0 text-[15px] font-semibold text-ink-900">You can create a sponsorship document for this job</p>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  pending.current = 'doc';
+                  authHere('register');
+                }}
+                className="shrink-0 rounded-full bg-ink-950 px-4 py-2 text-xs font-bold text-white hover:bg-ink-800"
+              >
+                Sign up
+              </button>
             </div>
           )}
           <hr className="mt-8 border-ink-100" />

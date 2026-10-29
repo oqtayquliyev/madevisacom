@@ -33,14 +33,15 @@ import { CompanyLogo } from '@/components/common/CompanyLogo';
 import { Logo } from '@/components/layout/Logo';
 import { jobTypes, type Job } from '@/data/jobs';
 import { displayJobCategory, isMeaningfulJobType, isStudentOrInternJob } from '@/lib/jobCategories';
-import { CATEGORIES_BY_GROUP, categoryGroup, categoryMatches, categoryValueLabel, classifyJob, type JobCategory } from '@/lib/jobTaxonomy';
+import { CATEGORIES_BY_GROUP, categoryGroup, categoryMatches, categorySearchTerms, categoryValueLabel, classifyJob, type JobCategory } from '@/lib/jobTaxonomy';
 import { FilterCombo, type ComboOption } from '@/components/jobs/FilterCombo';
 import { moveToBack, recentlyShownIds, rememberShown, visitShuffle } from '@/lib/feedRotation';
 import { useAuth } from '@/lib/auth';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { JobSignals } from '@/components/jobs/JobSignals';
 import { useJobFacets } from '@/lib/jobFacets';
-import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, searchPublishedJobs, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
+import { fetchFilteredJobs, fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, searchPublishedJobs, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
+import { allCountries } from '@/data/allCountries';
 import { readRecent, rememberRecent, rememberSearch } from '@/lib/lastSearch';
 import { isJobViewed, markJobViewed, viewedJobIds } from '@/lib/viewedJobs';
 import { rememberJobPreview } from '@/lib/jobPreview';
@@ -216,6 +217,8 @@ function LoadingLatest() {
 }
 
 const PAGE_SIZE = 12;
+/** Jobs a signed-out visitor sees before the sign-up card. */
+const GUEST_JOBS = 2;
 
 /** Round-robins a list across `company` so that, when hundreds of jobs
  *  come from a handful of companies (a big ATS import batch), scrolling
@@ -585,8 +588,8 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
   // Once loaded it stays (clearing a search doesn't reload).
   const [wantFull, setWantFull] = useState(false);
   useEffect(() => {
-    if (session || hasQuery || visibleCount > quickJobs.length) setWantFull(true);
-  }, [session, hasQuery, visibleCount, quickJobs.length]);
+    if (session || visibleCount > quickJobs.length) setWantFull(true);
+  }, [session, visibleCount, quickJobs.length]);
   useEffect(() => {
     let alive = true;
     hasSavedJobList().then((saved) => alive && saved && setWantFull(true));
@@ -640,11 +643,47 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
     setGaveUpWaiting(false);
     const t = window.setTimeout(() => setGaveUpWaiting(true), 12_000);
     return () => window.clearTimeout(t);
-  }, [searchKey]);
+  }, [searchKey, country, category, datePosted, visaOnly, flexOnly, remoteOnly, studentOnly]);
   const searchBusy = searchKey.length >= 2 && serverHits?.q !== searchKey && (!fullJobs || loadingFull);
+  // Filters are answered by the server too: every live job in that country / category / window,
+  // not just the ones this page had loaded.
+  const filtersOn = country !== 'All countries' || category !== ALL_CATEGORIES || datePosted !== 'Any time' || visaOnly || flexOnly || remoteOnly || studentOnly;
+  const filterKey = filtersOn ? JSON.stringify([country, category, datePosted, visaOnly, flexOnly, remoteOnly, studentOnly]) : '';
+  const [serverFiltered, setServerFiltered] = useState<{ key: string; jobs: Job[] } | null>(null);
+  useEffect(() => {
+    if (!filterKey) return;
+    let alive = true;
+    void fetchFilteredJobs({
+      country: country !== 'All countries' ? country : null,
+      categoryTerms: category !== ALL_CATEGORIES ? categorySearchTerms(category) : null,
+      sinceDays: datePosted !== 'Any time' ? WINDOW_DAYS[datePosted] : null,
+      visa: visaOnly,
+      flex: flexOnly,
+      remote: remoteOnly,
+      students: studentOnly,
+    }).then((rows) => alive && startTransition(() => setServerFiltered({ key: filterKey, jobs: rows.map(toBoard) })));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey]);
+  const filterBusy = Boolean(filterKey) && serverFiltered?.key !== filterKey && !gaveUpWaiting;
   const baseJobs = useMemo(() => [...sponsoredJobs, ...liveJobs], [liveJobs, sponsoredJobs]);
   const baseIds = useMemo(() => new Set(sponsoredJobs.map((j) => j.id)), [sponsoredJobs]);
-  const extraJobs = useMemo(() => (serverHits && serverHits.q === searchKey ? serverHits.jobs.filter((j) => !baseIds.has(j.id)) : []), [serverHits, searchKey, baseIds]);
+  const extraJobs = useMemo(() => {
+    const extra: Job[] = [];
+    const seen = new Set(baseIds);
+    const add = (list: Job[]) => {
+      for (const j of list) {
+        if (seen.has(j.id)) continue;
+        seen.add(j.id);
+        extra.push(j);
+      }
+    };
+    if (serverHits && serverHits.q === searchKey) add(serverHits.jobs);
+    if (serverFiltered && serverFiltered.key === filterKey) add(serverFiltered.jobs);
+    return extra;
+  }, [serverHits, searchKey, serverFiltered, filterKey, baseIds]);
   // Unchanged (same array) when the server found nothing the page didn't already have: no re-sorting.
   const allJobs = useMemo(() => (extraJobs.length ? [...sponsoredJobs, ...extraJobs, ...liveJobs] : baseJobs), [extraJobs, baseJobs, sponsoredJobs, liveJobs]);
   // OR, not AND: sponsored jobs and the live feed are two independent
@@ -667,7 +706,6 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
   // already true today), there was no way to filter by them even
   // though their jobs were right there on the page. Deriving it from
   // allJobs, same as the other two, fixes that.
-  const jobCountryOptions = useMemo(() => Array.from(new Set(allJobs.map((j) => j.country).filter(Boolean))).sort(), [allJobs]);
   const experienceLevelOptions = useMemo(
     () => Array.from(new Set(allJobs.map((j) => experienceBucket(j.experienceLevel)).filter((v): v is string => Boolean(v)))).sort(),
     [allJobs]
@@ -767,17 +805,6 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
     });
   }, [newestAll, deferredSearch, country, jobType, remoteOnly, flexOnly, city, company, salaryOnly, experienceLevel, datePosted, directOnly, studentOnly, visaOnly]);
 
-  const categoryCounts = useMemo(() => {
-    const labels = new Map<string, number>();
-    const groups = new Map<string, number>();
-    for (const j of baseMatched) {
-      const c = catOf.get(j.id);
-      if (!c) continue;
-      labels.set(c.label, (labels.get(c.label) ?? 0) + 1);
-      groups.set(c.group, (groups.get(c.group) ?? 0) + 1);
-    }
-    return { labels, groups };
-  }, [baseMatched, catOf]);
 
   // A single category (e.g. Blockchain Developer) may have only a few jobs:
   // after them, the rest of its group (Software & IT) follows, newest first.
@@ -858,6 +885,8 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
   const activeSlug = split ? (selectedJob ?? firstSlug) : null;
   // Every job is open to everyone; an outside listing picked while signed out asks for a free account first.
   const onLocked = !authLoading && !session ? () => setAuthOpen('register') : undefined;
+  // Signed out: the first jobs of any search, the rest after a free account.
+  const guest = !authLoading && !session;
 
   // Everyone sees every job: the next page, from the full list (loading it first when needed).
   // Placeholders only while something is really on its way: a search being answered, or (no search) the full list.
@@ -886,63 +915,22 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
   }, [search, country, filteredJobs.length, loadingFull]);
 
   // ---- Hero filters: Date posted · Country · Category ----
-  const dateOptions = useMemo<ComboOption[]>(() => {
-    const counts = new Map<DatePostedOption, number>();
-    const now = Date.now();
-    for (const j of allJobs) {
-      const days = (now - postedMs(j)) / DAY_MS;
-      for (const o of DATE_POSTED_OPTIONS) if (o !== 'Any time' && days <= WINDOW_DAYS[o]) counts.set(o, (counts.get(o) ?? 0) + 1);
-    }
-    return DATE_POSTED_OPTIONS.filter((o) => o !== 'Any time').map((o) => ({ value: o, label: o, count: loading ? undefined : counts.get(o) ?? 0 }));
-  }, [allJobs, loading]);
+  // No counts on filters: every option is offered, and the server answers it.
+  const dateOptions = useMemo<ComboOption[]>(() => DATE_POSTED_OPTIONS.filter((o) => o !== 'Any time').map((o) => ({ value: o, label: o })), []);
 
   const facets = useJobFacets();
-  const activeFilterCountExceptCategory =
-    Number(country !== 'All countries') +
-    Number(jobType !== 'All types') +
-    Number(remoteOnly) +
-    Number(flexOnly) +
-    Number(Boolean(city)) +
-    Number(Boolean(company)) +
-    Number(salaryOnly) +
-    Number(experienceLevel !== 'All levels') +
-    Number(datePosted !== 'Any time') +
-    Number(directOnly) +
-    Number(studentOnly) +
-    Number(visaOnly);
 
   const countryComboOptions = useMemo<ComboOption[]>(() => {
-    // Daily counts over ALL live jobs — the same for guests and signed-in users.
-    if (facets && facets.countries.length) {
-      const opts = facets.countries.map((c) => ({ value: c.name, label: c.name, count: c.n, flag: c.iso || undefined }));
-      if (country !== 'All countries' && !opts.some((o) => o.value === country)) opts.push({ value: country, label: country, count: 0, flag: undefined });
-      return opts;
-    }
-    const stats = new Map<string, { n: number; code: string }>();
-    for (const j of allJobs) {
-      if (!j.country) continue;
-      const s = stats.get(j.country) ?? { n: 0, code: j.countryCode };
-      s.n++;
-      stats.set(j.country, s);
-    }
-    const opts = jobCountryOptions.map((c) => ({ value: c, label: c, count: stats.get(c)?.n ?? 0, flag: stats.get(c)?.code || undefined }));
-    return opts.sort((a, b) => (b.count ?? 0) - (a.count ?? 0) || a.label.localeCompare(b.label));
-  }, [allJobs, jobCountryOptions, facets, country]);
+    // Countries that have jobs (the daily list, busiest first) — no counts shown. Without it, every country A–Z.
+    const opts: ComboOption[] = facets && facets.countries.length
+      ? facets.countries.map((c) => ({ value: c.name, label: c.name, flag: c.iso || undefined }))
+      : allCountries.map((c) => ({ value: c.name, label: c.name, flag: c.code })).sort((x, y) => x.label.localeCompare(y.label));
+    if (country !== 'All countries' && !opts.some((o) => o.value === country)) opts.unshift({ value: country, label: country });
+    return opts;
+  }, [facets, country]);
 
-  const categoryComboOptions = useMemo<ComboOption[]>(() => {
-    // No other filter or search active → the daily counts over ALL jobs
-    // (same for everyone). With other filters, count what's matched.
-    const otherFilters = Boolean(search.trim()) || activeFilterCountExceptCategory > 0;
-    const daily = facets && !otherFilters ? new Map(Object.entries(facets.categories)) : null;
-    const counts = daily ?? categoryCounts.labels;
-    const haveCounts = counts.size > 0;
-    return CATEGORIES_BY_GROUP.flatMap(({ group, labels }) =>
-      labels
-        .filter((l) => !haveCounts || counts.has(l) || l === category)
-        .map((l) => ({ value: l, label: l, group, count: haveCounts ? counts.get(l) ?? 0 : undefined }))
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryCounts, category, facets, search, activeFilterCountExceptCategory]);
+  // Every category, no counts (the server is asked for the picked one).
+  const categoryComboOptions = useMemo<ComboOption[]>(() => CATEGORIES_BY_GROUP.flatMap(({ group, labels }) => labels.map((l) => ({ value: l, label: l, group }))), []);
 
 
   const activeFilterCount =
@@ -1240,7 +1228,7 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
               ))}
             </div>
           </>
-        ) : filteredJobs.length === 0 && (searchBusy || (loadingFull && !gaveUpWaiting)) ? (
+        ) : filterBusy || (filteredJobs.length === 0 && (searchBusy || (loadingFull && !gaveUpWaiting))) ? (
           <>
             <LoadingLatest />
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1269,7 +1257,7 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
         ) : (
           <div className={split ? 'mt-3 grid grid-cols-[minmax(0,420px)_minmax(0,1fr)] items-start gap-5' : ''}>
           <div className="min-w-0">
-            {!directOnly && activeFilterCount === 0 && !search && directJobs.length > 0 && (
+            {!guest && !directOnly && activeFilterCount === 0 && !search && directJobs.length > 0 && (
               <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -1292,7 +1280,7 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
               </div>
             )}
             <div className={`grid grid-cols-1 gap-4 ${split ? '' : 'mt-4 lg:grid-cols-2'}`}>
-              {visibleJobs.map((job, i) => (
+              {(guest ? visibleJobs.slice(0, GUEST_JOBS) : visibleJobs).map((job, i) => (
                 <Fragment key={job.id}>
                   {i === relatedStart && (
                     <div className="mt-2 border-t border-ink-200 pt-5 lg:col-span-2">
@@ -1305,16 +1293,36 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
               {(loadingMore || waitingForMore) && Array.from({ length: 2 }).map((_, i) => <JobCardSkeleton key={`more-${i}`} />)}
             </div>
 
-            {hasMore && (
-              <div className="mt-7 rounded-xl bg-brand-50 px-5 py-6 text-center ring-1 ring-brand-100">
-                <p className="text-sm font-semibold text-brand-900">
-                  {waitingForMore ? 'Loading more of the latest jobs for you…' : 'There are more jobs waiting for you'}
-                </p>
+            {guest && filteredJobs.length > GUEST_JOBS && (
+              // Signed out: two jobs, then a glimpse of the rest behind a sign-up card.
+              <div className="relative mt-4">
+                <div aria-hidden className={`pointer-events-none grid select-none grid-cols-1 gap-4 blur-[5px] ${split ? '' : 'lg:grid-cols-2'}`}>
+                  {filteredJobs.slice(GUEST_JOBS, GUEST_JOBS + (split ? 2 : 4)).map((job) => (
+                    <JobCard key={job.id} job={job} />
+                  ))}
+                </div>
+                <div className="absolute inset-0 flex items-start justify-center bg-gradient-to-b from-[#f8fafc]/40 via-[#f8fafc]/80 to-[#f8fafc] pt-10">
+                  <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl ring-1 ring-ink-200">
+                    <p className="text-[19px] font-bold tracking-tight text-ink-950">Explore every job</p>
+                    <p className="mt-1 text-[14px] text-ink-500">Free account · no password</p>
+                    <button type="button" onClick={() => setAuthOpen('register')} className="mt-4 w-full rounded-full bg-ink-950 px-5 py-3 text-sm font-bold text-white hover:bg-ink-800">
+                      Create free account
+                    </button>
+                    <button type="button" onClick={() => setAuthOpen('login')} className="mt-2 w-full rounded-full px-5 py-2.5 text-sm font-semibold text-ink-700 hover:bg-ink-50">
+                      Sign in
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {hasMore && !guest && (
+              <div className="mt-6 flex justify-center">
                 <button
                   type="button"
                   onClick={handleShowMore}
                   disabled={loadingMore || waitingForMore}
-                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md bg-brand-600 px-7 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-70 sm:w-auto"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-7 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-70 sm:w-auto"
                 >
                   {loadingMore || waitingForMore ? (
                     <>

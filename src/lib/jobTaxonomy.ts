@@ -362,3 +362,27 @@ export function categoryMatches(cat: JobCategory | null, value: string): boolean
 }
 
 export const categoryValueLabel = (value: string): string => (value.startsWith('group:') ? `All ${value.slice(6)}` : value);
+
+/**
+ * Plain words a category's title rule looks for ("police", "law enforcement", "firefight"),
+ * so the server can be asked for a category's jobs (title contains any of them). The page
+ * then applies the exact rule. `value` is a label or "group:<group>".
+ */
+export function categorySearchTerms(value: string, max = 40): string[] {
+  const rules = value.startsWith('group:') ? RULES.filter((x) => x[1] === value.slice('group:'.length)) : RULES.filter((x) => x[0] === value);
+  const out = new Set<string>();
+  for (const [, , re] of rules) {
+    const src = re.source.replace(/^\\b/, '').replace(/^\(\?:/, '').replace(/\)$/, '');
+    for (const alt of src.split('|')) {
+      // Keep only the literal start of each alternative ("aircraft (?:mechanic|…" → "aircraft").
+      const lit = alt
+        .replace(/\\b/g, '')
+        .split(/[\\()[\]?*+{}^$]/)[0]
+        .replace(/[^\p{L}\p{N} &'-]/gu, '')
+        .trim();
+      if (lit.length >= 3) out.add(lit.toLowerCase());
+      if (out.size >= max) break;
+    }
+  }
+  return [...out].slice(0, max);
+}
