@@ -1,5 +1,6 @@
 import { JobAgeBadge } from '@/components/common/JobAgeBadge';
-import { openJobModal } from '@/lib/jobModal';
+import { openJobModal, pickJob } from '@/lib/jobModal';
+import { JobDetailPage } from '@/pages/jobs/JobDetailPage';
 import { NEW_TAB } from '@/lib/navLink';
 import { AlertSignup } from '@/components/jobs/AlertSignup';
 import { Fragment, startTransition, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -58,6 +59,10 @@ type JobsPageProps = {
   /** Receives the job's public path (see jobPath in src/lib/jobUrl.ts). */
   /** No longer used: job cards open the job in a new tab. Kept so callers still compile. */
   goToJob?: (path: string) => void;
+  /** Desktop: list on the left, the picked job on the right (LinkedIn-style). */
+  split?: boolean;
+  /** The job open in the right-hand pane (the part after /jobs/), when one was picked. */
+  selectedJob?: string | null;
 };
 
 // MadeVisa only lists jobs posted in the last 30 days, so "Any time" = 30 days.
@@ -303,7 +308,7 @@ function withClosedLast(jobs: Job[]): Job[] {
   return [...jobs.filter((j) => !j.closed), ...jobs.filter((j) => j.closed)];
 }
 
-function JobCard({ job, onLocked, onOpen }: { job: Job; /** Signed out: picking an outside listing asks for a free account first. */ onLocked?: (job: Job) => void; /** Opening it in this tab (phones). */ onOpen?: () => void }) {
+function JobCard({ job, onLocked, onOpen, onPick, active = false }: { job: Job; /** Signed out: picking an outside listing asks for a free account first. */ onLocked?: (job: Job) => void; /** Opening it in this tab (phones). */ onOpen?: () => void; /** Desktop split view: show it in the right-hand pane. */ onPick?: (href: string) => void; /** The job showing in the pane. */ active?: boolean }) {
   const isExternal = job.sourceType === 'live_feed';
   const viewed = isJobViewed(job.id);
   const closed = Boolean(job.closed);
@@ -336,9 +341,9 @@ function JobCard({ job, onLocked, onOpen }: { job: Job; /** Signed out: picking 
         {job.remote && <span className="font-semibold text-emerald-700">Remote</span>}
       </div>
 
-      {job.salary && <p className="mt-3 font-slab text-lg font-bold leading-snug text-ink-950">{job.salary}</p>}
+      {job.salary && <p className={`mt-3 font-slab font-bold leading-snug text-ink-950 ${onPick ? 'text-base' : 'text-lg'}`}>{job.salary}</p>}
 
-      {!isExternal && !closed && (
+      {!isExternal && !closed && !onPick && (
         <JobSignals publisherId={job.publisherId} company={job.company} countryCode={job.countryCode} visaOffered={job.visaStatus === 'offered' || job.visaSponsorship} />
       )}
 
@@ -364,7 +369,7 @@ function JobCard({ job, onLocked, onOpen }: { job: Job; /** Signed out: picking 
 
   // Already-viewed jobs turn grey (muted background + softened content)
   // so it's easy to spot what you haven't opened yet.
-  const cardClass = `min-w-0 max-w-full overflow-hidden group relative block rounded-lg border p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg sm:p-6 ${
+  const cardClass = `min-w-0 max-w-full overflow-hidden group relative block rounded-lg border p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-lg ${onPick ? 'sm:p-5' : 'sm:p-6'} ${
     closed
       ? 'border-ink-200 bg-ink-50 opacity-60 grayscale hover:opacity-80'
       : viewed
@@ -405,10 +410,12 @@ function JobCard({ job, onLocked, onOpen }: { job: Job; /** Signed out: picking 
         // over this list, with its own address in the URL bar; Back or × returns to this exact spot.
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
         e.preventDefault();
+        if (onPick) return onPick(href);
         onOpen?.();
         openJobModal(href);
       }}
-      className={`${cardClass} cursor-pointer`}
+      aria-current={active || undefined}
+      className={`${cardClass} cursor-pointer ${active ? '!border-brand-600 !bg-white !opacity-100 ring-2 ring-brand-600 !grayscale-0' : ''}`}
     >
       {inner}
     </a>
@@ -493,7 +500,7 @@ function TextField({ label, value, onChange, placeholder }: { label: string; val
   );
 }
 
-export function JobsPage({ go, onAuth }: JobsPageProps) {
+export function JobsPage({ go, onAuth, split = false, selectedJob = null }: JobsPageProps) {
   // Filtered views (/jobs?country=…) all point their canonical at /jobs.
   useSeo({ ...SEO_META.jobs, path: '/jobs', ogImage: 'https://madevisa.com/api/og/page?p=jobs' });
 
@@ -832,9 +839,18 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
   const hasMore = visibleCount < filteredJobs.length || (!fullJobs && !hasQuery);
 
   // Free accounts are made right here, in a dialog (job alerts).
-  const [authOpen, setAuthOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState<false | 'login' | 'register'>(false);
+  // Sign up / sign in here, on the list: they stay where they were.
+  const openAuth = (p: 'login' | 'register' = 'register') => setAuthOpen(p);
+  // Desktop split view: the job in the right-hand pane — the one picked, else the first on the list.
+  const pick = split ? pickJob : undefined;
+  const firstSlug = useMemo(() => {
+    const first = filteredJobs.find((j) => j.sourceType !== 'live_feed');
+    return first ? slugOf(first) : null;
+  }, [filteredJobs]);
+  const activeSlug = split ? (selectedJob ?? firstSlug) : null;
   // Every job is open to everyone; an outside listing picked while signed out asks for a free account first.
-  const onLocked = !authLoading && !session ? () => setAuthOpen(true) : undefined;
+  const onLocked = !authLoading && !session ? () => setAuthOpen('register') : undefined;
 
   // Everyone sees every job: the next page, from the full list (loading it first when needed).
   // Placeholders only while something is really on its way: a search being answered, or (no search) the full list.
@@ -1174,7 +1190,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
         </section>
       )}
 
-      <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8">
+      <main className={`mx-auto px-5 py-8 sm:px-8 ${split ? 'max-w-[1360px]' : 'max-w-5xl'}`}>
         <CvPrompt className="mb-6" />
         <TopMatchesStrip className="mb-6" />
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1253,7 +1269,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
             <Search className="mx-auto h-8 w-8 text-ink-300" />
             <h3 className="mt-4 text-lg font-bold text-ink-900">No jobs found</h3>
             <p className="mt-2 text-sm text-ink-500">Try changing your search or filters — or get the first match by email.</p>
-            <AlertSignup className="mx-auto mt-5 max-w-xl text-left" keywords={search || (category !== ALL_CATEGORIES && !category.startsWith('group:') ? category : '')} country={country} onAuth={(p) => (p === 'register' ? setAuthOpen(true) : onAuth?.(p))} />
+            <AlertSignup className="mx-auto mt-5 max-w-xl text-left" keywords={search || (category !== ALL_CATEGORIES && !category.startsWith('group:') ? category : '')} country={country} onAuth={openAuth} />
             <button
               type="button"
               onClick={() => {
@@ -1266,7 +1282,8 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
             </button>
           </div>
         ) : (
-          <>
+          <div className={split ? 'mt-6 grid grid-cols-[minmax(0,420px)_minmax(0,1fr)] items-start gap-5' : ''}>
+          <div className="min-w-0">
             {!directOnly && activeFilterCount === 0 && !search && directJobs.length > 0 && (
               <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1282,14 +1299,14 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
                     </button>
                   )}
                 </div>
-                <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className={`mt-3 grid grid-cols-1 gap-4 ${split ? '' : 'lg:grid-cols-2'}`}>
                   {directJobs.slice(0, 2).map((job) => (
-                    <JobCard key={`direct-${job.id}`} job={job} onLocked={onLocked} onOpen={saveListPlace} />
+                    <JobCard key={`direct-${job.id}`} job={job} onLocked={onLocked} onOpen={saveListPlace} onPick={pick} active={slugOf(job) === activeSlug} />
                   ))}
                 </div>
               </div>
             )}
-            <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className={`grid grid-cols-1 gap-4 ${split ? 'mt-4' : 'mt-6 lg:grid-cols-2'}`}>
               {visibleJobs.map((job, i) => (
                 <Fragment key={job.id}>
                   {i === relatedStart && (
@@ -1297,7 +1314,7 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
                       <p className="text-sm font-bold text-ink-900">More {relatedGroup} jobs</p>
                     </div>
                   )}
-                  <JobCard job={job} onLocked={onLocked} onOpen={saveListPlace} />
+                  <JobCard job={job} onLocked={onLocked} onOpen={saveListPlace} onPick={pick} active={slugOf(job) === activeSlug} />
                 </Fragment>
               ))}
               {(loadingMore || waitingForMore) && Array.from({ length: 2 }).map((_, i) => <JobCardSkeleton key={`more-${i}`} />)}
@@ -1329,15 +1346,37 @@ export function JobsPage({ go, onAuth }: JobsPageProps) {
               </div>
             )}
 
-            <AlertSignup className="mt-6" keywords={search || (category !== ALL_CATEGORIES && !category.startsWith('group:') ? category : '')} country={country} onAuth={(p) => (p === 'register' ? setAuthOpen(true) : onAuth?.(p))} />
-          </>
+            <AlertSignup className="mt-6" keywords={search || (category !== ALL_CATEGORIES && !category.startsWith('group:') ? category : '')} country={country} onAuth={openAuth} />
+          </div>
+          {split && activeSlug && <JobPane slug={activeSlug} picked={Boolean(selectedJob)} go={go} onAuth={onAuth} />}
+          </div>
         )}
 
         <p className="mt-10 text-[13px] font-semibold text-ink-500">From public company career pages · re-checked daily</p>
       </main>
 
-      <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
+      <AuthDialog open={Boolean(authOpen)} initial={authOpen || 'register'} onClose={() => setAuthOpen(false)} />
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
+  );
+}
+
+/** A job's address without the "/jobs/" prefix (how App names the picked job). */
+function slugOf(job: Job): string {
+  return jobPath(job).slice('/jobs/'.length);
+}
+
+/** Desktop: the picked job, beside the list. Scrolls on its own; the list keeps its place. */
+function JobPane({ slug, picked, go, onAuth }: { slug: string; picked: boolean; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    box.current?.scrollTo({ top: 0 });
+  }, [slug]);
+  return (
+    <aside aria-label="Job" className="sticky top-[88px] h-[calc(100dvh-104px)] overflow-hidden rounded-[20px] bg-white shadow-sm ring-1 ring-ink-200">
+      <div ref={box} className="job-modal-scroll h-full overflow-y-auto overscroll-contain">
+        <JobDetailPage key={slug} id={slug} go={go} onAuth={onAuth} embedded pane seo={picked} />
+      </div>
+    </aside>
   );
 }

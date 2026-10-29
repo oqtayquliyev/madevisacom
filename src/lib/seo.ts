@@ -11,6 +11,8 @@ type SeoOptions = {
   /** Set true for private/utility pages (admin, profile, auth, submit forms) that shouldn't be indexed. */
   noindex?: boolean;
   ogImage?: string;
+  /** false: leave the page's title and tags alone (a job previewed inside the jobs list). */
+  enabled?: boolean;
 };
 
 function setMetaByName(name: string, content: string) {
@@ -62,8 +64,9 @@ function clearStaleServerData(path: string) {
   });
 }
 
-export function useSeo({ title, description, path, noindex = false, ogImage = DEFAULT_OG_IMAGE }: SeoOptions) {
+export function useSeo({ title, description, path, noindex = false, ogImage = DEFAULT_OG_IMAGE, enabled = true }: SeoOptions) {
   useEffect(() => {
+    if (!enabled) return;
     clearStaleServerData(path);
     const fullTitle = title.includes('MadeVisa') ? title : `${title} | MadeVisa`;
     const url = `${SITE_URL}${path}`;
@@ -84,5 +87,5 @@ export function useSeo({ title, description, path, noindex = false, ogImage = DE
     setMetaByName('twitter:title', fullTitle);
     setMetaByName('twitter:description', description);
     setMetaByName('twitter:image', ogImage);
-  }, [title, description, path, noindex, ogImage]);
+  }, [title, description, path, noindex, ogImage, enabled]);
 }

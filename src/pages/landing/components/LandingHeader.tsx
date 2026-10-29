@@ -238,16 +238,22 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
               </a>
             )}
             {!profile && (
-              // Job-seekers: the main action. It opens sign-in, which links on
-              // to "Create account" for people who don't have one yet.
+              // Job-seekers: the main action — the jobs list (every job is open; an account comes
+              // when they press Apply or another button there).
               <a
-                href="/login"
+                href="/jobs"
                 onClick={(event) =>
-                  handleNavClick(event, () => onAuth?.("login"))
+                  handleNavClick(event, () => {
+                    if (window.location.pathname !== "/jobs") {
+                      window.history.pushState({}, "", "/jobs");
+                      window.dispatchEvent(new PopStateEvent("popstate"));
+                    }
+                    window.scrollTo({ top: 0 });
+                  })
                 }
                 className="block whitespace-nowrap rounded-md bg-[#2563EB] px-3.5 py-2 text-[14px] font-semibold text-white transition-colors hover:bg-brand-700 sm:px-5 sm:py-2.5 sm:text-[15px]"
               >
-                Start your Career
+                Find your Job
               </a>
             )}
 

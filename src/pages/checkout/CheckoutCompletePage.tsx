@@ -73,6 +73,17 @@ export function CheckoutCompletePage({ go, onAuth }: Props) {
     }
     trackBilling('payment_confirmed', { plan: my.plan });
   }, [confirmed, checkout, my.plan]);
+  // Paid from a job (or any page): back there by itself a few seconds after the confirmation.
+  useEffect(() => {
+    if (!confirmed) return;
+    const back = readReturn();
+    if (!back) return;
+    const t = window.setTimeout(() => {
+      clearReturn();
+      nav(back);
+    }, 3500);
+    return () => window.clearTimeout(t);
+  }, [confirmed]);
 
   // While waiting: read the plan every few seconds, ask the server to look at Gumroad now
   // and then, and straight away when the person comes back to this tab.
@@ -160,7 +171,7 @@ export function CheckoutCompletePage({ go, onAuth }: Props) {
               <dl className="mt-5 divide-y divide-ink-100 rounded-xl border border-ink-200 text-sm">
                 <Row label="Plan" value={info.name} />
                 {sub?.price_cents ? <Row label="Amount paid" value={`${formatMoney(sub.price_cents)} (before any tax)`} /> : null}
-                <Row label="Billing" value="Monthly" />
+                <Row label="Billing" value={info.recurrence === 'quarterly' ? 'Every 3 months' : 'Monthly'} />
                 {sub?.renews_at && !sub.cancel_at_period_end ? <Row label="Next renewal" value={longDate(sub.renews_at)} /> : null}
                 {sub?.cancel_at_period_end && sub.current_period_end ? <Row label="Ends" value={longDate(sub.current_period_end)} /> : null}
               </dl>
@@ -188,7 +199,7 @@ export function CheckoutCompletePage({ go, onAuth }: Props) {
                   }}
                   className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
                 >
-                  {readReturn() ? 'Back to where you were' : 'Continue to MadeVisa'} <ArrowRight className="h-4 w-4" aria-hidden />
+                  {readReturn() ? 'Back to where you were (taking you there…)' : 'Continue to MadeVisa'} <ArrowRight className="h-4 w-4" aria-hidden />
                 </button>
                 <AppLink href="/profile?tab=settings#billing" className="inline-flex items-center rounded-lg border border-ink-200 bg-white px-4 py-3 text-sm font-semibold text-ink-800 hover:bg-ink-50">
                   Billing settings

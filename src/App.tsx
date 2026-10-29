@@ -24,6 +24,7 @@ const NotFoundPage = lazyPage(() => import('@/pages/NotFoundPage').then((m) => (
 const JobsPage = lazyPage(() => import('@/pages/landing/jobs/JobsPage').then((m) => ({ default: m.JobsPage })));
 const JobDetailPage = lazyPage(() => import('@/pages/jobs/JobDetailPage').then((m) => ({ default: m.JobDetailPage })));
 import { JobModal } from '@/components/jobs/JobModal';
+import { useMediaQuery } from '@/lib/useMediaQuery';
 import { closeJobModal, readJobModal, type JobModalState } from '@/lib/jobModal';
 const CompaniesPage = lazyPage(() => import('@/pages/companies/CompaniesPage').then((m) => ({ default: m.CompaniesPage })));
 const CompanyProfilePage = lazyPage(() => import('@/pages/companies/CompanyProfilePage').then((m) => ({ default: m.CompanyProfilePage })));
@@ -126,6 +127,8 @@ export default function App() {
   const [path, setPath] = useState(window.location.pathname);
   // A job opened as a popup over the list keeps its own URL; the list stays mounted under it (src/lib/jobModal.ts).
   const [jobModal, setJobModal] = useState<JobModalState | null>(() => readJobModal());
+  // Desktop: the jobs list is split in two (list | the picked job), like LinkedIn. Phones: the job is a sheet.
+  const wideJobs = useMediaQuery('(min-width: 1024px)');
 
   const [pendingSignup, setPendingSignup] = useState<PendingSignup | null>(null);
 
@@ -236,8 +239,8 @@ export default function App() {
   if (path === '/jobs' || jobOverList) {
     return (
       <>
-        <JobsPage go={go} onAuth={goToAuth} goToJob={goToPath} />
-        {jobOverList ? (
+        <JobsPage go={go} onAuth={goToAuth} goToJob={goToPath} split={wideJobs} selectedJob={wideJobs ? jobOverList : null} />
+        {jobOverList && !wideJobs ? (
           <JobModal label="Job">
             <JobDetailPage key={jobOverList} id={jobOverList} go={go} onAuth={goToAuth} embedded onClose={closeJobModal} />
           </JobModal>

@@ -15,6 +15,7 @@ import { trackBilling } from '@/lib/billing';
 import { readCheckout, type CheckoutResult } from '@/lib/billingCore';
 import { startGuestClaim } from '@/lib/guestClaim';
 import { openGumroadCheckout } from '@/lib/gumroadOverlay';
+import { rememberReturn } from '@/lib/returnTo';
 
 export { readCheckout, type Checkout, type CheckoutResult } from '@/lib/billingCore';
 
@@ -117,6 +118,8 @@ export function withOfferCode(url: string, code: string | null | undefined): str
  */
 export async function goToMembershipCheckout(opts: { signedIn: boolean; email?: string | null; source: string; offerCode?: string | null }): Promise<PayOutcome> {
   trackBilling('checkout_started', { plan: MEMBERSHIP_PLAN, source: opts.source, guest: !opts.signedIn, offer: Boolean(opts.offerCode) });
+  // After paying, the confirmation page brings them back to this exact page (the job they were on).
+  rememberReturn(`${window.location.pathname}${window.location.search}`);
   if (opts.signedIn) {
     const r = await startCheckout(MEMBERSHIP_PLAN, opts.source);
     if (r.kind === 'ready') {

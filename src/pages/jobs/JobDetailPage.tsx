@@ -11,9 +11,10 @@ import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
 import { MatchButton } from '@/components/cv/MatchButton';
-import { JobEdgeBlock } from '@/components/jobs/JobEdgeBlock';
+import { JobMatchSheet } from '@/components/jobs/JobEdgeBlock';
+import { rememberAuthIntent } from '@/lib/authIntent';
 import { SponsorDocPreviewButton } from '@/components/jobs/SponsorDocPreview';
-import { maskEmail } from '@/lib/conversion';
+import { maskEmail, pingJobView } from '@/lib/conversion';
 import { AuthDialog } from '@/components/auth/AuthDialog';
 import { Paywall, type PaywallReason } from '@/components/pro/Paywall';
 import { fetchApplyLink } from '@/lib/applyLink';
@@ -57,10 +58,16 @@ type JobDetailPageProps = {
   /** Shown inside the job popup over the list (src/components/jobs/JobModal.tsx): no site header or footer, and "All jobs" closes it. */
   embedded?: boolean;
   onClose?: () => void;
+  /** In the jobs list's right-hand pane (desktop): no "All jobs" link. */
+  pane?: boolean;
+  /** Set the page title, canonical and job data for search engines (off for the list's preview pane). */
+  seo?: boolean;
 };
 
-export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: JobDetailPageProps) {
+export function JobDetailPage({ id, go, onAuth, embedded = false, onClose, pane = false, seo = true }: JobDetailPageProps) {
   const [job, setJob] = useState<Job | null | undefined>(undefined);
+  const seoRef = useRef(seo);
+  seoRef.current = seo;
   const [raw, setRaw] = useState<SponsoredJob | null>(null);
   const [copied, setCopied] = useState(false);
   // Set when Apply is clicked — arms the "Your application" sheet; reset for each job.
@@ -70,20 +77,36 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
   // Every job is open to everyone. Applying needs a free account; CV match, "Your edge",
   // sponsorship documents and the rest are the membership.
   const { member, ready: memberReady } = useMembership();
-  // Signed out: the sign-up popup comes up first on every job they open (they can close it and read on).
-  const [gate, setGate] = useState(false);
+  // Signed out: any button (Apply, Check your match, Save, …) opens the sign-up popup here, on this
+  // job. Once they're in they stay on this job, and what they pressed carries on.
+  const [gate, setGate] = useState<'login' | 'register' | null>(null);
+  const pending = useRef<PaywallReason | null>(null);
+  const authHere = (page: 'login' | 'register' = 'register') => {
+    // Google sign-in leaves the site: it comes back to this job (src/components/auth/AfterSignIn.tsx).
+    rememberAuthIntent({ next: window.location.pathname + window.location.search });
+    setGate(page);
+  };
   useEffect(() => {
-    if (!authLoading && !session) setGate(true);
-  }, [id, authLoading, session]);
-  useEffect(() => {
-    if (session) setGate(false);
+    if (session) setGate(null);
   }, [session]);
+  // Today's views of this job (the counts in Admin and on the membership card).
+  useEffect(() => {
+    if (raw?.id) void pingJobView(raw.id);
+  }, [raw?.id]);
   // Which paid feature they reached for: the membership card says so.
   const [paywall, setPaywall] = useState<PaywallReason | null>(null);
   useEffect(() => setPaywall(null), [id]);
-  // CV match / "Your edge": folded away until opened (members).
-  const [tool, setTool] = useState<'match' | 'edge' | null>(null);
-  useEffect(() => setTool(null), [id]);
+  // Members: "Check your match" opens the match report and "Your edge" in a popup.
+  const [matchOpen, setMatchOpen] = useState(false);
+  useEffect(() => setMatchOpen(false), [id]);
+  // Signed in after pressing a paid feature: members get it, everyone else the membership card.
+  useEffect(() => {
+    if (!session || !memberReady || !pending.current) return;
+    const r = pending.current;
+    pending.current = null;
+    if (!member) setPaywall(r);
+    else if (r === 'match' || r === 'edge') setMatchOpen(true);
+  }, [session, memberReady, member]);
   // The company's apply address comes from the server, for any signed-in account
   // (src/lib/applyLink.ts); signed-out visitors are asked to sign up first.
   const [applyUrl, setApplyUrl] = useState<string | null>(null);
@@ -186,7 +209,8 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
       // Old /jobs/sponsored-<uuid> links (and links whose title has since
       // been edited) are swapped to the current public URL in place, so
       // shared/bookmarked links keep working without a reload.
-      if (board) {
+      // Previewed beside the list without being picked: not "viewed", and the list keeps its address.
+      if (board && seoRef.current) {
         markJobViewed(board.id, { id: board.id, title: board.title, organization: board.company, country: board.country, countryCode: board.countryCode, url: board.url });
         setGuestViews(getGuestJobViewCount());
         const canonical = jobPath(board);
@@ -205,6 +229,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
   const location = job ? locationLabel(job) : '';
 
   useSeo({
+    enabled: seo,
     // useSeo appends " | MadeVisa" → "Title at Company, Location | MadeVisa"
     title: job ? jobTitleMeta({ title: job.title, company: job.company, location: titleLocation(location), visa: Boolean(job.visaSponsorship || job.visaStatus === 'offered') }) : 'Job',
     description: job ? jobMetaDescription(job, location, cleaned?.html) : 'View this job listing on MadeVisa, including requirements and how to apply.',
@@ -219,6 +244,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
   // JobPosting structured data — individual job pages only (never the
   // /jobs list), built strictly from fields the job actually has.
   useEffect(() => {
+    if (!seo) return;
     if (!job || !raw || job.closed) {
       document.getElementById('jobposting-jsonld')?.remove();
       return;
@@ -232,7 +258,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
     document.getElementById('jobposting-jsonld')?.remove();
     document.head.appendChild(script);
     return () => script.remove();
-  }, [job, raw, canonicalPath]);
+  }, [job, raw, canonicalPath, seo]);
 
   const share = async () => {
     const url = window.location.href;
@@ -393,18 +419,19 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
 
   // Signed out: Apply and the recruiter's contact ask for a free account first.
   const locked = !closed && !authLoading && !session;
-  const askSignup = () => setGate(true);
-  // Paid features (CV match, "Your edge", sponsorship documents): signed out → sign up; free account → the membership card.
+  const askSignup = () => authHere('register');
+  // Paid features (CV match, "Your edge", sponsorship documents): signed out → sign up, then the
+  // membership card; free account → the membership card.
   const isMember = memberReady && member;
-  const needPaid = (reason: PaywallReason) => () => (session ? setPaywall(reason) : setGate(true));
+  const needPaid = (reason: PaywallReason) => () => {
+    if (session) return setPaywall(reason);
+    pending.current = reason;
+    authHere('register');
+  };
   const pressApply = locked ? askSignup : undefined;
-  // Members: "Check your match" opens the folded CV match and runs the check.
   const openMatch = () => {
-    setTool('match');
-    window.setTimeout(() => {
-      document.getElementById('cv-match')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      if (match.cv && !match.result && !match.busy) void match.check();
-    }, 60);
+    setMatchOpen(true);
+    if (match.cv && !match.result && !match.busy) void match.check();
   };
   const matchClick = isMember ? openMatch : needPaid('match');
   const applyButton = (extra = '') =>
@@ -450,7 +477,33 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
   return (
     <div className={`${embedded ? '' : 'min-h-screen'} bg-[#f8fafc] text-ink-900`}>
       {!embedded && <LandingHeader go={go} onAuth={onAuth} active="jobs" />}
-      <AuthDialog open={gate && !session} onClose={() => setGate(false)} initial="register" />
+      <AuthDialog
+        open={Boolean(gate) && !session}
+        initial={gate ?? 'register'}
+        onClose={() => {
+          setGate(null);
+          pending.current = null;
+        }}
+      />
+      {matchOpen && isMember && (
+        <JobMatchSheet
+          onClose={() => setMatchOpen(false)}
+          title={job.title}
+          company={job.company}
+          match={matchJob && !closed ? <MatchPanel match={match} jobId={matchKey} jobTitle={job.title} company={job.company} doc={docFor} onAuth={authHere} /> : null}
+          input={{
+            publisherId: raw?.publisher_id ?? job.publisherId,
+            company: job.company,
+            dest: raw?.country?.iso_code ?? (countryOk ? job.countryCode : null),
+            home: visitor.citizenship ?? visitor.currentLocation,
+            needsVisa: !localJob,
+            salary: raw?.salary_status === 'disclosed' ? { min: raw.salary_min, max: raw.salary_max, currency: raw.salary_currency, period: raw.salary_period } : { min: null, max: null, currency: null, period: null },
+            visaOffered: visa === 'offered',
+            ageDays: postedDate ? postedAgeDays : null,
+            match: match.result?.score ?? null,
+          }}
+        />
+      )}
       {paywall && (
         <Paywall
           job={{ title: job.title, company: job.company, category: raw?.job_function ?? job.category }}
@@ -459,12 +512,12 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
           onClose={() => setPaywall(null)}
         />
       )}
-      {matchKey && !closed && member && <ApplySheet jobKey={matchKey} company={job.company} match={match} doc={docFor} armed={applied} onAuth={onAuth} />}
+      {matchKey && !closed && member && <ApplySheet jobKey={matchKey} company={job.company} match={match} doc={docFor} armed={applied} onAuth={authHere} />}
       {/* One of your best matches? A small card in the corner lists the others. Not while the apply sheet is up. */}
-      {matchKey && !applied && isMember && <OtherMatchesPopup currentId={matchKey} onAuth={onAuth} />}
+      {matchKey && !applied && isMember && <OtherMatchesPopup currentId={matchKey} onAuth={authHere} />}
 
       <section className={`${closed ? 'bg-ink-500' : 'bg-brand-700'} text-white transition-colors`}>
-        <div className={`mx-auto max-w-4xl px-5 pb-10 sm:px-8 sm:pb-14 ${embedded ? 'pt-14 sm:pt-16' : 'pt-6 sm:pt-8'}`}>
+        <div className={`mx-auto max-w-4xl px-5 pb-10 sm:px-8 sm:pb-14 ${pane ? 'pt-6 sm:pt-8' : embedded ? 'pt-14 sm:pt-16' : 'pt-6 sm:pt-8'}`}>
           <button
             onClick={() => {
               // Real browser back navigation, not go('jobs') — that pushes
@@ -479,13 +532,13 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
               if (window.history.length > 1) window.history.back();
               else go('jobs');
             }}
-            className="flex items-center gap-1.5 text-xs font-semibold text-white/70 hover:text-white"
+            className={`${pane ? 'hidden' : 'flex'} items-center gap-1.5 text-xs font-semibold text-white/70 hover:text-white`}
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             All jobs
           </button>
 
-          <div className="mt-8 flex items-center gap-3 sm:mt-10">
+          <div className={`flex items-center gap-3 ${pane ? '' : 'mt-8 sm:mt-10'}`}>
             <HeaderLogo job={job} SponsorIcon={SponsorIcon} />
             <div className="min-w-0">
               {raw?.publisher_id ? (
@@ -524,7 +577,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
                   Closed{closedAgo ? ` ${closedAgo}` : ''}
                 </p>
               )}
-              <h1 className={`break-words font-title text-3xl font-bold leading-tight tracking-tight sm:text-5xl sm:leading-[1.1] ${closed ? 'text-white/70' : ''}`}>{job.title}</h1>
+              <h1 className={`break-words font-title text-3xl font-bold leading-tight tracking-tight ${pane ? 'sm:text-4xl' : 'sm:text-5xl'} sm:leading-[1.1] ${closed ? 'text-white/70' : ''}`}>{job.title}</h1>
               <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/85">
                 {arrangement && (
                   <span className="flex items-center gap-1.5 font-semibold text-white">
@@ -573,7 +626,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
             </div>
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              {applyButton('flex-1 bg-white text-brand-700 shadow-sm hover:bg-brand-50 focus-visible:outline-white md:flex-none')}
+              {applyButton('flex-1 bg-[#FFD60A] text-ink-950 shadow-sm hover:bg-[#FFE34D] focus-visible:outline-white md:flex-none')}
               {matchJob && !closed && <MatchButton match={match} variant="hero" onLocked={matchClick} />}
               {docFor && !closed && (
                 <SponsorDocPreviewButton
@@ -583,7 +636,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
                   dest={raw?.country?.iso_code ?? (countryOk ? job.countryCode ?? null : null)}
                   country={docFor.country}
                   onUnlock={isMember ? undefined : needPaid('doc')}
-                  onAuth={() => setGate(true)}
+                  onAuth={() => authHere('register')}
                 />
               )}
               <span className="relative shrink-0">
@@ -609,10 +662,10 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
                 <p className="text-[15px] font-bold text-white">Track your {guestViews} jobs and who replies</p>
               </div>
               <div className="flex shrink-0 gap-2">
-                <button onClick={() => onAuth?.('register')} className="rounded-full bg-white px-4 py-2 text-xs font-bold text-brand-700 hover:bg-brand-50">
+                <button onClick={() => authHere('register')} className="rounded-full bg-white px-4 py-2 text-xs font-bold text-brand-700 hover:bg-brand-50">
                   Create free account
                 </button>
-                <button onClick={() => onAuth?.('login')} className="rounded-full px-3 py-2 text-xs font-semibold text-white ring-1 ring-white/40 hover:bg-white/10">
+                <button onClick={() => authHere('login')} className="rounded-full px-3 py-2 text-xs font-semibold text-white ring-1 ring-white/40 hover:bg-white/10">
                   Sign in
                 </button>
               </div>
@@ -623,32 +676,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
 
       <main className="mx-auto flex max-w-4xl flex-col px-5 py-8 sm:px-8 sm:py-10 md:block">
         {!closed && <ScamWarning reality={reality} />}
-        {/* CV match and "Your edge": two quiet rows, opened on demand (members). */}
-        <JobEdgeBlock
-          jobId={raw?.id ?? null}
-          company={job.company}
-          member={isMember}
-          showEdge={!closed}
-          onLocked={needPaid}
-          tool={tool}
-          onTool={(t) => setTool((cur) => (cur === t ? null : t))}
-          matchScore={match.result ? { score: match.result.score, label: match.result.label } : null}
-          match={
-            matchJob && !closed ? <MatchPanel match={match} jobId={matchKey} jobTitle={job.title} company={job.company} doc={docFor} onAuth={onAuth} /> : null
-          }
-          input={{
-            publisherId: raw?.publisher_id ?? job.publisherId,
-            company: job.company,
-            dest: raw?.country?.iso_code ?? (countryOk ? job.countryCode : null),
-            home: visitor.citizenship ?? visitor.currentLocation,
-            needsVisa: !localJob,
-            salary: raw?.salary_status === 'disclosed' ? { min: raw.salary_min, max: raw.salary_max, currency: raw.salary_currency, period: raw.salary_period } : { min: null, max: null, currency: null, period: null },
-            visaOffered: visa === 'offered',
-            ageDays: postedDate ? postedAgeDays : null,
-            match: match.result?.score ?? null,
-          }}
-        />
-        {raw && !closed && <SaveJobButton jobId={raw.id} onAuth={onAuth} className="mb-5" />}
+        {raw && !closed && <SaveJobButton jobId={raw.id} onAuth={authHere} className="mb-5" />}
         {closed && (
           <div className="mb-5 flex flex-col gap-3 rounded-xl border border-ink-200 bg-white p-4 sm:flex-row sm:items-center">
             <p className="min-w-0 flex-1 text-sm leading-6 text-ink-700">
@@ -714,7 +742,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
               <p className="mt-0.5 font-title text-lg font-bold leading-snug text-ink-950">{job.title}</p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              {applyButton('flex-1 bg-brand-600 text-white shadow-soft-lg hover:bg-brand-700 focus-visible:outline-brand-600 md:flex-none')}
+              {applyButton('flex-1 bg-[#FFD60A] text-ink-950 shadow-soft-lg hover:bg-[#FFE34D] focus-visible:outline-ink-950 md:flex-none')}
               {matchJob && !closed && <MatchButton match={match} variant="body" onLocked={matchClick} />}
               <span className="relative shrink-0">
                 <button
@@ -738,7 +766,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
 
 
         {/* Other jobs this CV matches best (shows only once a CV is on file). */}
-        <RecommendedJobs currentId={matchKey} onAuth={onAuth} className="mt-6" />
+        <RecommendedJobs currentId={matchKey} onAuth={authHere} className="mt-6" />
 
         {raw && (
           <div className="mt-4 flex flex-col gap-3 rounded-xl border border-ink-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -749,7 +777,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose }: Job
 
         {/* "Email me these jobs": last, under everything. */}
         {raw && (raw.job_function || raw.country?.name) && (
-          <AlertSignup className="mt-4" keywords={raw.job_function ?? ''} country={raw.country?.name ?? null} onAuth={onAuth} />
+          <AlertSignup className="mt-4" keywords={raw.job_function ?? ''} country={raw.country?.name ?? null} onAuth={authHere} />
         )}
       </main>
 

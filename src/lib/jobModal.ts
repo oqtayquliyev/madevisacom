@@ -20,6 +20,17 @@ export function openJobModal(href: string): void {
   window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
 }
 
+/**
+ * Desktop jobs list: picking a job shows it in the right-hand pane, with its own address.
+ * Picking another one swaps the address in place (Back still returns to the list as it was).
+ */
+export function pickJob(href: string): void {
+  const m = readJobModal();
+  if (!m) return openJobModal(href);
+  window.history.replaceState(m, '', href);
+  window.dispatchEvent(new PopStateEvent('popstate', { state: m }));
+}
+
 /** Closes it: Back when the popup was opened from the list in this tab, else straight to the list. */
 export function closeJobModal(): void {
   const m = readJobModal();

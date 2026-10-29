@@ -1,122 +1,65 @@
 import { useEffect, type ReactNode } from 'react';
-import { ChevronDown, Lock, ScanSearch, Sparkles } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import { JobEdgePanel, useJobEdge, type EdgeInput } from '@/components/jobs/JobEdge';
-import { pingJobView } from '@/lib/conversion';
-import type { PaywallReason } from '@/components/pro/Paywall';
 
-// The job page's paid tools, folded into two quiet rows: "CV match" and "Your edge on this job".
-// Members open them in place; everyone else gets the membership card (signed out: sign up first).
-
-type Tool = 'match' | 'edge';
+// "Check your match" for members: one popup with the CV match report and "Your edge on this job"
+// (sponsor proof, move math, reply odds). Non-members never get here — the button opens the
+// membership card (or sign-up first when signed out).
 
 type Props = {
-  input: EdgeInput;
-  jobId: string | null;
+  onClose: () => void;
+  title: string;
   company: string;
-  member: boolean;
-  showEdge: boolean;
-  /** Not a member: what pressing a row does (the membership card, or sign-up when signed out). */
-  onLocked: (reason: PaywallReason) => () => void;
-  tool: Tool | null;
-  onTool: (t: Tool) => void;
-  /** The CV match panel, or null when the job can't be matched. */
+  /** The CV match panel, or null when the ad can't be matched. */
   match: ReactNode;
-  matchScore: { score: number; label: string } | null;
+  input: EdgeInput;
 };
 
-export function JobEdgeBlock({ input, jobId, company, member, showEdge, onLocked, tool, onTool, match, matchScore }: Props) {
+export function JobMatchSheet({ onClose, title, company, match, input }: Props) {
   const edge = useJobEdge(input);
+  const hasEdge = Boolean(edge.sponsor?.length || edge.move || edge.odds || edge.diaspora != null);
+
   useEffect(() => {
-    if (jobId) void pingJobView(jobId);
-  }, [jobId]);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('[aria-labelledby="paywall-title"]') && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
-  const hasEdge = showEdge && Boolean(edge.sponsor?.length || edge.move || edge.odds || edge.diaspora != null);
-  if (!match && !hasEdge) return null;
-
-  return (
-    <div className="mb-5 divide-y divide-ink-100 overflow-hidden rounded-2xl bg-white ring-1 ring-ink-200">
-      {match && (
-        <ToolRow
-          icon={<ScanSearch className="h-4 w-4" />}
-          title="CV match"
-          chips={['Match score', 'Missing skills', 'What to change']}
-          member={member}
-          open={tool === 'match'}
-          onPress={member ? () => onTool('match') : onLocked('match')}
-          right={matchScore ? <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[12px] font-bold text-brand-700">{matchScore.score}%</span> : null}
-          anchor="cv-match-row"
-        >
-          {match}
-        </ToolRow>
-      )}
-      {hasEdge && (
-        <ToolRow
-          icon={<Sparkles className="h-4 w-4" />}
-          title="Your edge on this job"
-          chips={[edge.sponsor?.length ? 'Sponsor proof' : null, edge.move ? 'Move math' : null, edge.odds ? 'Reply odds' : null].filter(Boolean) as string[]}
-          member={member}
-          open={tool === 'edge'}
-          onPress={member ? () => onTool('edge') : onLocked('edge')}
-        >
-          <JobEdgePanel edge={edge} company={company} locked={false} bare />
-        </ToolRow>
-      )}
-    </div>
-  );
-}
-
-function ToolRow({
-  icon,
-  title,
-  chips,
-  member,
-  open,
-  onPress,
-  right,
-  anchor,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  chips: string[];
-  member: boolean;
-  open: boolean;
-  onPress: () => void;
-  right?: ReactNode;
-  anchor?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div id={anchor} className="scroll-mt-24">
-      <button
-        type="button"
-        onClick={onPress}
-        aria-expanded={member ? open : undefined}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-ink-50/70 sm:px-5"
+  return createPortal(
+    <div
+      data-over-job-modal
+      className="job-modal-backdrop fixed inset-0 z-[80] flex items-end justify-center bg-[rgba(238,238,238,0.72)] sm:items-center sm:p-6"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="match-sheet-title"
+        className="job-modal-in job-modal-scroll relative max-h-[94dvh] w-full overflow-y-auto overscroll-contain rounded-t-[20px] bg-[#f8fafc] px-4 pb-6 pt-6 shadow-[0_-8px_40px_rgba(0,0,0,0.12)] sm:max-w-3xl sm:rounded-[20px] sm:px-8 sm:pb-8 sm:pt-7 sm:shadow-[0_0_0_1px_rgba(0,0,0,0.04),0_30px_80px_-20px_rgba(0,0,0,0.18)]"
       >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-700">{icon}</span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-bold text-ink-950">{title}</span>
-          {chips.length > 0 && (
-            <span className="mt-1 hidden flex-wrap gap-1 sm:flex">
-              {chips.map((c) => (
-                <span key={c} className="rounded-full bg-ink-50 px-2 py-0.5 text-[11.5px] font-semibold text-ink-600 ring-1 ring-ink-100">
-                  {c}
-                </span>
-              ))}
-            </span>
-          )}
-        </span>
-        {right}
-        {member ? (
-          <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${open ? 'rotate-180' : ''}`} aria-hidden />
-        ) : (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-ink-950 px-2.5 py-1 text-[11.5px] font-bold text-white">
-            <Lock className="h-3 w-3" aria-hidden /> Members
+        <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full text-ink-400 transition hover:bg-ink-100 hover:text-ink-800 sm:right-4 sm:top-4">
+          <X className="h-5 w-5" strokeWidth={1.75} />
+        </button>
+        <h2 id="match-sheet-title" className="pr-10 text-2xl font-bold tracking-tight text-ink-950">
+          Your match
+        </h2>
+        <p className="mt-2 inline-flex max-w-full items-center rounded-full bg-white px-3 py-1 text-[13px] font-semibold text-ink-700 ring-1 ring-ink-200">
+          <span className="truncate">
+            {title} · {company}
           </span>
+        </p>
+
+        {match && <div className="mt-5">{match}</div>}
+
+        {hasEdge && (
+          <div className="mt-6">
+            <h3 className="mb-2 text-[15px] font-bold text-ink-950">Your edge on this job</h3>
+            <JobEdgePanel edge={edge} company={company} locked={false} bare />
+          </div>
         )}
-      </button>
-      {member && open && <div className="border-t border-ink-100 bg-[#f8fafc] p-3 sm:p-4">{children}</div>}
-    </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
