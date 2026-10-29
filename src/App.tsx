@@ -24,6 +24,7 @@ const NotFoundPage = lazyPage(() => import('@/pages/NotFoundPage').then((m) => (
 const JobsPage = lazyPage(() => import('@/pages/landing/jobs/JobsPage').then((m) => ({ default: m.JobsPage })));
 const JobDetailPage = lazyPage(() => import('@/pages/jobs/JobDetailPage').then((m) => ({ default: m.JobDetailPage })));
 import { JobModal } from '@/components/jobs/JobModal';
+import { NotificationsPage } from '@/pages/notifications/NotificationsPage';
 import { useMediaQuery } from '@/lib/useMediaQuery';
 import { closeJobModal, readJobModal, type JobModalState } from '@/lib/jobModal';
 const CompaniesPage = lazyPage(() => import('@/pages/companies/CompaniesPage').then((m) => ({ default: m.CompaniesPage })));
@@ -296,6 +297,10 @@ export default function App() {
 
   if (path.startsWith('/jobs/')) {
     return <JobDetailPage id={path.slice('/jobs/'.length)} go={go} onAuth={goToAuth} />;
+  }
+
+  if (path === '/notifications') {
+    return <NotificationsPage go={go} onAuth={goToAuth} />;
   }
 
   if (path === '/admin') {

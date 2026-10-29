@@ -121,3 +121,12 @@ describe('popup headline follows the job', () => {
     expect(headlineForJob({ title: 'Something' }, null, last, 5979)).toBe('5,978 more jobs');
   });
 });
+
+import { maskEmailShort } from '@/lib/conversion';
+describe('recruiter email for non-members', () => {
+  it('keeps two letters and the domain', () => {
+    expect(maskEmailShort('asif.k@mail.com')).toBe('as***@mail.com');
+    expect(maskEmailShort('a@x.io')).toBe('a***@x.io');
+    expect(maskEmailShort('nope')).toBeNull();
+  });
+});

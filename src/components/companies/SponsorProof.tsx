@@ -62,12 +62,11 @@ export function SponsorRecordPill({ publisherId }: { publisherId: string | null 
   if (!records?.length) return null;
   const where = records.map((r) => (r.country === 'GB' ? 'UK' : r.country)).join(', ');
   return (
-    <a
-      href="#edge-title"
+    <span
       title={records.map((r) => `${REGISTER_NAME[r.country] ?? r.country}: “${r.name}”`).join('\n')}
-      className="inline-flex items-center gap-1 rounded-full bg-emerald-400/20 px-2.5 py-1 text-[11px] font-bold text-emerald-100 ring-1 ring-emerald-300/40 hover:bg-emerald-400/30"
+      className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[12px] font-bold text-emerald-800 ring-1 ring-emerald-200"
     >
       <ShieldCheck className="h-3.5 w-3.5" /> Visa sponsor on record · {where}
-    </a>
+    </span>
   );
 }

@@ -38,9 +38,25 @@ function write(s: Store) {
     /* ignore */
   }
 }
+const DAY_KEY = 'mv:applySheetAt';
+/** At most once a day, whatever the number of Apply clicks. */
+function shownToday(): boolean {
+  try {
+    return Date.now() - Number(window.localStorage.getItem(DAY_KEY) ?? 0) < 86_400_000;
+  } catch {
+    return false;
+  }
+}
+function markShown() {
+  try {
+    window.localStorage.setItem(DAY_KEY, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
 function mayShow(jobKey: string): boolean {
   const s = read();
-  if (s.jobs.includes(jobKey)) return false;
+  if (s.jobs.includes(jobKey) || shownToday()) return false;
   return !(s.notNow.length >= 3 && Date.now() - s.notNow[s.notNow.length - 1] < QUIET_MS);
 }
 
@@ -71,6 +87,7 @@ export function ApplySheet({ jobKey, company, match, doc, armed, onAuth }: Props
       if (match.result && (!doc || hasDoc)) return;
       const s = read();
       write({ ...s, jobs: [...s.jobs, jobKey] });
+      markShown();
       setOpen(true);
     };
     // Back from the employer's site → show. If they never left, after a moment.

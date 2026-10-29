@@ -79,12 +79,13 @@ export type PaywallTeaser = {
 };
 
 /** Which paid feature the visitor reached for (the card's title says so). */
-export type PaywallReason = 'match' | 'edge' | 'doc';
+export type PaywallReason = 'match' | 'edge' | 'doc' | 'contact';
 
 const REASON_TITLE: Record<PaywallReason, string> = {
   match: 'See how your CV matches this job.',
   edge: 'Your edge on this job.',
   doc: 'Your sponsorship document.',
+  contact: 'Write to the recruiter directly.',
 };
 
 type Props = {

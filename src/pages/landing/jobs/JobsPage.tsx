@@ -14,7 +14,8 @@ import {
   Globe2,
   LayoutGrid,
   GraduationCap,
-  Home,
+  Check,
+  History as HistoryIcon,
   Loader2,
   Plane,
   Search,
@@ -40,7 +41,7 @@ import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { JobSignals } from '@/components/jobs/JobSignals';
 import { useJobFacets } from '@/lib/jobFacets';
 import { fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, searchPublishedJobs, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
-import { rememberSearch } from '@/lib/lastSearch';
+import { readRecent, rememberRecent, rememberSearch } from '@/lib/lastSearch';
 import { isJobViewed, markJobViewed, viewedJobIds } from '@/lib/viewedJobs';
 import { rememberJobPreview } from '@/lib/jobPreview';
 import { useSeo } from '@/lib/seo';
@@ -50,7 +51,6 @@ import { jobPath } from '@/lib/jobUrl';
 import { experienceBucket } from '@/lib/jobText';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import { NewCompanyBadge } from '@/components/common/NewCompanyBadge';
-import { TitleChips } from '@/components/common/TitleChips';
 import { AuthDialog } from '@/components/auth/AuthDialog';
 
 type JobsPageProps = {
@@ -271,14 +271,19 @@ function JobLogo({ job, size = 48 }: { job: Job; size?: number }) {
 }
 
 /** A small on/off switch for a quick filter. */
-function FilterSwitch({ on, onChange, icon: Icon, label }: { on: boolean; onChange: (v: boolean) => void; icon: typeof Plane; label: string }) {
+/** A filter that is on or off, as a pill in the jobs page's filter row. */
+function TogglePill({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
-    <button type="button" role="switch" aria-checked={on} onClick={() => onChange(!on)} className="group flex items-center gap-2 text-xs font-semibold">
-      <span className={`relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors duration-200 ${on ? 'bg-[#1D4ED8]' : 'bg-ink-200 group-hover:bg-ink-300'}`}>
-        <span className={`absolute left-0.5 h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${on ? 'translate-x-3.5' : ''}`} />
-      </span>
-      <Icon className={`h-3.5 w-3.5 ${on ? 'text-[#1D4ED8]' : 'text-ink-400'}`} />
-      <span className={on ? 'text-ink-900' : 'text-ink-600 group-hover:text-ink-900'}>{label}</span>
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => onChange(!on)}
+      className={`flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[14px] font-semibold transition ${
+        on ? 'bg-brand-700 text-white hover:bg-brand-800' : 'bg-white text-ink-800 ring-1 ring-inset ring-ink-300 hover:ring-ink-500'
+      }`}
+    >
+      {on && <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />}
+      {label}
     </button>
   );
 }
@@ -527,6 +532,8 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
   const [studentOnly, setStudentOnly] = useState(initial.get('students') === '1');
   const [visaOnly, setVisaOnly] = useState(initial.get('visa') === '1');
   const [showFilters, setShowFilters] = useState(false);
+  // Recent searches on this device, read once (they don't jump around while typing).
+  const [recent] = useState(readRecent);
   // Back from a job (phones): the same number of jobs, then the same scroll position.
   const [place] = useState(readListPlace);
   const [visibleCount, setVisibleCount] = useState(() => Math.max(PAGE_SIZE, place?.count ?? 0));
@@ -870,6 +877,13 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
     const t = window.setTimeout(() => rememberSearch(q, filteredJobs.length), 600);
     return () => window.clearTimeout(t);
   }, [search, category, filteredJobs.length, loadingFull]);
+  // What they typed (once they stop typing and it found jobs): a "For you" chip next visit.
+  useEffect(() => {
+    const q = search.trim();
+    if (q.length < 2 || loadingFull || !filteredJobs.length) return;
+    const t = window.setTimeout(() => rememberRecent(q, country !== 'All countries' ? country : null), 1800);
+    return () => window.clearTimeout(t);
+  }, [search, country, filteredJobs.length, loadingFull]);
 
   // ---- Hero filters: Date posted · Country · Category ----
   const dateOptions = useMemo<ComboOption[]>(() => {
@@ -982,95 +996,102 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
-      <LandingHeader go={go} onAuth={onAuth} active="jobs" />
-
-      <section className="bg-brand-700 text-white">
-        <div className="mx-auto max-w-5xl px-5 py-9 sm:px-8 sm:py-14">
-          <h1 className="font-slab text-3xl font-bold leading-[1.3] tracking-tight text-white sm:text-4xl sm:leading-[1.3]">
-            Discover <span className="rounded-md bg-white px-2 font-extrabold text-brand-700 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] sm:px-2.5">jobs</span> beyond traditional job boards.
-          </h1>
-          <TitleChips tone="dark" className="mt-4" items={['Straight from company career pages', 'New jobs every day', 'Checked live daily']} />
-
-          <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <PersonalizationBar tone="dark" variant="location" />
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-white/25">
-              <Zap className="h-3.5 w-3.5 fill-amber-300 text-amber-300" />
-              Only jobs from the last 30 days
-            </span>
+      <LandingHeader
+        go={go}
+        onAuth={onAuth}
+        active="jobs"
+        search={
+          <div className="flex h-10 items-center gap-2.5 rounded-md bg-ink-100 px-3 ring-1 ring-inset ring-transparent transition focus-within:bg-white focus-within:ring-brand-500">
+            <Search className="h-4 w-4 shrink-0 text-ink-500" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Job title, skill, company or city"
+              aria-label="Search jobs"
+              className="h-full w-full min-w-0 bg-transparent text-[14px] font-medium text-ink-900 outline-none placeholder:text-ink-500"
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch('')} aria-label="Clear search" className="text-ink-400 hover:text-ink-700">
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
+        }
+      />
 
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <div className="flex h-12 shrink-0 items-center gap-3 rounded-md border border-white bg-white sm:flex-1 px-3.5 shadow-sm">
-              <Search className="h-4.5 w-4.5 shrink-0 text-ink-400" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Job title, skill, company or city"
-                className="h-full w-full bg-transparent text-sm font-medium text-ink-900 outline-none placeholder:text-ink-400"
-              />
-              {search && (
-                <button type="button" onClick={() => setSearch('')} className="text-ink-400 hover:text-ink-700">
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowFilters((v) => !v)}
-              className="flex h-12 items-center justify-center gap-2 rounded-md border border-white/30 bg-white/10 px-5 text-sm font-semibold text-white transition hover:bg-white/20"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              Filters
-              {activeFilterCount > 0 && (
-                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[10px] text-brand-700">{activeFilterCount}</span>
-              )}
-            </button>
-          </div>
-
-          {/* Date posted · Country · Category — desktop; on mobile they're in the Filters panel */}
-          <div className="relative mt-4 hidden grid-cols-3 gap-3 sm:grid">
-            <FilterCombo
-              label="Date posted"
-              icon={CalendarClock}
-              value={datePosted}
-              allValue="Any time"
-              allLabel="Any time"
-              options={dateOptions}
-              onChange={(v) => setDatePosted(asDateOption(v))}
-            />
-            <FilterCombo
-              label="Country"
-              icon={Globe2}
-              value={country}
-              allValue="All countries"
-              allLabel="All countries"
-              options={countryComboOptions}
-              onChange={setCountry}
-              searchable
-              searchPlaceholder="Search countries"
-            />
-            <FilterCombo
-              label="Category"
-              icon={LayoutGrid}
-              value={category}
-              allValue={ALL_CATEGORIES}
-              allLabel={ALL_CATEGORIES}
-              options={categoryComboOptions}
-              onChange={setCategory}
-              searchable
-              searchPlaceholder="Search categories, e.g. nurse, driver, data"
-              groupValue={(g) => `group:${g}`}
-              displayFor={categoryValueLabel}
-              align="right"
-              className="col-span-2 sm:col-span-1"
-            />
+      {/* One slim row of filters (LinkedIn-style); everything else is under "All filters". */}
+      <div className="border-b border-ink-200 bg-white">
+        <div className={`mx-auto flex items-center gap-2 overflow-x-auto px-5 py-2.5 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:px-8 ${split ? 'max-w-[1360px]' : 'max-w-5xl'}`}>
+          <FilterCombo tone="pill" label="Date posted" icon={CalendarClock} value={datePosted} allValue="Any time" allLabel="Any time" options={dateOptions} onChange={(v) => setDatePosted(asDateOption(v))} />
+          <FilterCombo tone="pill" label="Country" icon={Globe2} value={country} allValue="All countries" allLabel="All countries" options={countryComboOptions} onChange={setCountry} searchable searchPlaceholder="Search countries" />
+          <FilterCombo
+            tone="pill"
+            label="Category"
+            icon={LayoutGrid}
+            value={category}
+            allValue={ALL_CATEGORIES}
+            allLabel={ALL_CATEGORIES}
+            options={categoryComboOptions}
+            onChange={setCategory}
+            searchable
+            searchPlaceholder="Search categories, e.g. nurse, driver, data"
+            groupValue={(g) => `group:${g}`}
+            displayFor={categoryValueLabel}
+          />
+          <TogglePill on={visaOnly} onChange={setVisaOnly} label="Visa sponsorship" />
+          <TogglePill on={flexOnly} onChange={setFlexOnly} label="Remote / hybrid" />
+          <TogglePill on={studentOnly} onChange={setStudentOnly} label="Students" />
+          {directJobs.length > 0 && <TogglePill on={directOnly} onChange={setDirectOnly} label="Direct from companies" />}
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className="flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[14px] font-semibold text-ink-700 hover:bg-ink-100"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            All filters
+            {activeFilterCount > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brand-700 px-1 text-[10px] text-white">{activeFilterCount}</span>}
+          </button>
+          <div className="flex shrink-0 items-center gap-1 rounded-full bg-ink-100 p-0.5 sm:ml-auto">
+            {(['newest', 'relevant'] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setSortBy(k)}
+                className={`rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition ${sortBy === k ? 'bg-white text-ink-950 shadow-sm' : 'text-ink-600 hover:text-ink-900'}`}
+              >
+                {k === 'newest' ? 'Newest' : 'Most relevant'}
+              </button>
+            ))}
           </div>
         </div>
-      </section>
+        {recent.length > 0 && (
+          <div className={`mx-auto flex items-center gap-2 overflow-x-auto px-5 pb-2.5 [scrollbar-width:none] sm:px-8 ${split ? 'max-w-[1360px]' : 'max-w-5xl'}`}>
+            <span className="shrink-0 text-[12px] font-bold uppercase tracking-wide text-ink-400">For you</span>
+            {recent.map((r) => (
+              <button
+                key={`${r.q}|${r.country ?? ''}`}
+                type="button"
+                onClick={() => {
+                  setSearch(r.q);
+                  if (r.country) setCountry(r.country);
+                }}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-brand-50 px-3 py-1 text-[13px] font-semibold text-brand-800 ring-1 ring-inset ring-brand-100 hover:bg-brand-100"
+              >
+                <HistoryIcon className="h-3.5 w-3.5" aria-hidden />
+                {r.q}
+                {r.country ? <span className="font-medium text-brand-600">· {r.country}</span> : null}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {showFilters && (
         <section className="border-b border-ink-200 bg-white">
           <div className="mx-auto max-w-5xl px-5 py-5 sm:px-8">
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <PersonalizationBar tone="light" variant="location" />
+            </div>
             {/* Mobile: Date posted · Country · Category live here instead of the blue bar */}
             <div className="mb-4 grid grid-cols-2 gap-2 sm:hidden">
             <FilterCombo
@@ -1190,45 +1211,9 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
         </section>
       )}
 
-      <main className={`mx-auto px-5 py-8 sm:px-8 ${split ? 'max-w-[1360px]' : 'max-w-5xl'}`}>
-        <CvPrompt className="mb-6" />
-        <TopMatchesStrip className="mb-6" />
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold text-ink-900">Jobs in demand</h2>
-          </div>
-
-          <div className="flex flex-col items-stretch gap-2.5 sm:items-end">
-            <div className="flex items-center gap-1 rounded-md border border-ink-200 bg-white p-1">
-              <button
-                type="button"
-                onClick={() => setSortBy('newest')}
-                className={`rounded px-3 py-1.5 text-xs font-semibold transition ${sortBy === 'newest' ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-50'}`}
-              >
-                Newest
-              </button>
-              <button
-                type="button"
-                onClick={() => setSortBy('relevant')}
-                className={`rounded px-3 py-1.5 text-xs font-semibold transition ${sortBy === 'relevant' ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-50'}`}
-              >
-                Most relevant
-              </button>
-            </div>
-            {/* Quick filters — switches under the sort */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:justify-end">
-              <FilterSwitch on={studentOnly} onChange={setStudentOnly} icon={GraduationCap} label="Students & interns" />
-              <FilterSwitch on={visaOnly} onChange={setVisaOnly} icon={Plane} label="Visa sponsorship" />
-              <FilterSwitch on={flexOnly} onChange={setFlexOnly} icon={Home} label="Remote / hybrid" />
-              {directJobs.length > 0 && (
-                <FilterSwitch on={directOnly} onChange={setDirectOnly} icon={BadgeCheck} label="Direct from companies" />
-              )}
-            </div>
-          </div>
-        </div>
-
+      <main className={`mx-auto px-5 py-5 sm:px-8 ${split ? 'max-w-[1360px]' : 'max-w-5xl'}`}>
         {activeFilters.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
             {activeFilters.map((f) => (
               <button
                 key={f.key}
@@ -1282,7 +1267,7 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
             </button>
           </div>
         ) : (
-          <div className={split ? 'mt-6 grid grid-cols-[minmax(0,420px)_minmax(0,1fr)] items-start gap-5' : ''}>
+          <div className={split ? 'mt-3 grid grid-cols-[minmax(0,420px)_minmax(0,1fr)] items-start gap-5' : ''}>
           <div className="min-w-0">
             {!directOnly && activeFilterCount === 0 && !search && directJobs.length > 0 && (
               <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5">
@@ -1306,7 +1291,7 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
                 </div>
               </div>
             )}
-            <div className={`grid grid-cols-1 gap-4 ${split ? 'mt-4' : 'mt-6 lg:grid-cols-2'}`}>
+            <div className={`grid grid-cols-1 gap-4 ${split ? '' : 'mt-4 lg:grid-cols-2'}`}>
               {visibleJobs.map((job, i) => (
                 <Fragment key={job.id}>
                   {i === relatedStart && (
@@ -1352,7 +1337,10 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
           </div>
         )}
 
-        <p className="mt-10 text-[13px] font-semibold text-ink-500">From public company career pages · re-checked daily</p>
+        {/* CV match invite and your best matches: below the jobs, not in the way. */}
+        <TopMatchesStrip className="mt-10" />
+        <CvPrompt className="mt-6" />
+        <p className="mt-10 text-[13px] font-semibold text-ink-500">From public company career pages · re-checked daily · only jobs from the last 30 days</p>
       </main>
 
       <AuthDialog open={Boolean(authOpen)} initial={authOpen || 'register'} onClose={() => setAuthOpen(false)} />

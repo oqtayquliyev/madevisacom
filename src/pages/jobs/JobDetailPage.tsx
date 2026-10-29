@@ -3,10 +3,10 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { isMeaningfulSalary } from '@/lib/listingCategories';
 import { companyPath, recordApplication } from '@/lib/companies';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
-import { isNewCompany, NewCompanyBadge } from '@/components/common/NewCompanyBadge';
+import { NewCompanyBadge } from '@/components/common/NewCompanyBadge';
 import { usePersonalization } from '@/lib/personalization';
 import { isLocalJobFor } from '@/lib/visaFit';
-import { ArrowLeft, ArrowUpRight, Banknote, Lock, Briefcase, Building2, Calendar, Check, ChevronDown, FileText, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Navigation, Phone, Plane, Share2, UserRound, Users, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Banknote, Lock, Briefcase, Building2,  Check, ChevronDown, FileText, Globe, GraduationCap, Landmark, Loader2, Mail, MapPin, Navigation, Phone, Plane, Share2, UserRound, Users, Zap } from 'lucide-react';
 import type { View } from '@/types';
 import type { Job } from '@/data/jobs';
 import { jobs as curatedJobs } from '@/data/jobs';
@@ -14,7 +14,7 @@ import { MatchButton } from '@/components/cv/MatchButton';
 import { JobMatchSheet } from '@/components/jobs/JobEdgeBlock';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { SponsorDocPreviewButton } from '@/components/jobs/SponsorDocPreview';
-import { maskEmail, pingJobView } from '@/lib/conversion';
+import { maskEmailShort, pingJobView } from '@/lib/conversion';
 import { AuthDialog } from '@/components/auth/AuthDialog';
 import { Paywall, type PaywallReason } from '@/components/pro/Paywall';
 import { fetchApplyLink } from '@/lib/applyLink';
@@ -98,6 +98,8 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose, pane 
   useEffect(() => setPaywall(null), [id]);
   // Members: "Check your match" opens the match report and "Your edge" in a popup.
   const [matchOpen, setMatchOpen] = useState(false);
+  // Opened from a notification ("Offer …"): the sponsorship document preview opens by itself.
+  const wantDocPreview = useMemo(() => new URLSearchParams(window.location.search).get('doc') === '1', [id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setMatchOpen(false), [id]);
   // Signed in after pressing a paid feature: members get it, everyone else the membership card.
   useEffect(() => {
@@ -475,7 +477,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose, pane 
     );
 
   return (
-    <div className={`${embedded ? '' : 'min-h-screen'} bg-[#f8fafc] text-ink-900`}>
+    <div className={`${embedded ? '' : 'min-h-screen'} bg-white text-ink-900`}>
       {!embedded && <LandingHeader go={go} onAuth={onAuth} active="jobs" />}
       <AuthDialog
         open={Boolean(gate) && !session}
@@ -516,165 +518,153 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose, pane 
       {/* One of your best matches? A small card in the corner lists the others. Not while the apply sheet is up. */}
       {matchKey && !applied && isMember && <OtherMatchesPopup currentId={matchKey} onAuth={authHere} />}
 
-      <section className={`${closed ? 'bg-ink-500' : 'bg-brand-700'} text-white transition-colors`}>
-        <div className={`mx-auto max-w-4xl px-5 pb-10 sm:px-8 sm:pb-14 ${pane ? 'pt-6 sm:pt-8' : embedded ? 'pt-14 sm:pt-16' : 'pt-6 sm:pt-8'}`}>
+      {/* A quiet, portfolio-style header: logo, the title, the facts in columns, the actions. */}
+      <section className="bg-white text-ink-950">
+        <div className={`mx-auto max-w-[760px] px-5 pb-8 sm:px-8 ${pane ? 'pt-8 sm:pt-10' : embedded ? 'pt-16 sm:pt-20' : 'pt-8 sm:pt-12'}`}>
           <button
             onClick={() => {
-              // Real browser back navigation, not go('jobs') — that pushes
-              // a bare /jobs with no query string, silently dropping
-              // whatever search/filters were active on the list. Back
-              // returns to that exact previous /jobs?... URL instead, and
-              // JobsPage already reads its filters from the URL on mount,
-              // so they come back automatically. Falls back to go('jobs')
-              // only when there's nowhere to go back to (e.g. this page
-              // was opened directly/in a new tab).
+              // Back to the list as it was (filters in the URL); a fresh tab goes to /jobs.
               if (embedded && onClose) return onClose();
               if (window.history.length > 1) window.history.back();
               else go('jobs');
             }}
-            className={`${pane ? 'hidden' : 'flex'} items-center gap-1.5 text-xs font-semibold text-white/70 hover:text-white`}
+            className={`${pane || embedded ? 'hidden' : 'flex'} mb-8 items-center gap-1.5 text-[13px] font-medium text-ink-400 hover:text-ink-800`}
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             All jobs
           </button>
 
-          <div className={`flex items-center gap-3 ${pane ? '' : 'mt-8 sm:mt-10'}`}>
-            <HeaderLogo job={job} SponsorIcon={SponsorIcon} />
-            <div className="min-w-0">
-              {raw?.publisher_id ? (
-                <a
-                  href={companyPath({ id: raw.publisher_id, name: job.company })}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.history.pushState({}, '', companyPath({ id: raw.publisher_id, name: job.company }));
-                    window.dispatchEvent(new PopStateEvent('popstate'));
-                    window.scrollTo({ top: 0 });
-                  }}
-                  className="block truncate text-base font-bold underline decoration-white/30 underline-offset-4 hover:decoration-white sm:text-lg"
-                  title={`See ${job.company}'s hiring activity and response rate`}
-                >
-                  {job.company}
-                </a>
-              ) : (
-                <p className="truncate text-base font-bold sm:text-lg">{job.company}</p>
-              )}
-              {(job.sourceType === 'company_submitted' || isNewCompany(job.companyAddedAt) || raw?.publisher_id) && (
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  {job.sourceType === 'company_submitted' && <DirectListingBadge company={job.company} />}
-                  <NewCompanyBadge addedAt={job.companyAddedAt} variant="hero" />
-                  <SponsorRecordPill publisherId={raw?.publisher_id} />
-                </div>
-              )}
-            </div>
+          <HeaderLogo job={job} SponsorIcon={SponsorIcon} />
+
+          {closed && (
+            <p className="mt-6 inline-flex items-center rounded-full bg-ink-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-ink-600">
+              Closed{closedAgo ? ` ${closedAgo}` : ''}
+            </p>
+          )}
+          <h1 className={`mt-6 break-words text-[30px] font-normal leading-[1.12] tracking-[-0.02em] sm:text-[42px] ${closed ? 'text-ink-400' : 'text-ink-950'}`}>{job.title}</h1>
+          <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[15px] text-ink-500">
+            {raw?.publisher_id ? (
+              <a
+                href={companyPath({ id: raw.publisher_id, name: job.company })}
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.history.pushState({}, '', companyPath({ id: raw.publisher_id, name: job.company }));
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                  window.scrollTo({ top: 0 });
+                }}
+                className="font-medium text-ink-800 underline decoration-ink-200 underline-offset-4 hover:decoration-ink-800"
+                title={`See ${job.company}'s hiring activity and response rate`}
+              >
+                {job.company}
+              </a>
+            ) : (
+              <span className="font-medium text-ink-800">{job.company}</span>
+            )}
+            {job.sourceType === 'company_submitted' && <DirectListingBadge company={job.company} />}
+            <NewCompanyBadge addedAt={job.companyAddedAt} />
+            <SponsorRecordPill publisherId={raw?.publisher_id} />
+            {stillHiring && <span title={stillHiringTitle}>· still hiring</span>}
           </div>
 
-          {/* Title and details full width; actions on their own row below, so a
-              long button row never squeezes the title into one word per line. */}
-          <div className="mt-6 flex flex-col gap-6">
-            <div className="min-w-0 max-w-full">
-              {closed && (
-                <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-wider ring-1 ring-white/30">
-                  Closed{closedAgo ? ` ${closedAgo}` : ''}
-                </p>
-              )}
-              <h1 className={`break-words font-title text-3xl font-bold leading-tight tracking-tight ${pane ? 'sm:text-4xl' : 'sm:text-5xl'} sm:leading-[1.1] ${closed ? 'text-white/70' : ''}`}>{job.title}</h1>
-              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/85">
-                {arrangement && (
-                  <span className="flex items-center gap-1.5 font-semibold text-white">
-                    <MapPin className="h-4 w-4" />
-                    {arrangement === 'remote' ? 'Remote' : arrangement === 'hybrid' ? 'Hybrid' : 'On-site'}
-                  </span>
-                )}
-                <span className="flex items-center gap-1.5">
-                  <CircleFlag countryCode={flagCode} label={placeLabel} size={16} />
-                  {placeLabel}
+          {/* The facts, in columns (only what the ad states). */}
+          <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
+            <Fact label="Location">
+              <span className="flex items-start gap-1.5">
+                <span className="mt-0.5 shrink-0">
+                  <CircleFlag countryCode={flagCode} label={placeLabel} size={15} />
                 </span>
-                {postedLabel && (
-                  <span className="flex items-center gap-1.5">
-                    <Calendar className="h-4 w-4" />
-                    Posted {postedLabel}
-                    {isImported && (
-                      <>
-                        {' '}on <strong className="font-bold text-white">{job.company}</strong>
-                      </>
-                    )}
-                  </span>
-                )}
-                {postedDate && !job.closed && postedAgeDays >= 0 && postedAgeDays < 1 && (
-                  <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-brand-700">
-                    <Zap className="h-3 w-3 fill-current" />
-                    Be an early applicant
-                  </span>
-                )}
-                {stillHiring && (
-                  <span title={stillHiringTitle} className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold text-white ring-1 ring-white/30">
-                    {job.company} is still hiring
-                  </span>
-                )}
-              </div>
-              {!closed && (
-                <JobSignals
-                  variant="hero"
-                  publisherId={raw?.publisher_id ?? job.publisherId}
-                  company={job.company}
-                  countryCode={job.countryCode}
-                  visaOffered={job.visaStatus === 'offered' || job.visaSponsorship}
-                />
-              )}
-              {!closed && <RealityPill reality={reality} />}
-              <ContactBox contact={locked ? { ...contact, email: maskEmail(contact.email) ?? undefined, phone: undefined, website: undefined } : contact} locked={locked} onUnlock={askSignup} />
-            </div>
-
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
-              {applyButton('flex-1 bg-[#FFD60A] text-ink-950 shadow-sm hover:bg-[#FFE34D] focus-visible:outline-white md:flex-none')}
-              {matchJob && !closed && <MatchButton match={match} variant="hero" onLocked={matchClick} />}
-              {docFor && !closed && (
-                <SponsorDocPreviewButton
-                  jobId={docFor.jobId}
-                  title={job.title}
-                  company={job.company}
-                  dest={raw?.country?.iso_code ?? (countryOk ? job.countryCode ?? null : null)}
-                  country={docFor.country}
-                  onUnlock={isMember ? undefined : needPaid('doc')}
-                  onAuth={() => authHere('register')}
-                />
-              )}
-              <span className="relative shrink-0">
-                <button
-                  onClick={share}
-                  aria-label={shareLabel}
-                  className="grid h-[52px] w-[52px] place-items-center rounded-full border border-white/40 text-white transition hover:bg-white/10"
-                >
-                  {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
-                </button>
-                {copied && (
-                  <span role="status" className="absolute left-1/2 top-full mt-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-white px-2 py-0.5 text-[11px] font-semibold text-brand-700 shadow-sm">
-                    Link copied
-                  </span>
-                )}
+                <span>
+                  {placeLabel}
+                  {arrangement && <span className="block text-ink-500">{arrangement === 'remote' ? 'Remote' : arrangement === 'hybrid' ? 'Hybrid' : 'On-site'}</span>}
+                </span>
               </span>
-            </div>
+            </Fact>
+            {postedLabel && (
+              <Fact label="Posted">
+                {postedLabel}
+                {postedDate && !job.closed && postedAgeDays >= 0 && postedAgeDays < 1 && (
+                  <span className="mt-0.5 flex items-center gap-1 text-[13px] font-semibold text-brand-700">
+                    <Zap className="h-3 w-3 fill-current" /> Early applicant
+                  </span>
+                )}
+              </Fact>
+            )}
+            {shownDetails
+              .filter((d) => d.label !== 'Location' && d.label !== 'Remote')
+              .map((d) => (
+                <Fact key={d.label} label={d.label}>
+                  {d.value}
+                </Fact>
+              ))}
+          </dl>
+
+          <div className="mt-8 flex flex-wrap items-center gap-2">
+            {applyButton('flex-1 bg-[#FFD60A] text-ink-950 hover:bg-[#FFE34D] focus-visible:outline-ink-950 sm:flex-none')}
+            {matchJob && !closed && <MatchButton match={match} variant="body" onLocked={matchClick} />}
+            {docFor && !closed && (
+              <SponsorDocPreviewButton
+                light
+                defaultOpen={wantDocPreview}
+                jobId={docFor.jobId}
+                title={job.title}
+                company={job.company}
+                dest={raw?.country?.iso_code ?? (countryOk ? job.countryCode ?? null : null)}
+                country={docFor.country}
+                onUnlock={isMember ? undefined : needPaid('doc')}
+                onAuth={() => authHere('register')}
+              />
+            )}
+            <span className="relative shrink-0">
+              <button
+                onClick={share}
+                aria-label={shareLabel}
+                className="grid h-[52px] w-[52px] place-items-center rounded-full text-ink-700 ring-1 ring-inset ring-ink-200 transition hover:bg-ink-50"
+              >
+                {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
+              </button>
+              {copied && (
+                <span role="status" className="absolute left-1/2 top-full mt-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                  Link copied
+                </span>
+              )}
+            </span>
           </div>
+
+          {!closed && (
+            <div className="mt-6 space-y-1">
+              <JobSignals
+                publisherId={raw?.publisher_id ?? job.publisherId}
+                company={job.company}
+                countryCode={job.countryCode}
+                visaOffered={job.visaStatus === 'offered' || job.visaSponsorship}
+              />
+              <RealityPill reality={reality} />
+            </div>
+          )}
+          <ContactBox
+            contact={isMember ? contact : { ...contact, email: maskEmailShort(contact.email) ?? undefined, phone: undefined, website: undefined }}
+            locked={!isMember}
+            onUnlock={needPaid('contact')}
+          />
 
           {showSignupInvite && (
-            <div className="mt-6 flex flex-col gap-3 rounded-xl bg-white/10 p-4 ring-1 ring-white/25 sm:flex-row sm:items-center">
-              <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-bold text-white">Track your {guestViews} jobs and who replies</p>
-              </div>
+            <div className="mt-6 flex flex-col gap-3 rounded-xl bg-ink-50 p-4 sm:flex-row sm:items-center">
+              <p className="min-w-0 flex-1 text-[15px] font-semibold text-ink-900">Track your {guestViews} jobs and who replies</p>
               <div className="flex shrink-0 gap-2">
-                <button onClick={() => authHere('register')} className="rounded-full bg-white px-4 py-2 text-xs font-bold text-brand-700 hover:bg-brand-50">
+                <button onClick={() => authHere('register')} className="rounded-full bg-ink-950 px-4 py-2 text-xs font-bold text-white hover:bg-ink-800">
                   Create free account
                 </button>
-                <button onClick={() => authHere('login')} className="rounded-full px-3 py-2 text-xs font-semibold text-white ring-1 ring-white/40 hover:bg-white/10">
+                <button onClick={() => authHere('login')} className="rounded-full px-3 py-2 text-xs font-semibold text-ink-700 ring-1 ring-ink-200 hover:bg-white">
                   Sign in
                 </button>
               </div>
             </div>
           )}
+          <hr className="mt-8 border-ink-100" />
         </div>
       </section>
 
-      <main className="mx-auto flex max-w-4xl flex-col px-5 py-8 sm:px-8 sm:py-10 md:block">
+      <main className="mx-auto flex max-w-[760px] flex-col px-5 pb-10 pt-2 sm:px-8 md:block">
         {!closed && <ScamWarning reality={reality} />}
         {raw && !closed && <SaveJobButton jobId={raw.id} onAuth={authHere} className="mb-5" />}
         {closed && (
@@ -691,7 +681,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose, pane 
             </a>
           </div>
         )}
-        <div className={`border border-ink-200 bg-white p-6 sm:p-8 ${closed ? 'text-ink-500 opacity-70 grayscale' : ''}`}>
+        <div className={`bg-white ${closed ? 'text-ink-500 opacity-70 grayscale' : ''}`}>
           {(category || job.visaSponsorship || (job.additionalLocations?.length ?? 0) > 1) && (
             <div className="mb-5 flex flex-wrap items-center gap-2">
               {category && <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">{category}</span>}
@@ -700,13 +690,6 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose, pane 
             </div>
           )}
 
-          {shownDetails.length > 0 && (
-            <div className="grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2 sm:grid-cols-3">
-              {shownDetails.map((d) => (
-                <InfoRow key={d.label} icon={d.icon} label={d.label} value={d.value} />
-              ))}
-            </div>
-          )}
 
           {raw && !localJob && (
             <SalaryCheck
@@ -789,7 +772,7 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose, pane 
 function HeaderLogo({ job, SponsorIcon }: { job: Job; SponsorIcon: typeof Building2 }) {
   const [failed, setFailed] = useState(false);
   return (
-    <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white p-2 shadow-sm sm:h-16 sm:w-16">
+    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white p-2 ring-1 ring-ink-100 sm:h-[72px] sm:w-[72px]">
       {job.imageUrl && !failed ? (
         <img src={job.imageUrl} alt={`${job.company} logo`} onError={() => setFailed(true)} className="h-full w-full object-contain" />
       ) : job.publisherOrgType && job.publisherOrgType !== 'company' ? (
@@ -905,40 +888,46 @@ function ContactBox({ contact, locked = false, onUnlock }: { contact: JobContact
     contact.website && { icon: Globe, text: contact.website.replace(/^https?:\/\//, '').replace(/\/$/, ''), href: contact.website },
   ].filter(Boolean) as { icon: typeof Mail; text: string; href: string }[];
   if (!rows.length) return null;
-  // Non-members: the email masked (u••••@f•••.no), nothing to click but the unlock.
+  // Not a member: the email shown as as***@mail.com; pressing it opens the membership card.
   if (locked) {
     return (
-      <button
-        type="button"
-        onClick={onUnlock}
-        className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-white/10 px-4 py-3 text-left text-sm ring-1 ring-inset ring-white/20 hover:bg-white/15"
-      >
-        <span className="text-xs font-semibold text-white/70">{contact.name ? `Contact: ${contact.name}` : 'Recruiter contact'}</span>
-        <span className="flex items-center gap-1.5 font-mono font-semibold text-white">
-          <Mail className="h-4 w-4 shrink-0 text-white/80" />
+      <button type="button" onClick={onUnlock} className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-ink-50 px-4 py-3 text-left text-sm hover:bg-ink-100">
+        <span className="text-[13px] text-ink-500">{contact.name ? `Recruiter: ${contact.name}` : 'Recruiter email'}</span>
+        <span className="flex items-center gap-1.5 font-semibold text-ink-900">
+          <Mail className="h-4 w-4 shrink-0 text-ink-400" />
           {rows[0].text}
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-brand-700">
-          <Lock className="h-3 w-3" /> Unlock
+        <span className="inline-flex items-center gap-1 rounded-full bg-ink-950 px-2 py-0.5 text-[11px] font-bold text-white">
+          <Lock className="h-3 w-3" /> Members
         </span>
       </button>
     );
   }
   return (
-    <div className="mt-5 flex flex-col gap-2 rounded-xl bg-white/10 px-4 py-3 text-sm ring-1 ring-inset ring-white/20 sm:inline-flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
-      <span className="text-xs font-semibold text-white/70">{contact.name ? `Contact: ${contact.name}` : 'Contact'}</span>
+    <div className="mt-4 flex flex-col gap-2 rounded-xl bg-ink-50 px-4 py-3 text-sm sm:inline-flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
+      <span className="text-[13px] text-ink-500">{contact.name ? `Recruiter: ${contact.name}` : 'Contact'}</span>
       {rows.map(({ icon: Icon, text, href }) => (
         <a
           key={href}
           href={href}
           target={href.startsWith('http') ? '_blank' : undefined}
           rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
-          className="flex min-w-0 items-center gap-1.5 font-semibold text-white underline decoration-white/40 underline-offset-2 hover:decoration-white"
+          className="flex min-w-0 items-center gap-1.5 font-semibold text-ink-900 underline decoration-ink-300 underline-offset-2 hover:decoration-ink-900"
         >
-          <Icon className="h-4 w-4 shrink-0 text-white/80" />
+          <Icon className="h-4 w-4 shrink-0 text-ink-400" />
           <span className="break-all">{text}</span>
         </a>
       ))}
+    </div>
+  );
+}
+
+/** One fact in the header's columns: a grey label over the value. */
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[14px] text-ink-400">{label}</dt>
+      <dd className="mt-1.5 break-words text-[15px] leading-snug text-ink-900">{children}</dd>
     </div>
   );
 }
@@ -966,18 +955,6 @@ function pickPostedDate(stored: string | null | undefined, printed: string | nul
   if (!printed) return stored;
   const diffDays = Math.abs(new Date(stored).getTime() - new Date(printed).getTime()) / 86_400_000;
   return diffDays > 2 ? printed : stored;
-}
-
-function InfoRow({ icon: Icon, label, value }: { icon: typeof Briefcase; label: string; value: ReactNode }) {
-  return (
-    <div className="flex items-start gap-2.5 rounded-lg bg-ink-50 p-3">
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
-      <div className="min-w-0">
-        <p className="text-[11px] text-ink-400">{label}</p>
-        <div className="break-words text-sm font-semibold text-ink-800">{value}</div>
-      </div>
-    </div>
-  );
 }
 
 /** "City, Country", "Remote · Country" or just the country — only from real job data. */
@@ -1096,23 +1073,22 @@ function buildJobPostingJsonLd(job: Job, raw: SponsoredJob, path: string): Recor
 function JobPreviewShell({ job, go, onAuth, embedded = false }: { job: Job; go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void; embedded?: boolean }) {
   const place = [job.city, job.country].filter((v, i, a) => v && a.indexOf(v) === i).join(', ');
   return (
-    <div className={`${embedded ? '' : 'min-h-screen'} bg-[#f8fafc] text-ink-900`} aria-busy="true">
+    <div className={`${embedded ? '' : 'min-h-screen'} bg-white text-ink-900`} aria-busy="true">
       {!embedded && <LandingHeader go={go} onAuth={onAuth} active="jobs" />}
-      <section className="bg-brand-700 text-white">
-        <div className={`mx-auto max-w-4xl px-5 pb-10 sm:px-8 sm:pb-14 ${embedded ? 'pt-14 sm:pt-16' : 'pt-6 sm:pt-8'}`}>
-          <p className="flex items-center gap-1.5 text-xs font-semibold text-white/70">
-            <ArrowLeft className="h-3.5 w-3.5" /> All jobs
-          </p>
-          <p className="mt-8 truncate text-base font-bold sm:mt-10 sm:text-lg">{job.company}</p>
-          <h1 className="mt-6 break-words font-title text-3xl font-bold leading-tight tracking-tight sm:text-5xl sm:leading-[1.1]">{job.title}</h1>
+      <section className="bg-white">
+        <div className={`mx-auto max-w-[760px] px-5 pb-8 sm:px-8 ${embedded ? 'pt-16 sm:pt-20' : 'pt-8 sm:pt-12'}`}>
+          <div className="h-16 w-16 rounded-2xl skeleton-shimmer sm:h-[72px] sm:w-[72px]" />
+          <h1 className="mt-6 break-words text-[30px] font-normal leading-[1.12] tracking-[-0.02em] text-ink-950 sm:text-[42px]">{job.title}</h1>
+          <p className="mt-3 text-[15px] font-medium text-ink-800">{job.company}</p>
           {place && (
-            <p className="mt-4 flex items-center gap-1.5 text-sm text-white/85">
-              <CircleFlag countryCode={job.countryCode} label={job.country} size={16} /> {place}
+            <p className="mt-8 flex items-center gap-1.5 text-[15px] text-ink-900">
+              <CircleFlag countryCode={job.countryCode} label={job.country} size={15} /> {place}
             </p>
           )}
+          <hr className="mt-8 border-ink-100" />
         </div>
       </section>
-      <main className="mx-auto max-w-4xl space-y-3 px-5 py-8 sm:px-8 sm:py-10">
+      <main className="mx-auto max-w-[760px] space-y-3 px-5 pb-10 pt-2 sm:px-8">
         {[92, 100, 84, 97, 70, 88, 60].map((w, i) => (
           <div key={i} className="h-3.5 rounded skeleton-shimmer" style={{ width: `${w}%` }} />
         ))}

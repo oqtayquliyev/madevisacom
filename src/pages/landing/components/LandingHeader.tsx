@@ -1,5 +1,5 @@
 import { NotificationBell } from '@/components/notifications/NotificationBell';
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { SoonChip, SOON_VIEWS } from "@/components/common/SoonChip";
 import {
   BarChart3,
@@ -22,6 +22,7 @@ import { useCv } from "@/lib/cv/store";
 import { CvRequiredDialog } from "@/components/cv/CvGate";
 import { fetchMyManagedPublishers } from "@/lib/companyManager";
 import { handleNavClick } from "@/lib/navLink";
+import { rememberAuthIntent } from "@/lib/authIntent";
 import type { View } from "@/types";
 import { BrandMark } from "@/components/layout/Logo";
 import {
@@ -33,6 +34,8 @@ type LandingHeaderProps = {
   go: (view: View) => void;
   onAuth?: (page: "login" | "register") => void;
   active?: View;
+  /** The jobs page: its search box sits in the menu bar (LinkedIn-style), the menu turns compact. */
+  search?: ReactNode;
 };
 
 // Main menu: Jobs · CV match · GhostGood · Company Insights · Recruiters.
@@ -55,7 +58,7 @@ const menuItemClass =
 const menuIconClass =
   "h-[18px] w-[18px] text-ink-400 transition-colors group-hover:text-[#2563EB]";
 
-export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
+export function LandingHeader({ go, onAuth, active, search }: LandingHeaderProps) {
   const { profile, signOut } = useAuth();
   const { hasCv } = useCv();
   const [openMenu, setOpenMenu] = useState(false);
@@ -99,7 +102,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
   }, [openMenu, openProfile]);
 
   const linkClass = (view: View) =>
-    `flex items-center gap-2 whitespace-nowrap rounded-md px-3.5 py-2.5 md:px-2.5 lg:px-3.5 text-left text-[15px] font-medium transition-colors ${
+    `flex items-center gap-2 whitespace-nowrap rounded-md px-3.5 py-2.5 text-left text-[15px] font-medium transition-colors ${search ? 'md:flex-col md:gap-0.5 md:px-2.5 md:py-1.5 md:text-[12px] [&>svg]:md:h-5 [&>svg]:md:w-5' : 'md:px-2.5 lg:px-3.5'} ${
       active === view
         ? "bg-brand-50 text-[#2563EB]"
         : "text-ink-600 hover:text-[#2563EB]"
@@ -129,7 +132,10 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
     <>
       <header className="sticky top-0 z-40 border-b border-ink-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-3 px-5 sm:px-8">
-          <BrandMark onClick={() => go("home")} />
+          <div className="flex min-w-0 items-center gap-4 md:flex-1">
+            <BrandMark onClick={() => go("home")} />
+            {search && <div className="hidden min-w-0 max-w-md flex-1 md:block">{search}</div>}
+          </div>
 
           <nav
             className={`${
@@ -154,7 +160,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                   className={`${linkClass(link.view)} ${SOON_VIEWS.has(link.view) && active !== link.view ? "!text-ink-400 hover:!text-ink-600" : ""}`}
                 >
                   <Icon className="h-4 w-4" />
-                  {link.label}
+                  <span className={search ? "md:max-xl:sr-only" : ""}>{link.label}</span>
                   {SOON_VIEWS.has(link.view) && <SoonChip />}
                 </a>
               );
@@ -173,8 +179,8 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
               className={linkClass("cv-match" as View)}
             >
               <ScanSearch className="h-4 w-4" />
-              CV match
-              <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold text-white">{hasCv ? "On" : "New"}</span>
+              <span className={search ? "md:max-xl:sr-only" : ""}>CV match</span>
+              <span className={`rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold text-white ${search ? "md:hidden" : ""}`}>{hasCv ? "On" : "New"}</span>
             </a>
 
             {primaryLinks.slice(1).map((link) => {
@@ -192,7 +198,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                   className={`${linkClass(link.view)} ${SOON_VIEWS.has(link.view) && active !== link.view ? "!text-ink-400 hover:!text-ink-600" : ""}`}
                 >
                   <Icon className="h-4 w-4" />
-                  {link.label}
+                  <span className={search ? "md:max-xl:sr-only" : ""}>{link.label}</span>
                   {SOON_VIEWS.has(link.view) && <SoonChip />}
                 </a>
               );
@@ -237,7 +243,22 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
                 Post a Job
               </a>
             )}
-            {!profile && (
+            {!profile && search && (
+              <a
+                href="/login"
+                onClick={(event) =>
+                  handleNavClick(event, () => {
+                    // Back to this list (with its search) after signing in.
+                    rememberAuthIntent({ next: window.location.pathname + window.location.search });
+                    onAuth?.("login");
+                  })
+                }
+                className="block whitespace-nowrap rounded-md bg-[#2563EB] px-3.5 py-2 text-[14px] font-semibold text-white transition-colors hover:bg-brand-700 sm:px-5 sm:py-2.5 sm:text-[15px]"
+              >
+                Sign in
+              </a>
+            )}
+            {!profile && !search && (
               // Job-seekers: the main action — the jobs list (every job is open; an account comes
               // when they press Apply or another button there).
               <a
@@ -473,6 +494,7 @@ export function LandingHeader({ go, onAuth, active }: LandingHeaderProps) {
             </button>
           </div>
         </div>
+        {search && <div className="px-4 pb-2.5 md:hidden">{search}</div>}
       </header>
       {/* Outside the header: its backdrop blur would trap a fixed-position child. */}
       <CvRequiredDialog />

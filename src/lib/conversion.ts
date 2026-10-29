@@ -134,3 +134,10 @@ export function maskEmail(email: string | null | undefined): string | null {
   if (!m) return null;
   return `${m[1]}••••••@${m[2]}•••••${m[3]}`;
 }
+
+/** "asif.k@mail.com" → "as***@mail.com": who to write to, without the address (members see it). */
+export function maskEmailShort(email: string | null | undefined): string | null {
+  const m = (email ?? '').trim().match(/^([^@\s]{1,2})[^@\s]*@([^@\s]+\.[a-z]{2,})$/i);
+  if (!m) return null;
+  return `${m[1]}***@${m[2]}`;
+}

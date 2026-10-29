@@ -8,15 +8,16 @@ import { useAuth } from '@/lib/auth';
 
 export type AppNotification = { id: number; kind: string; title: string; body: string | null; link: string | null; read_at: string | null; created_at: string; audience: 'user' | 'admin' };
 
-export function useNotifications() {
+/** `limit`: the bell shows the latest 30; the notifications page everything kept (30 days). */
+export function useNotifications(limit = 30) {
   const { user } = useAuth();
   const [items, setItems] = useState<AppNotification[]>([]);
 
   const load = useCallback(async () => {
     if (!user) return setItems([]);
-    const { data, error } = await supabase.from('notifications').select('id, kind, title, body, link, read_at, created_at, audience').order('created_at', { ascending: false }).limit(30);
+    const { data, error } = await supabase.from('notifications').select('id, kind, title, body, link, read_at, created_at, audience').order('created_at', { ascending: false }).limit(limit);
     if (!error) setItems((data ?? []) as AppNotification[]);
-  }, [user]);
+  }, [user, limit]);
 
   useEffect(() => {
     void load();

@@ -10,13 +10,13 @@ export function RealityPill({ reality }: { reality: Reality }) {
   if (reality.level === 'closed') return null;
   const tone =
     reality.level === 'verified'
-      ? 'bg-emerald-400/20 text-emerald-50 ring-emerald-300/40'
+      ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
       : reality.level === 'real'
-        ? 'bg-white/15 text-white ring-white/30'
-        : 'bg-amber-300 text-ink-950 ring-amber-200';
+        ? 'bg-ink-50 text-ink-700 ring-ink-200'
+        : 'bg-amber-100 text-amber-900 ring-amber-300';
   const Icon = reality.level === 'verified' ? BadgeCheck : reality.level === 'real' ? ShieldCheck : ShieldAlert;
   return (
-    <div className="mt-4">
+    <div className="mt-3">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

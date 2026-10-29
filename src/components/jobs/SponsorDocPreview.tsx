@@ -24,16 +24,20 @@ type Props = {
   /** Non-members: opens the membership popup. */
   onUnlock?: () => void;
   onAuth?: (p: 'login' | 'register') => void;
+  /** On a white header. */
+  light?: boolean;
+  /** Open right away (from a notification link). */
+  defaultOpen?: boolean;
 };
 
 export function SponsorDocPreviewButton(props: Props) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(props.defaultOpen));
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-[52px] shrink-0 items-center gap-2 rounded-full border border-white/40 px-5 text-sm font-bold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        className={`inline-flex h-[52px] shrink-0 items-center gap-2 rounded-full px-5 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${props.light ? 'text-ink-900 ring-1 ring-inset ring-ink-200 hover:bg-ink-50 focus-visible:outline-ink-950' : 'border border-white/40 text-white hover:bg-white/10 focus-visible:outline-white'}`}
       >
         <FileText className="h-4 w-4" aria-hidden />
         <span className="sm:hidden">Sponsor doc</span>

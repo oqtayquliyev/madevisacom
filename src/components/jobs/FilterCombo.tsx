@@ -31,8 +31,8 @@ type Props = {
   /** Which edge the list lines up with on larger screens. */
   align?: 'left' | 'right';
   className?: string;
-  /** 'dark' = on the blue hero (default); 'light' = inside the white Filters panel. */
-  tone?: 'dark' | 'light';
+  /** 'dark' = on a blue bar (default); 'light' = inside the white Filters panel; 'pill' = the jobs page's slim filter row. */
+  tone?: 'dark' | 'light' | 'pill';
 };
 
 /**
@@ -102,9 +102,26 @@ export function FilterCombo({ label, icon: Icon, value, allValue, allLabel, opti
     );
   };
 
+  const pillButton = (
+    <button
+      type="button"
+      onClick={() => setOpen((v) => !v)}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      aria-label={`${label}: ${shown}`}
+      className={`flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[14px] font-semibold transition ${
+        active ? 'bg-brand-700 text-white hover:bg-brand-800' : 'bg-white text-ink-800 ring-1 ring-inset ring-ink-300 hover:ring-ink-500'
+      }`}
+    >
+      {active && current?.flag ? <CircleFlag countryCode={current.flag} label={current.label} size={15} /> : null}
+      <span className="max-w-[11rem] truncate">{active ? shown : label}</span>
+      <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition ${open ? 'rotate-180' : ''}`} />
+    </button>
+  );
+
   return (
-    <div className={`relative min-w-0 ${className}`}>
-      <button
+    <div className={`relative min-w-0 ${tone === 'pill' ? 'shrink-0' : ''} ${className}`}>
+      {tone === 'pill' ? pillButton : <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
@@ -125,7 +142,7 @@ export function FilterCombo({ label, icon: Icon, value, allValue, allLabel, opti
           <span className="block truncate text-[13px] font-semibold leading-5">{shown}</span>
         </span>
         <ChevronDown className={`h-4 w-4 shrink-0 transition ${open ? 'rotate-180' : ''}`} />
-      </button>
+      </button>}
 
       {open && (
         <>

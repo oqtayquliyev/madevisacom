@@ -59,3 +59,38 @@ export function headlineForJob(
   if (field && field.n > 1) return `${fmt(field.n - 1)} more ${field.label.toLowerCase().replace(/\bjobs?$/, '').trim()} jobs`;
   return moreJobsHeadline(null, liveJobs);
 }
+
+// ---------------------------------------------------------------------------
+// Recent searches on /jobs (this device only): offered as one-tap chips above the list.
+
+const RECENT_KEY = 'mv:recentSearches';
+export type RecentSearch = { q: string; country: string | null; at: number };
+
+export function rememberRecent(q: string, country: string | null): void {
+  const clean = q.replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (clean.length < 2) return;
+  try {
+    const list = readRecent().filter((r) => !(r.q.toLowerCase() === clean.toLowerCase() && r.country === country));
+    list.unshift({ q: clean, country, at: Date.now() });
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 6)));
+  } catch {
+    /* private mode */
+  }
+}
+
+export function readRecent(): RecentSearch[] {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(RECENT_KEY) ?? '[]') as RecentSearch[];
+    return Array.isArray(v) ? v.filter((r) => r && typeof r.q === 'string' && Date.now() - (r.at ?? 0) < MAX_AGE_MS).slice(0, 6) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function forgetRecent(): void {
+  try {
+    window.localStorage.removeItem(RECENT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
