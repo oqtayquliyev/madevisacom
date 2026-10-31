@@ -130,15 +130,3 @@ describe('recruiter email for non-members', () => {
     expect(maskEmailShort('nope')).toBeNull();
   });
 });
-
-import { coveredPeriods } from '@/components/pro/Paywall';
-describe('the 3 months on the membership card', () => {
-  it('runs from the day of payment', () => {
-    const { ends, label } = coveredPeriods(new Date(2026, 9, 29));
-    expect(ends.map(label)).toEqual(['29 Nov', '29 Dec', '29 Jan']);
-    expect(ends[2].getFullYear()).toBe(2027);
-  });
-  it('keeps to the last day of short months', () => {
-    expect(coveredPeriods(new Date(2026, 10, 30)).ends.map((d) => d.getDate())).toEqual([30, 30, 28]);
-  });
-});

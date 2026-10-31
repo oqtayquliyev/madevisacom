@@ -37,7 +37,7 @@ const resolvePlace = createPlaceResolver(allCountries);
 import { sanitizeJobHtml } from './sanitize.ts';
 
 /** Bump when the detector changes, so stored results are recomputed. */
-const FACTS_VERSION = 3;
+const FACTS_VERSION = 4; // 4: "50 € per hour", freelancers, more career-site buttons removed
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',

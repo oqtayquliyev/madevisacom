@@ -26,7 +26,7 @@ const columns: { title: string; links: { label: string; view?: View; href?: stri
       { label: 'Insights', view: 'companies' },
       { label: 'GhostGood · Hiring feedback', view: 'feedback' },
       { label: 'Visas by Country', view: 'destinations' },
-      { label: 'Recruiters', view: 'network' },
+      { label: 'HR Contacts', view: 'network' },
       { label: 'Pricing', href: '/pricing' },
       { label: 'Pricing for employers', href: '/pricing/employers' },
       { label: 'Sponsorship document', href: '/offers' },

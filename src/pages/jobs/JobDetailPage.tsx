@@ -897,7 +897,7 @@ function ContactBox({ contact, locked = false, onUnlock }: { contact: JobContact
   if (locked) {
     return (
       <button type="button" onClick={onUnlock} className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-ink-50 px-4 py-3 text-left text-sm hover:bg-ink-100">
-        <span className="text-[13px] text-ink-500">{contact.name ? `Recruiter: ${contact.name}` : 'Recruiter email'}</span>
+        <span className="text-[13px] text-ink-500">{contact.name ? `Direct contact to HR · ${contact.name}` : 'Direct contact to HR / recruiter'}</span>
         <span className="flex items-center gap-1.5 font-semibold text-ink-900">
           <Mail className="h-4 w-4 shrink-0 text-ink-400" />
           {rows[0].text}
@@ -910,7 +910,7 @@ function ContactBox({ contact, locked = false, onUnlock }: { contact: JobContact
   }
   return (
     <div className="mt-4 flex flex-col gap-2 rounded-xl bg-ink-50 px-4 py-3 text-sm sm:inline-flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
-      <span className="text-[13px] text-ink-500">{contact.name ? `Recruiter: ${contact.name}` : 'Contact'}</span>
+      <span className="text-[13px] text-ink-500">{contact.name ? `Direct contact to HR · ${contact.name}` : 'Direct contact to HR / recruiter'}</span>
       {rows.map(({ icon: Icon, text, href }) => (
         <a
           key={href}

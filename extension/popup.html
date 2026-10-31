@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>MadeVisa</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" data-link="/" title="Open MadeVisa">
+        <span class="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" /></svg>
+        </span>
+        <span class="word">made<b>visa</b></span>
+      </a>
+      <a class="signup" data-link="/register">Sign up free</a>
+    </header>
+
+    <form class="search" id="search" role="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+      <input id="q" type="search" placeholder="Search jobs abroad" aria-label="Search jobs" autocomplete="off" />
+    </form>
+
+    <nav class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="jobs">New jobs</button>
+      <button role="tab" aria-selected="false" data-tab="alerts">My alert</button>
+      <button role="tab" aria-selected="false" data-tab="tools">Tools</button>
+    </nav>
+
+    <main>
+      <!-- New jobs -->
+      <section id="tab-jobs">
+        <div class="bar">
+          <span id="for">Newest jobs</span>
+          <button id="refresh" class="link">Check now</button>
+        </div>
+        <ul id="list" class="list" aria-live="polite"></ul>
+        <a class="more" id="more" data-link="/jobs">See all jobs on MadeVisa →</a>
+      </section>
+
+      <!-- Alert settings -->
+      <section id="tab-alerts" hidden>
+        <form id="alert" class="form">
+          <label>Job titles or skills
+            <input name="keywords" placeholder="e.g. nurse, data analyst" />
+          </label>
+          <label>Country
+            <input name="country" list="countries" placeholder="Any country" />
+            <datalist id="countries"></datalist>
+          </label>
+          <label class="switch"><input type="checkbox" name="visaOnly" /> <span>Visa sponsorship only</span></label>
+          <label class="switch"><input type="checkbox" name="notify" /> <span>Notify me about new jobs</span></label>
+          <label>Check every
+            <select name="everyMinutes">
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="60">hour</option>
+              <option value="180">3 hours</option>
+            </select>
+          </label>
+          <button class="primary" type="submit">Save alert</button>
+          <p class="saved" id="saved" hidden>Saved — you'll get new jobs here.</p>
+        </form>
+      </section>
+
+      <!-- Tools -->
+      <section id="tab-tools" hidden>
+        <div class="tools">
+          <a class="tool" data-link="/cv-match"><b>CV match</b><span>Your score on every job</span></a>
+          <a class="tool" data-link="/offers"><b>Sponsorship document</b><span>Proposal for visa jobs</span><i>Members</i></a>
+          <a class="tool" data-link="/companies"><b>Company insights</b><span>Who replies, who sponsors</span></a>
+          <a class="tool" data-link="/destinations"><b>Visas by country</b><span>Routes and rules</span></a>
+        </div>
+        <div class="offer">
+          <p class="kicker">Membership</p>
+          <p class="price"><s style="font-size:16px;color:#94a3b8;font-weight:600">$250</s> $12.50 <small>once</small></p>
+          <p class="sub">Pay once, use it forever · apply to every job · unlimited sponsorship documents</p>
+          <a class="primary block" data-link="/pricing">See the membership</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" /></svg>
+      Unique jobs from company career pages — not on LinkedIn or Indeed.
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

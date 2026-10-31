@@ -32,13 +32,25 @@ export type PaidPlanId = Exclude<PlanId, 'free'>;
 export const PAID_PLANS: readonly PaidPlanId[] = ['starter', 'pro'];
 /** The one plan on sale. */
 export const MEMBERSHIP_PLAN: PaidPlanId = 'starter';
-/** THE Gumroad link for the membership. Every "Subscribe" button ends here (the email, and for accounts a checkout id, are added to it). */
-export const MEMBERSHIP_URL = 'https://madevisa.gumroad.com/l/membership?wanted=true';
+/**
+ * THE Gumroad link for the membership. Every "Get it" button ends here (the email, and for
+ * accounts a checkout id, are added to it). Since November 2026 the membership is a ONE-TIME
+ * Gumroad product ("lifetime access"); the earlier 3-month membership product keeps working for
+ * the people who bought it (gumroad_settings.previous_product_ids).
+ */
+export const MEMBERSHIP_URL = 'https://madevisa.gumroad.com/l/lifetime?wanted=true';
 
-/** Gumroad billing periods. The membership is sold every 3 months ("quarterly"); the retired Pro was monthly. */
-export type Recurrence = 'monthly' | 'quarterly';
-/** How many months one payment of a plan covers. */
-export const RECURRENCE_MONTHS: Record<Recurrence, number> = { monthly: 1, quarterly: 3 };
+/** Gumroad billing periods. 'once' = a one-time payment for lifetime access (the membership now). */
+export type Recurrence = 'monthly' | 'quarterly' | 'once';
+/** How many months one payment of a plan covers ('once': for good). */
+export const RECURRENCE_MONTHS: Record<Recurrence, number> = { monthly: 1, quarterly: 3, once: 1200 };
+
+/**
+ * The launch offer: the first 200 customers pay 5% of the regular price.
+ * The regular price is what the membership costs once those 200 places are taken (change the
+ * Gumroad product's price and priceCents below to it then).
+ */
+export const LAUNCH_OFFER = { regularCents: 25000, places: 200, percentOff: 95 } as const;
 
 /** Higher includes everything below it. */
 export const PLAN_RANK: Record<PlanId, number> = { free: 0, starter: 1, pro: 2 };
@@ -100,7 +112,7 @@ export type PlanInfo = {
   /** Price in minor units (cents). */
   priceCents: number;
   currency: 'USD';
-  interval: 'month' | 'quarter' | null;
+  interval: 'month' | 'quarter' | 'once' | null;
   /** The Gumroad billing period the product must sell (paid plans). */
   recurrence?: Recurrence;
   /** One line under the name. */
@@ -110,11 +122,11 @@ export type PlanInfo = {
 };
 
 /**
- * What one membership (3 months) gives you, counted. Titles are what the site shows; the
+ * What the membership gives you (one payment, for good), counted. Titles are what the site shows; the
  * text is for the Gumroad page and tooltips. Only what exists today.
  */
 const MEMBERSHIP_BENEFITS: Benefit[] = [
-  { title: 'Apply to every job for 3 months', text: 'Unlimited applications to every job on MadeVisa, straight from company career pages — including roles you won’t see on LinkedIn or Indeed.' },
+  { title: 'Apply to every job', text: 'Unlimited applications to every job on MadeVisa, straight from company career pages — including roles you won’t see on LinkedIn or Indeed.' },
   { title: 'Unlimited sponsorship documents', text: 'The proposal you send an employer when a job needs a visa — the route that may apply, what it asks of them, and the costs you offer to share. Fair use: up to 30 in any 7 days.' },
   { title: 'CV tailoring suggestions on every job', text: 'Your match score, the skills the ad asks for that your CV doesn’t show, and what to change before you apply.' },
   { title: 'Visa sponsor proof on every job', text: 'Official government records that the company sponsors visas: UK Home Office, US H-1B approvals, Netherlands IND.' },
@@ -137,11 +149,11 @@ export const PLANS: Record<PlanId, PlanInfo> = {
   starter: {
     id: 'starter',
     name: 'MadeVisa Membership',
-    priceCents: 299,
+    priceCents: 1250,
     currency: 'USD',
-    interval: 'quarter',
-    recurrence: 'quarterly',
-    tagline: 'Your job-landing partner for 3 months.',
+    interval: 'once',
+    recurrence: 'once',
+    tagline: 'Ultimate access to everything. Pay once, use it forever.',
     benefits: MEMBERSHIP_BENEFITS,
   },
   pro: {
@@ -162,17 +174,26 @@ export function usd(cents: number): string {
   return `$${Number.isInteger(d) ? d : d.toFixed(2)}`;
 }
 
-/** "$2.99 for 3 months" / "$8.99 a month" */
-export const priceLabel = (plan: PlanId): string => (plan === 'free' ? '$0' : PLANS[plan].interval === 'quarter' ? `${usd(PLANS[plan].priceCents)} for 3 months` : `${usd(PLANS[plan].priceCents)} a month`);
+/** "$12.50 once" / "$2.99 for 3 months" / "$8.99 a month" */
+export const priceLabel = (plan: PlanId): string =>
+  plan === 'free'
+    ? '$0'
+    : PLANS[plan].interval === 'once'
+      ? `${usd(PLANS[plan].priceCents)} once`
+      : PLANS[plan].interval === 'quarter'
+        ? `${usd(PLANS[plan].priceCents)} for 3 months`
+        : `${usd(PLANS[plan].priceCents)} a month`;
 
-/** "$2.99" — the membership's price (one payment, 3 months). */
+/** "$12.50" — the membership's price (one payment). */
 export const MEMBERSHIP_PRICE = usd(PLANS[MEMBERSHIP_PLAN].priceCents);
-/** "3 months" — what one payment covers. */
-export const MEMBERSHIP_TERM = '3 months';
-/** "$2.99 for 3 months" */
-export const MEMBERSHIP_PRICE_LABEL = `${MEMBERSHIP_PRICE} for ${MEMBERSHIP_TERM}`;
-/** "$1" — what it comes to per month. */
-export const MEMBERSHIP_PER_MONTH = usd(Math.round(PLANS[MEMBERSHIP_PLAN].priceCents / 3));
+/** "for good" — what one payment covers. */
+export const MEMBERSHIP_TERM = 'for good';
+/** "$12.50 once" */
+export const MEMBERSHIP_PRICE_LABEL = `${MEMBERSHIP_PRICE} once`;
+/** "$250" — the regular price, after the launch offer's places are taken. */
+export const MEMBERSHIP_REGULAR_PRICE = usd(LAUNCH_OFFER.regularCents);
+/** Kept for older screens: the membership is one payment now, so this is the full price. */
+export const MEMBERSHIP_PER_MONTH = MEMBERSHIP_PRICE;
 
 /** Plans in order, for comparisons. */
 export const PLAN_ORDER: PlanId[] = ['free', 'starter', 'pro'];

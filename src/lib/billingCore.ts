@@ -87,7 +87,7 @@ export type CatalogPlan = {
   id: PlanId;
   name: string;
   rank: number;
-  interval: 'monthly' | 'quarterly' | null;
+  interval: 'monthly' | 'quarterly' | 'once' | null;
   /** Cents. */
   price_amount: number;
   currency: string;
@@ -115,7 +115,7 @@ export function fallbackCatalog(): Catalog {
       id,
       name: PLANS[id].name,
       rank,
-      interval: PLANS[id].interval === 'quarter' ? 'quarterly' : PLANS[id].interval ? 'monthly' : null,
+      interval: PLANS[id].interval === 'once' ? 'once' : PLANS[id].interval === 'quarter' ? 'quarterly' : PLANS[id].interval ? 'monthly' : null,
       price_amount: PLANS[id].priceCents,
       currency: PLANS[id].currency,
       available: false,
@@ -129,7 +129,7 @@ export const catalogPlan = (c: Catalog | null, id: PlanId): CatalogPlan | null =
 // ---------------------------------------------------------------------------
 // Money and the order summary
 // ---------------------------------------------------------------------------
-/** "$2.99" in the plan's currency (USD today). */
+/** "$12.50" in the plan's currency (USD today). */
 export function formatMoney(cents: number, currency = 'USD'): string {
   try {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: cents % 100 === 0 ? 0 : 2 }).format(cents / 100);
@@ -154,7 +154,7 @@ export const longDate = (d: Date | string) => new Date(d).toLocaleDateString('en
 export type OrderSummary = {
   plan: PaidPlanId;
   name: string;
-  billing: 'Monthly' | 'Every 3 months';
+  billing: 'Monthly' | 'Every 3 months' | 'One payment';
   currency: string;
   /** Cents due today, before any tax Gumroad adds. */
   dueToday: number;
@@ -173,14 +173,16 @@ export type OrderSummary = {
 export function orderSummary(plan: CatalogPlan, now: Date, confirmedCents?: number | null): OrderSummary {
   const cents = confirmedCents ?? plan.price_amount;
   const quarterly = plan.interval === 'quarterly';
+  const once = plan.interval === 'once';
   return {
     plan: plan.id === 'starter' ? 'starter' : 'pro',
     name: plan.name,
-    billing: quarterly ? 'Every 3 months' : 'Monthly',
+    billing: once ? 'One payment' : quarterly ? 'Every 3 months' : 'Monthly',
     currency: plan.currency,
     dueToday: cents,
     renewalAmount: cents,
-    renewsOn: quarterly ? nextMonth(nextMonth(nextMonth(now))) : nextMonth(now),
+    // One-time: nothing renews (renewsOn is unused then).
+    renewsOn: once ? now : quarterly ? nextMonth(nextMonth(nextMonth(now))) : nextMonth(now),
     confirmed: confirmedCents != null,
   };
 }
@@ -200,7 +202,7 @@ export type Checkout = {
   url: string;
   checkout_id: string;
   plan: PaidPlanId;
-  billing: 'monthly' | 'quarterly';
+  billing: 'monthly' | 'quarterly' | 'once';
   /** What Gumroad will charge (before any tax it adds), as the server confirmed it. */
   price_cents: number;
   currency: string;

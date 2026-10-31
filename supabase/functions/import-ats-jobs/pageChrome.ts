@@ -27,7 +27,11 @@ const UI_LINE_RE = new RegExp(
       'select (?:your )?(?:location|country|region|language)(?: and language)?', 'choose (?:your )?(?:location|country|region|language)', 'change (?:location|country|language)',
       'track(?: & trace)?', 'track (?:and trace|your shipment|shipment)', 'enter (?:id|tracking) number', 'no, continue with search',
       'share(?: this)?(?: job| page)?', 'print(?: this)?(?: job| page)?', 'save(?: job)?', 'follow us(?: on)?', 'subscribe', 'newsletter',
-      'previous', 'next', 'back', 'back to (?:search|jobs|results|overview)', 'home', 'you are here',
+      'previous', 'next', 'back', 'back to (?:all )?(?:search|jobs?|results|overview|vacancies|openings|positions|careers?|job list(?:ings)?)', 'home', 'you are here',
+      // Career-site buttons and team-page widgets read as job text (Teamtailor and others).
+      "i'?m interested", 'refer a (?:friend|colleague)', 'apply (?:now|here|today|for this (?:job|position|role))', 'quick apply', 'easy apply',
+      'already working at .{1,60}\\?', "let'?s recruit together and find your next colleague\\.?", 'some of my colleagues', 'meet the team', 'our team',
+      'connect (?:with us )?on linkedin', 'not the right (?:job|fit)\\?.*', 'join our talent (?:pool|community)', 'get notified (?:about|of) new jobs',
     ].join('|') +
     ')\\s*[:›»>→]?$',
   'i',

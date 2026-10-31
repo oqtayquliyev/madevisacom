@@ -22,9 +22,9 @@ export function PlanCard({ source, compact = false }: { plan?: PaidPlanId | 'fre
       <p className="text-sm font-bold uppercase tracking-[0.1em] text-brand-700">{info.name}</p>
       <p className="mt-2 text-5xl font-bold tracking-tight text-ink-950" data-plan-price={MEMBERSHIP_PLAN}>
         {MEMBERSHIP_PRICE}
-        <span className="text-base font-medium text-ink-500"> for 3 months</span>
+        <span className="text-base font-medium text-ink-500"> once</span>
       </p>
-      <p className="mt-1 text-[14px] font-semibold text-ink-600">Your job-landing partner for 3 months</p>
+      <p className="mt-1 text-[14px] font-semibold text-ink-600">Ultimate access to everything · pay once, use it forever</p>
 
       <ul className="mt-5 flex-1 space-y-2.5">
         {benefits.map((b) => (
@@ -38,10 +38,10 @@ export function PlanCard({ source, compact = false }: { plan?: PaidPlanId | 'fre
       {my.isPaid ? (
         <div className="mt-6 rounded-lg bg-emerald-50 px-3 py-2.5 text-center text-sm font-semibold text-emerald-900">
           You’re a member
-          {sub?.current_period_end ? ` · ${sub.cancel_at_period_end ? 'ends' : 'renews'} ${new Date(sub.renews_at ?? sub.current_period_end).toLocaleDateString()}` : ''}
+          {sub?.current_period_end && sub.billing !== 'once' ? ` · ${sub.cancel_at_period_end ? 'ends' : 'renews'} ${new Date(sub.renews_at ?? sub.current_period_end).toLocaleDateString()}` : ' · for good'}
           {sub?.provider === 'gumroad' && sub.provider_ref && (
             <a href={manageUrl(sub.provider_ref)} target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center justify-center gap-1 text-[12px] font-semibold text-emerald-900 underline">
-              Manage or cancel on Gumroad <ExternalLink className="h-3 w-3" aria-hidden />
+              {sub.provider_ref.startsWith('sale:') ? 'Receipt on Gumroad' : 'Manage or cancel on Gumroad'} <ExternalLink className="h-3 w-3" aria-hidden />
             </a>
           )}
         </div>
@@ -54,7 +54,7 @@ export function PlanCard({ source, compact = false }: { plan?: PaidPlanId | 'fre
           }}
           className="mt-6 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 py-3 text-sm font-semibold text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
         >
-          Start my 3 months · {MEMBERSHIP_PRICE} <ArrowRight className="h-4 w-4" aria-hidden />
+          Get it for {MEMBERSHIP_PRICE} <ArrowRight className="h-4 w-4" aria-hidden />
         </a>
       )}
     </div>

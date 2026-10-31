@@ -76,12 +76,12 @@ export async function startCheckout(_plan: PaidPlanId, source: string | null): P
 }
 
 /** The membership's Gumroad page (MEMBERSHIP_URL), with the email filled in when we know it. */
-/** The membership's one billing period: every 3 months. */
-const RECURRENCE = PLANS[MEMBERSHIP_PLAN].recurrence ?? 'quarterly';
+/** The membership's billing: 'once' (lifetime, a normal Gumroad product — no recurrence in the link). */
+const RECURRENCE = PLANS[MEMBERSHIP_PLAN].recurrence ?? 'once';
 
 function membershipPage(email: string | null | undefined): string {
   const u = new URL(MEMBERSHIP_URL);
-  u.searchParams.set('recurrence', RECURRENCE);
+  if (RECURRENCE !== 'once') u.searchParams.set('recurrence', RECURRENCE);
   if (email) u.searchParams.set('email', email);
   return u.toString();
 }
@@ -160,7 +160,9 @@ export async function checkPayment(): Promise<{ plan: PlanId; throttled: boolean
 }
 
 /** Where a member changes their card, or cancels. */
-export const manageUrl = (subscriptionId: string) => `https://gumroad.com/subscriptions/${encodeURIComponent(subscriptionId)}/manage`;
+/** A one-time purchase ("sale:…") has no membership page: the buyer's Gumroad library has the receipt. */
+export const manageUrl = (subscriptionId: string) =>
+  subscriptionId.startsWith('sale:') ? 'https://app.gumroad.com/library' : `https://gumroad.com/subscriptions/${encodeURIComponent(subscriptionId)}/manage`;
 
 /** "$12" / "$94.50". */
 export const dollars = (cents: number) => `$${Number.isInteger(cents / 100) ? cents / 100 : (cents / 100).toFixed(2)}`;

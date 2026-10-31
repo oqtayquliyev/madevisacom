@@ -66,6 +66,8 @@ export type Config = {
   hooks: { id: string; resource_name: string }[];
   connected_at: string | null;
   plans?: PlanProduct[];
+  /** Earlier products of the membership (the 3-month membership before the one-time product): their buyers keep it. */
+  previous_product_ids?: string[] | null;
 };
 
 /** Which plan a Gumroad product is. The old Pro product is Pro. Anything else is not ours. */
@@ -74,11 +76,19 @@ export function planForProduct(cfg: Config, productId: unknown): PaidPlanId | nu
   if (!id) return null;
   const hit = (cfg.plans ?? []).find((p) => p.product_id && p.product_id === id);
   if (hit) return hit.plan;
+  if ((cfg.previous_product_ids ?? []).includes(id)) return MEMBERSHIP_PLAN;
   const legacy = cfg.legacy_product_id ?? cfg.product_id;
   return legacy && legacy === id ? 'pro' : null;
 }
 const knownProducts = (cfg: Config): string[] =>
-  [...new Set([...(cfg.plans ?? []).map((p) => p.product_id), cfg.legacy_product_id ?? cfg.product_id].filter((x): x is string => Boolean(x)))];
+  [...new Set([...(cfg.plans ?? []).map((p) => p.product_id), ...(cfg.previous_product_ids ?? []), cfg.legacy_product_id ?? cfg.product_id].filter((x): x is string => Boolean(x)))];
+/** The product a plan is sold as right now sells it as a one-time payment (lifetime access). */
+const isOneTime = (cfg: Config, productId: unknown): boolean => {
+  const id = productId == null ? '' : String(productId);
+  return Boolean(id) && (cfg.plans ?? []).some((p) => p.product_id === id && PLANS[p.plan].recurrence === 'once');
+};
+/** A one-time purchase is kept as a "membership" with this id (one per sale). */
+const ONCE_PREFIX = 'sale:';
 const planProduct = (cfg: Config, plan: PaidPlanId): PlanProduct | null => (cfg.plans ?? []).find((p) => p.plan === plan) ?? null;
 
 // ---------------------------------------------------------------------------
@@ -123,6 +133,76 @@ const time = (v: unknown): number => {
 const iso = (v: unknown): string | null => (time(v) ? new Date(time(v)).toISOString() : null);
 
 /**
+ * A one-time purchase (the membership since November 2026): access for good from the sale,
+ * off again when the sale is refunded or charged back. Whose it is follows the same rules as a
+ * membership: the checkout's account, else a trusted account with the buyer's email, else a
+ * new account for that email.
+ */
+async function applyOneTime(deps: Deps, cfg: Config, input: SyncInput, sale: Json): Promise<SyncResult> {
+  const plan = planForProduct(cfg, sale?.product_id);
+  if (!plan) return { ok: true, note: 'A sale of another product: ignored.' };
+  const id = `${ONCE_PREFIX}${String(sale.id)}`;
+  const gone = Boolean(sale.refunded || sale.chargedback);
+  const status = gone ? 'ended' : 'alive';
+  const email = String(sale.purchase_email ?? sale.email ?? '').trim() || null;
+  const paidAt = iso(sale.created_at) ?? new Date().toISOString();
+
+  let claimUser = input.claimUser ?? null;
+  let created = false;
+  let byEmail = false;
+  if (!claimUser && email && !gone) {
+    const who = (await deps.rpc('gumroad_buyer_account', { p_email: email, p_subscription: id })).data as { state?: string; user_id?: string } | null;
+    if (who?.state === 'match' && who.user_id) {
+      claimUser = who.user_id;
+      byEmail = true;
+    } else if (who?.state === 'none' && deps.createAccount && !(input.checkoutId && UUID.test(input.checkoutId))) {
+      const made = await deps.createAccount(email.toLowerCase());
+      if ('id' in made) {
+        claimUser = made.id;
+        created = true;
+        byEmail = true;
+      }
+    }
+  }
+
+  const applied = await deps.rpc('gumroad_apply', {
+    p: {
+      subscription_id: id,
+      plan,
+      product_id: String(sale.product_id),
+      status,
+      recurrence: 'once',
+      email,
+      last_sale_id: String(sale.id),
+      last_paid_at: gone ? null : paidAt,
+      cancel_at: null,
+      ended_at: gone ? new Date().toISOString() : null,
+      price_cents: Number.isFinite(Number(sale.price)) ? Math.round(Number(sale.price)) : null,
+      card_country: typeof sale.country_iso2 === 'string' ? sale.country_iso2 : null,
+      test: Boolean(input.test),
+      checkout_id: input.checkoutId && UUID.test(input.checkoutId) ? input.checkoutId : null,
+      claim_user: claimUser,
+    },
+  });
+  if (applied.error) return { ok: false, note: `Could not save the purchase: ${applied.error.message}` };
+  const out = applied.data ?? {};
+  if (out.linked && out.user_id) {
+    if (created) await deps.rpc('member_emails', { p_user: out.user_id, p_kind: 'account', p_ref: id });
+    if (out.before === 'free' && out.after && out.after !== 'free') await deps.rpc('member_emails', { p_user: out.user_id, p_kind: 'welcome', p_ref: id });
+    if (byEmail && email && input.guestToken && UUID.test(input.guestToken)) {
+      await deps.rpc('guest_claim_mark', { p_token: input.guestToken, p_user: out.user_id, p_email: email, p_subscription: id });
+    }
+  }
+  const who = email ?? 'A buyer';
+  const note = !out.linked
+    ? `${who}: lifetime access ${gone ? 'refunded' : 'bought'}, no MadeVisa account matched yet.`
+    : gone
+      ? `${who}: lifetime access refunded or disputed, switched off.`
+      : `${who}: lifetime access on${created ? ' (paid without an account: one was created for this email and the welcome emails were sent)' : ''}.`;
+  return { ok: true, note, active: Boolean(out.active), linked: Boolean(out.linked), plan };
+}
+
+/**
  * Reads the membership and its latest payments from Gumroad and applies them.
  * A notification only says "look at this membership": what is true comes from
  * the API, so a made-up notification cannot switch Pro on.
@@ -131,6 +211,11 @@ export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput
   if (!knownProducts(cfg).length) return { ok: true, note: 'No product is connected: ignored.' };
   let subscriptionId = input.subscriptionId || null;
   const sales = new Map<string, Json>();
+  // A one-time purchase saved earlier ("sale:<id>"): read that sale again.
+  if (subscriptionId?.startsWith(ONCE_PREFIX)) {
+    input = { ...input, saleId: subscriptionId.slice(ONCE_PREFIX.length) };
+    subscriptionId = null;
+  }
 
   if (!subscriptionId) {
     if (!input.saleId) return { ok: true, note: 'Nothing to look up: ignored.' };
@@ -138,6 +223,8 @@ export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput
     if (!s.ok) return { ok: false, note: `Gumroad does not confirm this sale. ${s.message}` };
     const sale = s.body.sale;
     if (!planForProduct(cfg, sale?.product_id)) return { ok: true, note: 'A sale of another product: ignored.' };
+    // The one-time product: this sale IS the membership (for good, until refunded or disputed).
+    if (!sale?.subscription_id && isOneTime(cfg, sale?.product_id)) return applyOneTime(deps, cfg, input, sale);
     if (!sale?.subscription_id) return { ok: true, note: 'Not a membership payment: ignored.' };
     subscriptionId = String(sale.subscription_id);
     sales.set(String(sale.id), sale);
@@ -319,6 +406,7 @@ export type ProductCheck =
 export function checkProduct(product: Json, plan: PaidPlanId): ProductCheck {
   const want = PLANS[plan].priceCents;
   const recurrence: Recurrence = PLANS[plan].recurrence ?? 'monthly';
+  if (recurrence === 'once') return checkOneTimeProduct(product, plan);
   const period = recurrence === 'quarterly' ? 'every 3 months' : 'a month';
   const label = recurrence === 'quarterly' ? 'Every 3 months (quarterly)' : 'Monthly';
   const name = `“${product?.name ?? 'This product'}”`;
@@ -341,7 +429,29 @@ export function checkProduct(product: Json, plan: PaidPlanId): ProductCheck {
   return { ok: true, product, priceCents: price, recurrence, url };
 }
 
-const manageLink = (subscriptionId: string) => `https://gumroad.com/subscriptions/${encodeURIComponent(subscriptionId)}/manage`;
+/**
+ * The one-time product (lifetime access): a plain product, not a membership, whose price is the
+ * plan's price, with no options that change the price and no "pay what you want".
+ */
+function checkOneTimeProduct(product: Json, plan: PaidPlanId): ProductCheck {
+  const want = PLANS[plan].priceCents;
+  const name = `“${product?.name ?? 'This product'}”`;
+  if (product?.is_tiered_membership) return { ok: false, reason: `${name} is a membership. The membership is now a one-time payment: create a normal (digital) product with a fixed price.` };
+  const price = Number(product?.price ?? 0);
+  if (!price) return { ok: false, reason: `${name} has no price.` };
+  if (price !== want) return { ok: false, reason: `${name} costs $${(price / 100).toFixed(2)} on Gumroad, but ${PLANS[plan].name} is $${(want / 100).toFixed(2)}. Make them the same.` };
+  if (product?.customizable_price) return { ok: false, reason: `${name} has “Pay what you want” on. Switch it off: the price on Gumroad must be the price on MadeVisa.` };
+  const options = ((product?.variants ?? []) as Json[]).flatMap((v) => (v.options ?? []) as Json[]);
+  if (options.some((o) => Number(o?.price_difference ?? 0) !== 0)) return { ok: false, reason: `${name} has versions with other prices. Remove them, or make their price difference $0.` };
+  if (product?.purchasing_power_parity_prices) return { ok: false, reason: `Gumroad’s “purchasing power parity” discount is on for ${name}. Switch it off: MadeVisa charges the same price everywhere.` };
+  if (product?.published === false) return { ok: false, reason: `${name} is not published yet. Publish it in Gumroad.` };
+  const url = String(product?.short_url ?? '');
+  if (!/^https:\/\/([a-z0-9-]+\.)*gumroad\.com\//i.test(url)) return { ok: false, reason: `${name} has no Gumroad link.` };
+  return { ok: true, product, priceCents: price, recurrence: 'once', url };
+}
+
+const manageLink = (subscriptionId: string) =>
+  subscriptionId.startsWith(ONCE_PREFIX) ? 'https://app.gumroad.com/library' : `https://gumroad.com/subscriptions/${encodeURIComponent(subscriptionId)}/manage`;
 
 // ---------------------------------------------------------------------------
 // Checkout: the plan, at its price, for this account
@@ -352,7 +462,7 @@ async function checkout(deps: Deps, cfg: Config, user: { id: string; email: stri
   const plan: PaidPlanId = MEMBERSHIP_PLAN;
   // One way to pay: the membership's own billing period (every 3 months). Pages from before the
   // change send "monthly": that is ignored, not refused. Anything else is refused.
-  if (body?.billing != null && body.billing !== 'monthly' && body.billing !== 'quarterly') return json({ error: 'The membership is billed every 3 months. Reload the page and try again.' }, 400);
+  if (body?.billing != null && !['monthly', 'quarterly', 'once'].includes(body.billing)) return json({ error: 'Reload the page and try again.' }, 400);
   const source = typeof body?.source === 'string' && /^[a-z0-9_]{1,40}$/.test(body.source) ? body.source : null;
 
   const state = (await deps.rpc('gumroad_user', { p_user: user.id })).data ?? {};
@@ -383,7 +493,7 @@ async function checkout(deps: Deps, cfg: Config, user: { id: string; email: stri
 
   // Always THE membership link (MEMBERSHIP_URL), whatever short link the product has.
   const url = new URL(MEMBERSHIP_URL);
-  url.searchParams.set('recurrence', checked.recurrence);
+  if (checked.recurrence !== 'once') url.searchParams.set('recurrence', checked.recurrence);
   if (user.email) url.searchParams.set('email', user.email);
   // Comes back with the payment and says which account it is for (never which plan: the product says that).
   url.searchParams.set('mv', c.id);
@@ -423,7 +533,7 @@ async function guestCheckout(_deps: Deps, cfg: Config, body: Json): Promise<Resp
   const source = typeof body?.source === 'string' && /^[a-z0-9_]{1,40}$/.test(body.source) ? body.source : null;
   const billing: Recurrence = PLANS[plan].recurrence ?? 'monthly';
   const url = new URL(MEMBERSHIP_URL);
-  url.searchParams.set('recurrence', billing);
+  if (billing !== 'once') url.searchParams.set('recurrence', billing);
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
   if (EMAIL.test(email)) url.searchParams.set('email', email);
   if (source) url.searchParams.set('mvs', source);
@@ -445,8 +555,17 @@ async function refresh(deps: Deps, cfg: Config, user: { id: string; email: strin
   // Only a verified email may claim a membership bought with it (sign-up alone proves nothing).
   if (state.email && state.email_verified) {
     for (const productId of products) {
+      if (isOneTime(cfg, productId)) continue;
       const found = await gumroad(deps, 'GET', `/products/${encodeURIComponent(productId)}/subscribers`, { email: state.email });
       if (found.ok) for (const s of ((found.body.subscribers ?? []) as Json[]).slice(0, 3)) if (!ids.has(String(s.id))) ids.set(String(s.id), true);
+    }
+  }
+  // One-time purchases (lifetime access) made with this verified email.
+  if (state.email && state.email_verified) {
+    for (const pp of cfg.plans ?? []) {
+      if (!pp.product_id || PLANS[pp.plan].recurrence !== 'once') continue;
+      const found = await gumroad(deps, 'GET', '/sales', { email: state.email, product_id: pp.product_id });
+      if (found.ok) for (const s of ((found.body.sales ?? []) as Json[]).slice(0, 3)) if (!ids.has(`${ONCE_PREFIX}${s.id}`)) ids.set(`${ONCE_PREFIX}${s.id}`, true);
     }
   }
   for (const [id, byEmail] of ids) {
@@ -530,6 +649,9 @@ async function connect(deps: Deps, cfg: Config, body: Json): Promise<Response> {
 
   const hooks = await ensureHooks(deps, cfg);
   if ('error' in hooks) return json({ error: hooks.error });
+  // Replacing the plan's product (the 3-month membership → the one-time product): its buyers keep their plan.
+  const before = planProduct(cfg, plan);
+  if (before?.product_id && before.product_id !== String(product.id)) await deps.rpc('gumroad_keep_previous_product', { p_product: before.product_id });
   await deps.rpc('gumroad_save', { p: { hooks: hooks.hooks, seller_id: String(me.body.user?.user_id ?? me.body.user?.id ?? ''), last_error: null } });
   const saved = await deps.rpc('gumroad_plan_save', {
     p_plan: plan,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, Check, Copy, Mail, Search, ShieldCheck } from 'lucide-react';
+import { Building2, Check, Copy, Lock, Mail, Search, ShieldCheck } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { SEO_META } from '@/lib/seoMeta';
@@ -9,24 +9,34 @@ import { CircleFlag } from '@/components/common/CircleFlag';
 import { companyPath } from '@/lib/companies';
 import { fetchRecruiterCompanies, type RecruiterCompany } from '@/lib/recruiters';
 import { WRAP, nav } from '@/lib/pageLayout';
+import { useAuth } from '@/lib/auth';
+import { AuthDialog } from '@/components/auth/AuthDialog';
+import { Paywall } from '@/components/pro/Paywall';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
 const PAGE = 30;
 
 /**
- * /network — Recruiters: companies that sponsor visas, with their logo, the
- * contact emails MadeVisa has for them, and how many jobs they have live.
+ * /network — HR Contacts: companies that hire abroad, with their logo, the HR / recruiter
+ * emails MadeVisa has for them, and how many jobs they have live. Full addresses for members;
+ * everyone else sees them shortened (the server shortens them: recruiter_companies).
  */
 export function NetworkPage({ go, onAuth }: Props) {
   useSeo({ ...SEO_META.network, ogImage: 'https://madevisa.com/api/og/page?p=network', path: '/network' });
   const [rows, setRows] = useState<RecruiterCompany[] | null | undefined>(undefined);
   const [q, setQ] = useState('');
   const [limit, setLimit] = useState(PAGE);
+  const { session } = useAuth();
+  // Shortened emails: sign up first (stays on this page), then the membership card.
+  const [gate, setGate] = useState(false);
+  const [paywall, setPaywall] = useState(false);
+  const unlock = () => (session ? setPaywall(true) : setGate(true));
+  // Signed in (or paid) here: the list is fetched again, with what this account may see.
 
   useEffect(() => {
     fetchRecruiterCompanies().then(setRows);
-  }, []);
+  }, [session?.user?.id]);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -38,15 +48,17 @@ export function NetworkPage({ go, onAuth }: Props) {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-ink-900">
       <LandingHeader go={go} onAuth={onAuth} active="network" />
+      <AuthDialog open={gate && !session} onClose={() => setGate(false)} />
+      {paywall && <Paywall reason="contact" source="hr_contacts" onClose={() => setPaywall(false)} />}
 
       <section className="bg-brand-700 text-white">
         <div className={`${WRAP} pb-10 pt-10 sm:pb-12 sm:pt-12`}>
           <div className="max-w-3xl">
             <p className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[12px] font-semibold">
-              <ShieldCheck className="h-3.5 w-3.5" /> Company contacts
+              <ShieldCheck className="h-3.5 w-3.5" /> Direct contact
             </p>
-            <h1 className="mt-4 text-[32px] font-bold leading-[1.1] tracking-tight sm:text-[44px]">Reach the companies that hire</h1>
-            <p className="mt-4 text-[16px] leading-7 text-white/85">Companies and their hiring emails, with the ones that sponsor visas first. Contact them directly.</p>
+            <h1 className="mt-4 text-[32px] font-bold leading-[1.1] tracking-tight sm:text-[44px]">Direct contact to HRs &amp; recruiters</h1>
+            <p className="mt-4 text-[16px] leading-7 text-white/85">The HR and recruiter emails of companies that hire abroad, the ones that sponsor visas first. Write to them directly.</p>
             <div className="mt-6 flex flex-wrap gap-x-8 gap-y-3">
               <Figure label="Companies" value={rows === undefined ? '…' : (rows?.length ?? 0).toLocaleString()} />
               <Figure label="Sponsor visas" value={rows === undefined ? '…' : sponsoringCompanies.toLocaleString()} />
@@ -87,7 +99,7 @@ export function NetworkPage({ go, onAuth }: Props) {
             </p>
             <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {filtered.slice(0, limit).map((c) => (
-                <CompanyContactCard key={c.id} c={c} />
+                <CompanyContactCard key={c.id} c={c} onUnlock={unlock} />
               ))}
             </div>
             {filtered.length > limit && (
@@ -106,7 +118,7 @@ export function NetworkPage({ go, onAuth }: Props) {
   );
 }
 
-function CompanyContactCard({ c }: { c: RecruiterCompany }) {
+function CompanyContactCard({ c, onUnlock }: { c: RecruiterCompany; onUnlock: () => void }) {
   const href = c.publisher_id ? companyPath({ id: c.publisher_id, name: c.name }) : null;
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (email: string) => {
@@ -165,6 +177,19 @@ function CompanyContactCard({ c }: { c: RecruiterCompany }) {
         )}
       </div>
 
+      {c.masked ? (
+        <ul className="mt-4 space-y-1.5">
+          {c.emails.map((e) => (
+            <li key={e} className="flex items-center gap-2 rounded-lg bg-ink-50 px-3 py-2">
+              <Mail className="h-4 w-4 shrink-0 text-ink-400" />
+              <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink-800">{e}</span>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-ink-950 px-2 py-0.5 text-[11px] font-bold text-white">
+                <Lock className="h-3 w-3" aria-hidden /> Members
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
       <ul className="mt-4 space-y-1.5">
         {c.emails.map((e) => (
           <li key={e} className="flex items-center gap-2 rounded-lg bg-ink-50 px-3 py-2">
@@ -178,11 +203,18 @@ function CompanyContactCard({ c }: { c: RecruiterCompany }) {
           </li>
         ))}
       </ul>
+      )}
 
       <div className="mt-auto flex gap-2 pt-5">
+        {c.masked ? (
+          <button type="button" onClick={onUnlock} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-[15px] font-semibold text-white hover:bg-brand-800">
+            <Lock className="h-4 w-4" /> See full emails
+          </button>
+        ) : (
         <a href={`mailto:${c.emails[0]}`} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-[15px] font-semibold text-white hover:bg-brand-800">
           <Mail className="h-4 w-4" /> Contact
         </a>
+        )}
         {href && c.jobs > 0 ? (
           <a
             href={href}

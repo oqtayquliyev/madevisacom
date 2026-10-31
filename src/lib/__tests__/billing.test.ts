@@ -8,21 +8,21 @@ const MIGRATION = readFileSync(new URL('../../../supabase/migrations/20261219090
 const LATER = readFileSync(new URL('../../../supabase/migrations/20261220090000_emails_docs_cvmatch_social.sql', import.meta.url), 'utf8');
 /** One plan: the membership ('starter') at $2.29; Pro no longer sold. */
 const MEMBERSHIP = readFileSync(new URL('../../../supabase/migrations/20261231090000_single_membership_guest_checkout.sql', import.meta.url), 'utf8');
-/** The membership becomes $2.99 every 3 months. */
 const UNLIMITED_DOCS = readFileSync(new URL('../../../supabase/migrations/20261231180000_unlimited_documents.sql', import.meta.url), 'utf8');
-const THREE_MONTHS = readFileSync(new URL('../../../supabase/migrations/20261231150000_three_month_membership.sql', import.meta.url), 'utf8');
+/** The membership becomes $12.50 once, lifetime access. */
+const LIFETIME = readFileSync(new URL('../../../supabase/migrations/20261231210000_lifetime_membership.sql', import.meta.url), 'utf8');
 
 describe('the plans', () => {
-  it('one membership at $2.99 every 3 months, in USD', () => {
+  it('one membership at $12.50 once, in USD', () => {
     expect(MEMBERSHIP_PLAN).toBe('starter');
     expect(PLANS.free.priceCents).toBe(0);
-    expect(PLANS.starter.priceCents).toBe(299);
+    expect(PLANS.starter.priceCents).toBe(1250);
     expect(PLANS.starter.name).toBe('MadeVisa Membership');
     expect(PLANS.starter.currency).toBe('USD');
-    expect(PLANS.starter.interval).toBe('quarter');
-    expect(PLANS.starter.recurrence).toBe('quarterly');
-    expect(priceLabel('starter')).toBe('$2.99 for 3 months');
-    expect(MEMBERSHIP_PRICE).toBe('$2.99');
+    expect(PLANS.starter.interval).toBe('once');
+    expect(PLANS.starter.recurrence).toBe('once');
+    expect(priceLabel('starter')).toBe('$12.50 once');
+    expect(MEMBERSHIP_PRICE).toBe('$12.50');
     expect(usd(1900)).toBe('$19');
   });
 
@@ -43,8 +43,8 @@ describe('the plans', () => {
     expect(text).not.toMatch(/unlimited ai|guarantee|credits?\b|auto apply/);
   });
 
-  it('counts what 3 months give: applying first, then unlimited documents', () => {
-    expect(PLANS.starter.benefits[0].title).toMatch(/apply to every job for 3 months/i);
+  it('lists applying first, then unlimited documents', () => {
+    expect(PLANS.starter.benefits[0].title).toMatch(/apply to every job/i);
     expect(PLANS.starter.benefits[1].title).toMatch(/Unlimited sponsorship documents/);
   });
 
@@ -56,7 +56,7 @@ describe('the plans', () => {
 
 describe('the database has the same numbers as the code', () => {
   it('prices', () => {
-    const m = /SET name = 'Membership', price_amount = (\d+), billing_interval = 'quarterly'/.exec(THREE_MONTHS);
+    const m = /SET name = 'Membership', price_amount = (\d+), billing_interval = 'once'/.exec(LIFETIME);
     expect(m, 'membership price update').not.toBeNull();
     expect(Number(m![1])).toBe(PLANS.starter.priceCents);
     expect(MEMBERSHIP).toMatch(/UPDATE public\.billing_plans SET is_active = false[^;]*WHERE id = 'pro'/);
@@ -122,17 +122,14 @@ describe('what a person has', () => {
 describe('order summary', () => {
   const cat = fallbackCatalog();
   const starter = cat.plans.find((p) => p.id === 'starter')!;
-  it('due today and the renewal are the plan price, every 3 months', () => {
+  it('due today is the plan price, paid once', () => {
     const s = orderSummary(starter, new Date(2026, 9, 12));
-    expect(s.dueToday).toBe(299);
-    expect(s.renewalAmount).toBe(299);
-    expect(s.billing).toBe('Every 3 months');
-    expect(s.renewsOn.getMonth()).toBe(0);
-    expect(s.renewsOn.getDate()).toBe(12);
+    expect(s.dueToday).toBe(1250);
+    expect(s.billing).toBe('One payment');
     expect(s.confirmed).toBe(false);
   });
   it('uses the amount the server priced the checkout at once it exists', () => {
-    const s = orderSummary(starter, new Date(2026, 9, 12), 299);
+    const s = orderSummary(starter, new Date(2026, 9, 12), 1250);
     expect(s.confirmed).toBe(true);
   });
   it('renews on the last day of a shorter month', () => {

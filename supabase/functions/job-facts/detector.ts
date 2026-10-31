@@ -78,7 +78,9 @@ export function htmlToPlainText(html: string | null | undefined): string {
 const CODES = 'USD|EUR|GBP|CAD|AUD|NZD|CHF|SEK|NOK|DKK|PLN|CZK|HUF|RON|AZN|AED|SAR|QAR|KWD|BHD|OMR|INR|JPY|CNY|SGD|HKD|KRW|BRL|MXN|ZAR|TRY|ILS|GEL|KZT|UAH';
 const SYMS = 'US\\$|CA\\$|C\\$|A\\$|AU\\$|NZ\\$|S\\$|HK\\$|R\\$|\\$|€|£|¥|₹|₺|₽|₼|₪|₩|zł|kr\\.?';
 const NUM = '\\d{1,3}(?:[,.\\u202f\\u00a0 ]\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d+)?\\s?[kK]\\b|\\d{4,7}(?:[.,]\\d{1,2})?|\\d{2,3}(?:[.,]\\d{2})?';
-const AMOUNT = `(?:(?:${SYMS})\\s?|(?:${CODES})\\s?)?(?:${NUM})(?:\\s?(?:${CODES})\\b)?`;
+// Symbols written after the number, as in most of Europe: "50 € per hour", "4.000 € brutto", "30 zł".
+const POST_SYMS = '€|£|zł|kr\\.?|₼|₺|₽|₹|Fr\\.';
+const AMOUNT = `(?:(?:${SYMS})\\s?|(?:${CODES})\\s?)?(?:${NUM})(?:\\s?(?:${CODES})\\b|\\s?(?:${POST_SYMS}))?`;
 const RANGE_RE = new RegExp(`(${AMOUNT})(?:\\s*(?:-|–|—|to|and|until|bis|à)\\s*(${AMOUNT}))?(\\s*(?:${CODES})\\b)?`, 'gi');
 const HAS_CURRENCY = new RegExp(`(?:${SYMS})|\\b(?:${CODES})\\b`, 'i');
 const SALARY_CONTEXT = /salary|pay\b|pay range|compensation|base|wage|remuneration|OTE|earning|annual|per year|per annum|p\.a\.|hourly|range|gross/i;
@@ -101,9 +103,9 @@ function toNumber(raw: string): number {
 
 function periodNear(text: string, start: number, end: number): string {
   const around = text.slice(Math.max(0, start - 80), Math.min(text.length, end + 40)).toLowerCase();
-  if (/per hour|per hr\b|\/\s?h(ou)?r\b|hourly|an hour|p\/h\b|stundenlohn|pro stunde/.test(around)) return ' / hour';
-  if (/per month|\/\s?mo(nth)?\b|monthly|a month/.test(around)) return ' / month';
-  if (/per year|\/\s?y(ea)?r\b|annual|annually|per annum|p\.a\.|yearly|a year/.test(around)) return ' / year';
+  if (/per hour|per hr\b|\/\s?h(ou)?r\b|\/\s?std\b|hourly|an hour|p\/h\b|stundenlohn|pro stunde|par heure|por hora|all'ora|per uur/.test(around)) return ' / hour';
+  if (/per month|\/\s?mo(nth)?\b|monthly|a month|pro monat|im monat|monatlich|par mois|al mes|per maand/.test(around)) return ' / month';
+  if (/per year|\/\s?y(ea)?r\b|annual|annually|per annum|p\.a\.|yearly|a year|pro jahr|im jahr|jährlich|par an\b|al año|per jaar/.test(around)) return ' / year';
   return '';
 }
 
@@ -277,12 +279,15 @@ export function detectEmploymentType(text: string, title = ''): string | null {
     if (/apprentice/.test(s)) return 'Apprenticeship';
     if (/volunteer/.test(s)) return 'Volunteer';
     if (/seasonal/.test(s)) return 'Seasonal work';
-    if (/contract|freelance|fixed[- ]term|temporary|\btemp\b/.test(s)) return 'Contract / Freelance';
+    if (/contract|freelance|fixed[- ]term|temporary|\btemp\b|self[- ]employed|zzp\b|auto[- ]?entrepreneur/.test(s)) return 'Contract / Freelance';
     if (/part[- ]?time/.test(s)) return 'Part time';
     if (/full[- ]?time|permanent|regular/.test(s)) return 'Full time';
     return null;
   };
-  return pick(source) ?? pick(text.slice(0, 1500).toLowerCase().match(/\b(?:this is a |we are hiring a |as a )?(full[- ]time|part[- ]time|fixed[- ]term|temporary|freelance|internship|\d+[- ]month contract)\b/)?.[1] ?? '');
+  const head = text.slice(0, 1500).toLowerCase();
+  // A freelance role says so somewhere; it wins over "part-time" listed next to it.
+  if (/\bfreelancers?\b|\bfreelance\b|\bfreiberuflich|\bself[- ]employed\b/.test(head)) return pick(source) ?? 'Contract / Freelance';
+  return pick(source) ?? pick(head.match(/\b(?:this is a |we are hiring a |as a )?(full[- ]time|part[- ]time|fixed[- ]term|temporary|freelance|internship|\d+[- ]month contract)\b/)?.[1] ?? '');
 }
 
 // ---------------------------------------------------------------------------
@@ -621,6 +626,27 @@ export function detectJobFacts(descriptionHtml: string | null | undefined, title
 export type JobContact = { email?: string; phone?: string; website?: string; name?: string };
 
 const EMAIL_RE = /^(?:e-?mail\s*:?\s*)?([\w.+-]+@[\w-]+(?:\.[\w-]+)+)$/i;
+
+/**
+ * Text joined from separate lines runs words into an address: "hr@paconsulting.comLoft 2.06"
+ * → "hr@paconsulting.comLoft", or "…comlocation". Cut the domain's ending back to a real one.
+ */
+const COMMON_TLDS = new Set('com org net edu gov io co ai uk de nl fr es it pt pl se no dk fi ie be at ch cz sk hu ro bg gr ee lv lt lu us ca au nz in sg hk jp kr cn br mx ar za ae sa qa tr ru ua az ge kz il eu jobs careers global info biz app dev tech company agency email health studio group solutions team work recruitment consulting energy digital media online site store travel network systems finance legal'.split(' '));
+function trimEmailTail(email: string): string {
+  // A capital letter after the domain starts the next word: "…comLoft".
+  let e = email.replace(/(\.[a-z]{2,})[A-Z][\w-]*$/, '$1');
+  const dot = e.lastIndexOf('.');
+  const tld = e.slice(dot + 1).toLowerCase();
+  if (!COMMON_TLDS.has(tld)) {
+    for (let n = tld.length - 1; n >= 2; n--) {
+      if (COMMON_TLDS.has(tld.slice(0, n))) {
+        e = e.slice(0, dot + 1 + n);
+        break;
+      }
+    }
+  }
+  return e;
+}
 const PHONE_RE = /^(?:(?:phone|tel(?:ephone)?\.?|telefon|mobile|call(?: us)?)\s*:?\s*)?(\+?\(?\d[\d\s()./-]{5,}\d)$/i;
 const WEBSITE_RE = /^(?:web(?:site)?\s*:?\s*)?((?:https?:\/\/)?www\.[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:\/\S*)?|https?:\/\/[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:\/\S*)?)$/i;
 const CTA_RE = /^(?:apply(?: now| here| today| online| for this (?:job|position|role))?|click here to apply|to apply,? click here|start (?:your|my) application|jetzt bewerben|bewirb dich jetzt|zur bewerbung|postuler|candidatar(?:-?se)?)\s*[»>→›!.…]*$/i;
@@ -863,7 +889,7 @@ export function cleanJobDescriptionHtml(html: string, title = ''): { html: strin
 
   // Emails written inside sentences ("…contact us via e-mail at hr@cloudflare.com or…") — noted, text kept.
   if (!contact.email) {
-    const all = [...new Set<string>(((body.textContent ?? '') as string).match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[a-z]{2,}/gi) ?? [])].filter(
+    const all = [...new Set<string>((((body.textContent ?? '') as string).match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[a-z]{2,}/gi) ?? []).map(trimEmailTail))].filter(
       (e: string) => !/noreply|no-reply|donotreply|example\.|madevisa\.com$|\.(png|jpe?g|gif|svg)$/i.test(e)
     );
     const recruiting = all.find((e: string) => /^(?:hr|careers?|jobs?|recruit|talent|people|hiring|apply|applications?|staffing|resourcing|join|work)/i.test(e));

@@ -1,125 +1,95 @@
-# Gumroad setup: one membership, $2.99 for 3 months
+# Gumroad setup: lifetime access, $12.50 once
 
-The website now sells **one** thing: the MadeVisa Membership, **$2.99 every 3 months**.
-Checkout only opens when Gumroad charges exactly that, so set the product up as below.
-Steps marked ⚠️ are required.
+The website sells **one** thing: the MadeVisa Membership, **$12.50 once, for good**
+(a launch price for the first 200 customers; regular price $250).
+Checkout only opens when the Gumroad product charges exactly the price the site expects,
+so set it up as below. Steps marked ⚠️ are required.
 
 ---
 
-## 1. Product tab
+## 1. Create the product
+
+Gumroad → Products → **New product** → **Digital product** ⚠️ (not "Membership").
 
 **Name**
 ```
-MadeVisa Membership · 3 months for $2.99
+MadeVisa · Lifetime access
 ```
 
-**Description** (paste it into the editor and keep the bold titles):
+**Price** ⚠️: `12.50` USD.
+
+**URL** ⚠️: **`lifetime`** → madevisa.gumroad.com/l/lifetime (the website links there).
+
+**Description** (paste into the editor):
 
 ```
-Your job-landing partner for 3 months.
+Ultimate access to everything MadeVisa has. Pay once, use it forever — no subscription.
 
-One payment of $2.99 (that's $1 a month) gives you everything MadeVisa has for 3 months:
+95% off for the first 200 customers: $12.50 instead of $250.
 
-• Apply to every job for 3 months
-Unlimited applications to every job on MadeVisa, straight from company career pages — including roles you won't see on LinkedIn or Indeed.
+Companies post new vacancies on their own careers page first — MadeVisa fetches them for you early. Jobs that aren't on LinkedIn or Indeed.
 
+• Apply to every job
 • Unlimited sponsorship documents
-The proposal you send an employer when a job needs a visa — the route that may apply, what it asks of them, and the costs you offer to share (fair use: up to 30 in any 7 days).
-
 • CV tailoring suggestions on every job
-Your match score, the skills the ad asks for that your CV doesn't show, and what to change before you apply.
-
+• Direct contact to HRs & recruiters
 • Visa sponsor proof on every job
-Official government records that the company sponsors visas: UK Home Office, US H-1B approvals, Netherlands IND.
-
 • Move math and reply odds
-What's left each month after tax and rent there compared with home, and how likely the company is to reply.
-
 • The fastest job alerts
-New jobs from company career pages — many never posted on LinkedIn or Indeed — sent to you daily, up to 5 alerts.
-
 • Jobs checked live and scam-screened
-Every imported job is re-checked on the company's careers page, and ads that ask for fees are flagged.
-
-• Unlimited saved jobs and a tracker
-Save every job you like and track every application until the company replies.
 
 Our guarantee: if MadeVisa doesn't show you at least 10 open jobs in your field at companies with an official visa-sponsor record within your first 14 days, you get a full refund.
-
-Renews every 3 months at $2.99. Cancel anytime. You keep everything until the end of the 3 months you paid for.
 
 No account needed: pay with your email, and we create your MadeVisa account and send you a sign-in code.
 ```
 
-**URL** ⚠️: keep it **`membership`** (madevisa.gumroad.com/l/membership). The website links there.
+## 2. Settings ⚠️
 
-**Cover** (optional): a 1280×720 image with the line "Your job-landing partner for 3 months · $2.99".
+Switch all of these **off** on the product (the site refuses to connect otherwise):
 
-**Summary** (the "You'll get" line, if your editor shows it):
-```
-3 months of every job, CV tailoring, sponsor proof and unlimited sponsorship documents.
-```
+- "Allow customers to pay what they want"
+- Versions / variants with an extra price
+- Purchasing power parity (Settings → Payments, or the product's own toggle)
 
-**Call to action** (the button): **Subscribe**.
+Then **Publish**.
 
----
+Optional: in the product's content, add a button to `https://madevisa.com/checkout/complete`
+so buyers can come back to the site.
 
-## 2. Pricing ⚠️
+## 3. Connect it on the site
 
-1. Product type: **Membership**.
-2. Keep exactly **one tier**. Name it:
+1. Admin → Plans → Gumroad → **Connect** with `https://madevisa.gumroad.com/l/lifetime`.
+2. Keep the old membership product on Gumroad (don't delete it). When the new product
+   replaces it, the site remembers the old product id, so everyone who already paid for
+   3 months keeps their access until it ends.
+
+## 4. The "places left" counter
+
+Shown on the paywall and the pricing page as **"N of 200 left"**.
+Admin → Plans → Gumroad → **Places left**: type the number and Save, or press
+**After a purchase: −1**. Leave it empty to show the real count (200 minus one-time buyers).
+At 0 the counter disappears.
+
+## 5. After 200 customers: raise the price to $250
+
+Do all four, in this order, so checkout never refuses a buyer:
+
+1. **Gumroad**: product → Price → `250` → Save.
+2. **Code**: `supabase/functions/_shared/plans.ts`
+   - `starter.priceCents: 25000`
+   - the launch box ("95% off for the first 200 customers" + ~~$250~~) is in
+     `src/components/pro/LaunchOffer.tsx`; drop the top line and the strikethrough there.
+   Then deploy the `gumroad` function and the website.
+3. **Database** (SQL editor):
+   ```sql
+   UPDATE public.billing_plans SET price_amount = 25000, updated_at = now() WHERE id = 'starter';
    ```
-   MadeVisa Membership
-   ```
-   Tier description:
-   ```
-   Everything on MadeVisa for 3 months.
-   ```
-3. Under the tier's billing periods, switch on **only "Every 3 months" (quarterly)** and set it to **$2.99**.
-   **Switch monthly OFF** (and yearly and every other period). If a second period is left on, the website refuses to open checkout: buyers could otherwise pick another price on Gumroad's page.
-4. **Purchasing power parity: OFF** for this product. The price is the same in every country.
-5. "Pay what you want": **off**.
-6. Free trial: **off**. The guarantee does that job.
+4. Admin → Plans → Gumroad → **Connect** again with the same link, so the stored price matches.
 
----
+Changing the price only in Gumroad makes the site refuse checkout ("price doesn't match"),
+which is on purpose: nobody is ever charged an amount the site didn't show.
 
-## 3. Content tab (what the buyer sees after paying)
+## 6. Discount codes (optional)
 
-Add a button:
-- Label:
-  ```
-  Open MadeVisa
-  ```
-- Link:
-  ```
-  https://madevisa.com/checkout/complete
-  ```
-
-Text above it:
-```
-Welcome to your 3 months on MadeVisa!
-Your membership is on the account with the email you paid with. Open MadeVisa, sign in with that email (we send a one-time code), and every Apply button is unlocked.
-Start here: upload your CV once — every job then shows your match score.
-```
-
----
-
-## 4. Receipt tab
-
-Custom message:
-```
-Thank you! Your MadeVisa Membership runs for 3 months and renews at $2.99 every 3 months until you cancel. Cancel anytime from the link in this receipt or in MadeVisa → Settings → Billing.
-Questions or a refund: hello@madevisa.com
-```
-
----
-
-## 5. After saving in Gumroad ⚠️
-
-1. Supabase SQL Editor: run `supabase/migrations/20261231150000_three_month_membership.sql`.
-2. Deploy the payment function: `supabase functions deploy gumroad --no-verify-jwt`.
-3. MadeVisa **Admin → Plans → Card payments**: press **Connect** again on the membership with `https://madevisa.gumroad.com/l/membership`. It re-reads the price; it must say **$2.99 every 3 months**. If anything is off, the error message says exactly what to change.
-4. Push the website.
-5. Test: open a job while signed out, press Unlock, and check that Gumroad's form shows **$2.99 every 3 months**.
-
-**People already paying $2.29 a month:** Gumroad keeps existing subscriptions on what they bought. Their membership keeps working on MadeVisa; nothing to do.
+Gumroad → Checkout → Discounts. The site's "leaving" offer uses the code set in
+`VITE_GUMROAD_DOWNSELL_CODE` (and `VITE_GUMROAD_DOWNSELL_PRICE`); it must apply to the lifetime product.

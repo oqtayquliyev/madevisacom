@@ -340,10 +340,32 @@ function hasStructuredJob(html: string): boolean {
   return isPhenomSite(html) && Boolean(extractPhenomDdo(html)?.jobDetail?.data?.job);
 }
 
+/**
+ * Team / people / department pages that career sites list next to their jobs
+ * (Teamtailor "/people/3892195-sarah-mian", "/departments/…"): a person or a
+ * team, not a vacancy.
+ */
+const NON_JOB_PATH_RE = /\/(?:people|person|employees?|team-members?|our-people|meet-(?:the-)?team|departments?|colleagues?)(?:\/|$)/i;
+/** Text only those pages have ("Some of my colleagues", Teamtailor's footer). */
+const PEOPLE_PAGE_TEXT_RE = /some of my colleagues|meet (?:my|our) colleagues|let'?s recruit together and find your next colleague/i;
+
+function isPeoplePage(j: NormalizedJob): boolean {
+  let path = "";
+  try {
+    path = new URL(j.url).pathname;
+  } catch {
+    /* ignore */
+  }
+  if (NON_JOB_PATH_RE.test(path)) return true;
+  // A name for a title ("Sarah Mian") on a page that lists colleagues.
+  return !ROLE_WORD_RE.test(j.title) && PEOPLE_PAGE_TEXT_RE.test(stripTags(j.descriptionHtml).slice(0, 20_000));
+}
+
 /** Last check on every job before it leaves this function. */
 function isUsableJob(j: NormalizedJob): boolean {
   if (!j.title || isGarbageTitle(j.title)) return false;
   if (isNonJobDestination(j.url)) return false;
+  if (isPeoplePage(j)) return false;
   if (CONSENT_TEXT_RE.test(j.descriptionHtml.slice(0, 20_000))) return false;
   return true;
 }

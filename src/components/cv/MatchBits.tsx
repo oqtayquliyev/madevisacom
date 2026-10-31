@@ -92,7 +92,7 @@ export function MatchLabel({ result }: { result: MatchResult }) {
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-bold ${tone.bg} ${tone.text}`}>{result.label}</span>;
 }
 
-/** "Membership: $2.99 for 3 months" — the plan that includes the full report. */
+/** "Membership: $12.50 once" — the plan that includes the full report. */
 export function ProPrice({ className = '' }: { className?: string }) {
   return <span className={className}>Membership: {priceLabel('starter')}</span>;
 }

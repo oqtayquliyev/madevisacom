@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { noteMilestone } from '@/lib/emailAttribution';
-import { ArrowRight, Bell, BookmarkCheck, CheckCircle2, FileSignature, Globe2, Lock, ScanSearch, ShieldCheck, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowRight, Bell, BookmarkCheck, CheckCircle2, FileSignature, Globe2, ScanSearch, ShieldCheck, Wallet, type LucideIcon } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { SEO_META } from '@/lib/seoMeta';
 import { WRAP, nav } from '@/lib/pageLayout';
-import { MEMBERSHIP_PER_MONTH, MEMBERSHIP_PLAN, MEMBERSHIP_PRICE, MEMBERSHIP_PRICE_LABEL, PLANS, useMyPlan } from '@/lib/plans';
+import { LAUNCH_OFFER, MEMBERSHIP_PLAN, MEMBERSHIP_PRICE, MEMBERSHIP_PRICE_LABEL, MEMBERSHIP_REGULAR_PRICE, PLANS, useMyPlan } from '@/lib/plans';
+import { LaunchOfferBox } from '@/components/pro/LaunchOffer';
 import { GUARANTEE } from '@/lib/conversion';
 import { trackBilling } from '@/lib/billing';
 import { PricingSwitch } from '@/pages/pricing/PricingSwitch';
@@ -21,14 +22,14 @@ type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') =
 /** The membership's benefits, each with its icon (copy: supabase/functions/_shared/plans.ts). */
 const ICONS: LucideIcon[] = [Globe2, FileSignature, ScanSearch, ShieldCheck, Wallet, Bell, CheckCircle2, BookmarkCheck];
 const membership = PLANS[MEMBERSHIP_PLAN];
-const CTA = `Start my 3 months — ${MEMBERSHIP_PRICE}`;
+const CTA = `Get it for ${MEMBERSHIP_PRICE}`;
 
 export function PricingPage({ go, onAuth }: Props) {
   const my = useMyPlan();
 
   useSeo({
     title: SEO_META.pricing.title,
-    description: `MadeVisa Membership: ${MEMBERSHIP_PRICE_LABEL}, your job-landing partner. Jobs from company career pages, remote listings, CV match on every job, companies that sponsor visas and sponsorship documents. Same price in every country, cancel anytime.`,
+    description: `MadeVisa Membership: ${MEMBERSHIP_PRICE_LABEL}, your job-landing partner. Jobs from company career pages, remote listings, CV match on every job, companies that sponsor visas and sponsorship documents. Pay once, use it forever — no subscription.`,
     path: '/pricing',
   });
 
@@ -56,8 +57,8 @@ export function PricingPage({ go, onAuth }: Props) {
         <div className={`${WRAP} py-10 text-center sm:py-14`}>
           <PricingSwitch active="seekers" />
           <h1 className="mx-auto mt-6 max-w-3xl text-[34px] font-bold leading-[1.08] tracking-tight text-ink-950 sm:text-[56px]">
-            Your job-landing partner
-            <span className="block text-brand-700">for 3 months. {MEMBERSHIP_PRICE}.</span>
+            Ultimate access to everything.
+            <span className="block text-brand-700">Pay once. {MEMBERSHIP_PRICE}.</span>
           </h1>
           <ul className="mx-auto mt-6 flex max-w-3xl flex-wrap justify-center gap-2">
             {['Jobs from company career pages', 'Visa sponsor proof', 'CV match on every job', 'Checked live, scam-screened'].map((t) => (
@@ -73,7 +74,7 @@ export function PricingPage({ go, onAuth }: Props) {
         {my.isPaid && (
           <p className="mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
             <CheckCircle2 className="h-4 w-4" aria-hidden /> You’re a member
-            {my.sub?.current_period_end ? ` until ${new Date(my.sub.current_period_end).toLocaleDateString()}` : ''}. Thank you!{' '}
+            {my.sub?.current_period_end && new Date(my.sub.current_period_end).getFullYear() < new Date().getFullYear() + 20 ? ` until ${new Date(my.sub.current_period_end).toLocaleDateString()}` : ''}. Thank you!{' '}
             <AppLink href="/profile?tab=settings#billing" className="font-semibold underline">
               Billing
             </AppLink>
@@ -81,41 +82,27 @@ export function PricingPage({ go, onAuth }: Props) {
         )}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start">
-          {/* The one plan: 3 months */}
+          {/* The one plan: lifetime, launch price */}
           <section aria-labelledby="plan-title" className="lg:sticky lg:top-24">
-            <div className="relative rounded-2xl border-2 border-brand-600 bg-white p-6 shadow-soft-lg sm:p-8">
-              <span className="absolute -top-3 left-6 rounded-full bg-emerald-600 px-3 py-1 text-[12px] font-bold text-white">That’s {MEMBERSHIP_PER_MONTH} a month</span>
-              <h2 id="plan-title" className="text-[15px] font-bold uppercase tracking-[0.08em] text-brand-700">
-                {membership.name} · 3 months
-              </h2>
-              <p className="mt-2 text-6xl font-extrabold tracking-tight text-ink-950">{MEMBERSHIP_PRICE}</p>
-              <p className="mt-1.5 text-[16px] font-semibold text-ink-700">One payment for 3 months</p>
+            <h2 id="plan-title" className="sr-only">
+              {membership.name}: {MEMBERSHIP_PRICE} once (regular {MEMBERSHIP_REGULAR_PRICE})
+            </h2>
+            <LaunchOfferBox className="shadow-soft-lg sm:px-7 sm:pt-7" onBuy={() => getStarted('pricing')}>
               {my.isPaid ? (
-                <button type="button" onClick={() => nav('/jobs')} className="mt-6 flex h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 text-[16px] font-bold text-white hover:bg-brand-700">
+                <button type="button" onClick={() => nav('/jobs')} className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink-950 text-[15.5px] font-bold text-white hover:bg-ink-800">
                   Browse jobs <ArrowRight className="h-4 w-4" />
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => getStarted('pricing')}
-                  className="mt-6 flex h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 text-[16px] font-bold text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
-                >
-                  {CTA} <ArrowRight className="h-4 w-4" />
-                </button>
-              )}
-              <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[13px] font-bold text-emerald-700">
-                <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden /> {GUARANTEE}
-              </p>
-              <p className="mt-4 flex items-center justify-center gap-1.5 border-t border-ink-100 pt-4 text-center text-[13px] font-semibold text-ink-600">
-                <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden /> Renews every 3 months · cancel anytime · Gumroad
-              </p>
-            </div>
+              ) : undefined}
+            </LaunchOfferBox>
+            <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[13px] font-bold text-emerald-700">
+              <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden /> {GUARANTEE}
+            </p>
           </section>
 
           {/* What's included */}
           <section aria-labelledby="included-title">
             <h2 id="included-title" className="text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">
-              What you get in 3 months
+              What you get, for good
             </h2>
             <ul className="mt-5 grid gap-3 sm:grid-cols-2">
               {membership.benefits.map((b, i) => {
@@ -166,15 +153,15 @@ export function PricingPage({ go, onAuth }: Props) {
           <div className="mt-5">
             <Faq
               items={[
-                { q: 'How does the membership work?', a: `One payment of ${MEMBERSHIP_PRICE} gives you 3 months of everything above (${MEMBERSHIP_PER_MONTH} a month). It renews every 3 months until you cancel. Cancel anytime in Settings → Billing; you keep everything until the end of the 3 months you paid for.` },
+                { q: 'How does the membership work?', a: `One payment of ${MEMBERSHIP_PRICE} gives you everything above for as long as MadeVisa runs. No subscription, nothing renews, nothing to cancel. It’s a launch price for the first ${LAUNCH_OFFER.places} customers; after that it goes up to ${MEMBERSHIP_REGULAR_PRICE} — your price stays paid.` },
                 { q: 'Is a job, an interview or a visa guaranteed?', a: 'No plan can promise that, and nobody honest will. What we do guarantee: if MadeVisa doesn’t show you at least 10 open jobs in your field at companies with an official visa-sponsor record within your first 14 days, you get a full refund. See the Subscription Terms.' },
                 { q: 'What do I get for free?', a: 'Every job on MadeVisa, with search and filters. Applying to a job, CV match and the rest of the list above are part of the membership.' },
-                { q: 'Do I need an account before I pay?', a: 'No. Press Get Started and pay on Gumroad with your email. If you don’t have a MadeVisa account yet, we create one with that email and send you a sign-in link; if you do, the membership goes on it.' },
+                { q: 'Do I need an account before I pay?', a: 'No. Press Get it and pay on Gumroad with your email. If you don’t have a MadeVisa account yet, we create one with that email and send you a sign-in link; if you do, the membership goes on it.' },
                 { q: 'How many sponsorship documents are included?', a: 'Unlimited, with a fair-use limit of 30 in any 7 days. A sponsorship document is a proposal you send to an employer when a job needs a visa: the route that may apply, what it asks of the employer and who you suggest pays what. It isn’t a contract, a job offer or legal advice.' },
                 { q: 'How is the CV match worked out?', a: 'MadeVisa reads the job ad and your CV and compares the skills the ad names, whether your roles fit the job, years of experience, the ad’s wording, languages and education. It’s the same rules for every job, and it never looks at age, gender, nationality or a photo. A score shows how well your CV, as written, fits the ad; it isn’t a prediction that you’ll get the job.' },
                 { q: 'Is the price the same in every country?', a: `Yes: ${MEMBERSHIP_PRICE_LABEL}, in US dollars, everywhere. Gumroad adds sales tax or VAT at checkout where it applies, and your bank may convert the amount into your currency.` },
                 { q: 'How do I pay?', a: 'On Gumroad, our payment partner and the seller on your receipt. MadeVisa never sees your card. Your membership starts once Gumroad confirms the payment, usually within a minute.' },
-                { q: 'Can I cancel? Can I get a refund?', a: 'Yes, cancel anytime in Settings → Billing (it opens your membership on Gumroad) or from the link in your receipt; you keep the membership until the end of the period you paid for. Within 14 days of first joining, if you haven’t used a paid feature yet, you get a full refund — write to hello@madevisa.com. See the Subscription Terms.' },
+                { q: 'Can I get a refund?', a: 'There’s nothing to cancel: you pay once. Within 14 days of paying, if you haven’t used a paid feature yet, you get a full refund — write to hello@madevisa.com. See the Subscription Terms.' },
               ]}
             />
           </div>

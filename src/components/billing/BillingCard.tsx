@@ -48,9 +48,11 @@ export function BillingCard() {
 
   const rows: { label: string; value: string }[] = [];
   if (sub) {
-    if (sub.price_cents) rows.push({ label: 'Price', value: `${formatMoney(sub.price_cents)} / ${sub.billing === 'yearly' ? 'year' : 'month'}` });
-    rows.push({ label: 'Billing', value: sub.billing === 'yearly' ? 'Yearly' : 'Monthly' });
-    if (sub.cancel_at_period_end && sub.current_period_end) rows.push({ label: 'Ends on', value: longDate(sub.current_period_end) });
+    const once = sub.billing === 'once';
+    if (sub.price_cents) rows.push({ label: 'Price', value: once ? `${formatMoney(sub.price_cents)} once` : `${formatMoney(sub.price_cents)} / ${sub.billing === 'yearly' ? 'year' : sub.billing === 'quarterly' ? '3 months' : 'month'}` });
+    rows.push({ label: 'Billing', value: once ? 'One payment · lifetime access' : sub.billing === 'yearly' ? 'Yearly' : sub.billing === 'quarterly' ? 'Every 3 months' : 'Monthly' });
+    if (once) rows.push({ label: 'Access', value: 'For good · nothing renews' });
+    else if (sub.cancel_at_period_end && sub.current_period_end) rows.push({ label: 'Ends on', value: longDate(sub.current_period_end) });
     else if (sub.renews_at) rows.push({ label: 'Next renewal', value: longDate(sub.renews_at) });
     else if (sub.current_period_end) rows.push({ label: 'Paid until', value: longDate(sub.current_period_end) });
     rows.push({ label: 'Paid through', value: gumroad ? 'Gumroad (card)' : 'Activated by MadeVisa' });
@@ -144,7 +146,7 @@ export function BillingCard() {
                 onClick={() => trackBilling('billing_manage_clicked', { plan: my.plan })}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-ink-950 px-4 py-2 text-sm font-semibold text-white hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
               >
-                {sub?.cancel_at_period_end ? 'Restart on Gumroad' : 'Manage or cancel on Gumroad'} <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                {gumroad.startsWith('sale:') ? 'Receipt on Gumroad' : sub?.cancel_at_period_end ? 'Restart on Gumroad' : 'Manage or cancel on Gumroad'} <ExternalLink className="h-3.5 w-3.5" aria-hidden />
               </a>
             )}
             {my.plan === 'free' && (

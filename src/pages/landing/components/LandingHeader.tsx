@@ -49,7 +49,7 @@ const primaryLinks: {
   { view: "jobs", href: "/jobs", label: "Jobs", icon: Briefcase },
   { view: "feedback", href: "/ghostgood", label: "GhostGood", icon: Ghost },
   { view: "companies", href: "/companies", label: "Company Insights", icon: BarChart3 },
-  { view: "network", href: "/network", label: "Recruiters", icon: Users },
+  { view: "network", href: "/network", label: "HR Contacts", icon: Users },
 ];
 
 // Dropdown rows: grey by default, MadeVisa blue text on hover.

@@ -46,7 +46,7 @@ export function PaywallSection() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-ink-950">Paywall</h2>
-          <p className="text-sm text-ink-500">The membership popup ($2.99 for 3 months): how often it opened, and how often “Subscribe now” was pressed. Days are UTC.</p>
+          <p className="text-sm text-ink-500">The membership popup ($12.50 once): how often it opened, and how often “Subscribe now” was pressed. Days are UTC.</p>
         </div>
         <div className="flex items-center gap-2">
           {[7, 14, 30, 90].map((n) => (

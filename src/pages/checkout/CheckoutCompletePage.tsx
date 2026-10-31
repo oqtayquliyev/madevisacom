@@ -171,7 +171,7 @@ export function CheckoutCompletePage({ go, onAuth }: Props) {
               <dl className="mt-5 divide-y divide-ink-100 rounded-xl border border-ink-200 text-sm">
                 <Row label="Plan" value={info.name} />
                 {sub?.price_cents ? <Row label="Amount paid" value={`${formatMoney(sub.price_cents)} (before any tax)`} /> : null}
-                <Row label="Billing" value={info.recurrence === 'quarterly' ? 'Every 3 months' : 'Monthly'} />
+                <Row label="Billing" value={info.recurrence === 'once' ? 'One payment · lifetime access' : info.recurrence === 'quarterly' ? 'Every 3 months' : 'Monthly'} />
                 {sub?.renews_at && !sub.cancel_at_period_end ? <Row label="Next renewal" value={longDate(sub.renews_at)} /> : null}
                 {sub?.cancel_at_period_end && sub.current_period_end ? <Row label="Ends" value={longDate(sub.current_period_end)} /> : null}
               </dl>

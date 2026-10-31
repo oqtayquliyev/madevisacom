@@ -46,7 +46,7 @@ export const SEO_META = {
       'Upload your CV once. On every job, MadeVisa shows a match score, the skills the ad asks for that your CV doesn’t show, and what to change. Part of the MadeVisa Membership.',
   },
   pricing: {
-    title: 'MadeVisa Pricing — 3 Months for $2.99',
+    title: 'MadeVisa Pricing — $12.50 Once, Lifetime Access',
     description: '', // built from live prices (see api/seo.ts and PricingPage)
   },
   jobMarket: {
@@ -54,9 +54,9 @@ export const SEO_META = {
     description: '', // built from live numbers
   },
   network: {
-    title: 'Company Hiring Contacts — Emails of Companies That Hire',
+    title: 'Direct Contact to HRs & Recruiters — Companies That Hire Abroad',
     description:
-      'Companies and their hiring emails, with the ones that sponsor visas first, and how many jobs they have open on MadeVisa.',
+      'Write directly to the HR teams and recruiters of companies that hire abroad, the ones that sponsor visas first, with how many jobs they have open on MadeVisa.',
   },
   feedback: {
     title: 'GhostGood — How Companies Really Respond to Applicants',

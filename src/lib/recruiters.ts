@@ -20,6 +20,8 @@ export type RecruiterCompany = {
   emails: string[];
   /** All addresses known for it (only the first 3 are shown). */
   email_count: number;
+  /** Not a member: the server sent the addresses shortened ("re***@ramboll.com"). */
+  masked?: boolean;
 };
 
 export async function fetchRecruiterCompanies(): Promise<RecruiterCompany[] | null> {

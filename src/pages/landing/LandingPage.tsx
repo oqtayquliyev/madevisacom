@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { History, Search, X } from 'lucide-react';
+import { BellRing, ChevronRight, History, Search, X } from 'lucide-react';
+import { useNotifications } from '@/lib/notifications';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { SEO_META } from '@/lib/seoMeta';
@@ -27,6 +28,9 @@ export function LandingPage({ go, onAuth }: LandingProps) {
   useSeo({ ...SEO_META.home, path: '/' });
   const [q, setQ] = useState('');
   const [recent] = useState(readRecent);
+  // Signed in: the jobs we last sent them (job-alert notifications), right under the search.
+  const { items: notes } = useNotifications(40);
+  const forYou = notes.filter((n) => (n.kind === 'job_alert' || n.kind === 'for_you') && n.link).slice(0, 4);
   const input = useRef<HTMLInputElement>(null);
 
   // Desktop: ready to type, like a search engine. Phones: no keyboard popping up on arrival.
@@ -116,6 +120,33 @@ export function LandingPage({ go, onAuth }: LandingProps) {
               </button>
             ))}
           </div>
+        )}
+        {forYou.length > 0 && (
+          <section className="mt-10 w-full max-w-[640px]" aria-labelledby="for-you-title">
+            <h2 id="for-you-title" className="mb-2 text-[13px] font-bold uppercase tracking-wide text-ink-400">
+              Recommended for you
+            </h2>
+            <ul className="divide-y divide-ink-100 overflow-hidden rounded-2xl ring-1 ring-ink-200">
+              {forYou.map((n) => (
+                <li key={n.id}>
+                  <a
+                    href={n.link!}
+                    onClick={(e) => handleNavClick(e, () => nav(n.link!))}
+                    className="flex items-center gap-3 px-4 py-3 text-left hover:bg-ink-50"
+                  >
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-700">
+                      <BellRing className="h-4 w-4" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14.5px] font-semibold text-ink-950">{n.body || n.title}</span>
+                      <span className="block truncate text-[12.5px] text-ink-500">{n.title}</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-ink-300" aria-hidden />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </main>
 

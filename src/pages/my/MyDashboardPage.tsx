@@ -142,7 +142,7 @@ export function MyDashboardPage({ go, onAuth }: Props) {
 
                 <Card title="Membership" icon={Crown}>
                   <p className="text-[22px] font-bold text-ink-950">{d.plan?.name ?? 'Free'}</p>
-                  <p className="mt-0.5 text-[13px] text-ink-600">{d.plan?.pro ? (d.plan.until ? `Active until ${date(d.plan.until)}` : 'Active') : 'Apply to every job, with CV match and sponsorship documents, for $2.99 for 3 months.'}</p>
+                  <p className="mt-0.5 text-[13px] text-ink-600">{d.plan?.pro ? (d.plan.until ? `Active until ${date(d.plan.until)}` : 'Active') : 'Apply to every job, with CV match and sponsorship documents, — $12.50 once, for good.'}</p>
                   <CardLink href={d.plan?.pro ? '/profile?tab=settings#billing' : '/pricing?s=my'} onClick={link(d.plan?.pro ? '/profile?tab=settings#billing' : '/pricing?s=my')}>{d.plan?.pro ? 'Manage membership' : 'Become a member'}</CardLink>
                 </Card>
               </section>

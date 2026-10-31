@@ -6,7 +6,7 @@ import { MEMBERSHIP_URL } from '@/lib/plans';
 
 // Admin → Plans → Card payments.
 //
-// Connect the membership's Gumroad product (stored as plan 'starter', $2.99 every 3 months); from then on
+// Connect the membership's Gumroad product (stored as plan 'starter', $12.50 once — lifetime access); from then on
 // the checkout page sends buyers to it and the plan switches on and off by
 // itself. Shown here: each plan's product and whether its price matches, the
 // switch for everyone, the checkout funnel, members who pay by card, and what
@@ -198,6 +198,7 @@ export function GumroadCard() {
           <PlanProduct key={p.plan} p={p} busy={busy} onConnect={(url) => connect(p.plan, url)} onDisconnect={() => void disconnect(p.plan)} />
         ))}
       </div>
+      <PlacesLeft />
       {!(state.plans ?? []).length && <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">Run the migrations 20261219090000_starter_pro_plans.sql and 20261231090000_single_membership_guest_checkout.sql to sell the membership.</p>}
       {state.connected && !state.enabled && (
         <p className="mt-3 rounded-md bg-ink-100 px-3 py-2 text-xs leading-5 text-ink-600">
@@ -249,7 +250,7 @@ export function GumroadCard() {
                   <span className="min-w-0 flex-1 basis-full sm:basis-0">
                     <span className="block truncate font-medium text-ink-900">{m.name || m.email || 'A buyer'}</span>
                     <span className="block truncate text-xs text-ink-500">
-                      {[m.name ? m.email : null, m.price_cents != null ? `${dollars(m.price_cents)} ${m.recurrence === 'yearly' ? 'a year' : m.recurrence === 'quarterly' ? 'every 3 months' : 'a month'}` : m.recurrence, m.card_country ? `paid from ${m.card_country}` : null].filter(Boolean).join(' · ')}
+                      {[m.name ? m.email : null, m.price_cents != null ? `${dollars(m.price_cents)} ${m.recurrence === 'once' ? 'once' : m.recurrence === 'yearly' ? 'a year' : m.recurrence === 'quarterly' ? 'every 3 months' : 'a month'}` : m.recurrence, m.card_country ? `paid from ${m.card_country}` : null].filter(Boolean).join(' · ')}
                     </span>
                   </span>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${m.plan === 'starter' ? 'bg-sky-100 text-sky-800' : 'bg-brand-100 text-brand-800'}`}>{m.plan === 'starter' ? 'Starter' : 'Pro'}</span>
@@ -327,7 +328,7 @@ function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: s
     <div className="rounded-lg border border-ink-200 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-sm font-bold text-ink-950">
-          {name} · {dollars(p.price_cents)} {p.plan === 'starter' ? 'every 3 months' : 'a month'}
+          {name} · {dollars(p.price_cents)} {p.plan === 'starter' ? 'once' : 'a month'}
         </p>
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${!connected ? 'bg-amber-100 text-amber-900' : priceOk ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
           {!connected ? 'Not connected' : priceOk ? 'Connected' : 'Price on Gumroad differs — checkout off'}
@@ -340,7 +341,7 @@ function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: s
             <a href={p.product_url ?? '#'} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand-700 hover:underline">
               {p.product_name || 'The product'} <ExternalLink className="h-3 w-3" />
             </a>{' '}
-            · Gumroad charges {p.provider_price_cents != null ? dollars(p.provider_price_cents) : '—'} {p.plan === 'starter' ? 'every 3 months' : 'a month'} · connected {day(p.connected_at)}
+            · Gumroad charges {p.provider_price_cents != null ? dollars(p.provider_price_cents) : '—'} {p.plan === 'starter' ? 'once' : 'a month'} · connected {day(p.connected_at)}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <button onClick={() => void onConnect(p.product_url ?? '')} disabled={busy !== null} className="inline-flex items-center gap-1.5 rounded-md border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50" title="Reads the product from Gumroad again and repairs the notifications">
@@ -360,7 +361,7 @@ function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: s
         <>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5 text-ink-600">
             <li>
-              The product is <strong>madevisa.gumroad.com/l/membership</strong>: a <strong>Membership</strong> with one tier and <strong>only the “Every 3 months” price, {dollars(p.price_cents)}</strong> (monthly and every other period switched off). Switch Gumroad’s purchasing-power discount off for it. Publish it. If Connect still says “no monthly price”, the payment function is the old one: run <code>supabase functions deploy gumroad --no-verify-jwt</code>.</li>
+              The product is <strong>madevisa.gumroad.com/l/lifetime</strong>: a normal <strong>Digital product</strong> (not a Membership) priced <strong>{dollars(p.price_cents)}</strong>, with “Allow customers to pay what they want”, versions with extra prices and the purchasing-power discount all switched <strong>off</strong>. Publish it. Connecting it keeps everyone who joined on the old membership product. If Connect complains about a monthly price, the payment function is the old one: run <code>supabase functions deploy gumroad --no-verify-jwt --use-api</code>.</li>
             <li>Optional: in the product’s content, add a button to https://madevisa.com/checkout/complete so buyers can come back.</li>
             <li>Press Connect (the link is already filled in).</li>
           </ol>
@@ -388,6 +389,79 @@ function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: s
           </form>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * The "N of 200 left" number on the launch offer (paywall and pricing page).
+ * Set by hand; empty = the real count (200 minus one-time buyers). Migration 20261231220000.
+ */
+function PlacesLeft() {
+  const [v, setV] = useState<{ shown: number; manual: number | null; real: number } | null>(null);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const take = (data: unknown) => {
+    const d = data as { shown: number; manual: number | null; real: number };
+    setV(d);
+    setDraft(d.manual == null ? '' : String(d.manual));
+  };
+  useEffect(() => {
+    void supabase.rpc('admin_membership_places').then(({ data, error }) => (error ? setErr(error.message) : take(data)));
+  }, []);
+
+  const save = async (n: number | null) => {
+    setBusy(true);
+    setErr(null);
+    const { data, error } = await supabase.rpc('admin_set_membership_places', { p_left: n });
+    setBusy(false);
+    if (error) return setErr(error.message);
+    take(data);
+  };
+  const typed = draft.trim() === '' ? null : Number(draft);
+  const valid = typed === null || (Number.isInteger(typed) && typed >= 0 && typed <= 200);
+
+  return (
+    <div className="mt-3 rounded-lg border border-ink-200 px-3 py-3">
+      <p className="text-xs font-bold text-ink-950">Places left (launch offer)</p>
+      <p className="mt-0.5 text-[11.5px] leading-5 text-ink-500">
+        Shown on the site as “{v?.shown ?? '…'} of 200 left”. Lower it after each purchase. Empty = real count{v ? ` (${v.real} now)` : ''}.
+      </p>
+      <form
+        className="mt-2 flex flex-wrap items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (valid) void save(typed);
+        }}
+      >
+        <input
+          type="number"
+          min={0}
+          max={200}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={v ? String(v.real) : ''}
+          aria-label="Places left shown"
+          className="h-8 w-24 rounded-md border border-ink-300 px-2 text-sm"
+        />
+        <button type="submit" disabled={busy || !valid} className="h-8 rounded-md bg-ink-950 px-3 text-xs font-semibold text-white disabled:opacity-50">
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
+        </button>
+        {v && v.shown > 0 && (
+          <button type="button" disabled={busy} onClick={() => void save(v.shown - 1)} className="h-8 rounded-md border border-ink-300 px-3 text-xs font-semibold text-ink-800 hover:bg-ink-50">
+            After a purchase: −1
+          </button>
+        )}
+        {v?.manual != null && (
+          <button type="button" disabled={busy} onClick={() => void save(null)} className="h-8 px-2 text-xs font-semibold text-ink-500 underline">
+            Use real count
+          </button>
+        )}
+      </form>
+      {!valid && <p className="mt-1 text-[11.5px] text-rose-700">A whole number from 0 to 200.</p>}
+      {err && <p className="mt-1 text-[11.5px] text-rose-700">{err}</p>}
     </div>
   );
 }

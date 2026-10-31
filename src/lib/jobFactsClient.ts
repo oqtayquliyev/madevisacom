@@ -27,7 +27,7 @@ export type JobContact = { email?: string; phone?: string; website?: string; nam
 export type StoredJobFacts = { v: number; facts: DetectedFacts; html: string; contact: JobContact };
 
 /** Must match FACTS_VERSION in supabase/functions/job-facts/index.ts. */
-export const FACTS_VERSION = 3;
+export const FACTS_VERSION = 4;
 
 export const EMPTY_FACTS: DetectedFacts = {
   compensation: null,

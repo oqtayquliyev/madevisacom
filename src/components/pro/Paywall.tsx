@@ -8,7 +8,8 @@ import { useJobFacets } from '@/lib/jobFacets';
 import { classifyJob } from '@/lib/jobTaxonomy';
 import { goToMembershipCheckout } from '@/lib/gumroad';
 import { preloadGumroad } from '@/lib/gumroadOverlay';
-import { MEMBERSHIP_PER_MONTH, MEMBERSHIP_PRICE } from '@/lib/plans';
+import { MEMBERSHIP_PRICE } from '@/lib/plans';
+import { LaunchOfferBox } from './LaunchOffer';
 import { trackBilling } from '@/lib/billing';
 import { trackPaywall } from '@/lib/paywallStats';
 import { rememberAuthIntent } from '@/lib/authIntent';
@@ -31,7 +32,7 @@ import { TESTIMONIALS } from '@/data/testimonials';
 //      real answers they can almost read
 //   3. proof the job is live: posted on the company's careers page X hours ago, N people
 //      looked at it today (real counts, from 3 up)
-//   4. one specific button: "Unlock this job — $2.99" (3 months), and a guarantee under it
+//   4. the launch offer (LaunchOffer.tsx): ~~$250~~ $12.50 once, places really left, one button
 //   5. a member from their own country (or in English)
 // Leaving (Back / close / mouse to the tab bar) shows the "first month for less" offer
 // once a week, when a Gumroad offer code is set. "Subscribe" opens Gumroad's payment
@@ -39,26 +40,12 @@ import { TESTIMONIALS } from '@/data/testimonials';
 
 /** What's included — short, so the card stays one screen tall on a phone. **words** are drawn bold. */
 const INCLUDED = [
-  '**Apply to every job** for 3 months',
+  '**Apply to every job**, for good',
   '**Unlimited sponsorship documents**',
   '**Fastest job alerts**: jobs not on LinkedIn or Indeed',
   '**CV tailoring suggestions** on every job',
   '**Sponsor proof** and **checked-live** jobs',
 ];
-
-/**
- * The 3 months it covers, from the day of payment: today → 29 Nov → 29 Dec → 29 Jan
- * (a day that doesn't exist, like 31 Feb, becomes the month's last day — as Gumroad renews).
- */
-export function coveredPeriods(now = new Date()): { ends: Date[]; label: (d: Date) => string } {
-  const plus = (m: number) => {
-    const d = new Date(now.getFullYear(), now.getMonth() + m, 1);
-    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(now.getDate(), last));
-    return d;
-  };
-  return { ends: [plus(1), plus(2), plus(3)], label: (d) => d.toLocaleString('en-GB', { day: 'numeric', month: 'short' }) };
-}
 
 /** The cards Gumroad takes, drawn as small marks (no images to load). */
 function CardMarks({ className = '' }: { className?: string }) {
@@ -127,7 +114,7 @@ const REASON_TITLE: Record<PaywallReason, string> = {
   match: 'See how your CV matches this job.',
   edge: 'Your edge on this job.',
   doc: 'Your sponsorship document.',
-  contact: 'Write to the recruiter directly.',
+  contact: 'Write to HR or the recruiter directly.',
 };
 
 type Props = {
@@ -335,69 +322,17 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
               </ul>
             )}
 
-            <div className="mt-4 rounded-2xl border border-ink-200 px-4 pb-4 pt-4 sm:px-5">
-              <p className="flex items-center justify-center gap-2 text-[17px] font-bold text-ink-950">
-                <span className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200">
-                  <Lock className="h-3.5 w-3.5" aria-hidden />
-                </span>
-                Secure checkout
-              </p>
-
-              {/* The three months it covers, by name: this month and the next two. */}
-              {(() => {
-                const { ends, label } = coveredPeriods();
-                return (
-                  <>
-                    <p className="mt-3 text-center text-[13px] font-semibold text-ink-600">
-                      Your job tool from today to <span className="text-ink-950">{ends[2].toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                    </p>
-                    <div className="mt-2 grid grid-cols-3 gap-2" aria-label="The 3 months your membership covers">
-                      {ends.map((d, i) => (
-                        <span key={i} className="rounded-lg bg-brand-50 py-1.5 text-center ring-2 ring-inset ring-brand-500">
-                          <span className="block text-[11px] font-bold uppercase tracking-wide text-brand-600">Month {i + 1}</span>
-                          <span className="block text-[13.5px] font-semibold text-brand-900">to {label(d)}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </>
-                );
-              })()}
-
-              {/* The amount, in a box, like a payment form. */}
-              <div className="relative mt-5 flex items-center justify-between rounded-xl px-4 py-3 ring-1 ring-inset ring-ink-300">
-                <span className="text-[30px] font-semibold leading-none tracking-tight text-ink-950">{MEMBERSHIP_PRICE}</span>
-                <span className="text-right text-[14px] font-medium text-ink-500">
-                  USD · 3 months
-                  <span className="block text-[12px] font-bold text-emerald-700">{MEMBERSHIP_PER_MONTH} a month</span>
-                </span>
-                <span className="absolute -top-2.5 left-3 rounded-full bg-amber-300 px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-wide text-ink-950">Best offer</span>
-              </div>
-
+            <LaunchOfferBox className="mt-4" busy={busy} onBuy={() => void subscribe()}>
               {already ? (
                 <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2.5 text-center text-[13px] font-semibold text-emerald-800">
-                  Your membership is already running.{' '}
+                  Your membership is already active.{' '}
                   <button type="button" onClick={() => window.location.reload()} className="underline">
                     Reload the page
                   </button>
                 </p>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => void subscribe()}
-                  disabled={busy}
-                  className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#2F6FED] text-[15px] font-bold text-white transition hover:bg-[#245BD0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6FED] focus-visible:ring-offset-2 disabled:opacity-80"
-                >
-                  {busy ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Opening secure payment…
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="h-4 w-4" aria-hidden /> Pay securely · {MEMBERSHIP_PRICE}
-                    </>
-                  )}
-                </button>
-              )}
+              ) : undefined}
+            </LaunchOfferBox>
+            <div className="px-1">
               <CardMarks className="mt-3 justify-center" />
               <p className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-[12px] font-semibold text-emerald-700">
                 <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden /> {GUARANTEE}
@@ -464,7 +399,7 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
   );
 }
 
-/** "Wait — your first month for $0.99": shown once a week when someone leaves the popup. */
+/** "Wait — lifetime access for less": shown once a week when someone leaves the popup. */
 function DownsellView({ busy, onTake, onNo }: { busy: boolean; onTake: () => void; onNo: () => void }) {
   return (
     <div className="py-2 text-center">
@@ -472,11 +407,11 @@ function DownsellView({ busy, onTake, onNo }: { busy: boolean; onTake: () => voi
         <Gift className="h-6 w-6" aria-hidden />
       </span>
       <h2 id="paywall-title" className="mt-4 font-title text-[26px] font-bold leading-tight tracking-tight">
-        Wait — your first 3 months
+        Wait — lifetime access
         <span className="block">for {DOWNSELL_PRICE}.</span>
       </h2>
       <p className="mx-auto mt-2 max-w-[320px] text-[14px] leading-5 text-ink-600">
-        Every job, sponsor proof and CV match. Then {MEMBERSHIP_PRICE} every 3 months, cancel anytime.
+        Every job, sponsor proof and CV match — instead of {MEMBERSHIP_PRICE}. Pay once, nothing renews.
       </p>
       <button
         type="button"
