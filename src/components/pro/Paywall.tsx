@@ -264,9 +264,11 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
             </LaunchOfferBox>
             {/* The five things it unlocks, then why it matters beyond you. */}
             <ol className="mt-5 space-y-2.5 px-1" aria-label="What you get">
-              {FEATURES.map((f, i) => (
+              {FEATURES.map((f) => (
                 <li key={f.title} className="flex gap-3 text-[13.5px] leading-5 text-ink-800">
-                  <span className="w-5 shrink-0 font-mono text-[12px] font-bold leading-5 text-brand-700">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="w-5 shrink-0 text-center text-[16px] leading-5" aria-hidden>
+                    {f.icon}
+                  </span>
                   <span>
                     <strong className="font-semibold text-ink-950">{f.title}</strong> <span className="text-ink-500">{f.sub}</span>
                   </span>

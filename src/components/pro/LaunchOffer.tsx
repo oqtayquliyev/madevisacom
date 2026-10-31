@@ -19,9 +19,11 @@ export const MISSION_LINE = 'Your purchase helps us connect more companies, unlo
 
 export function MissionNote({ className = '' }: { className?: string }) {
   return (
-    <p className={`flex items-start justify-center gap-2 text-center text-[13px] leading-[1.5] text-ink-600 ${className}`}>
-      <Heart className="mt-[3px] h-3.5 w-3.5 shrink-0 fill-rose-500 text-rose-500" aria-hidden />
-      <span className="max-w-[340px] text-left">{MISSION_LINE}</span>
+    <p className={`flex items-center justify-center gap-3 text-[13px] leading-[1.5] text-ink-700 ${className}`}>
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-rose-50 ring-1 ring-rose-100" aria-hidden>
+        <Heart className="h-5 w-5 fill-rose-500 text-rose-500" strokeWidth={2.5} />
+      </span>
+      <span className="max-w-[330px]">{MISSION_LINE}</span>
     </p>
   );
 }
@@ -67,7 +69,7 @@ export function PlacesBar({ left, className = '' }: { left: number; className?: 
         <span className="text-amber-700">{left} left</span>
       </div>
       <div
-        className="mt-1.5 h-2 overflow-hidden rounded-full bg-ink-100"
+        className="relative mt-2 h-3.5 rounded-full bg-ink-100"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={total}
@@ -75,6 +77,14 @@ export function PlacesBar({ left, className = '' }: { left: number; className?: 
         aria-label={`${taken} of ${total} launch places claimed`}
       >
         <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-[#FFD60A]" style={{ width: `${pct}%` }} />
+        {/* A heart riding on the end of the bar. */}
+        <span
+          className="absolute top-1/2 grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white shadow-sm ring-1 ring-rose-100"
+          style={{ left: `clamp(12px, ${pct}%, calc(100% - 12px))` }}
+          aria-hidden
+        >
+          <Heart className="h-3.5 w-3.5 fill-rose-500 text-rose-500" />
+        </span>
       </div>
     </div>
   );
@@ -131,8 +141,9 @@ export function LaunchOfferBox({ busy = false, onBuy, children, className = '' }
         <Lock className="h-3.5 w-3.5" aria-hidden /> Secure checkout <span aria-hidden>·</span> Pay once <span aria-hidden>·</span> No subscription
       </p>
       <CardMarks className="mt-2.5 justify-center" />
-      <p className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-[12px] font-semibold text-emerald-700">
-        <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden /> {GUARANTEE}
+      <p className="mx-auto mt-2.5 max-w-[320px] text-balance text-center text-[12px] font-semibold leading-[1.45] text-emerald-700">
+        <ShieldCheck className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden />
+        {GUARANTEE}
       </p>
     </div>
   );

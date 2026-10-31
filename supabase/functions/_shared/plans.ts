@@ -57,12 +57,12 @@ export const LAUNCH_OFFER = { regularCents: 25000, places: 200, percentOff: 95 }
  * update them as MadeVisa grows.
  */
 export const FEATURES_TITLE = 'Everything you need to get hired.';
-export const FEATURES: readonly { title: string; sub: string }[] = [
-  { title: '2,000+ company career websites.', sub: 'One search.' },
-  { title: 'Unlimited visa sponsorship documents.', sub: 'Ready to send to employers.' },
-  { title: '300,000+ new job opportunities every month.', sub: 'Before LinkedIn and Indeed.' },
-  { title: '8,000+ direct recruiter & HR contacts.', sub: 'Updated and growing. Reach hiring teams directly.' },
-  { title: 'Smart CV matching, sponsorship intelligence', sub: '& application tracking.' },
+export const FEATURES: readonly { icon: string; title: string; sub: string }[] = [
+  { icon: '🌐', title: '2,000+ company career websites.', sub: 'One search.' },
+  { icon: '📄', title: 'Unlimited visa sponsorship documents.', sub: 'Ready to send to employers.' },
+  { icon: '⚡', title: '300,000+ new job opportunities every month.', sub: 'Before LinkedIn and Indeed.' },
+  { icon: '🤝', title: '8,000+ direct recruiter & HR contacts.', sub: 'Updated and growing. Reach hiring teams directly.' },
+  { icon: '🎯', title: 'Smart CV matching, sponsorship intelligence', sub: '& application tracking.' },
 ];
 
 /** Higher includes everything below it. */

@@ -28,9 +28,11 @@ export function PlanCard({ source, compact = false }: { plan?: PaidPlanId | 'fre
 
       <p className="mt-5 text-[15px] font-bold text-ink-950">{FEATURES_TITLE}</p>
       <ol className="mt-2.5 flex-1 space-y-2.5">
-        {benefits.map((b, i) => (
+        {benefits.map((b) => (
           <li key={b.title} className="flex items-start gap-2.5 text-[14.5px] leading-6 text-ink-900">
-            <span className="shrink-0 font-mono text-[13px] font-bold text-brand-700">{String(i + 1).padStart(2, '0')}.</span>
+            <span className="w-5 shrink-0 text-center text-[16px]" aria-hidden>
+              {b.icon}
+            </span>
             <span>
               <strong className="font-semibold">{b.title}</strong> <span className="text-ink-600">{b.sub}</span>
             </span>
