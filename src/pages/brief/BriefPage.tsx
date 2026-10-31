@@ -26,6 +26,7 @@ import {
   fetchBriefAcceptance,
   fetchMyBriefForJob,
   findRoute,
+  newOfferPath,
   recordBriefView,
   updateBriefDetails,
   updateBriefStatus,
@@ -67,10 +68,12 @@ import { visaGuideByCode } from '@/data/visa';
 import { allCountries } from '@/data/allCountries';
 import { nav } from '@/lib/pageLayout';
 import { jobPath } from '@/lib/jobUrl';
-import { EXPERIENCE_OPTIONS } from '@/lib/plans';
+import { EXPERIENCE_OPTIONS, useMembership } from '@/lib/plans';
 import { usePersonalization } from '@/lib/personalization';
 import { ProPlanCard } from '@/components/pro/ProPlanCard';
 import { OfferDocument, type DocData } from '@/pages/brief/OfferDocument';
+import { DocPreviewShell } from '@/pages/brief/DocPreviewShell';
+import { maskEmailShort } from '@/lib/conversion';
 import { captureFacts, fmtDate, GAP_GROUP_LABEL, hostOf, monthLabel, openQuestions, reviseFacts, verificationRows, withThe, type Gap } from '@/lib/proposal';
 import { formatSalary } from '@/lib/listingCategories';
 
@@ -156,6 +159,9 @@ function NewOffer({ go, onAuth }: Props) {
   const params = new URLSearchParams(window.location.search);
   const jobId = params.get('job') ?? '';
   const custom = params.get('custom') === '1';
+  // ?preview=1: the finished document on the recommended terms, read-only (DocPreviewShell).
+  const preview = params.get('preview') === '1';
+  const { member } = useMembership();
   const [roleTitle, setRoleTitle] = useState(params.get('title') ?? '');
   const [state, setState] = useState<
     | { k: 'loading' }
@@ -211,7 +217,7 @@ function NewOffer({ go, onAuth }: Props) {
       const board = sponsoredJobToBoardJob(raw);
       const mine = await fetchMyBriefForJob(raw.id);
       if (mine) return nav(briefPath(mine.share_id));
-      void recordOfferDraft(raw.id);
+      if (!preview) void recordOfferDraft(raw.id);
       const city = raw.city && !/^(all|any|various|remote)$/i.test(raw.city.trim()) ? raw.city : null;
       const contact = raw.contact_email && !/madevisa/i.test(raw.contact_email) ? raw.contact_email : null;
       const source = [raw.official_url, raw.application_url].find((u) => typeof u === 'string' && /^https?:\/\//i.test(u)) ?? null;
@@ -238,7 +244,7 @@ function NewOffer({ go, onAuth }: Props) {
   const restored = useRef(false);
   const readyId = state.k === 'ready' ? state.job.id || 'custom' : null;
   useEffect(() => {
-    if (!readyId || restored.current) return;
+    if (!readyId || restored.current || preview) return;
     restored.current = true;
     const d = takeOfferDraft();
     if (!d) return;
@@ -251,7 +257,7 @@ function NewOffer({ go, onAuth }: Props) {
     if (d.routeId) setRouteId(d.routeId);
     setUseRec(d.useRec);
     if (d.roleTitle) setRoleTitle(d.roleTitle);
-  }, [readyId]);
+  }, [readyId, preview]);
 
   useEffect(() => {
     if (!profile) return;
@@ -523,6 +529,33 @@ function NewOffer({ go, onAuth }: Props) {
     </span>
   );
   const companyName = ed.employer.name || job.company;
+
+  if (preview) {
+    const editHref = `${newOfferPath(job.id)}${params.get('country') ? `&country=${params.get('country')}` : ''}`;
+    return (
+      <DocPreviewShell
+        flags={flags}
+        company={companyName}
+        title={job.title}
+        contact={job.contact}
+        source={job.source ?? null}
+        editHref={editHref}
+        paper={
+          <OfferDocument
+            final
+            draft
+            doc={{ ...doc, ref: refFor(job.id || 'preview0') }}
+            // Non-members don't see the HR email in full, on the document either.
+            terms={member ? terms : { ...terms, employer: terms.employer ? { ...terms.employer, contact: maskEmailShort(terms.employer.contact) } : terms.employer }}
+            guide={guide}
+            route={route}
+            code={el.code}
+            adCountryName={adCountryName}
+          />
+        }
+      />
+    );
+  }
 
   // Step one, when we don't know the name yet: ask for it before showing anything else.
   if (!nameOk) {

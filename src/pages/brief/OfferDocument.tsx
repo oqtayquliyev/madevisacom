@@ -85,7 +85,10 @@ export function OfferDocument({
   approvedAt,
   confirmed,
   adCountryName,
+  final,
 }: {
+  /** A read-only preview shown as the finished document: no status line. */
+  final?: boolean;
   doc: DocData;
   terms: OfferTerms;
   guide: VisaGuide;
@@ -194,11 +197,13 @@ export function OfferDocument({
           <strong className="text-ink-950">{doc.jobTitle}</strong> in {land}. A candidate-initiated proposal for discussing sponsorship, immigration and relocation arrangements.
         </p>
         <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-sans text-[13px]">
+          {!final && (
           <span data-state={state} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold print:bg-transparent print:px-0 ${STATE_TONE[state]}`}>
             {state === 'accepted' ? <BadgeCheck className="h-3.5 w-3.5" /> : state === 'approved' ? <Check className="h-3.5 w-3.5" /> : null}
             Status: {stateText}
             {state === 'accepted' && confirmed?.acceptedBy ? ` (${confirmed.acceptedBy})` : ''}
           </span>
+          )}
           <span className="text-ink-500">A proposal for discussion · not an employment offer or a contract</span>
         </p>
 

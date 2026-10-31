@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
 import { noteMilestone } from '@/lib/emailAttribution';
-import { ArrowRight, Bell, BookmarkCheck, CheckCircle2, FileSignature, Globe2, ScanSearch, ShieldCheck, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { SEO_META } from '@/lib/seoMeta';
 import { WRAP, nav } from '@/lib/pageLayout';
-import { LAUNCH_OFFER, MEMBERSHIP_PLAN, MEMBERSHIP_PRICE, MEMBERSHIP_PRICE_LABEL, MEMBERSHIP_REGULAR_PRICE, PLANS, useMyPlan } from '@/lib/plans';
+import { FEATURES_TITLE, LAUNCH_OFFER, MEMBERSHIP_PLAN, MEMBERSHIP_PRICE, MEMBERSHIP_PRICE_LABEL, MEMBERSHIP_REGULAR_PRICE, PLANS, useMyPlan } from '@/lib/plans';
 import { LaunchOfferBox } from '@/components/pro/LaunchOffer';
+import { FeatureList } from '@/components/pro/FeatureList';
 import { GUARANTEE } from '@/lib/conversion';
 import { trackBilling } from '@/lib/billing';
 import { PricingSwitch } from '@/pages/pricing/PricingSwitch';
@@ -19,8 +20,6 @@ import { PRO_TESTIMONIALS } from '@/data/testimonials';
 
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
-/** The membership's benefits, each with its icon (copy: supabase/functions/_shared/plans.ts). */
-const ICONS: LucideIcon[] = [Globe2, FileSignature, ScanSearch, ShieldCheck, Wallet, Bell, CheckCircle2, BookmarkCheck];
 const membership = PLANS[MEMBERSHIP_PLAN];
 const CTA = `Get it for ${MEMBERSHIP_PRICE}`;
 
@@ -99,26 +98,12 @@ export function PricingPage({ go, onAuth }: Props) {
             </p>
           </section>
 
-          {/* What's included */}
+          {/* What's included: the five features, numbered */}
           <section aria-labelledby="included-title">
             <h2 id="included-title" className="text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">
-              What you get, for good
+              {FEATURES_TITLE}
             </h2>
-            <ul className="mt-5 grid gap-3 sm:grid-cols-2">
-              {membership.benefits.map((b, i) => {
-                const Icon = ICONS[i] ?? CheckCircle2;
-                return (
-                  <li key={b.title} className="flex gap-3.5 rounded-xl border border-ink-200 bg-white p-4">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700">
-                      <Icon className="h-5 w-5" aria-hidden />
-                    </span>
-                    <span className="min-w-0 self-center text-[15.5px] font-bold leading-snug text-ink-950" title={b.text}>
-                      {b.title}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            <FeatureList className="mt-5" />
           </section>
         </div>
 

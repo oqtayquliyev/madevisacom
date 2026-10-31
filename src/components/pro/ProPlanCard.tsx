@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { ArrowRight, Check, ExternalLink } from 'lucide-react';
-import { MEMBERSHIP_PLAN, MEMBERSHIP_PRICE, PLANS, useMyPlan, type PaidPlanId } from '@/lib/plans';
+import { ArrowRight, ExternalLink } from 'lucide-react';
+import { FEATURES, FEATURES_TITLE, MEMBERSHIP_PLAN, MEMBERSHIP_PRICE, PLANS, useMyPlan, type PaidPlanId } from '@/lib/plans';
 import { manageUrl } from '@/lib/gumroad';
 import { checkoutHref, trackBilling } from '@/lib/billing';
 import { handleNavClick } from '@/lib/navLink';
@@ -13,7 +13,7 @@ import { nav } from '@/lib/pageLayout';
 export function PlanCard({ source, compact = false }: { plan?: PaidPlanId | 'free'; source: string; highlight?: boolean; compact?: boolean }) {
   const my = useMyPlan();
   const info = PLANS[MEMBERSHIP_PLAN];
-  const benefits = compact ? info.benefits.slice(0, 4) : info.benefits;
+  const benefits = compact ? FEATURES.slice(0, 4) : FEATURES;
   const href = checkoutHref(MEMBERSHIP_PLAN, source);
   const sub = my.sub;
 
@@ -26,14 +26,17 @@ export function PlanCard({ source, compact = false }: { plan?: PaidPlanId | 'fre
       </p>
       <p className="mt-1 text-[14px] font-semibold text-ink-600">Ultimate access to everything · pay once, use it forever</p>
 
-      <ul className="mt-5 flex-1 space-y-2.5">
-        {benefits.map((b) => (
-          <li key={b.title} className="flex items-start gap-2.5 text-[15px] font-semibold leading-6 text-ink-900">
-            <Check className="mt-1 h-4 w-4 shrink-0 text-brand-600" aria-hidden />
-            <span>{b.title}</span>
+      <p className="mt-5 text-[15px] font-bold text-ink-950">{FEATURES_TITLE}</p>
+      <ol className="mt-2.5 flex-1 space-y-2.5">
+        {benefits.map((b, i) => (
+          <li key={b.title} className="flex items-start gap-2.5 text-[14.5px] leading-6 text-ink-900">
+            <span className="shrink-0 font-mono text-[13px] font-bold text-brand-700">{String(i + 1).padStart(2, '0')}.</span>
+            <span>
+              <strong className="font-semibold">{b.title}</strong> <span className="text-ink-600">{b.sub}</span>
+            </span>
           </li>
         ))}
-      </ul>
+      </ol>
 
       {my.isPaid ? (
         <div className="mt-6 rounded-lg bg-emerald-50 px-3 py-2.5 text-center text-sm font-semibold text-emerald-900">

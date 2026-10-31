@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Briefcase, ChevronRight, FileDown, Paperclip, SlidersHorizontal } from 'lucide-react';
 import { DragSlider } from '@/components/common/DragSlider';
-import { buildTerms, OFFER_ITEM_LABEL, PAYER_LABEL, splitWord } from '@/lib/sponsorOffer';
+import { buildTerms, OFFER_ITEM_LABEL, PAYER_LABEL, recommendedSplit, splitWord } from '@/lib/sponsorOffer';
 import { visaGuideByCode, briefRoutesFor, type CandidateCover } from '@/data/visa';
 import { CircleFlag } from '@/components/common/CircleFlag';
 
@@ -41,14 +41,18 @@ export function OfferSteps({ active, light = false }: { active?: number; light?:
   );
 }
 
-/** A small live document: drag the bar, watch the rows change. */
-export function OfferDemo({ job }: { job?: { title: string; company: string; code: string } }) {
-  const [split, setSplit] = useState(35);
+/**
+ * A small document. Live: drag the bar, watch the rows change.
+ * `fixed`: the recommended terms, nothing to change (the job's "sponsorship document" sheet).
+ */
+export function OfferDemo({ job, fixed = false, from }: { job?: { title: string; company: string; code: string }; fixed?: boolean; from?: string | null }) {
   const guide = job ? visaGuideByCode.get(job.code) : undefined;
   const route = guide ? briefRoutesFor(guide)[0] : undefined;
-  const t = buildTerms(split, route?.employer?.candidateMayCover ?? ALL);
+  const allowed = route?.employer?.candidateMayCover ?? ALL;
+  const [split, setSplit] = useState(() => (fixed ? recommendedSplit(allowed) : 35));
+  const t = buildTerms(split, allowed);
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)] lg:items-center">
+    <div className={fixed ? '' : 'grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)] lg:items-center'}>
       <div className="rounded-sm bg-white p-5 font-serif text-ink-900 shadow-soft-lg ring-1 ring-ink-100 sm:p-7" aria-live="polite">
         <div className="flex items-end justify-between border-b-2 border-ink-900 pb-2 font-sans">
           <span className="text-[14px] font-extrabold tracking-tight">
@@ -59,12 +63,18 @@ export function OfferDemo({ job }: { job?: { title: string; company: string; cod
         <p className="mt-4 text-[20px] font-semibold leading-tight tracking-tight">Visa Plan — candidate sponsorship proposal</p>
         {job && (
           <p className="mt-1 flex items-center gap-2 font-sans text-[13px] text-ink-600">
+            {from && guide && from !== job.code && (
+              <>
+                <CircleFlag countryCode={from} size={16} />
+                <ChevronRight className="h-3.5 w-3.5 text-ink-400" aria-hidden />
+              </>
+            )}
             {guide && <CircleFlag countryCode={job.code} size={16} />}
             {job.title} · {job.company}
             {route ? ` · ${route.name}` : ''}
           </p>
         )}
-        <p className="mt-3 font-sans text-[12px] text-ink-500">Who you propose pays each cost. The company can answer differently.</p>
+        {!fixed && <p className="mt-3 font-sans text-[12px] text-ink-500">Who you propose pays each cost. The company can answer differently.</p>}
         <table className="mt-3 w-full font-sans text-[13px]">
           <tbody>
             {t.items.map((it) => (
@@ -84,6 +94,7 @@ export function OfferDemo({ job }: { job?: { title: string; company: string; cod
           <span className="border-t border-ink-400 pt-1">Employer</span>
         </div>
       </div>
+      {!fixed && (
       <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-[#1D4ED8]/25">
         <p className="text-[15px] font-bold text-ink-950">Try it</p>
         <DragSlider
@@ -96,6 +107,7 @@ export function OfferDemo({ job }: { job?: { title: string; company: string; cod
           right="Better for the company"
         />
       </div>
+      )}
     </div>
   );
 }

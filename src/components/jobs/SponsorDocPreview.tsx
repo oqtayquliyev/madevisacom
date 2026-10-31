@@ -3,7 +3,8 @@
 // button under it — make it (members), open it (already made), or unlock it (everyone else).
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FileSignature, FileText, Lock, X } from 'lucide-react';
+import { Eye, FileSignature, FileText, Lock, X } from 'lucide-react';
+import { usePersonalization } from '@/lib/personalization';
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
 import { priceLabel } from '@/lib/plans';
@@ -51,6 +52,10 @@ export function SponsorDocPreviewButton(props: Props) {
 function Sheet({ jobId, title, company, dest, country, onUnlock, onAuth, onClose }: Props & { onClose: () => void }) {
   const { session } = useAuth();
   const credits = useOfferCredits();
+  const { profile: visitor } = usePersonalization();
+  const from = (visitor.currentLocation ?? visitor.citizenship ?? '').toUpperCase() || null;
+  // The full document on the recommended terms, read-only, in a new tab.
+  const previewHref = `${newOfferPath(jobId)}${country ? `&country=${country}` : ''}&preview=1`;
   const [existing, setExisting] = useState<string | null>(null);
 
   useEffect(() => {
@@ -117,20 +122,21 @@ function Sheet({ jobId, title, company, dest, country, onUnlock, onAuth, onClose
           <span className="truncate">{title}</span>
         </p>
 
-        <div className="mt-6">
+        <div className="mx-auto mt-6 max-w-[460px]">
           <Suspense fallback={<div className="h-72 animate-pulse rounded-xl bg-ink-50" />}>
-            <OfferDemo job={dest ? { title, company, code: dest.toUpperCase() } : undefined} />
+            <OfferDemo fixed from={from} job={dest ? { title, company, code: dest.toUpperCase() } : undefined} />
           </Suspense>
         </div>
 
         <div className="mt-6 flex flex-col items-stretch gap-3 border-t border-ink-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-1.5 text-[12px] font-bold text-ink-600">
-            {['Visa route', 'Who pays what', 'PDF to attach'].map((t) => (
-              <span key={t} className="rounded-full bg-ink-50 px-2.5 py-1 ring-1 ring-ink-100">
-                {t}
-              </span>
-            ))}
-          </div>
+          <a
+            href={previewHref}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-bold text-ink-900 ring-1 ring-inset ring-ink-200 transition hover:bg-ink-50 sm:w-auto"
+          >
+            <Eye className="h-4 w-4" aria-hidden /> See preview
+          </a>
           {action}
         </div>
       </div>

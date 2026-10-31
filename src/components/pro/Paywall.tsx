@@ -8,7 +8,7 @@ import { useJobFacets } from '@/lib/jobFacets';
 import { classifyJob } from '@/lib/jobTaxonomy';
 import { goToMembershipCheckout } from '@/lib/gumroad';
 import { preloadGumroad } from '@/lib/gumroadOverlay';
-import { LAUNCH_OFFER, MEMBERSHIP_PRICE, MEMBERSHIP_REGULAR_PRICE } from '@/lib/plans';
+import { FEATURES, LAUNCH_OFFER, MEMBERSHIP_PRICE, MEMBERSHIP_REGULAR_PRICE } from '@/lib/plans';
 import { LaunchOfferBox, useLaunchPlaces } from './LaunchOffer';
 import { trackBilling } from '@/lib/billing';
 import { trackPaywall } from '@/lib/paywallStats';
@@ -38,14 +38,8 @@ import { TESTIMONIALS } from '@/data/testimonials';
 // once a week, when a Gumroad offer code is set. "Subscribe" opens Gumroad's payment
 // form over the page (gumroadOverlay.ts) — no trip to another site.
 
-/** What's included — short, so the card stays one screen tall on a phone. **words** are drawn bold. */
-const INCLUDED = [
-  '**Apply to every job**, for good',
-  '**Unlimited sponsorship documents**',
-  '**Fastest job alerts**: jobs not on LinkedIn or Indeed',
-  '**CV tailoring suggestions** on every job',
-  '**Sponsor proof** and **checked-live** jobs',
-];
+/** What's included: the five headline features (plans.ts). **words** are drawn bold. */
+const INCLUDED = FEATURES.map((f) => `**${f.title}** ${f.sub}`);
 
 /** The cards Gumroad takes, drawn as small marks (no images to load). */
 function CardMarks({ className = '' }: { className?: string }) {

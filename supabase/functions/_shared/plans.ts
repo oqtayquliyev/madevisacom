@@ -52,6 +52,19 @@ export const RECURRENCE_MONTHS: Record<Recurrence, number> = { monthly: 1, quart
  */
 export const LAUNCH_OFFER = { regularCents: 25000, places: 200, percentOff: 95 } as const;
 
+/**
+ * The five headline features: pricing page, membership card, paywall. Keep the numbers true —
+ * update them as MadeVisa grows.
+ */
+export const FEATURES_TITLE = 'Everything you need to get hired.';
+export const FEATURES: readonly { title: string; sub: string }[] = [
+  { title: '2,000+ company career websites.', sub: 'One search.' },
+  { title: 'Unlimited visa sponsorship documents.', sub: 'Ready to send to employers.' },
+  { title: '300,000+ new job opportunities every month.', sub: 'Before LinkedIn and Indeed.' },
+  { title: '8,000+ direct recruiter & HR contacts.', sub: 'Updated and growing. Reach hiring teams directly.' },
+  { title: 'Smart CV matching, sponsorship intelligence', sub: '& application tracking.' },
+];
+
 /** Higher includes everything below it. */
 export const PLAN_RANK: Record<PlanId, number> = { free: 0, starter: 1, pro: 2 };
 
