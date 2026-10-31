@@ -76,6 +76,24 @@ export function rememberRecent(q: string, country: string | null): void {
   } catch {
     /* private mode */
   }
+  // Searches this visit (the launch-offer card shows after a few: OfferNudge.tsx).
+  try {
+    const n = Number(window.sessionStorage.getItem(SEARCHES_KEY) ?? '0') + 1;
+    window.sessionStorage.setItem(SEARCHES_KEY, String(n));
+    window.dispatchEvent(new CustomEvent('mv:search', { detail: n }));
+  } catch {
+    /* private mode */
+  }
+}
+
+/** How many searches this visit. */
+export const SEARCHES_KEY = 'madevisa:searchesThisVisit';
+export function searchesThisVisit(): number {
+  try {
+    return Number(window.sessionStorage.getItem(SEARCHES_KEY) ?? '0') || 0;
+  } catch {
+    return 0;
+  }
 }
 
 export function readRecent(): RecentSearch[] {

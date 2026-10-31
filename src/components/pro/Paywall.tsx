@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, BadgeCheck, Check, Eye, Gift, Loader2, Lock, Mail, MessageCircleReply, ShieldCheck, Sparkles, Star, Wallet, X, Zap } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Check, Eye, Loader2, Lock, Mail, MessageCircleReply, ShieldCheck, Sparkles, Star, Wallet, X, Zap } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSiteStats } from '@/lib/siteStats';
 import { headlineForJob, moreJobsHeadline, readLastSearch } from '@/lib/lastSearch';
@@ -8,8 +8,8 @@ import { useJobFacets } from '@/lib/jobFacets';
 import { classifyJob } from '@/lib/jobTaxonomy';
 import { goToMembershipCheckout } from '@/lib/gumroad';
 import { preloadGumroad } from '@/lib/gumroadOverlay';
-import { MEMBERSHIP_PRICE } from '@/lib/plans';
-import { LaunchOfferBox } from './LaunchOffer';
+import { LAUNCH_OFFER, MEMBERSHIP_PRICE, MEMBERSHIP_REGULAR_PRICE } from '@/lib/plans';
+import { LaunchOfferBox, useLaunchPlaces } from './LaunchOffer';
 import { trackBilling } from '@/lib/billing';
 import { trackPaywall } from '@/lib/paywallStats';
 import { rememberAuthIntent } from '@/lib/authIntent';
@@ -399,32 +399,33 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
   );
 }
 
-/** "Wait — lifetime access for less": shown once a week when someone leaves the popup. */
+/** "95% off before you go": shown once a week when someone leaves the popup (needs a Gumroad offer code). */
 function DownsellView({ busy, onTake, onNo }: { busy: boolean; onTake: () => void; onNo: () => void }) {
+  const left = useLaunchPlaces();
+  const cents = Math.round(Number(DOWNSELL_PRICE.replace(/[^0-9.]/g, '')) * 100);
+  const off = cents > 0 ? Math.round((1 - cents / LAUNCH_OFFER.regularCents) * 100) : null;
   return (
     <div className="py-2 text-center">
-      <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-amber-100 text-amber-700">
-        <Gift className="h-6 w-6" aria-hidden />
-      </span>
-      <h2 id="paywall-title" className="mt-4 font-title text-[26px] font-bold leading-tight tracking-tight">
-        Wait — lifetime access
-        <span className="block">for {DOWNSELL_PRICE}.</span>
+      <h2 id="paywall-title" className="font-title text-[56px] font-extrabold leading-none tracking-tight">
+        {off ? `${off}% off` : 'Before you go'}
       </h2>
-      <p className="mx-auto mt-2 max-w-[320px] text-[14px] leading-5 text-ink-600">
-        Every job, sponsor proof and CV match — instead of {MEMBERSHIP_PRICE}. Pay once, nothing renews.
+      <p className="mt-2 text-[15px] text-ink-600">
+        before you go{left != null && left > 0 ? ` · only ${left} ${left === 1 ? 'spot' : 'spots'} left` : ''}
+      </p>
+      <p className="mx-auto mt-4 max-w-[340px] text-[15px] leading-6 text-ink-900">
+        Take it for {DOWNSELL_PRICE} instead of {MEMBERSHIP_PRICE}, down from <s>{MEMBERSHIP_REGULAR_PRICE}</s>. One-time payment, no subscription.
       </p>
       <button
         type="button"
         onClick={onTake}
         disabled={busy}
-        className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-md bg-ink-950 text-[15px] font-bold text-white hover:bg-ink-800 disabled:opacity-80"
+        className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-ink-950 text-[15px] font-bold text-white hover:bg-ink-800 disabled:opacity-80"
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <>Start for {DOWNSELL_PRICE}</>}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <>Get it for {DOWNSELL_PRICE} →</>}
       </button>
-      <button type="button" onClick={onNo} className="mt-3 text-[13px] font-semibold text-ink-500 hover:text-ink-800">
-        No thanks
+      <button type="button" onClick={onNo} className="mt-3 text-[13.5px] font-medium text-ink-500 hover:text-ink-800">
+        No thanks, I’ll pay full price
       </button>
-      <p className="mt-3 text-[11px] text-ink-400">One offer per person. Secure payment by Gumroad.</p>
     </div>
   );
 }

@@ -8,14 +8,18 @@ import { LAUNCH_OFFER, MEMBERSHIP_PRICE, MEMBERSHIP_REGULAR_PRICE } from '@/lib/
 // Used by the paywall and the pricing page.
 
 /** The fact under the price: why these jobs are early. */
-export const EARLY_JOBS_FACT =
-  'Companies post new vacancies on their own careers page first — MadeVisa fetches them for you early. Jobs that aren’t on LinkedIn or Indeed.';
+export const EARLY_JOBS_FACT = 'Early access to jobs straight from company career pages — apply before LinkedIn and Indeed, and your hiring chances go up.';
+
+/** "4 left" with a thick yellow marker line under it. */
+export function Underlined({ children }: { children: React.ReactNode }) {
+  return <span className="underline decoration-[#FFD60A] decoration-[5px] underline-offset-[3px]">{children}</span>;
+}
 
 let cached: { n: number; at: number } | null = null;
 
 /**
- * Launch places left: 200 minus the real one-time buyers (membership_places_left()).
- * null while loading or when the count can't be read (then no number is shown — never a made-up one).
+ * Launch places left (membership_places_left()): the number set in Admin → Plans → Gumroad,
+ * or 200 minus the one-time buyers. null while loading or unreadable (then nothing is shown).
  */
 export function useLaunchPlaces(): number | null {
   const [n, setN] = useState<number | null>(cached && Date.now() - cached.at < 60_000 ? cached.n : null);
@@ -60,9 +64,8 @@ export function LaunchOfferBox({ busy = false, onBuy, children, className = '' }
       </p>
       <p className="mt-1.5 text-[14px] font-semibold text-ink-800">Ultimate access to everything</p>
       {left != null && !soldOut && (
-        <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-[12.5px] font-bold text-amber-800 ring-1 ring-amber-200">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
-          {left} of {LAUNCH_OFFER.places} left
+        <p className="mt-2.5 text-[15px] font-bold text-emerald-700">
+          <Underlined>{left} left</Underlined>
         </p>
       )}
 
@@ -85,9 +88,7 @@ export function LaunchOfferBox({ busy = false, onBuy, children, className = '' }
         </button>
       )}
       <p className="mt-2.5 text-[12.5px] font-medium text-ink-500">Pay once, use it forever · your account · no subscription</p>
-      <p className="mt-3 rounded-xl bg-brand-50 px-3.5 py-2.5 text-left text-[12.5px] leading-[1.45] text-brand-900">
-        <strong className="font-bold">Early access:</strong> {EARLY_JOBS_FACT}
-      </p>
+      <p className="mx-auto mt-3 max-w-[340px] border-t border-ink-100 pt-3 text-center text-[13px] font-semibold leading-[1.45] text-ink-800">{EARLY_JOBS_FACT}</p>
     </div>
   );
 }
