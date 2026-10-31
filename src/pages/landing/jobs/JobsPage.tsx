@@ -42,7 +42,7 @@ import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { JobSignals } from '@/components/jobs/JobSignals';
 import { useJobFacets } from '@/lib/jobFacets';
 import { useNewJobsSince } from '@/lib/newJobsWatch';
-import { fetchFilteredJobs, fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, searchPublishedJobs, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
+import { fetchFilteredJobs, fetchJobsAddedSince, fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, searchPublishedJobs, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { allCountries } from '@/data/allCountries';
 import { readRecent, rememberRecent, rememberSearch } from '@/lib/lastSearch';
 import { isJobViewed, markJobViewed, viewedJobIds } from '@/lib/viewedJobs';
@@ -740,14 +740,19 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
   // "+12 new jobs added" while they're on the page (newest list only; a search has its own results).
   const newJobs = useNewJobsSince(!hasQuery && !loading);
   const [refreshing, setRefreshing] = useState(false);
+  /** Jobs added by the "+N new jobs" notice, in the order they go at the top. */
+  const [freshIds, setFreshIds] = useState<string[]>([]);
   const showNewJobs = () => {
     if (refreshing) return;
     setRefreshing(true);
-    void fetchNewestDiverseJobs(PAGE_SIZE * 3).then((rows) => {
+    // Exactly the jobs the notice counted, newest first, at the top of the list.
+    void fetchJobsAddedSince(newJobs.since, { limit: 100 }).then((rows) => {
       setRefreshing(false);
       if (rows.length) {
-        writeQuickCopy(rows);
-        setQuickJobs(rows.map(toBoard));
+        const fresh = rows.map(toBoard);
+        const ids = new Set(fresh.map((j) => j.id));
+        setFreshIds((before) => [...fresh.map((j) => j.id), ...before.filter((id) => !ids.has(id))]);
+        setQuickJobs((before) => [...fresh, ...before.filter((j) => !ids.has(j.id))]);
       }
       newJobs.reset();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -875,15 +880,20 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
     }));
     return { filteredJobs: [...main, ...related], relatedStart: related.length ? main.length : -1, relatedGroup: group };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseMatched, catOf, category, sortBy, shownBefore, viewedAtLoad, hasQuery, quickIds]);
+  }, [baseMatched, catOf, category, sortBy, shownBefore, viewedAtLoad, hasQuery, quickIds, freshIds]);
 
   function buildMainList(): Job[] {
-    const matched = category === ALL_CATEGORIES ? baseMatched : baseMatched.filter((j) => categoryMatches(catOf.get(j.id) ?? null, category));
+    let matched = category === ALL_CATEGORIES ? baseMatched : baseMatched.filter((j) => categoryMatches(catOf.get(j.id) ?? null, category));
     // Nothing searched: the newest jobs shown first stay first when more jobs arrive (no jump).
     if (!hasQuery && quickIds.size) {
-      const first = matched.filter((j) => quickIds.has(j.id));
+      // Jobs just added by the "+N new jobs" notice come first, newest first.
+      const freshRank = new Map(freshIds.map((id, i) => [id, i]));
+      const fresh = matched.filter((j) => freshRank.has(j.id)).sort((a, b) => freshRank.get(a.id)! - freshRank.get(b.id)!);
+      if (fresh.length) matched = matched.filter((j) => !freshRank.has(j.id));
+      const first = [...fresh, ...matched.filter((j) => quickIds.has(j.id))];
       const rest = matched.filter((j) => !quickIds.has(j.id));
       if (sortBy === 'newest') return withClosedLast([...first, ...rest]);
+      if (fresh.length) return withClosedLast([...fresh, ...interleaveByCompany(visitShuffle(first.slice(fresh.length), 'relevant')), ...interleaveByCompany(visitShuffle(rest, 'relevant'))]);
       return withClosedLast([...interleaveByCompany(visitShuffle(first, 'relevant')), ...interleaveByCompany(visitShuffle(rest, 'relevant'))]);
     }
     if (sortBy === 'newest') return withClosedLast(matched);

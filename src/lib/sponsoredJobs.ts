@@ -465,6 +465,27 @@ export function jobPostedAt(job: Pick<SponsoredJob, 'source_posted_at' | 'create
  * (status, created_at) index. For the landing page and for guests on
  * /jobs, who only see the first page; much lighter than the full list.
  */
+/**
+ * Live jobs added to MadeVisa after `sinceIso` that are really new (posted on the company's site
+ * in the last 7 days, or no posting date) — the "+N new jobs" notice on /jobs and what it shows.
+ */
+export async function fetchJobsAddedSince(sinceIso: string, opts: { idsOnly?: boolean; limit?: number } = {}): Promise<SponsoredJob[]> {
+  const asOf = nowIso();
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const { data, error } = await supabase
+    .from('sponsored_jobs')
+    .select(opts.idsOnly ? 'id' : LIST_COLUMNS)
+    .eq('status', 'published')
+    .gt('created_at', sinceIso)
+    // One filter param: not expired AND (no posting date OR posted this week).
+    .or(`and(or(expires_at.is.null,expires_at.gt.${asOf}),or(source_posted_at.is.null,source_posted_at.gte.${weekAgo}))`)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(opts.limit ?? 100);
+  if (error) return [];
+  return (data ?? []) as unknown as SponsoredJob[];
+}
+
 export async function fetchNewestPublishedJobs(limit = 60): Promise<SponsoredJob[]> {
   const asOf = nowIso();
   const { data, error } = await supabase

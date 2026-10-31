@@ -1,26 +1,14 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { fetchJobsAddedSince } from '@/lib/sponsoredJobs';
 
-// "+12 new jobs added": while someone is on /jobs, count the jobs published since they arrived.
-// One tiny count request (no rows) every 2 minutes, only while the tab is visible.
+// "+12 new jobs added": while someone is on /jobs, the live jobs added since they arrived that are
+// really new (posted in the last 7 days) — counted with the same rules the list uses, so the number
+// is exactly what a click puts at the top. Checked every 2 minutes, only while the tab is visible.
 
 const EVERY_MS = 2 * 60_000;
 
-async function countSince(iso: string): Promise<number> {
-  try {
-    const { count, error } = await supabase
-      .from('sponsored_jobs')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'published')
-      .gt('created_at', iso);
-    return error ? 0 : (count ?? 0);
-  } catch {
-    return 0;
-  }
-}
-
 /** New jobs since the page opened (or since `reset()`). Off when `on` is false. */
-export function useNewJobsSince(on: boolean): { added: number; reset: () => void } {
+export function useNewJobsSince(on: boolean): { added: number; since: string; reset: () => void } {
   const [since, setSince] = useState(() => new Date().toISOString());
   const [added, setAdded] = useState(0);
 
@@ -29,8 +17,8 @@ export function useNewJobsSince(on: boolean): { added: number; reset: () => void
     let alive = true;
     const check = async () => {
       if (document.visibilityState !== 'visible') return;
-      const n = await countSince(since);
-      if (alive) setAdded(n);
+      const rows = await fetchJobsAddedSince(since, { idsOnly: true, limit: 100 });
+      if (alive) setAdded(rows.length);
     };
     const t = window.setInterval(check, EVERY_MS);
     const onVis = () => document.visibilityState === 'visible' && void check();
@@ -44,6 +32,7 @@ export function useNewJobsSince(on: boolean): { added: number; reset: () => void
 
   return {
     added,
+    since,
     reset: () => {
       setAdded(0);
       setSince(new Date().toISOString());
