@@ -8,7 +8,7 @@
 //   - per-company schedules (the server pipeline syncs every company daily)
 //   - a progress bar with percent for everything long-running
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Clock, ExternalLink, ImageIcon, Link2, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { CompanyLeadsSection } from '@/pages/admin/CompanyLeadsSection';
@@ -30,6 +30,8 @@ import {
 import {
   deleteImportSource,
   describeSyncSummary,
+  fetchCompanyJobCounts,
+  type CompanyJobCounts,
   isSourceDue,
   linkOlderJobs,
   nextSyncAt,
@@ -138,6 +140,16 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
   const [paused, setPaused] = useState<PausedQueue | null>(readPausedQueue);
   const say = (m: string) => setLog((prev) => [...prev.slice(-11), m]);
 
+  // ---- job counts per company, from the server (the full job list isn't loaded on this tab) ----
+  const [counts, setCounts] = useState<Map<string, CompanyJobCounts> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void fetchCompanyJobCounts().then((c) => alive && setCounts(c));
+    return () => {
+      alive = false;
+    };
+  }, [sources]);
+
   // ---- company rows (counts by company, not just by linked source) ----
   const rows = useMemo<CompanyRow[]>(() => {
     const pubById = new Map(publishers.map((p) => [p.id, p]));
@@ -170,6 +182,17 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
       else r.other++;
       if (j.origin === 'imported' && !j.import_source_id) r.unlinked++;
     }
+    // Server counts win: they cover every job, not only the ones loaded in this browser.
+    if (counts) {
+      for (const r of map.values()) {
+        const c = counts.get(r.id);
+        r.live = c?.live ?? 0;
+        r.pending = c?.pending ?? 0;
+        r.other = c?.other ?? 0;
+        r.unlinked = c?.unlinked ?? 0;
+        r.total = c?.total ?? 0;
+      }
+    }
     for (const r of map.values()) {
       // Same logo the job board shows: the company's logo, else the one its jobs use most.
       if (!r.logo) {
@@ -185,7 +208,7 @@ export function ImportCenter({ sources, allJobs, publishers, countries, userId, 
       }
     }
     return [...map.values()];
-  }, [sources, allJobs, publishers]);
+  }, [sources, allJobs, publishers, counts]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();

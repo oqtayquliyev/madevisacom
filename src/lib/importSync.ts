@@ -69,12 +69,41 @@ const SOURCE_COLUMNS = '*, publisher:program_publishers(id, name, logo_url)';
 
 export async function fetchImportSources(): Promise<ImportSource[]> {
   // '*' so newer optional columns (sync_interval_hours) come through when present without breaking before the migration runs.
-  const { data, error } = await supabase.from('import_sources').select(SOURCE_COLUMNS).order('created_at', { ascending: false });
-  if (error) {
-    console.error('fetchImportSources failed', error);
-    return [];
+  // Page by page: the server returns at most 1,000 rows per request, and there are more sources than that.
+  const out: ImportSource[] = [];
+  for (let from = 0; from < 50_000; from += 1000) {
+    const { data, error } = await supabase
+      .from('import_sources')
+      .select(SOURCE_COLUMNS)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + 999);
+    if (error) {
+      console.error('fetchImportSources failed', error);
+      break;
+    }
+    const rows = (data ?? []) as unknown as ImportSource[];
+    out.push(...rows);
+    if (rows.length < 1000) break;
   }
-  return (data ?? []) as unknown as ImportSource[];
+  return out;
+}
+
+/** Job counts per company, counted on the server (Admin → Imports). */
+export type CompanyJobCounts = { live: number; pending: number; other: number; unlinked: number; total: number };
+export async function fetchCompanyJobCounts(): Promise<Map<string, CompanyJobCounts> | null> {
+  const out = new Map<string, CompanyJobCounts>();
+  for (let from = 0; from < 100_000; from += 1000) {
+    const { data, error } = await supabase.rpc('admin_company_job_counts').range(from, from + 999);
+    if (error) {
+      console.error('admin_company_job_counts failed', error);
+      return out.size ? out : null;
+    }
+    const rows = (data ?? []) as { publisher_id: string; live: number; pending: number; other: number; unlinked: number; total: number }[];
+    for (const r of rows) out.set(r.publisher_id, { live: Number(r.live), pending: Number(r.pending), other: Number(r.other), unlinked: Number(r.unlinked), total: Number(r.total) });
+    if (rows.length < 1000) break;
+  }
+  return out;
 }
 
 /** Saves (or refreshes) the source an import came from and returns its id. */
