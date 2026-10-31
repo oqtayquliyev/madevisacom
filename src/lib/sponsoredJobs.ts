@@ -466,8 +466,9 @@ export function jobPostedAt(job: Pick<SponsoredJob, 'source_posted_at' | 'create
  * /jobs, who only see the first page; much lighter than the full list.
  */
 /**
- * Live jobs added to MadeVisa after `sinceIso` that are really new (posted on the company's site
- * in the last 7 days, or no posting date) — the "+N new jobs" notice on /jobs and what it shows.
+ * Jobs that went live on MadeVisa after `sinceIso` (released by the drip, or added directly), posted
+ * on the company's site in the last 7 days — the "+N new jobs" notice on /jobs and what it shows.
+ * Imported jobs are created hours before they go live, so it's released_at that counts, not created_at.
  */
 export async function fetchJobsAddedSince(sinceIso: string, opts: { idsOnly?: boolean; limit?: number } = {}): Promise<SponsoredJob[]> {
   const asOf = nowIso();
@@ -476,9 +477,11 @@ export async function fetchJobsAddedSince(sinceIso: string, opts: { idsOnly?: bo
     .from('sponsored_jobs')
     .select(opts.idsOnly ? 'id' : LIST_COLUMNS)
     .eq('status', 'published')
-    .gt('created_at', sinceIso)
-    // One filter param: not expired AND (no posting date OR posted this week).
-    .or(`and(or(expires_at.is.null,expires_at.gt.${asOf}),or(source_posted_at.is.null,source_posted_at.gte.${weekAgo}))`)
+    // One filter param: live since then AND not expired AND (no posting date OR posted this week).
+    .or(
+      `and(or(released_at.gt.${sinceIso},and(released_at.is.null,created_at.gt.${sinceIso})),or(expires_at.is.null,expires_at.gt.${asOf}),or(source_posted_at.is.null,source_posted_at.gte.${weekAgo}))`,
+    )
+    .order('released_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(opts.limit ?? 100);

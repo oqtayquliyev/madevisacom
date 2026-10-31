@@ -26,6 +26,14 @@ import { fetchCurrentRelease, type JobRelease } from '@/lib/sponsoredJobs';
 type AutoStatus = {
   enabled: boolean;
   daily_limit: number;
+  /** Today's limit is kept in this range (migration 20261231260000). */
+  daily_min?: number;
+  daily_max?: number;
+  /** Close as many of the oldest live jobs each day as went live the day before (above target_live). */
+  rotate_enabled?: boolean;
+  rotate_left?: number;
+  rotated_today?: number;
+  released_yesterday?: number | null;
   auto_balance: boolean;
   target_live: number;
   min_interval_s: number;
@@ -67,12 +75,15 @@ type AutoStatus = {
 };
 
 type Settings = Pick<AutoStatus, 'daily_limit' | 'auto_balance' | 'target_live' | 'min_interval_s' | 'max_interval_s' | 'min_description_chars' | 'max_age_days' | 'timezone'> & {
+  daily_min?: number;
+  daily_max?: number;
+  rotate_enabled?: boolean;
   companies_per_run?: number;
   resync_hours?: number;
   finder_every_min?: number;
 };
 
-const SUGGESTED_DAILY_LIMIT = 2000;
+const SUGGESTED_DAILY_LIMIT = 8000;
 const ago = (iso: string | null | undefined, now: number) => {
   if (!iso) return 'never';
   const m = Math.round((now - Date.parse(iso)) / 60_000);
@@ -190,6 +201,7 @@ export function PublishReleasePanel({ onPublished }: { onPublished?: () => void 
         min_description_chars: auto.min_description_chars,
         max_age_days: auto.max_age_days,
         timezone: auto.timezone,
+        ...(auto.daily_min !== undefined ? { daily_min: auto.daily_min, daily_max: auto.daily_max, rotate_enabled: auto.rotate_enabled } : {}),
         ...(auto.companies_per_run !== undefined
           ? { companies_per_run: auto.companies_per_run, resync_hours: auto.resync_hours, finder_every_min: auto.finder_every_min }
           : {}),
@@ -458,8 +470,10 @@ export function PublishReleasePanel({ onPublished }: { onPublished?: () => void 
       {showSettings && draft && (
         <div className="border-t border-ink-100 bg-ink-50/50 p-4 sm:p-5">
           <div className="grid gap-4 sm:grid-cols-3">
-            {numberField('daily_limit', 'Jobs per day', `Suggested ${SUGGESTED_DAILY_LIMIT.toLocaleString()} — keeps about ${(SUGGESTED_DAILY_LIMIT * 30).toLocaleString()} live jobs with the 30-day rule.`)}
-            {numberField('min_interval_s', 'Shortest gap (seconds)', 'Default 180 (3 min).', 30)}
+            {numberField('daily_limit', 'Jobs per day', `Suggested ${SUGGESTED_DAILY_LIMIT.toLocaleString()}. Auto-balance moves it within the range below.`)}
+            {draft.daily_min !== undefined && numberField('daily_min', 'At least per day', 'Default 6,000.')}
+            {draft.daily_max !== undefined && numberField('daily_max', 'At most per day', 'Default 10,000.')}
+            {numberField('min_interval_s', 'Shortest gap (seconds)', 'Default 120 (2 min). Each batch is a random 50–150% of the even share.', 30)}
             {numberField('max_interval_s', 'Longest gap (seconds)', 'Default 240 (4 min).', 30)}
             {numberField('min_description_chars', 'Minimum description length', 'Shorter ones are held back.')}
             {numberField('max_age_days', 'Only jobs posted within (days)', 'Newest are published first.', 1)}
@@ -496,6 +510,20 @@ export function PublishReleasePanel({ onPublished }: { onPublished?: () => void 
             />
             <span className="text-ink-500">live jobs — fewer live → up to 50% more that day; more → up to 50% fewer.</span>
           </label>
+          {draft.rotate_enabled !== undefined && (
+            <label className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-700">
+              <input type="checkbox" checked={draft.rotate_enabled} onChange={(e) => setDraft({ ...draft, rotate_enabled: e.target.checked })} />
+              <span>
+                <strong>Rotate old jobs out</strong> — each day, close as many of the oldest live jobs as went live the day before (only while above the target), 1,000 an hour.
+                {auto?.released_yesterday != null && (
+                  <span className="text-ink-500">
+                    {' '}
+                    Yesterday {auto.released_yesterday.toLocaleString()} went live; {(auto.rotated_today ?? 0).toLocaleString()} closed today, {(auto.rotate_left ?? 0).toLocaleString()} to go.
+                  </span>
+                )}
+              </span>
+            </label>
+          )}
           <div className="mt-4 flex items-center gap-2">
             <button
               onClick={() => void saveSettings()}

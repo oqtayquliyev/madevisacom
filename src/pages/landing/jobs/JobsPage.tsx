@@ -343,7 +343,7 @@ function withClosedLast(jobs: Job[]): Job[] {
   return [...jobs.filter((j) => !j.closed), ...jobs.filter((j) => j.closed)];
 }
 
-function JobCard({ job, onLocked, onOpen, onPick, active = false }: { job: Job; /** Signed out: picking an outside listing asks for a free account first. */ onLocked?: (job: Job) => void; /** Opening it in this tab (phones). */ onOpen?: () => void; /** Desktop split view: show it in the right-hand pane. */ onPick?: (href: string) => void; /** The job showing in the pane. */ active?: boolean }) {
+function JobCard({ job, onLocked, onOpen, onPick, active = false, fresh = false }: { job: Job; /** Just went live (the "+N new jobs" notice). */ fresh?: boolean; /** Signed out: picking an outside listing asks for a free account first. */ onLocked?: (job: Job) => void; /** Opening it in this tab (phones). */ onOpen?: () => void; /** Desktop split view: show it in the right-hand pane. */ onPick?: (href: string) => void; /** The job showing in the pane. */ active?: boolean }) {
   const isExternal = job.sourceType === 'live_feed';
   const viewed = isJobViewed(job.id);
   const closed = Boolean(job.closed);
@@ -356,6 +356,7 @@ function JobCard({ job, onLocked, onOpen, onPick, active = false }: { job: Job; 
           <p className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-ink-500">
             <span className="truncate">{job.company}</span>
             <NewCompanyBadge addedAt={job.companyAddedAt} />
+            {fresh && <span className="shrink-0 rounded-full bg-brand-600 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-white">Just added</span>}
           </p>
           <h3 className="mt-0.5 break-words font-title text-lg font-bold leading-snug text-ink-950 [overflow-wrap:anywhere] group-hover:text-brand-700">{job.title}</h3>
         </div>
@@ -742,6 +743,7 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
   const [refreshing, setRefreshing] = useState(false);
   /** Jobs added by the "+N new jobs" notice, in the order they go at the top. */
   const [freshIds, setFreshIds] = useState<string[]>([]);
+  const freshSet = useMemo(() => new Set(freshIds), [freshIds]);
   const showNewJobs = () => {
     if (refreshing) return;
     setRefreshing(true);
@@ -1371,7 +1373,7 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
                       <p className="text-sm font-bold text-ink-900">More {relatedGroup} jobs</p>
                     </div>
                   )}
-                  <JobCard job={job} onLocked={onLocked} onOpen={saveListPlace} onPick={pick} active={slugOf(job) === activeSlug} />
+                  <JobCard job={job} onLocked={onLocked} onOpen={saveListPlace} onPick={pick} active={slugOf(job) === activeSlug} fresh={freshSet.has(job.id)} />
                 </Fragment>
               ))}
               {(loadingMore || waitingForMore) && Array.from({ length: 2 }).map((_, i) => <JobCardSkeleton key={`more-${i}`} />)}
