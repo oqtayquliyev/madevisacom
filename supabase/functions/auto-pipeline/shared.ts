@@ -22,6 +22,20 @@ export type Facts = ReturnType<typeof detectJobFacts>;
 export type FactsPayload = { v: number; facts: Facts; html: string; contact: Record<string, string> };
 
 /**
+ * The source's department / category, or null when it is really the page title
+ * ("Lead III_Forklift Driver, Wuxi, Jiangsu, China | Caterpillar Careers") or a placeholder.
+ */
+export function cleanJobFunction(value: string | null | undefined, title: string): string | null {
+  const v = (value ?? '').replace(/\s+/g, ' ').trim();
+  if (!v || isPlaceholderValue(v) || v.length > 60) return null;
+  if (/\||\bcareers?\b|\bjobs?\b at\b/i.test(v)) return null;
+  const t = title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const c = v.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  if (t && c && (t.includes(c) && c.length > 12 || c.includes(t))) return null;
+  return v;
+}
+
+/**
  * What goes into sponsored_jobs.facts: everything but the cleaned text, which is saved as the
  * job's description instead (storing it twice doubled the table). Same in job-facts/index.ts.
  */
@@ -210,7 +224,7 @@ export function jobToRow(
     description: payload.html || description,
     category,
     employment_type: category,
-    job_function: (!isPlaceholderValue(j.category) ? j.category : null) ?? facts.department,
+    job_function: cleanJobFunction(j.category, j.title) ?? facts.department,
     remote: j.remote ?? arrangement === 'remote',
     country_id: code ? opts.countryIdByIso.get(code) ?? null : null,
     city: (!isPlaceholderValue(listedCity) ? listedCity : null) ?? srcLoc?.city ?? null,

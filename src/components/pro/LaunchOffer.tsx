@@ -1,18 +1,29 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, Heart, Loader2, Lock, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LAUNCH_OFFER, MEMBERSHIP_PRICE, MEMBERSHIP_REGULAR_PRICE } from '@/lib/plans';
+import { GUARANTEE } from '@/lib/conversion';
+import { CardMarks } from './CardMarks';
 
-// The launch offer, one box: "95% off for the first 200 customers", ~~$250~~ $12.50,
-// the places really left, one black button, "Pay once, use it forever".
-// Used by the paywall and the pricing page.
-
-/** The fact under the price: why these jobs are early. */
-export const EARLY_JOBS_FACT = 'Early access to jobs straight from company career pages — apply before LinkedIn and Indeed, and your hiring chances go up.';
+// The launch offer, one card: ~~$250~~ $12.50 once, how many of the 200 launch places are left
+// (a bar), "Get Lifetime Access", and the trust line (secure checkout · pay once · no subscription,
+// the cards, the refund guarantee). Used by the payment popup and the pricing page.
 
 /** "4 left" with a thick yellow marker line under it. */
 export function Underlined({ children }: { children: React.ReactNode }) {
   return <span className="underline decoration-[#FFD60A] decoration-[5px] underline-offset-[3px]">{children}</span>;
+}
+
+/** Why buying matters beyond the buyer (shown with a small heart). */
+export const MISSION_LINE = 'Your purchase helps us connect more companies, unlock more opportunities and build one search platform for the entire career web.';
+
+export function MissionNote({ className = '' }: { className?: string }) {
+  return (
+    <p className={`flex items-start justify-center gap-2 text-center text-[13px] leading-[1.5] text-ink-600 ${className}`}>
+      <Heart className="mt-[3px] h-3.5 w-3.5 shrink-0 fill-rose-500 text-rose-500" aria-hidden />
+      <span className="max-w-[340px] text-left">{MISSION_LINE}</span>
+    </p>
+  );
 }
 
 let cached: { n: number; at: number } | null = null;
@@ -42,6 +53,33 @@ export function useLaunchPlaces(): number | null {
   return n;
 }
 
+/** "196 of 200 claimed · 4 left" over a bar that is nearly full. */
+export function PlacesBar({ left, className = '' }: { left: number; className?: string }) {
+  const total = LAUNCH_OFFER.places;
+  const taken = Math.min(total, Math.max(0, total - left));
+  const pct = Math.max(4, Math.round((taken / total) * 100));
+  return (
+    <div className={className}>
+      <div className="flex items-baseline justify-between text-[12.5px] font-semibold">
+        <span className="text-ink-600">
+          <span className="text-ink-950">{taken}</span> of {total} launch places claimed
+        </span>
+        <span className="text-amber-700">{left} left</span>
+      </div>
+      <div
+        className="mt-1.5 h-2 overflow-hidden rounded-full bg-ink-100"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={taken}
+        aria-label={`${taken} of ${total} launch places claimed`}
+      >
+        <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-[#FFD60A]" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
 type Props = {
   busy?: boolean;
   onBuy: () => void;
@@ -52,29 +90,30 @@ type Props = {
 
 export function LaunchOfferBox({ busy = false, onBuy, children, className = '' }: Props) {
   const left = useLaunchPlaces();
-  const soldOut = left === 0;
+  const open = left != null && left > 0;
   return (
-    <div className={`rounded-2xl border border-ink-200 bg-white px-5 pb-5 pt-5 text-center ${className}`}>
-      <p className="text-[13.5px] font-semibold text-ink-600">
-        <span className="font-bold text-emerald-700">{LAUNCH_OFFER.percentOff}% off</span> for the first {LAUNCH_OFFER.places} customers
-      </p>
-      <p className="mt-2 flex items-baseline justify-center gap-2.5">
-        <s className="text-[22px] font-semibold text-ink-400 decoration-2">{MEMBERSHIP_REGULAR_PRICE}</s>
-        <span className="text-[44px] font-bold leading-none tracking-tight text-ink-950">{MEMBERSHIP_PRICE}</span>
-      </p>
-      <p className="mt-1.5 text-[14px] font-semibold text-ink-800">Ultimate access to everything</p>
-      {left != null && !soldOut && (
-        <p className="mt-2.5 text-[15px] font-bold text-emerald-700">
-          <Underlined>{left} left</Underlined>
-        </p>
-      )}
+    <div className={`rounded-2xl bg-white px-5 pb-5 pt-5 ring-1 ring-ink-200 ${className}`}>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-ink-500">Lifetime access</p>
+          <p className="mt-1 flex items-baseline gap-2">
+            <span className="text-[40px] font-bold leading-none tracking-tight text-ink-950">{MEMBERSHIP_PRICE}</span>
+            <s className="text-[17px] font-semibold text-ink-400 decoration-2">{MEMBERSHIP_REGULAR_PRICE}</s>
+          </p>
+        </div>
+        <span className="mb-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[12px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+          {LAUNCH_OFFER.percentOff}% off · launch
+        </span>
+      </div>
+
+      {open && <PlacesBar left={left} className="mt-4" />}
 
       {children ?? (
         <button
           type="button"
           onClick={onBuy}
           disabled={busy}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink-950 text-[15.5px] font-bold text-white transition hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-950 focus-visible:ring-offset-2 disabled:opacity-80"
+          className="mt-4 flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-ink-950 text-[16px] font-bold text-white transition hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-950 focus-visible:ring-offset-2 disabled:opacity-80"
         >
           {busy ? (
             <>
@@ -82,13 +121,19 @@ export function LaunchOfferBox({ busy = false, onBuy, children, className = '' }
             </>
           ) : (
             <>
-              Get it for {MEMBERSHIP_PRICE} <ArrowRight className="h-4 w-4" aria-hidden />
+              Get Lifetime Access <ArrowRight className="h-4 w-4" aria-hidden />
             </>
           )}
         </button>
       )}
-      <p className="mt-2.5 text-[12.5px] font-medium text-ink-500">Pay once, use it forever · your account · no subscription</p>
-      <p className="mx-auto mt-3 max-w-[340px] border-t border-ink-100 pt-3 text-center text-[13px] font-semibold leading-[1.45] text-ink-800">{EARLY_JOBS_FACT}</p>
+
+      <p className="mt-3 flex flex-wrap items-center justify-center gap-x-1.5 text-[12.5px] font-medium text-ink-500">
+        <Lock className="h-3.5 w-3.5" aria-hidden /> Secure checkout <span aria-hidden>·</span> Pay once <span aria-hidden>·</span> No subscription
+      </p>
+      <CardMarks className="mt-2.5 justify-center" />
+      <p className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-[12px] font-semibold text-emerald-700">
+        <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden /> {GUARANTEE}
+      </p>
     </div>
   );
 }

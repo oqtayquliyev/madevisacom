@@ -1162,7 +1162,13 @@ function extractDescriptionBody(lines: string[], title: string, contentLines?: {
   const startIdx = lines.findIndex((l) => l.toLowerCase() === title.toLowerCase());
   const body = startIdx >= 0 ? lines.slice(startIdx + 1) : lines;
   const stops = ["equal opportunity employer", "privacy policy", "cookie policy", "terms of use", "recruitment fraud", "e-verify", "similar jobs", "related jobs", "share this job"];
-  const stopIdx = body.findIndex((l) => stops.some((m) => l.toLowerCase().includes(m)));
+  // A sidebar "Similar jobs" above the ad must not end it: only stop once real text came first.
+  let seen = 0;
+  const stopIdx = body.findIndex((l) => {
+    const hit = stops.some((m) => l.toLowerCase().includes(m)) && seen >= 300;
+    seen += l.length;
+    return hit;
+  });
   const relevant = (stopIdx >= 0 ? body.slice(0, stopIdx) : body).slice(0, 400);
   return relevant.map((l) => (isSectionHeaderLine(l) ? `<h3>${l.replace(/:$/, "")}</h3>` : `<p>${l}</p>`)).join("").slice(0, 20000);
 }
@@ -1241,6 +1247,18 @@ const DESCRIPTION_CONTAINERS: RegExp[] = [
   /<(\w+)\b[^>]*\b(?:id|class)=["'][^"']*\b(?:content-intro|job-content|jobContent|job_content|position-description)\b[^"']*["'][^>]*>/i,
 ];
 
+/**
+ * A block that is only the job's header facts ("Location … Date Posted … Apply By … Contract Type …
+ * Requisition ID R0000402467") — what Caterpillar-style pages put in a "job description"-named box
+ * above the real description. Not a description.
+ */
+const HEADER_FACT_RE = /\b(?:location|date posted|posted on|apply by|contract type|job type|requisition id|req(?:uisition)? ?#|job id|career area|schedule|shift)\b/gi;
+function isHeaderFactsOnly(inner: string): boolean {
+  const text = stripTags(inner).replace(/\s+/g, " ").trim();
+  const labels = new Set((text.match(HEADER_FACT_RE) ?? []).map((m) => m.toLowerCase()));
+  return text.length < 700 && labels.size >= 3 && jobPhraseScore(text) < 2;
+}
+
 function mainDescriptionHtml(html: string): string | null {
   const clean = html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");
   let best: string | null = null;
@@ -1250,10 +1268,37 @@ function mainDescriptionHtml(html: string): string | null {
     const el = balancedElement(clean, m.index, m[1]);
     if (!el) continue;
     const inner = el.replace(/^<[^>]+>/, "").replace(/<\/\w+>\s*$/, "");
+    if (isHeaderFactsOnly(inner)) continue;
     if (plainLength(inner) >= 150 && (!best || plainLength(inner) > plainLength(best) * 1.2)) best = inner;
     if (best && plainLength(best) > 600) break;
   }
+  // A "Description" heading further down the page with the real text: prefer it when it's clearly fuller.
+  const afterHeading = descriptionAfterHeading(clean);
+  if (afterHeading && (!best || plainLength(afterHeading) > plainLength(best) * 1.5)) return afterHeading;
   return best;
+}
+
+/** Headings that start the job ad itself on career pages. */
+const DESCRIPTION_HEADING_RE = /^(?:job )?description:?$|^(?:about|the) (?:the )?(?:job|role|position)$|^role description$|^position description$|^your role$|^job details$|^stellenbeschreibung$|^ihre aufgaben$|^description du poste$|^descripción del puesto$|^functieomschrijving$/i;
+/** Where the ad ends on those pages. */
+const DESCRIPTION_END_RE = /^(?:similar|related|recommended|other) (?:jobs|positions|roles|openings)$|^share(?: this job)?$|^apply now$|^join (?:our )?talent community$|^(?:recently viewed|you may also like)/i;
+
+/** The text under a "Description" heading, up to "Similar jobs" / "Share" — or null. */
+function descriptionAfterHeading(html: string): string | null {
+  const lines = htmlToContentLines(html);
+  const start = lines.findIndex((l) => l.text.length <= 40 && DESCRIPTION_HEADING_RE.test(l.text.trim()));
+  if (start < 0) return null;
+  const out: { text: string; li: boolean; heading: boolean }[] = [];
+  for (const l of lines.slice(start + 1, start + 600)) {
+    if (l.text.length <= 40 && DESCRIPTION_END_RE.test(l.text.trim())) break;
+    out.push(l);
+  }
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const body = out
+    .map((l) => (l.li ? `<li>${esc(l.text)}</li>` : l.heading || isSectionHeaderLine(l.text) ? `<h3>${esc(l.text.replace(/:$/, ""))}</h3>` : `<p>${esc(l.text)}</p>`))
+    .join("")
+    .replace(/(?:<li>[\s\S]*?<\/li>)+/g, (m) => `<ul>${m}</ul>`);
+  return plainLength(body) >= 300 ? body.slice(0, 60_000) : null;
 }
 
 // Facts many sites print in a side column ("About the job": Job ID,

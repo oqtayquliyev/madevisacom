@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, BadgeCheck, Check, Eye, Loader2, Lock, Mail, MessageCircleReply, ShieldCheck, Sparkles, Star, Wallet, X, Zap } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Eye, Loader2, Lock, Mail, MessageCircleReply, ShieldCheck, Sparkles, Wallet, X, Zap } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSiteStats } from '@/lib/siteStats';
 import { headlineForJob, moreJobsHeadline, readLastSearch } from '@/lib/lastSearch';
@@ -9,77 +9,27 @@ import { classifyJob } from '@/lib/jobTaxonomy';
 import { goToMembershipCheckout } from '@/lib/gumroad';
 import { preloadGumroad } from '@/lib/gumroadOverlay';
 import { FEATURES, LAUNCH_OFFER, MEMBERSHIP_PRICE, MEMBERSHIP_REGULAR_PRICE } from '@/lib/plans';
-import { LaunchOfferBox, useLaunchPlaces } from './LaunchOffer';
+import { LaunchOfferBox, MissionNote, useLaunchPlaces } from './LaunchOffer';
 import { trackBilling } from '@/lib/billing';
 import { trackPaywall } from '@/lib/paywallStats';
 import { rememberAuthIntent } from '@/lib/authIntent';
 import { nav } from '@/lib/pageLayout';
 import { closeJobModal, readJobModal } from '@/lib/jobModal';
-import { usePersonalization } from '@/lib/personalization';
-import { DOWNSELL_CODE, DOWNSELL_PRICE, GUARANTEE, downsellDue, markDownsellShown, quotesFor } from '@/lib/conversion';
-import { CircleFlag } from '@/components/common/CircleFlag';
-import { PROOF_MIN_REPLIES, usePublicOutcomes } from '@/lib/outcomes';
+import { DOWNSELL_CODE, DOWNSELL_PRICE, downsellDue, markDownsellShown } from '@/lib/conversion';
 import { Blur } from '@/components/common/Blur';
-import { TESTIMONIALS } from '@/data/testimonials';
 
 // The membership paywall. It sits over a job page for anyone who isn't a member (the
 // Apply button behind it stays locked), and opens over a list when someone picks a job.
 //
 // What makes people pay, in order on the card:
 //   1. a headline about THEIR search ("1,857 more graphic designer jobs are waiting")
-//   2. what is behind THIS job, shown but locked: the recruiter's email (masked), the
-//      sponsor record, the money left after tax and rent, reply odds, their CV match —
-//      real answers they can almost read
-//   3. proof the job is live: posted on the company's careers page X hours ago, N people
-//      looked at it today (real counts, from 3 up)
-//   4. the launch offer (LaunchOffer.tsx): ~~$250~~ $12.50 once, places really left, one button
-//   5. a member from their own country (or in English)
+//   2. up to 3 lines about THIS job: live proof, or what's locked (recruiter email masked, …)
+//   3. the offer card (LaunchOffer.tsx): $12.50 once, the launch-places bar, "Get Lifetime
+//      Access", secure checkout · pay once · no subscription, the cards, the refund guarantee
+//   4. the five features (plans.ts FEATURES), then the mission line with a small heart
 // Leaving (Back / close / mouse to the tab bar) shows the "first month for less" offer
 // once a week, when a Gumroad offer code is set. "Subscribe" opens Gumroad's payment
 // form over the page (gumroadOverlay.ts) — no trip to another site.
-
-/** What's included: the five headline features (plans.ts). **words** are drawn bold. */
-const INCLUDED = FEATURES.map((f) => `**${f.title}** ${f.sub}`);
-
-/** The cards Gumroad takes, drawn as small marks (no images to load). */
-function CardMarks({ className = '' }: { className?: string }) {
-  const box = 'grid h-6 w-10 place-items-center rounded-[4px] ring-1 ring-inset ring-ink-200';
-  return (
-    <div className={`flex items-center gap-1.5 ${className}`} aria-label="Visa, Mastercard, American Express, Discover and PayPal accepted">
-      <span className={`${box} bg-white text-[11px] font-black italic tracking-tight text-[#1A1F71]`}>VISA</span>
-      <span className={`${box} bg-[#252525]`}>
-        <svg viewBox="0 0 24 16" className="h-4 w-6" aria-hidden>
-          <circle cx="9" cy="8" r="6" fill="#EB001B" />
-          <circle cx="15" cy="8" r="6" fill="#F79E1B" fillOpacity="0.9" />
-        </svg>
-      </span>
-      <span className={`${box} bg-[#2E77BC] text-[8.5px] font-black tracking-tight text-white`}>AMEX</span>
-      <span className={`${box} bg-white text-[6.5px] font-black tracking-tight text-ink-900`}>
-        <span>
-          DISC<span className="inline-block h-[6px] w-[6px] rounded-full bg-[#F58220] align-[-0.5px]" />VER
-        </span>
-      </span>
-      <span className={`${box} bg-white text-[8.5px] font-black italic tracking-tight`}>
-        <span>
-          <span className="text-[#003087]">Pay</span>
-          <span className="text-[#009CDE]">Pal</span>
-        </span>
-      </span>
-    </div>
-  );
-}
-
-/** "a **b** c" → a <strong>b</strong> c */
-function Bolded({ text }: { text: string }) {
-  return (
-    <span>
-      {text.split('**').map((part, i) => (i % 2 ? <strong key={i} className="font-bold text-ink-950">{part}</strong> : <span key={i}>{part}</span>))}
-    </span>
-  );
-}
-
-/** Members' own headlines that don't name the retired Pro plan or a price. */
-const ALL_QUOTES = TESTIMONIALS.filter((t) => !/\bpro\b|\$/i.test(t.headline) && !/member$/i.test(t.name) && /^[\x20-\x7E’‘“”—–…]+$/.test(t.headline));
 
 /** What the job page knows that is locked for non-members — shown masked or blurred, never in full. */
 export type PaywallTeaser = {
@@ -126,7 +76,6 @@ type Props = {
 export function Paywall({ job, onClose, source, teaser, reason }: Props) {
   const { user } = useAuth();
   const stats = useSiteStats();
-  const { profile: visitor } = usePersonalization();
   const [busy, setBusy] = useState(false);
   const [already, setAlready] = useState<string | null>(null);
   const [offer, setOffer] = useState(false);
@@ -140,11 +89,6 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
     const n = cat ? facets?.categories?.[cat.label] : undefined;
     return headlineForJob(job, cat && n ? { label: cat.label, n } : null, readLastSearch(), facets?.total ?? stats?.publishedJobs);
   }, [job, facets, stats?.publishedJobs]);
-  const quotes = useMemo(() => quotesFor(ALL_QUOTES, visitor.citizenship ?? visitor.currentLocation), [visitor.citizenship, visitor.currentLocation]);
-  const [quote, setQuote] = useState(0);
-  // Real outcomes members tracked (last 30 days) — shown only when there are enough to mean something.
-  const outcomes = usePublicOutcomes();
-  const proof = outcomes && outcomes.replies >= PROOF_MIN_REPLIES ? outcomes : null;
 
   useEffect(() => {
     trackBilling('upgrade_prompt_shown', { source });
@@ -160,12 +104,6 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
       html.style.overflow = before;
     };
   }, [source]);
-
-  useEffect(() => {
-    if (quotes.length < 2) return;
-    const t = window.setInterval(() => setQuote((i) => (i + 1) % quotes.length), 6000);
-    return () => window.clearInterval(t);
-  }, [quotes.length]);
 
   /** Leaving: the "first month for less" offer first (once a week, only with a code), then really leave. */
   const leave = (go: () => void) => {
@@ -230,10 +168,9 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
     nav('/login');
   };
 
-  const q = quotes[quote % Math.max(1, quotes.length)];
   const company = job?.company ?? null;
 
-  // What's behind this job: up to 4 rows (one phone screen). Live proof first, then locked answers.
+  // What's behind this job: up to 3 rows (one phone screen). Live proof first, then locked answers.
   const rows: { icon: ReactNode; label: ReactNode; locked?: ReactNode }[] = [];
   if (teaser) {
     if (teaser.postedLabel) rows.push({ icon: <Zap className="h-3.5 w-3.5" />, label: <>Posted {teaser.postedLabel}{teaser.fromCareers && company ? <> on {company}’s careers page</> : null}</> });
@@ -245,8 +182,7 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
     if (teaser.hasCv) rows.push({ icon: <Sparkles className="h-3.5 w-3.5" />, label: 'Your CV match', locked: <Blur w={36} /> });
     if (teaser.hasOdds) rows.push({ icon: <MessageCircleReply className="h-3.5 w-3.5" />, label: 'Chance they reply', locked: <Blur w={44} /> });
   }
-  const shown = rows.slice(0, 4);
-  const benefits = shown.length >= 3 ? INCLUDED.slice(0, 3) : INCLUDED;
+  const shown = rows.slice(0, 3);
 
   // Over a job popup: back to the list as it was (filters, scroll); on a job page: the jobs list.
   const backOut = onClose ? () => leave(onClose) : () => leave(() => (readJobModal() ? closeJobModal() : nav('/jobs')));
@@ -326,45 +262,18 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
                 </p>
               ) : undefined}
             </LaunchOfferBox>
-            <div className="px-1">
-              <CardMarks className="mt-3 justify-center" />
-              <p className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-[12px] font-semibold text-emerald-700">
-                <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden /> {GUARANTEE}
-              </p>
-              {proof && (
-                <p className="mt-1.5 text-center text-[12.5px] font-bold text-ink-700">
-                  {proof.replies.toLocaleString('en-US')} employer replies this month
-                  {proof.interviews ? ` · ${proof.interviews.toLocaleString('en-US')} interviews` : ''}
-                </p>
-              )}
-
-              <ul className="mt-3.5 space-y-1.5 border-t border-ink-100 pt-3.5">
-                {benefits.map((t) => (
-                  <li key={t} className="flex gap-2.5 text-[13.5px] leading-5 text-ink-800">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" strokeWidth={3} aria-hidden />
-                    <Bolded text={t} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {q && (
-              <figure className="mt-4 rounded-xl bg-ink-50 px-4 py-3" aria-live="polite">
-                <span className="flex items-center gap-0.5" role="img" aria-label="Rated 5 out of 5">
-                  {Array.from({ length: 5 }, (_, i) => (
-                    <Star key={i} aria-hidden className="h-3 w-3 fill-amber-400 text-amber-400" />
-                  ))}
-                </span>
-                <blockquote className="mt-1 text-[14px] font-semibold leading-snug text-ink-900">“{q.headline}”</blockquote>
-                <figcaption className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[12px] text-ink-500">
-                  <span className="font-semibold text-ink-700">{q.name}</span>
-                  {q.role && <span>· {q.role}</span>}
-                  <span className="inline-flex items-center gap-1">
-                    · <CircleFlag countryCode={q.from.code} label={q.from.name} size={12} />→<CircleFlag countryCode={q.to.code} label={q.to.name} size={12} />
+            {/* The five things it unlocks, then why it matters beyond you. */}
+            <ol className="mt-5 space-y-2.5 px-1" aria-label="What you get">
+              {FEATURES.map((f, i) => (
+                <li key={f.title} className="flex gap-3 text-[13.5px] leading-5 text-ink-800">
+                  <span className="w-5 shrink-0 font-mono text-[12px] font-bold leading-5 text-brand-700">{String(i + 1).padStart(2, '0')}</span>
+                  <span>
+                    <strong className="font-semibold text-ink-950">{f.title}</strong> <span className="text-ink-500">{f.sub}</span>
                   </span>
-                </figcaption>
-              </figure>
-            )}
+                </li>
+              ))}
+            </ol>
+            <MissionNote className="mt-5 border-t border-ink-100 pt-4" />
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px]">
               {!user && (

@@ -1,14 +1,13 @@
 import { useEffect } from 'react';
 import { noteMilestone } from '@/lib/emailAttribution';
-import { ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { SEO_META } from '@/lib/seoMeta';
 import { WRAP, nav } from '@/lib/pageLayout';
 import { FEATURES_TITLE, LAUNCH_OFFER, MEMBERSHIP_PLAN, MEMBERSHIP_PRICE, MEMBERSHIP_PRICE_LABEL, MEMBERSHIP_REGULAR_PRICE, PLANS, useMyPlan } from '@/lib/plans';
-import { LaunchOfferBox } from '@/components/pro/LaunchOffer';
+import { LaunchOfferBox, MissionNote } from '@/components/pro/LaunchOffer';
 import { FeatureList } from '@/components/pro/FeatureList';
-import { GUARANTEE } from '@/lib/conversion';
 import { trackBilling } from '@/lib/billing';
 import { PricingSwitch } from '@/pages/pricing/PricingSwitch';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
@@ -93,9 +92,7 @@ export function PricingPage({ go, onAuth }: Props) {
                 </button>
               ) : undefined}
             </LaunchOfferBox>
-            <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[13px] font-bold text-emerald-700">
-              <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden /> {GUARANTEE}
-            </p>
+            <MissionNote className="mt-4" />
           </section>
 
           {/* What's included: the five features, numbered */}
