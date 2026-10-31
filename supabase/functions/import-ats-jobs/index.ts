@@ -345,10 +345,26 @@ function hasStructuredJob(html: string): boolean {
  * (Teamtailor "/people/3892195-sarah-mian", "/departments/…"): a person or a
  * team, not a vacancy.
  */
+/** Careers-site pages, not jobs: "Working at Swiss Re in the Americas", "Life at Bosch", "Americas Careers". Only when the title names no role. */
+const LANDING_TITLE_RES: RegExp[] = [
+  /^(?:working|work|careers?|life|jobs?|opportunities|internships?) (?:at|with|@) /i,
+  /^(?:join (?:us|our team|the team)|why (?:join|work)|our (?:locations?|opportunities|culture|values|benefits|story|people|teams?)|employee stories|search our jobs|all jobs|current (?:openings|opportunities|vacancies)|talent (?:community|network|pool)|meet the team|how we hire|hiring process|students? (?:&|and) graduates)\b/i,
+  /^[\p{L} &.,'-]{2,40} careers?(?: site| page| portal| home)?$/iu,
+  /^(?:welcome to|discover|explore) /i,
+];
 const NON_JOB_PATH_RE = /\/(?:people|person|employees?|team-members?|our-people|meet-(?:the-)?team|departments?|colleagues?)(?:\/|$)/i;
+/**
+ * Career-site listing / landing pages that look like a job in a feed: SuccessFactors "/go/<Category>/<id>/"
+ * (a category of jobs, which redirects to the company's careers home), "/content/<page>/" pages,
+ * and the usual landing paths ("/our-locations", "/working-at-…", "/life-at-…").
+ */
+const LANDING_PATH_RE = /^\/(?:[a-z]{2}(?:[-_][a-z]{2})?\/)?(?:go|content|category|categories|talentcommunity|talent-community)\/[^/]+\/?(?:\d+\/?)?$|\/(?:our-locations|locations|working-at[-\w]*|life-at[-\w]*|why-work[-\w]*|benefits|our-culture|students?-and-graduates|search-jobs|job-search|all-jobs)\/?$/i;
+/** A careers site's menu, read as a "description" ("What we do", "Employee stories", "Our locations"). */
+const CAREERS_MENU_RES: RegExp[] = [/what we do/i, /working (?:with|at) us/i, /employee stories/i, /our locations/i, /a world of opportunit/i, /life at /i, /our (?:culture|values)/i, /how we hire/i, /search (?:our |all )?jobs/i, /talent community/i];
 /** Text only those pages have ("Some of my colleagues", Teamtailor's footer). */
 const PEOPLE_PAGE_TEXT_RE = /some of my colleagues|meet (?:my|our) colleagues|let'?s recruit together and find your next colleague/i;
 
+/** People / team pages, careers landing pages and category listings: pages, not jobs. */
 function isPeoplePage(j: NormalizedJob): boolean {
   let path = "";
   try {
@@ -357,8 +373,13 @@ function isPeoplePage(j: NormalizedJob): boolean {
     /* ignore */
   }
   if (NON_JOB_PATH_RE.test(path)) return true;
+  if (!ROLE_WORD_RE.test(j.title) && (LANDING_PATH_RE.test(path) || LANDING_TITLE_RES.some((re) => re.test(j.title.trim())))) return true;
+  if (ROLE_WORD_RE.test(j.title)) return false;
+  const text = stripTags(j.descriptionHtml).slice(0, 20_000);
+  // The careers site's own menu as the "description", and nothing a job ad says.
+  if (CAREERS_MENU_RES.filter((re) => re.test(text)).length >= 3 && jobPhraseScore(text) < 2) return true;
   // A name for a title ("Sarah Mian") on a page that lists colleagues.
-  return !ROLE_WORD_RE.test(j.title) && PEOPLE_PAGE_TEXT_RE.test(stripTags(j.descriptionHtml).slice(0, 20_000));
+  return PEOPLE_PAGE_TEXT_RE.test(text);
 }
 
 /** Last check on every job before it leaves this function. */

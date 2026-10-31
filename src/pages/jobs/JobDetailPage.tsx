@@ -165,7 +165,8 @@ export function JobDetailPage({ id, go, onAuth, embedded = false, onClose, pane 
   }, [raw]);
   const cleaned = useMemo<{ html: string; contact: JobContact } | null>(() => {
     if (!job?.description) return null;
-    if (stored) return { html: purifyJobHtml(stored.html), contact: stored.contact ?? {} };
+    // The cleaned text lives in the description now (facts.html is empty for those jobs).
+    if (stored) return { html: purifyJobHtml(stored.html || job.description), contact: stored.contact ?? {} };
     return { html: sanitizeJobHtml(job.description), contact: {} };
   }, [job, stored]);
   const detectedFacts = stored?.facts ?? null;

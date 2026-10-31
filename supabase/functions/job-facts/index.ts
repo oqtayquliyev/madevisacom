@@ -62,6 +62,14 @@ function analyse(title: string, rawDescription: string | null): Payload {
   return { v: FACTS_VERSION, facts, html: cleaned.html, contact: cleaned.contact as Record<string, string> };
 }
 
+/**
+ * Saved to the row: the cleaned text becomes the job's description and facts keep everything else
+ * (one copy of the text instead of two). The function's answer still carries `html`.
+ */
+function toSave(payload: Payload): { facts: Payload; description?: string } {
+  return payload.html ? { facts: { ...payload, html: '' }, description: payload.html } : { facts: payload };
+}
+
 function safeAnalyse(title: string, description: string | null): Payload {
   try {
     return analyse(title, description);
@@ -194,12 +202,12 @@ async function detectWaiting(service: ServiceClient, limit: number) {
     const payload = safeAnalyse(r.title ?? '', r.description);
     const patch = fillInPatch(r, payload.facts, maps);
     busyMs += performance.now() - t0;
-    let res = await service.from('sponsored_jobs').update({ facts: payload, ...patch }).eq('id', r.id).eq('updated_at', r.updated_at);
+    let res = await service.from('sponsored_jobs').update({ ...toSave(payload), ...patch }).eq('id', r.id).eq('updated_at', r.updated_at);
     // Older databases without work_arrangement / visa_status: save the rest.
     if (res.error && /work_arrangement|visa_status|column/i.test(res.error.message)) {
       delete patch.work_arrangement;
       delete patch.visa_status;
-      res = await service.from('sponsored_jobs').update({ facts: payload, ...patch }).eq('id', r.id).eq('updated_at', r.updated_at);
+      res = await service.from('sponsored_jobs').update({ ...toSave(payload), ...patch }).eq('id', r.id).eq('updated_at', r.updated_at);
     }
     if (!res.error) {
       detected++;
@@ -275,14 +283,17 @@ Deno.serve(async (req) => {
     const saves: PromiseLike<unknown>[] = [];
     for (const r of (rows ?? []) as { id: string; title: string; description: string | null; facts: Payload | null; updated_at: string }[]) {
       if (!force && r.facts && r.facts.v === FACTS_VERSION) {
-        results[r.id] = r.facts;
+        // Text already moved into the description: hand it back as `html`.
+        results[r.id] = r.facts.html ? r.facts : { ...r.facts, html: r.description ?? '' };
         continue;
       }
-      const payload = safeAnalyse(r.title ?? '', r.description);
+      const fresh = safeAnalyse(r.title ?? '', r.description);
+      // A description that was cleaned before no longer has the contact lines: keep the ones found then.
+      const payload = { ...fresh, contact: { ...(r.facts?.contact ?? {}), ...fresh.contact } };
       results[r.id] = payload;
       // Save for next time — only if the job wasn't edited in the meantime
       // (saving results alone doesn't change updated_at; see migration).
-      saves.push(service.from('sponsored_jobs').update({ facts: payload }).eq('id', r.id).eq('updated_at', r.updated_at));
+      saves.push(service.from('sponsored_jobs').update(toSave(payload)).eq('id', r.id).eq('updated_at', r.updated_at));
     }
     await Promise.all(saves);
     return reply({ ok: true, results });

@@ -10,8 +10,8 @@ import { Paywall } from '@/components/pro/Paywall';
 
 // /brief/new?job=…&preview=1 — opened in a new tab from "See preview" on a job.
 // The document, full page, on the recommended terms, exactly as it would be sent. Nothing on the
-// page can be changed; the one button is "Edit document" (members go to the editor; everyone
-// else signs up / gets the membership first). Above it: where to send it.
+// page can be changed; the one button is "Edit and send to <company>" (members go to the editor;
+// everyone else gets the payment popup first). Above it: where to send it.
 
 type Props = {
   /** The two flags, from → to. */
@@ -28,15 +28,15 @@ type Props = {
 };
 
 export function DocPreviewShell({ flags, company, title, contact, source, editHref, paper }: Props) {
-  const { session, user } = useAuth();
+  const { user } = useAuth();
   const { member } = useMembership();
   const [paywall, setPaywall] = useState(false);
 
   const edit = () => {
     if (member) return nav(editHref);
-    if (session) return setPaywall(true);
+    // Everyone else: the payment popup first. After paying they come back to this page, unlocked.
     rememberAuthIntent({ reason: 'offer', next: editHref });
-    nav('/register');
+    setPaywall(true);
   };
   const shownEmail = contact ? (member ? contact : maskEmailShort(contact) ?? null) : null;
   const host = hostOf(source);
@@ -51,7 +51,9 @@ export function DocPreviewShell({ flags, company, title, contact, source, editHr
             <span className="font-normal text-ink-500"> · {title}</span>
           </p>
           <button type="button" onClick={edit} className="inline-flex shrink-0 items-center gap-2 rounded-full bg-ink-950 px-4 py-2.5 text-[14px] font-bold text-white hover:bg-ink-800">
-            <PenLine className="h-4 w-4" aria-hidden /> Edit document
+            <PenLine className="h-4 w-4" aria-hidden />
+            <span className="sm:hidden">Edit and send</span>
+            <span className="hidden sm:inline">Edit and send to {company}</span>
           </button>
         </div>
       </header>

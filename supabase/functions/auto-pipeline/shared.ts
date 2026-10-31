@@ -15,11 +15,17 @@ import { allCountries } from '../job-facts/countries.ts';
 export type Service = any;
 
 /** Must match FACTS_VERSION in job-facts/index.ts and src/lib/jobFactsClient.ts. */
-export const FACTS_VERSION = 3;
+export const FACTS_VERSION = 4;
 const MAX_DESCRIPTION_HTML = 100_000;
 
 export type Facts = ReturnType<typeof detectJobFacts>;
 export type FactsPayload = { v: number; facts: Facts; html: string; contact: Record<string, string> };
+
+/**
+ * What goes into sponsored_jobs.facts: everything but the cleaned text, which is saved as the
+ * job's description instead (storing it twice doubled the table). Same in job-facts/index.ts.
+ */
+export const storedFacts = (p: FactsPayload): FactsPayload => ({ ...p, html: '' });
 
 /** Same as analyse() in job-facts/index.ts. */
 export function analyse(title: string, rawDescription: string | null): FactsPayload {
@@ -200,7 +206,8 @@ export function jobToRow(
   return {
     publisher_id: opts.publisherId,
     title: j.title,
-    description,
+    // One copy of the text: the cleaned description (what the job page shows), not raw + cleaned.
+    description: payload.html || description,
     category,
     employment_type: category,
     job_function: (!isPlaceholderValue(j.category) ? j.category : null) ?? facts.department,
@@ -222,7 +229,7 @@ export function jobToRow(
     visa_status: facts.visa,
     compensation_text: salaryText || null,
     salary_status: salaryText ? 'disclosed' : 'not_disclosed',
-    facts: payload,
+    facts: storedFacts(payload),
   };
 }
 

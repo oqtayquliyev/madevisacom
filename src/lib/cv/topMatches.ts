@@ -330,14 +330,14 @@ async function search(cv: StoredCv, userId: string | null, light = false): Promi
     const texts = new Map<string, string>();
     const expHint = new Map<string, string>();
     const extra = new Map<string, AdRow>();
-    const FULL = 'id, html:facts->>html, exp:facts->facts->>experience, salary_status, salary_min, salary_max, salary_currency, salary_period, compensation_text, visa_sponsorship, visa_status, source_posted_at, created_at, work_arrangement';
+    const FULL = 'id, html:description, exp:facts->facts->>experience, salary_status, salary_min, salary_max, salary_currency, salary_period, compensation_text, visa_sponsorship, visa_status, source_posted_at, created_at, work_arrangement';
     let cols = FULL;
     for (let i = 0; i < chosen.length; i += 12) {
       const ids = chosen.slice(i, i + 12).map((r) => r.id);
       let res = await supabase.from('sponsored_jobs').select(cols).in('id', ids);
       // An older database without one of the extra columns: the ad text alone is enough.
       if (res.error && cols === FULL && /column|schema cache/i.test(res.error.message)) {
-        cols = 'id, html:facts->>html, exp:facts->facts->>experience';
+        cols = 'id, html:description, exp:facts->facts->>experience';
         res = await supabase.from('sponsored_jobs').select(cols).in('id', ids);
       }
       if (res.error) throw new Error(res.error.message);

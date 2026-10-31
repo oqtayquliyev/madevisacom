@@ -6,6 +6,7 @@ import { AlertSignup } from '@/components/jobs/AlertSignup';
 import { Fragment, startTransition, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
+  ArrowUp,
   BadgeCheck,
   Briefcase,
   CalendarClock,
@@ -40,6 +41,7 @@ import { useAuth } from '@/lib/auth';
 import { fetchArbeitnowJobs } from '@/data/sources/arbeitnow';
 import { JobSignals } from '@/components/jobs/JobSignals';
 import { useJobFacets } from '@/lib/jobFacets';
+import { useNewJobsSince } from '@/lib/newJobsWatch';
 import { fetchFilteredJobs, fetchNewestDiverseJobs, fetchPublishedSponsoredJobs, hasSavedJobList, searchPublishedJobs, sponsoredJobToBoardJob, type SponsoredJob } from '@/lib/sponsoredJobs';
 import { allCountries } from '@/data/allCountries';
 import { readRecent, rememberRecent, rememberSearch } from '@/lib/lastSearch';
@@ -197,7 +199,7 @@ function writeQuickCopy(rows: SponsoredJob[]): void {
 /** While the first jobs load: something to read instead of a frozen page. */
 const LOADING_LINES = ['Loading the latest jobs for you…', 'Checking company career pages…', 'Picking fresh roles from the last 24 hours…', 'Almost there…'];
 
-function LoadingLatest() {
+function LoadingLatest({ found }: { found?: number }) {
   const [i, setI] = useState(0);
   useEffect(() => {
     const t = window.setInterval(() => setI((n) => Math.min(n + 1, LOADING_LINES.length - 1)), 1400);
@@ -207,12 +209,35 @@ function LoadingLatest() {
     <div className="mt-6" role="status" aria-live="polite">
       <div className="flex items-center gap-2 text-sm font-semibold text-brand-700">
         <Zap className="h-4 w-4 fill-amber-300 text-amber-400" aria-hidden />
-        {LOADING_LINES[i]}
+        {found ? `Searching… ${found.toLocaleString('en-US')} ${found === 1 ? 'job' : 'jobs'} found so far` : LOADING_LINES[i]}
       </div>
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-brand-100">
         <div className="h-full w-1/3 animate-[mvslide_1.2s_ease-in-out_infinite] rounded-full bg-brand-600" />
       </div>
     </div>
+  );
+}
+
+/** Above the list: "Searching… 128 jobs found so far", then "128 jobs" — so it's clear whether it's still looking. */
+function SearchStatus({ busy, found, more, filtered }: { busy: boolean; found: number; more: boolean; filtered: boolean }) {
+  if (!filtered && !busy) return null;
+  return (
+    <p className="mb-2 mt-3 flex items-center gap-2 text-[13px] font-semibold text-ink-600" role="status" aria-live="polite">
+      {busy ? (
+        <>
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" aria-hidden />
+          Searching… {found.toLocaleString('en-US')} {found === 1 ? 'job' : 'jobs'} found so far
+        </>
+      ) : (
+        <>
+          <span className="text-ink-950">
+            {found.toLocaleString('en-US')}
+            {more ? '+' : ''} {found === 1 ? 'job' : 'jobs'}
+          </span>
+          <span className="font-normal text-ink-500">{more ? '· more load as you scroll' : '· every live job for this search'}</span>
+        </>
+      )}
+    </p>
   );
 }
 
@@ -712,6 +737,22 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
   // done (or something has already arrived to show) fixes that flash.
   // Wait for MadeVisa's own newest jobs, so the outside feed never shows first and then jumps down.
   const loading = loadingSponsored || (loadingLive && allJobs.length === 0);
+  // "+12 new jobs added" while they're on the page (newest list only; a search has its own results).
+  const newJobs = useNewJobsSince(!hasQuery && !loading);
+  const [refreshing, setRefreshing] = useState(false);
+  const showNewJobs = () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    void fetchNewestDiverseJobs(PAGE_SIZE * 3).then((rows) => {
+      setRefreshing(false);
+      if (rows.length) {
+        writeQuickCopy(rows);
+        setQuickJobs(rows.map(toBoard));
+      }
+      newJobs.reset();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  };
 
   const cityOptions = useMemo(() => Array.from(new Set(allJobs.map((j) => j.city).filter(Boolean))).sort(), [allJobs]);
   const companyOptions = useMemo(() => Array.from(new Set(allJobs.map((j) => j.company).filter(Boolean))).sort(), [allJobs]);
@@ -1248,7 +1289,7 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
           </>
         ) : filterBusy || (filteredJobs.length === 0 && (searchBusy || (loadingFull && !gaveUpWaiting))) ? (
           <>
-            <LoadingLatest />
+            <LoadingLatest found={filteredJobs.length} />
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               {Array.from({ length: 4 }).map((_, i) => (
                 <JobCardSkeleton key={i} />
@@ -1297,6 +1338,21 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
                 </div>
               </div>
             )}
+            {newJobs.added > 0 && !hasQuery && (
+              <button
+                type="button"
+                onClick={showNewJobs}
+                className="sticky top-[72px] z-10 mx-auto mb-3 mt-1 flex w-fit items-center gap-2 rounded-full bg-brand-600 px-4 py-2 text-[13.5px] font-bold text-white shadow-lg hover:bg-brand-700"
+              >
+                {refreshing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ArrowUp className="h-4 w-4" aria-hidden />}+{newJobs.added.toLocaleString('en-US')} new {newJobs.added === 1 ? 'job' : 'jobs'} added
+              </button>
+            )}
+            <SearchStatus
+              busy={Boolean(searchBusy || filterBusy || loadingFilterPage || (hasQuery && loadingFull))}
+              found={filteredJobs.length}
+              more={Boolean(filterKey && serverFiltered?.key === filterKey && serverFiltered.more)}
+              filtered={hasQuery}
+            />
             <div className={`grid grid-cols-1 gap-4 ${split ? '' : 'mt-4 lg:grid-cols-2'}`}>
               {(guest ? visibleJobs.slice(0, GUEST_JOBS) : visibleJobs).map((job, i) => (
                 <Fragment key={job.id}>

@@ -1,14 +1,12 @@
 // "Preview sponsorship doc": a quiet button on the job's header that opens the document as it
 // would look for this job (the live demo: drag who pays what, watch the rows change), with one
-// button under it — make it (members), open it (already made), or unlock it (everyone else).
+// "See preview" under it (the full document in a new tab); members also get a link to make / open theirs.
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Eye, FileSignature, FileText, Lock, X } from 'lucide-react';
+import { Eye, FileSignature, FileText, X } from 'lucide-react';
 import { usePersonalization } from '@/lib/personalization';
 import { useAuth } from '@/lib/auth';
 import { nav } from '@/lib/pageLayout';
-import { priceLabel } from '@/lib/plans';
-import { checkoutHref } from '@/lib/billing';
 import { briefPath, fetchMyBriefForJob, newOfferPath } from '@/lib/briefs';
 import { canMakeDocument, useOfferCredits } from '@/lib/sponsorOffer';
 
@@ -49,7 +47,7 @@ export function SponsorDocPreviewButton(props: Props) {
   );
 }
 
-function Sheet({ jobId, title, company, dest, country, onUnlock, onAuth, onClose }: Props & { onClose: () => void }) {
+function Sheet({ jobId, title, company, dest, country, onClose }: Props & { onClose: () => void }) {
   const { session } = useAuth();
   const credits = useOfferCredits();
   const { profile: visitor } = usePersonalization();
@@ -74,30 +72,16 @@ function Sheet({ jobId, title, company, dest, country, onUnlock, onAuth, onClose
   }, [onClose]);
 
   const start = `${newOfferPath(jobId)}${country ? `&country=${country}` : ''}`;
-  const btn = 'inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-brand-700 sm:w-auto';
-
-  const action = existing ? (
-    <button type="button" onClick={() => nav(briefPath(existing))} className={btn}>
-      <FileText className="h-4 w-4" /> Open my document
+  // Members: straight to their document (or the editor) under the preview button.
+  const memberLink = existing ? (
+    <button type="button" onClick={() => nav(briefPath(existing))} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-600 underline underline-offset-2 hover:text-ink-950">
+      <FileText className="h-3.5 w-3.5" /> Open my document
     </button>
   ) : canMakeDocument(credits) ? (
-    <button type="button" onClick={() => nav(start)} className={btn}>
-      <FileSignature className="h-4 w-4" /> Make mine for this job
+    <button type="button" onClick={() => nav(start)} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-600 underline underline-offset-2 hover:text-ink-950">
+      <FileSignature className="h-3.5 w-3.5" /> Make mine for this job
     </button>
-  ) : (
-    <button
-      type="button"
-      onClick={() => {
-        onClose();
-        if (onUnlock) onUnlock();
-        else if (session) nav(checkoutHref('starter', 'sponsor_document_preview'));
-        else onAuth?.('register');
-      }}
-      className={btn}
-    >
-      <Lock className="h-4 w-4" /> Get it · {priceLabel('starter')}
-    </button>
-  );
+  ) : null;
 
   return createPortal(
     <div
@@ -128,16 +112,16 @@ function Sheet({ jobId, title, company, dest, country, onUnlock, onAuth, onClose
           </Suspense>
         </div>
 
-        <div className="mt-6 flex flex-col items-stretch gap-3 border-t border-ink-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-6 flex flex-col items-center gap-3 border-t border-ink-100 pt-6">
           <a
             href={previewHref}
             target="_blank"
             rel="noopener"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-bold text-ink-900 ring-1 ring-inset ring-ink-200 transition hover:bg-ink-50 sm:w-auto"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-600 px-8 py-3.5 text-[15px] font-bold text-white transition hover:bg-brand-700 sm:w-auto"
           >
             <Eye className="h-4 w-4" aria-hidden /> See preview
           </a>
-          {action}
+          {memberLink}
         </div>
       </div>
     </div>,
