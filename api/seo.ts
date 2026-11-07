@@ -16,8 +16,7 @@ import { escHtml as esc } from './_supa';
 import { slugify } from '../src/lib/jobUrl';
 import { infoPages } from '../src/data/infoContent';
 import { visaGuides } from '../src/data/visa';
-import { BOOK, MEMBERSHIP_PLAN, PLANS, usd } from '../supabase/functions/_shared/plans';
-import { BOOK_INSIDE, DEFAULT_BOOK_PROMO } from '../src/data/bookPromo';
+import { MEMBERSHIP_PLAN, PLANS, usd } from '../supabase/functions/_shared/plans';
 import { legalPageOrder, legalPages } from '../src/data/legalContent';
 import { PRO_TESTIMONIALS } from '../src/data/testimonials';
 import {
@@ -232,7 +231,6 @@ const footerLinks = () =>
     ['/job-market', 'Job market insights, updated hourly'],
     ['/destinations', 'Work visas by country'],
     ['/blog', 'Hiring reports and visa guides'],
-    ['/book', `Book: ${BOOK.title}`],
     ['/pricing', 'Pricing'],
     ['/about', 'About MadeVisa'],
     ['/how-it-works', 'How MadeVisa works'],
@@ -570,44 +568,11 @@ async function staticPage(slug: string): Promise<Page | null> {
     };
   }
 
-  if (slug === 'book') {
-    const B = usd(BOOK.bookOnlyCents);
-    const M = usd(PLANS[MEMBERSHIP_PLAN].priceCents);
-    const desc = `${BOOK.title}: how AI is changing 40+ industries, which responsibilities stay human, and how to adapt with remote work, freelancing and your own digital product. eBook ${B}, or with one year of MadeVisa membership for ${M}.`;
-    const reviews = DEFAULT_BOOK_PROMO.reviews.filter((r) => r.published);
-    const rating = DEFAULT_BOOK_PROMO.rating;
-    const image = `${SITE}${BOOK.cover}`;
-    const offers = [
-      { '@type': 'Offer', name: 'Book only', price: (BOOK.bookOnlyCents / 100).toFixed(2), priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: `${SITE}/book` },
-      { '@type': 'Offer', name: 'Book + 1 year MadeVisa membership', price: (PLANS[MEMBERSHIP_PLAN].priceCents / 100).toFixed(2), priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: `${SITE}/book` },
-    ];
-    const reviewLd = reviews.map((r) => ({ '@type': 'Review', reviewBody: r.text, author: { '@type': 'Person', name: r.name }, reviewRating: { '@type': 'Rating', ratingValue: r.rating, bestRating: 5, worstRating: 1 } }));
-    const agg = reviews.length ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: rating, bestRating: 5, worstRating: 1, reviewCount: reviews.length } } : {};
-    return {
-      title: `${BOOK.title} — Book | MadeVisa`,
-      description: desc,
-      path,
-      image,
-      jsonld: [
-        crumbsLd([['MadeVisa', '/'], ['Book', path]]),
-        { '@context': 'https://schema.org', '@type': 'Book', name: BOOK.title, alternativeHeadline: BOOK.subtitle, author: { '@type': 'Organization', name: 'MadeVisa', url: SITE }, publisher: { '@type': 'Organization', name: 'MadeVisa' }, bookFormat: 'https://schema.org/EBook', inLanguage: 'en', image, url: `${SITE}/book`, description: desc, offers },
-        { '@context': 'https://schema.org', '@type': 'Product', name: BOOK.title, description: desc, image, brand: { '@type': 'Brand', name: 'MadeVisa' }, offers, ...agg, ...(reviewLd.length ? { review: reviewLd } : {}) },
-      ],
-      body:
-        `<h1>${esc(BOOK.title)}</h1><p><em>${esc(BOOK.subtitle)}</em></p><p>${esc(desc)}</p>` +
-        `<h2>Inside the 2026–2027 job market guide</h2><ul>${BOOK_INSIDE.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` +
-        `<h2>Price</h2><ul><li>Book only: ${B} — complete digital book, one-time payment, digital delivery.</li><li>Book + 1 year MadeVisa membership: ${M} — the book included, one year of membership, 500,000+ more jobs a month, smart CV matching.</li></ul>` +
-        (reviews.length ? `<h2>Customer reviews — ${rating} out of 5</h2>` + reviews.map((r) => `<blockquote><p>${esc(r.text)}</p><p>${esc(r.name)} · ${esc(r.profession)} · ${r.rating}/5</p></blockquote>`).join('') : '') +
-        footerLinks(),
-      maxAge: 3600,
-    };
-  }
-
   if (slug === 'pricing') {
     // The prices are printed here, in the page itself, so nobody has to run the app or sign up to
     // see what the plans cost. Same numbers as the app: supabase/functions/_shared/plans.ts.
     const M = usd(PLANS[MEMBERSHIP_PLAN].priceCents);
-    const desc = `The book “${BOOK.title}” + 1 year of MadeVisa Membership: ${M}, one payment. Book only: ${usd(BOOK.bookOnlyCents)}. Jobs from company career pages, CV match on every job, companies that sponsor visas and sponsorship documents.`;
+    const desc = `One plan, MadeVisa Membership: ${M} a month. Jobs from company career pages, remote and online listings, CV match on every job, companies that sponsor visas and sponsorship documents. Same price in every country, cancel anytime.`;
     const offer = (name: string, cents: number) => ({
       '@type': 'Offer',
       name,
@@ -615,7 +580,8 @@ async function staticPage(slug: string): Promise<Page | null> {
       priceCurrency: 'USD',
       url: `${SITE}/pricing`,
       availability: 'https://schema.org/InStock',
-          });
+      priceSpecification: { '@type': 'UnitPriceSpecification', price: (cents / 100).toFixed(2), priceCurrency: 'USD', billingDuration: 1, unitCode: 'MON' },
+    });
     const reviews = PRO_TESTIMONIALS;
     const list = `<ul>${PLANS[MEMBERSHIP_PLAN].benefits.map((b) => `<li><strong>${esc(b.title)}.</strong> ${esc(b.text)}</li>`).join('')}</ul>`;
     return {
@@ -628,7 +594,7 @@ async function staticPage(slug: string): Promise<Page | null> {
           '@context': 'https://schema.org',
           '@type': 'Product',
           name: 'MadeVisa',
-          description: `The book + 1 year of MadeVisa Membership: ${M}, one payment.`,
+          description: `MadeVisa Membership for job seekers: ${M} a month, billed monthly.`,
           brand: { '@type': 'Brand', name: 'MadeVisa' },
           // Google requires an image on anything marked as a Product. The site's own share picture.
           image: `${SITE}/api/og/page?p=home`,
@@ -645,14 +611,14 @@ async function staticPage(slug: string): Promise<Page | null> {
                 })),
               }
             : {}),
-          offers: [offer('Book + 1 year MadeVisa Membership', PLANS[MEMBERSHIP_PLAN].priceCents), offer('Book only', BOOK.bookOnlyCents)],
+          offers: [offer('MadeVisa Membership, monthly', PLANS[MEMBERSHIP_PLAN].priceCents)],
         },
       ],
       body:
         '<h1>Find better jobs. Apply smarter. Go further.</h1><p>Discover opportunities directly from company career pages, get personalised CV guidance, and find employers that may sponsor your visa.</p>' +
-        `<h2>Book + 1 year MadeVisa Membership: ${M}</h2><p>${esc(PLANS[MEMBERSHIP_PLAN].tagline)} ${link('/book', 'About the book')}.</p>${list}` +
+        `<h2>MadeVisa Membership: ${M} a month</h2><p>${esc(PLANS[MEMBERSHIP_PLAN].tagline)} Cancel anytime.</p>${list}` +
         '<p>Browsing every job is free; applying to jobs is part of the membership.</p>' +
-        '<p>The price is in US dollars and the same in every country. Gumroad, our payment partner, adds sales tax or VAT where it applies. One payment; nothing renews. No plan guarantees interviews, a job, sponsorship or a visa.</p>' +
+        '<p>The price is in US dollars and the same in every country. Gumroad, our payment partner, adds sales tax or VAT where it applies. The membership is billed monthly; you can cancel anytime and keep it until the end of the month you paid for. No plan guarantees interviews, a job, sponsorship or a visa.</p>' +
         (reviews.length
           ? `<h2>What members say</h2><p>${reviews.length} MadeVisa members, all 5 stars.</p>` +
             reviews.map((t) => `<blockquote><p><strong>${esc(t.headline)}</strong> ${esc(t.text)}</p><p>${esc([t.name, t.role, `${t.from.name} → ${t.to.name}`].filter(Boolean).join(' · '))}</p></blockquote>`).join('') +
@@ -792,7 +758,7 @@ const SPA_EXACT = new Set<string>([
   '/profile', '/dashboard', '/admin', '/company', '/companies', '/network', '/experts',
   '/destinations', '/ghostgood', '/official-sources', '/official-partners',
   '/alerts/unsubscribe', '/employers/inbox', '/about', '/how-it-works', '/offers',
-  '/pricing', '/book', '/cv-match', '/cv', '/job-market', '/blog',
+  '/pricing', '/cv-match', '/cv', '/job-market', '/blog',
   ...legalPageOrder.map((s) => `/${s}`),
 ]);
 const SPA_PREFIXES = ['/jobs/', '/companies/', '/destinations/', '/programs/', '/ghostgood/', '/brief/', '/admin/', '/u/', '/blog/'];

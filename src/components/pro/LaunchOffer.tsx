@@ -149,13 +149,17 @@ export function LaunchOfferBox({ busy = false, onBuy, children, className = '', 
   const working = choice === 'bundle' ? busy : bookBusy;
   return (
     <div className={`rounded-2xl bg-white px-5 pb-5 pt-5 ring-1 ring-ink-200 ${className}`}>
-      <a href="/book" className="mx-auto block w-[150px] sm:w-[170px]" aria-label={BOOK.title}>
-        <BookCover className="w-full -rotate-2 shadow-xl" />
-      </a>
+      <div className="flex items-center gap-4">
+        <BookCover className="w-[64px] shrink-0 -rotate-2" />
+        <div className="min-w-0">
+          <p className="text-[11.5px] font-bold uppercase tracking-[0.08em] text-ink-500">New book + membership</p>
+          <p className="mt-0.5 text-[15px] font-bold leading-[1.3] text-ink-950">{BOOK.title}</p>
+        </div>
+      </div>
 
       <div className="mt-4 space-y-3" role="radiogroup" aria-label="Choose an option">
-        <Option on={choice === 'book'} onPick={() => setChoice('book')} price={BOOK_ONLY_PRICE} title={BOOK.bookOnlyVersion} sub="Complete digital guide." />
-        <Option on={choice === 'bundle'} onPick={() => setChoice('bundle')} price={MEMBERSHIP_PRICE} title={BOOK.bundleVersion} sub="The book + one year of membership." badge="Best value" />
+        <Option on={choice === 'book'} onPick={() => setChoice('book')} price={BOOK_ONLY_PRICE} title={BOOK.bookOnlyVersion} sub="Complete digital guide. One-time payment." />
+        <Option on={choice === 'bundle'} onPick={() => setChoice('bundle')} price={MEMBERSHIP_PRICE} title={BOOK.bundleVersion} sub="Complete guide plus one year of membership." badge="Best value" />
       </div>
 
       {children ?? (

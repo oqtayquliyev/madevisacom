@@ -6,7 +6,6 @@ import { useSeo } from '@/lib/seo';
 import { WRAP, nav } from '@/lib/pageLayout';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
-import { CareerOutlook } from '@/components/book/BookPromo';
 
 // /my?t=<token> — the dashboard linked from every campaign and series email.
 // Works without signing in (the token in the link is the key). Shows counts only:
@@ -57,7 +56,6 @@ export function MyDashboardPage({ go, onAuth }: Props) {
       </section>
 
       <main className={`${WRAP} -mt-5 space-y-5 pb-12`}>
-        <CareerOutlook placement="dashboard" compact />
         {d === undefined ? (
           <div className="flex justify-center rounded-2xl bg-white py-16 ring-1 ring-ink-200">
             <Loader2 className="h-6 w-6 animate-spin text-ink-300" />

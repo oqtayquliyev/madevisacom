@@ -53,7 +53,7 @@
       "destination": "/api/seo?r=article&s=:s"
     },
     {
-      "source": "/:s(about|how-it-works|pricing|book|cv-match|job-market|contact|privacy|terms|cookies|disclaimer|advertising-policy|sponsored-listing-terms|subscription-terms|sponsorship-document-terms|editorial-policy|corrections|verification-policy|companies|destinations|ghostgood|network|programs|study|offers|official-sources)",
+      "source": "/:s(about|how-it-works|pricing|cv-match|job-market|contact|privacy|terms|cookies|disclaimer|advertising-policy|sponsored-listing-terms|subscription-terms|sponsorship-document-terms|editorial-policy|corrections|verification-policy|companies|destinations|ghostgood|network|programs|study|offers|official-sources)",
       "destination": "/api/seo?r=page&s=:s"
     },
     {
