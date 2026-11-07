@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { BellRing, ChevronRight, History, Search, X } from 'lucide-react';
+import { ArrowRight, BellRing, ChevronRight, History, Search, X } from 'lucide-react';
 import { useNotifications } from '@/lib/notifications';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
@@ -97,13 +97,9 @@ export function LandingPage({ go, onAuth }: LandingProps) {
         </form>
 
         {/* The one line about what's different. */}
-        <p className="mt-8 flex max-w-[640px] items-center gap-2 text-center text-[14px] text-ink-600">
-          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 rotate-45 text-[#2563EB]" aria-hidden fill="currentColor">
-            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
-          </svg>
-          <span>
-            <strong className="font-semibold text-ink-900">Unique jobs</strong> straight from company career pages — not listed on LinkedIn or Indeed.
-          </span>
+        <p className="mt-8 max-w-[640px] px-2 text-center text-[14px] leading-6 text-ink-600">
+          <ArrowRight className="mr-1.5 inline-block h-4 w-4 align-[-3px] text-[#2563EB]" strokeWidth={2.5} aria-hidden />
+          <strong className="font-semibold text-ink-900">Unique jobs</strong> straight from company career pages — not listed on LinkedIn or Indeed.
         </p>
 
         {recent.length > 0 && (

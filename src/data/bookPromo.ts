@@ -62,3 +62,40 @@ export function matchProfession(text: string | null | undefined, insights: Profe
   if (!t.trim()) return null;
   return insights.find((p) => p.keywords.some((k) => t.includes(k.toLowerCase()))) ?? null;
 }
+
+/**
+ * One insight per job-category group (the jobs page's Category list), used when the visitor's
+ * category has no profession insight of its own above.
+ */
+export const GROUP_INSIGHTS: Record<string, string> = {
+  'Software & IT': 'AI now writes and reviews a growing share of code. The work that keeps its value is system design, security, integration, debugging real systems and responsibility for what runs in production.',
+  'Data & AI': 'Routine reporting and model building are increasingly automated. Framing the right question, judging data quality, explaining results to decision-makers and owning how models behave in the real world matter more each year.',
+  'Product & Design': 'AI can draft screens, copy and visuals in minutes. Product judgment, user research, accessibility and responsibility for the experience people actually get are becoming the core of the job.',
+  'Engineering': 'Simulation and design tools are getting AI assistants, but engineers still carry the safety decisions, the trade-offs on site and the sign-off. Combining domain depth with new tools is where careers grow.',
+  'Science & Research': 'AI speeds up literature review, analysis and even experiment design. Asking original questions, designing sound studies and standing behind the conclusions stay human work.',
+  'Healthcare & Medical': 'Documentation and diagnostic support are moving to AI. Clinical judgment, patient communication and responsibility for care remain with people, and demand for skilled staff keeps growing in many countries.',
+  'Finance & Accounting': 'Bookkeeping, reconciliations and standard reports are being automated. Interpretation, regulatory judgment, advising decision-makers and accountability for the numbers are where the value moves.',
+  'Sales & Business Development': 'Prospecting and follow-ups are increasingly automated. Trust, complex negotiation and understanding a client’s business are what close deals, and they are hard to automate.',
+  'Customer Service & Support': 'First-line answers are moving to chatbots. Handling complex cases, calming difficult situations and turning feedback into product improvements are the roles that grow.',
+  'Marketing & Communications': 'AI produces campaigns and content at scale, so output is no longer scarce. Positioning, customer insight, experiments and owning results decide who stands out.',
+  'Human Resources': 'Screening and admin are increasingly automated. Judging people, building culture, handling sensitive cases and advising leaders keep HR professionals essential.',
+  'Operations & Supply Chain': 'Planning, routing and forecasting are done more by software. Handling exceptions, coordinating people and suppliers, and responsibility for delivery stay with people.',
+  'Manufacturing & Production': 'Automation and robotics keep spreading on the floor. People who can run, maintain and improve automated lines, and keep quality and safety under control, are in demand.',
+  'Skilled Trades': 'Hands-on trades are among the hardest jobs to automate, and shortages are growing in many countries. New tools help with diagnostics and planning, while the craft stays human.',
+  'Construction & Architecture': 'Design software and AI speed up drawings and estimates. Site judgment, coordination, safety and responsibility for what gets built remain the valuable part.',
+  'Hospitality & Tourism': 'Booking and service tasks are increasingly digital, but guest experience, problem solving and personal service are what people pay for. International mobility in this field remains high.',
+  'Education & Training': 'AI can explain almost anything on demand. Teaching shifts toward motivation, mentoring and assessment, and many educators turn their knowledge into courses and digital products.',
+  'Legal': 'Research and document review are moving to AI. Legal judgment, negotiation, advising clients and responsibility for the advice stay with lawyers.',
+  'Administration & Office': 'Scheduling, data entry and routine correspondence are among the most automated tasks. Coordinating people, managing priorities and running operations are where office roles move.',
+  'Media & Creative': 'AI generates images, video and text quickly. Creative direction, taste, storytelling and working with clients are what keep creative careers valuable.',
+  'Public Sector & Nonprofit': 'Digital services and automation are reaching public institutions. Policy judgment, working with communities and accountability for public outcomes remain human work.',
+  'Security & Defence': 'Monitoring and threat detection are increasingly automated. Judgment under pressure, investigation and responsibility for decisions keep people at the centre.',
+  'Consulting & Management': 'AI produces analysis and slides fast. Client trust, change management and responsibility for decisions are what organisations pay advisers and managers for.',
+  'Energy & Environment': 'The energy transition is creating new roles faster than many fields. Technical skills in renewables, grids and sustainability, combined with project delivery, are in demand worldwide.',
+  'Agriculture & Food': 'Sensors, data and automation are changing farms and food production. People who combine practical know-how with new technology and food-safety responsibility are needed.',
+  'Aviation & Maritime': 'Systems get more automated, but safety-critical judgment, licences and responsibility keep skilled professionals in demand, often with strong international mobility.',
+  'Beauty, Sports & Wellness': 'These are personal, hands-on services that AI cannot replace. Digital tools help with booking, marketing and building an independent client base.',
+  'Transport & Driving': 'Automation is coming to logistics and driving step by step. Safety, handling the unexpected and skills with new vehicles and systems keep drivers and transport staff needed.',
+  'Real Estate': 'Listings, valuations and paperwork are increasingly automated. Negotiation, local knowledge and trust with clients are what close deals.',
+  'Retail': 'Self-checkout and online shopping change store work. Customer advice, visual merchandising, store management and omnichannel skills are where retail careers grow.',
+};

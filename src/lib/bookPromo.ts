@@ -8,7 +8,8 @@ import { supabase } from '@/lib/supabase';
 import { trackPaywall, type PaywallKind } from '@/lib/paywallStats';
 import { trackBilling } from '@/lib/billing';
 import { readLastSearch } from '@/lib/lastSearch';
-import { DEFAULT_BOOK_PROMO, matchProfession, type BookPromoContent, type ProfessionInsight } from '@/data/bookPromo';
+import { DEFAULT_BOOK_PROMO, GENERAL_INSIGHT, GROUP_INSIGHTS, matchProfession, type BookPromoContent, type ProfessionInsight } from '@/data/bookPromo';
+import { categoryGroup, classifyJob } from '@/lib/jobTaxonomy';
 
 let cache: BookPromoContent | null = null;
 const listeners = new Set<(c: BookPromoContent) => void>();
@@ -49,18 +50,26 @@ export async function saveBookPromo(content: BookPromoContent): Promise<string |
 const PICK_KEY = 'mv:bookProfession';
 
 /** Picked by the visitor, else guessed from their last job search. `source` says which. */
-export function useProfession(insights: ProfessionInsight[]): { pick: ProfessionInsight | null; source: 'picked' | 'search' | null; choose: (id: string) => void } {
-  const [id, setId] = useState<string | null>(() => {
+/**
+ * The visitor's field: a category from the jobs page's Category list. Picked by the visitor, else
+ * found from their last job search (they can change it). Its insight: a profession insight that
+ * matches the category, else the insight for its group, else the general one.
+ */
+export function useProfession(insights: ProfessionInsight[]): { label: string | null; insight: string; source: 'picked' | 'search' | null; choose: (label: string) => void } {
+  const [picked, setPicked] = useState<string | null>(() => {
     try {
-      return localStorage.getItem(PICK_KEY);
+      const v = localStorage.getItem(PICK_KEY);
+      // Older saves held a profession id ("software"): use its label.
+      return v ? insights.find((p) => p.id === v)?.label ?? v : null;
     } catch {
       return null;
     }
   });
-  const picked = id ? insights.find((p) => p.id === id) ?? null : null;
-  const searched = picked ? null : matchProfession(readLastSearch()?.q, insights);
+  const q = readLastSearch()?.q ?? '';
+  const searched = picked ? null : (classifyJob(q)?.label ?? null);
+  const label = picked ?? searched;
   const choose = (v: string) => {
-    setId(v || null);
+    setPicked(v || null);
     try {
       if (v) localStorage.setItem(PICK_KEY, v);
       else localStorage.removeItem(PICK_KEY);
@@ -69,7 +78,15 @@ export function useProfession(insights: ProfessionInsight[]): { pick: Profession
     }
     if (v) trackBook('click', 'pick', v);
   };
-  return { pick: picked ?? searched, source: picked ? 'picked' : searched ? 'search' : null, choose };
+  return { label, insight: insightFor(label, insights), source: picked ? 'picked' : searched ? 'search' : null, choose };
+}
+
+export function insightFor(label: string | null, insights: ProfessionInsight[]): string {
+  if (!label) return GENERAL_INSIGHT;
+  const own = insights.find((p) => p.label === label) ?? matchProfession(label, insights);
+  if (own) return own.insight;
+  const group = categoryGroup(label) ?? (GROUP_INSIGHTS[label] ? label : undefined);
+  return (group && GROUP_INSIGHTS[group]) || GENERAL_INSIGHT;
 }
 
 // --- Frequency ---------------------------------------------------------------------------------

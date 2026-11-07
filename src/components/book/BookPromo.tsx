@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { BOOK, BOOK_ONLY_PRICE, MEMBERSHIP_PRICE, useMembership } from '@/lib/plans';
 import { goToBookCheckout, goToMembershipCheckout } from '@/lib/gumroad';
 import { markPromo, promoDue, trackBook, useBookPromo, useProfession } from '@/lib/bookPromo';
+import { CATEGORIES_BY_GROUP } from '@/lib/jobTaxonomy';
 import { GENERAL_INSIGHT, type BookReview } from '@/data/bookPromo';
 import { nav } from '@/lib/pageLayout';
 
@@ -116,14 +117,14 @@ export function BuyOptions({ placement, profession, className = '' }: { placemen
 export function CareerOutlook({ placement, compact = false, className = '' }: { placement: 'book' | 'jobs' | 'home' | 'dashboard' | 'cv'; compact?: boolean; className?: string }) {
   const c = useBookPromo();
   const { member, ready } = useMembership();
-  const { pick, source, choose } = useProfession(c.insights);
+  const { label, insight, source, choose } = useProfession(c.insights);
   const enabled = placement === 'book' || placement === 'cv' || c.placements[placement as 'jobs' | 'home' | 'dashboard'];
   const [show, setShow] = useState(() => !compact || promoDue(placement, c.frequencyDays));
   const visible = enabled && show && (placement === 'book' || (ready && !member));
 
   useEffect(() => {
     if (!visible) return;
-    trackBook('shown', placement, pick?.id);
+    trackBook('shown', placement, label);
     if (compact) markPromo(placement);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
@@ -132,15 +133,19 @@ export function CareerOutlook({ placement, compact = false, className = '' }: { 
   const picker = (
     <label className="mt-3 flex flex-wrap items-center gap-2 text-[14px] text-ink-700">
       <span className="font-semibold">Your specialization:</span>
-      <select value={pick?.id ?? ''} onChange={(e) => choose(e.target.value)} className="h-11 w-full rounded-lg border border-ink-300 bg-white px-3 text-[16px] font-semibold text-ink-950 sm:h-10 sm:w-auto sm:text-[14px]">
-        <option value="">Choose your profession…</option>
-        {c.insights.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.label}
-          </option>
+      <select value={label ?? ''} onChange={(e) => choose(e.target.value)} className="h-11 w-full rounded-lg border border-ink-300 bg-white px-3 text-[16px] font-semibold text-ink-950 sm:h-10 sm:w-auto sm:max-w-[320px] sm:text-[14px]">
+        <option value="">Choose your field…</option>
+        {CATEGORIES_BY_GROUP.map((g) => (
+          <optgroup key={g.group} label={g.group}>
+            {g.labels.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
-      {source === 'search' && <span className="text-[12px] text-ink-400">(from your last search)</span>}
+      {source === 'search' && <span className="text-[12px] text-ink-500">Found from your last search — change it anytime.</span>}
     </label>
   );
 
@@ -159,14 +164,14 @@ export function CareerOutlook({ placement, compact = false, className = '' }: { 
           </h2>
           {picker}
           <blockquote className={`mt-4 rounded-xl border-l-4 border-rose-500 bg-white px-4 py-3 text-ink-800 ${compact ? 'text-[14.5px] leading-6' : 'text-[15.5px] leading-7'}`}>
-            {pick?.insight ?? GENERAL_INSIGHT}
+            {insight}
           </blockquote>
           <p className="mt-2 text-[11.5px] text-ink-400">General industry insight — not an analysis of your CV.</p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={() => {
-                trackBook('click', placement, pick?.id);
+                trackBook('click', placement, label);
                 if (placement === 'book') document.getElementById('buy')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 else nav('/book');
               }}

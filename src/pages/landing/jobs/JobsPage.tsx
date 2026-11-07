@@ -370,8 +370,8 @@ function cardLock(job: Job, index: number, terms: string[]): CardLock {
 function lockTerms(search: string): string[] {
   let prof: string[] = [];
   try {
-    const id = localStorage.getItem('mv:bookProfession');
-    if (id) prof = DEFAULT_BOOK_PROMO.insights.find((p) => p.id === id)?.keywords ?? [];
+    const v = localStorage.getItem('mv:bookProfession');
+    if (v) prof = DEFAULT_BOOK_PROMO.insights.find((p) => p.id === v)?.keywords ?? categorySearchTerms(v, 12);
   } catch {
     /* private mode */
   }
