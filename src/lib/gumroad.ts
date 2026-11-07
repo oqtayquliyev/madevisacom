@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
-import { MEMBERSHIP_PLAN, MEMBERSHIP_URL, PLANS, refreshMyPlan, type PaidPlanId, type PlanId } from '@/lib/plans';
+import { BOOK, MEMBERSHIP_PLAN, MEMBERSHIP_URL, PLANS, refreshMyPlan, type PaidPlanId, type PlanId } from '@/lib/plans';
 import { trackBilling } from '@/lib/billing';
 import { readCheckout, type CheckoutResult } from '@/lib/billingCore';
 import { startGuestClaim } from '@/lib/guestClaim';
@@ -79,11 +79,24 @@ export async function startCheckout(_plan: PaidPlanId, source: string | null): P
 /** The membership's billing: 'once' (lifetime, a normal Gumroad product — no recurrence in the link). */
 const RECURRENCE = PLANS[MEMBERSHIP_PLAN].recurrence ?? 'once';
 
-function membershipPage(email: string | null | undefined): string {
+function membershipPage(email: string | null | undefined, version: string = BOOK.bundleVersion): string {
   const u = new URL(MEMBERSHIP_URL);
   if (RECURRENCE !== 'once') u.searchParams.set('recurrence', RECURRENCE);
+  else u.searchParams.set('variant', version); // which version of the book product is picked
   if (email) u.searchParams.set('email', email);
   return u.toString();
+}
+
+/**
+ * "Book Only" ($17): Gumroad's payment form for the book alone. No account is needed and nothing
+ * on MadeVisa changes — Gumroad delivers the book.
+ */
+export async function goToBookCheckout(opts: { email?: string | null; source: string }): Promise<void> {
+  trackBilling('checkout_started', { plan: 'book', source: opts.source });
+  const u = new URL(membershipPage(opts.email, BOOK.bookOnlyVersion));
+  u.searchParams.set('mvs', opts.source);
+  const how = await openGumroadCheckout(u.toString());
+  trackBilling('checkout_viewed', { mode: how, source: opts.source, book: true });
 }
 
 export type PayOutcome =

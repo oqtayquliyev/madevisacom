@@ -46,7 +46,7 @@ export const SEO_META = {
       'Upload your CV once. On every job, MadeVisa shows a match score, the skills the ad asks for that your CV doesn’t show, and what to change. Part of the MadeVisa Membership.',
   },
   pricing: {
-    title: 'MadeVisa Pricing — $12.50 Once, Lifetime Access',
+    title: 'MadeVisa Pricing — Book + 1 Year Membership $27.40',
     description: '', // built from live prices (see api/seo.ts and PricingPage)
   },
   jobMarket: {

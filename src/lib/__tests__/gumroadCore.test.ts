@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { checkProduct, makeHandler, planForProduct, type Config, type Deps } from '../../../supabase/functions/gumroad/core.ts';
+import { checkProduct, makeHandler, planForProduct, saleIncludesMembership, type Config, type Deps } from '../../../supabase/functions/gumroad/core.ts';
 
 // The gumroad function against a pretend Gumroad and a pretend database. No real charges, no network.
 
@@ -25,7 +25,7 @@ const once = (cents: number, extra: Record<string, unknown> = {}) => ({
 
 function world() {
   const products: Record<string, Record<string, unknown>> = {
-    prod_starter: { id: 'prod_starter', name: 'MadeVisa Membership', short_url: 'https://madevisa.gumroad.com/l/starter', ...once(1250) },
+    prod_starter: { id: 'prod_starter', name: 'MadeVisa Membership', short_url: 'https://madevisa.gumroad.com/l/starter', ...once(2740) },
     prod_pro: { id: 'prod_pro', name: 'MadeVisa Pro', short_url: 'https://madevisa.gumroad.com/l/pro', ...tier(899) },
   };
   const subscribers: Record<string, Record<string, unknown>> = {};
@@ -42,7 +42,7 @@ function world() {
     hooks: [],
     connected_at: '2026-10-01T00:00:00Z',
     plans: [
-      { plan: 'starter', price_cents: 1250, currency: 'USD', product_id: 'prod_starter', product_url: 'https://madevisa.gumroad.com/l/starter', product_name: 'MadeVisa Membership', provider_price_cents: 1250, connected_at: '2026-10-10T00:00:00Z', active: true },
+      { plan: 'starter', price_cents: 2740, currency: 'USD', product_id: 'prod_starter', product_url: 'https://madevisa.gumroad.com/l/starter', product_name: 'MadeVisa Membership', provider_price_cents: 2740, connected_at: '2026-10-10T00:00:00Z', active: true },
       { plan: 'pro', price_cents: 899, currency: 'USD', product_id: 'prod_pro', product_url: 'https://madevisa.gumroad.com/l/pro', product_name: 'MadeVisa Pro', provider_price_cents: 899, connected_at: '2026-10-10T00:00:00Z', active: true },
     ],
   };
@@ -65,7 +65,7 @@ function world() {
         case 'gumroad_checkout_begin': {
           const plan = String(args?.p_plan);
           // The database prices it from billing_plans, never from the caller.
-          return { data: { id: CHECKOUT_ID, plan, price_cents: plan === 'starter' ? 1250 : 899, currency: 'USD' }, error: null };
+          return { data: { id: CHECKOUT_ID, plan, price_cents: plan === 'starter' ? 2740 : 899, currency: 'USD' }, error: null };
         }
         case 'gumroad_apply': {
           const p = args?.p as Record<string, unknown>;
@@ -135,12 +135,12 @@ describe('checkout', () => {
     expect((await w.call({ action: 'checkout', plan: 'starter' }, 'Bearer nope')).status).toBe(401);
   });
 
-  it('prepares the membership checkout at $12.50 once, for this account', async () => {
+  it('prepares the membership checkout at $27.40 once, for this account', async () => {
     const r = await w.call({ action: 'checkout', plan: 'starter', source: 'paywall' });
-    expect(r.body.price_cents).toBe(1250);
+    expect(r.body.price_cents).toBe(2740);
     expect(r.body.plan).toBe('starter');
     const url = new URL(String(r.body.url));
-    expect(url.origin + url.pathname).toBe('https://madevisa.gumroad.com/l/lifetime');
+    expect(url.origin + url.pathname).toBe('https://madevisa.gumroad.com/l/membership');
     expect(url.searchParams.get('wanted')).toBe('true');
     expect(url.searchParams.get('mv')).toBe(CHECKOUT_ID);
     expect(url.searchParams.get('email')).toBe(USER.email);
@@ -155,13 +155,13 @@ describe('checkout', () => {
   it('sells only the membership: an old "pro" link gets the membership too', async () => {
     const r = await w.call({ action: 'checkout', plan: 'pro' });
     expect(r.body.plan).toBe('starter');
-    expect(r.body.price_cents).toBe(1250);
-    expect(String(r.body.url)).toContain('/l/lifetime');
+    expect(r.body.price_cents).toBe(2740);
+    expect(String(r.body.url)).toContain('/l/membership');
   });
 
   it('ignores any amount the page sends', async () => {
     const r = await w.call({ action: 'checkout', plan: 'starter', price_cents: 1, amount: 1 });
-    expect(r.body.price_cents).toBe(1250);
+    expect(r.body.price_cents).toBe(2740);
     expect(w.calls.find((c) => c.name === 'gumroad_checkout_begin')?.args).not.toHaveProperty('p_price_cents');
   });
 
@@ -174,7 +174,7 @@ describe('checkout', () => {
   it('opens Gumroad on the one-time price, whatever an old page asks for', async () => {
     const r = await w.call({ action: 'checkout', plan: 'starter', billing: 'quarterly' });
     expect(r.body.billing).toBe('once');
-    expect(r.body.price_cents).toBe(1250);
+    expect(r.body.price_cents).toBe(2740);
     expect(new URL(String(r.body.url)).searchParams.has('recurrence')).toBe(false);
   });
 
@@ -194,17 +194,17 @@ describe('checkout', () => {
     expect(r.body.url).toBeUndefined();
     expect(String(r.body.error)).toMatch(/can’t be bought right now/);
     expect(w.calls.some((c) => c.name === 'gumroad_checkout_begin')).toBe(false);
-    expect(JSON.stringify(w.calls.find((c) => c.name === 'gumroad_save')?.args)).toMatch(/costs \$4.99 on Gumroad, but MadeVisa Membership is \$12.50/);
+    expect(JSON.stringify(w.calls.find((c) => c.name === 'gumroad_save')?.args)).toMatch(/costs \$4.99 on Gumroad, but MadeVisa Membership is \$27.40/);
   });
 
   it('refuses pay-what-you-want, versions with other prices, or Gumroad discounts by country', async () => {
-    Object.assign(w.products.prod_starter, once(1250, { customizable_price: true }));
+    Object.assign(w.products.prod_starter, once(2740, { customizable_price: true }));
     expect((await w.call({ action: 'checkout' })).body.url).toBeUndefined();
-    Object.assign(w.products.prod_starter, once(1250, { customizable_price: false, variants: [{ options: [{ name: 'Plus', price_difference: 500 }] }] }));
+    Object.assign(w.products.prod_starter, once(2740, { customizable_price: false, variants: [{ options: [{ name: 'Plus', price_difference: 500 }] }] }));
     expect((await w.call({ action: 'checkout' })).body.url).toBeUndefined();
-    Object.assign(w.products.prod_starter, once(1250, { variants: [], purchasing_power_parity_prices: { IN: 100 } }));
+    Object.assign(w.products.prod_starter, once(2740, { variants: [], purchasing_power_parity_prices: { IN: 100 } }));
     expect((await w.call({ action: 'checkout' })).body.url).toBeUndefined();
-    Object.assign(w.products.prod_starter, once(1250, { purchasing_power_parity_prices: null }));
+    Object.assign(w.products.prod_starter, once(2740, { purchasing_power_parity_prices: null }));
     expect((await w.call({ action: 'checkout' })).body.url).toBeTruthy();
   });
 
@@ -222,12 +222,12 @@ describe('guest checkout (no account)', () => {
     const r = await w.call({ action: 'guest_checkout', source: 'job_page', email: 'New@Example.com' }, '');
     expect(r.status).toBe(200);
     const url = new URL(String(r.body.url));
-    expect(url.origin + url.pathname).toBe('https://madevisa.gumroad.com/l/lifetime');
+    expect(url.origin + url.pathname).toBe('https://madevisa.gumroad.com/l/membership');
     expect(url.searchParams.get('wanted')).toBe('true');
     expect(url.searchParams.has('recurrence')).toBe(false);
     expect(url.searchParams.get('email')).toBe('new@example.com');
     expect(url.searchParams.has('mv')).toBe(false);
-    expect(r.body.price_cents).toBe(1250);
+    expect(r.body.price_cents).toBe(2740);
     // Nothing is recorded for a guest: the payment itself decides whose membership it is.
     expect(w.calls.some((c) => c.name === 'gumroad_checkout_begin' || c.name === 'gumroad_user')).toBe(false);
   });
@@ -405,7 +405,7 @@ describe('check my payment', () => {
     w.state.plan = 'starter';
     const r = await w.call({ action: 'refresh' });
     expect(r.body).toMatchObject({ ok: true, active: true, plan: 'starter' });
-    expect(w.applied()[0]).toMatchObject({ subscription_id: 'sale:s1', recurrence: 'once', claim_user: USER.id });
+    expect(w.applied()[0]).toMatchObject({ subscription_id: 'sale:s1', recurrence: 'yearly', claim_user: USER.id });
   });
 
   it('a refunded purchase ends the access', async () => {
@@ -423,7 +423,7 @@ describe('check my payment', () => {
 });
 
 function sale1(id: string, product: string) {
-  return { id, product_id: product, email: USER.email, purchase_email: USER.email, price: 1250, created_at: '2026-10-31T10:00:00Z', refunded: false, chargedback: false };
+  return { id, product_id: product, email: USER.email, purchase_email: USER.email, price: 2740, created_at: '2026-10-31T10:00:00Z', refunded: false, chargedback: false };
 }
 
 
@@ -438,7 +438,7 @@ describe('admin connect', () => {
     const r = await w.call({ action: 'connect', plan: 'starter', product_url: 'https://madevisa.gumroad.com/l/prod_starter' });
     expect(r.body.ok).toBe(true);
     const saved = w.calls.find((c) => c.name === 'gumroad_plan_save');
-    expect(saved?.args).toMatchObject({ p_plan: 'starter', p: { product_id: 'prod_starter', price_cents: 1250, connected: true } });
+    expect(saved?.args).toMatchObject({ p_plan: 'starter', p: { product_id: 'prod_starter', price_cents: 2740, connected: true } });
   });
   it('refuses a product at the wrong price, with two tiers, or already used by the other plan', async () => {
     expect(String((await w.call({ action: 'connect', plan: 'starter', product_url: 'https://madevisa.gumroad.com/l/prod_pro' })).body.error)).toMatch(/already connected as MadeVisa Pro/);
@@ -453,6 +453,30 @@ describe('admin connect', () => {
   });
 });
 
+describe('the book product (two versions)', () => {
+  const book = (diff: number, extra: Record<string, unknown> = {}) => ({
+    ...once(1700),
+    name: 'Book',
+    short_url: 'https://madevisa.gumroad.com/l/membership',
+    variants: [{ title: 'Version', options: [{ name: 'Book Only', price_difference: 0 }, { name: 'Book + 1 Year MadeVisa Membership', price_difference: diff }] }],
+    ...extra,
+  });
+  it('accepts Book Only $17 + Book + 1 Year Membership $27.40', () => {
+    expect(checkProduct(book(1040), 'starter')).toMatchObject({ ok: true, priceCents: 2740, recurrence: 'once' });
+  });
+  it('refuses a membership version at another price, or none', () => {
+    expect(checkProduct(book(1000), 'starter').ok).toBe(false);
+    expect(checkProduct({ ...book(1040), variants: [{ options: [{ name: 'Book Only', price_difference: 0 }] }] }, 'starter').ok).toBe(false);
+  });
+  it('only the membership version switches the membership on', () => {
+    expect(saleIncludesMembership({ price: 2740, variants: { Version: 'Book + 1 Year MadeVisa Membership' } })).toBe(true);
+    expect(saleIncludesMembership({ price: 1700, variants: { Version: 'Book Only' } })).toBe(false);
+    expect(saleIncludesMembership({ price: 1700, variants_and_quantity: '(Book Only)' })).toBe(false);
+    expect(saleIncludesMembership({ price: 2740 })).toBe(true);
+    expect(saleIncludesMembership({ price: 1700 })).toBe(false);
+  });
+});
+
 describe('helpers', () => {
   it('maps products to plans', () => {
     const { cfg } = world();
@@ -463,11 +487,11 @@ describe('helpers', () => {
     expect(planForProduct(cfg, null)).toBeNull();
   });
   it('checks products', () => {
-    expect(checkProduct({ ...once(1250), name: 'S', short_url: 'https://a.gumroad.com/l/s' }, 'starter').ok).toBe(true);
-    expect(checkProduct({ ...once(1250), name: 'S', short_url: 'https://a.gumroad.com/l/s' }, 'starter')).toMatchObject({ recurrence: 'once', priceCents: 1250 });
+    expect(checkProduct({ ...once(2740), name: 'S', short_url: 'https://a.gumroad.com/l/s' }, 'starter').ok).toBe(true);
+    expect(checkProduct({ ...once(2740), name: 'S', short_url: 'https://a.gumroad.com/l/s' }, 'starter')).toMatchObject({ recurrence: 'once', priceCents: 2740 });
     expect(checkProduct({ ...once(1199), name: 'S', short_url: 'https://a.gumroad.com/l/s' }, 'starter').ok).toBe(false);
-    expect(checkProduct({ ...tier(1250), name: 'S', short_url: 'https://a.gumroad.com/l/s' }, 'starter').ok).toBe(false);
-    expect(checkProduct({ ...once(1250), name: 'S', short_url: 'https://a.gumroad.com/l/s', published: false }, 'starter').ok).toBe(false);
-    expect(checkProduct({ ...once(1250), name: 'S', short_url: 'https://evil.example/l/s' }, 'starter').ok).toBe(false);
+    expect(checkProduct({ ...tier(2740), name: 'S', short_url: 'https://a.gumroad.com/l/s' }, 'starter').ok).toBe(false);
+    expect(checkProduct({ ...once(2740), name: 'S', short_url: 'https://a.gumroad.com/l/s', published: false }, 'starter').ok).toBe(false);
+    expect(checkProduct({ ...once(2740), name: 'S', short_url: 'https://evil.example/l/s' }, 'starter').ok).toBe(false);
   });
 });

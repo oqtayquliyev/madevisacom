@@ -50,7 +50,7 @@ export function BillingCard() {
   if (sub) {
     const once = sub.billing === 'once';
     if (sub.price_cents) rows.push({ label: 'Price', value: once ? `${formatMoney(sub.price_cents)} once` : `${formatMoney(sub.price_cents)} / ${sub.billing === 'yearly' ? 'year' : sub.billing === 'quarterly' ? '3 months' : 'month'}` });
-    rows.push({ label: 'Billing', value: once ? 'One payment · lifetime access' : sub.billing === 'yearly' ? 'Yearly' : sub.billing === 'quarterly' ? 'Every 3 months' : 'Monthly' });
+    rows.push({ label: 'Billing', value: once ? 'One payment · lifetime access' : sub.billing === 'yearly' ? 'One payment · book + 1 year (nothing renews)' : sub.billing === 'quarterly' ? 'Every 3 months' : 'Monthly' });
     if (once) rows.push({ label: 'Access', value: 'For good · nothing renews' });
     else if (sub.cancel_at_period_end && sub.current_period_end) rows.push({ label: 'Ends on', value: longDate(sub.current_period_end) });
     else if (sub.renews_at) rows.push({ label: 'Next renewal', value: longDate(sub.renews_at) });

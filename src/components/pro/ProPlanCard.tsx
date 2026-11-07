@@ -24,7 +24,7 @@ export function PlanCard({ source, compact = false }: { plan?: PaidPlanId | 'fre
         {MEMBERSHIP_PRICE}
         <span className="text-base font-medium text-ink-500"> once</span>
       </p>
-      <p className="mt-1 text-[14px] font-semibold text-ink-600">Ultimate access to everything · pay once, use it forever</p>
+      <p className="mt-1 text-[14px] font-semibold text-ink-600">The book + 1 year of everything · one payment, nothing renews</p>
 
       <p className="mt-5 text-[15px] font-bold text-ink-950">{FEATURES_TITLE}</p>
       <ol className="mt-2.5 flex-1 space-y-2.5">
@@ -43,7 +43,7 @@ export function PlanCard({ source, compact = false }: { plan?: PaidPlanId | 'fre
       {my.isPaid ? (
         <div className="mt-6 rounded-lg bg-emerald-50 px-3 py-2.5 text-center text-sm font-semibold text-emerald-900">
           You’re a member
-          {sub?.current_period_end && sub.billing !== 'once' ? ` · ${sub.cancel_at_period_end ? 'ends' : 'renews'} ${new Date(sub.renews_at ?? sub.current_period_end).toLocaleDateString()}` : ' · for good'}
+          {sub?.current_period_end && sub.billing === 'yearly' ? ` · until ${new Date(sub.current_period_end).toLocaleDateString()}` : sub?.current_period_end && sub.billing !== 'once' ? ` · ${sub.cancel_at_period_end ? 'ends' : 'renews'} ${new Date(sub.renews_at ?? sub.current_period_end).toLocaleDateString()}` : ' · for good'}
           {sub?.provider === 'gumroad' && sub.provider_ref && (
             <a href={manageUrl(sub.provider_ref)} target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center justify-center gap-1 text-[12px] font-semibold text-emerald-900 underline">
               {sub.provider_ref.startsWith('sale:') ? 'Receipt on Gumroad' : 'Manage or cancel on Gumroad'} <ExternalLink className="h-3 w-3" aria-hidden />

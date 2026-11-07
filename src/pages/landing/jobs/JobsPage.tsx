@@ -18,6 +18,7 @@ import {
   Check,
   History as HistoryIcon,
   Loader2,
+  Lock,
   Plane,
   Search,
   SlidersHorizontal,
@@ -55,6 +56,7 @@ import { experienceBucket } from '@/lib/jobText';
 import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import { NewCompanyBadge } from '@/components/common/NewCompanyBadge';
 import { AuthDialog } from '@/components/auth/AuthDialog';
+import { useMembership } from '@/lib/plans';
 
 type JobsPageProps = {
   go: (view: View) => void;
@@ -343,7 +345,24 @@ function withClosedLast(jobs: Job[]): Job[] {
   return [...jobs.filter((j) => !j.closed), ...jobs.filter((j) => j.closed)];
 }
 
-function JobCard({ job, onLocked, onOpen, onPick, active = false, fresh = false }: { job: Job; /** Just went live (the "+N new jobs" notice). */ fresh?: boolean; /** Signed out: picking an outside listing asks for a free account first. */ onLocked?: (job: Job) => void; /** Opening it in this tab (phones). */ onOpen?: () => void; /** Desktop split view: show it in the right-hand pane. */ onPick?: (href: string) => void; /** The job showing in the pane. */ active?: boolean }) {
+/**
+ * Free users (no membership): some jobs in the list are members-only teasers — the whole card
+ * blurred — and on some others the company is blurred. Which ones is picked from the job's id, so
+ * the same job stays locked on every visit, and the first jobs of the list are never locked.
+ * Opening one shows the membership popup, as every job does for free users.
+ */
+type CardLock = 'job' | 'company' | null;
+const LOCK_JOBS_PCT = 18;
+const LOCK_COMPANY_PCT = 20;
+function cardLock(job: Job, index: number): CardLock {
+  if (index < 2 || job.closed || job.sourceType === 'company_submitted') return null;
+  let h = 2166136261;
+  for (const c of String(job.id)) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  const n = (h >>> 0) % 100;
+  return n < LOCK_JOBS_PCT ? 'job' : n < LOCK_JOBS_PCT + LOCK_COMPANY_PCT ? 'company' : null;
+}
+
+function JobCard({ job, onLocked, onOpen, onPick, active = false, fresh = false, lock = null }: { /** Free users: a members-only teaser (see cardLock). */ lock?: CardLock; job: Job; /** Just went live (the "+N new jobs" notice). */ fresh?: boolean; /** Signed out: picking an outside listing asks for a free account first. */ onLocked?: (job: Job) => void; /** Opening it in this tab (phones). */ onOpen?: () => void; /** Desktop split view: show it in the right-hand pane. */ onPick?: (href: string) => void; /** The job showing in the pane. */ active?: boolean }) {
   const isExternal = job.sourceType === 'live_feed';
   const viewed = isJobViewed(job.id);
   const closed = Boolean(job.closed);
@@ -351,10 +370,19 @@ function JobCard({ job, onLocked, onOpen, onPick, active = false, fresh = false 
   const inner = (
     <>
       <div className="flex items-start gap-3.5">
-        <JobLogo job={job} size={52} />
+        <div className={lock === 'company' ? 'select-none blur-[5px]' : undefined}>
+          <JobLogo job={job} size={52} />
+        </div>
         <div className="min-w-0 flex-1">
           <p className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-ink-500">
-            <span className="truncate">{job.company}</span>
+            {lock === 'company' ? (
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <span className="truncate select-none blur-[4px]">{job.company}</span>
+                <Lock className="h-3 w-3 shrink-0 text-ink-400" aria-label="Company shown to members" />
+              </span>
+            ) : (
+              <span className="truncate">{job.company}</span>
+            )}
             <NewCompanyBadge addedAt={job.companyAddedAt} />
             {fresh && <span className="shrink-0 rounded-full bg-brand-600 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-white">Just added</span>}
           </p>
@@ -402,6 +430,24 @@ function JobCard({ job, onLocked, onOpen, onPick, active = false, fresh = false 
       </div>
     </>
   );
+  const body =
+    lock === 'job' ? (
+      <>
+        <div aria-hidden className="pointer-events-none select-none blur-[6px]">
+          {inner}
+        </div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/35 px-4 text-center">
+          <span className="grid h-10 w-10 place-items-center rounded-full bg-ink-950 text-white shadow-md">
+            <Lock className="h-4 w-4" aria-hidden />
+          </span>
+          <span className="text-[14.5px] font-bold text-ink-950">Members-only job</span>
+          <span className="rounded-full bg-[#FFD60A] px-3 py-1 text-[12px] font-bold text-ink-950">Unlock 500,000+ more jobs a month</span>
+          <span className="sr-only">{job.title}</span>
+        </div>
+      </>
+    ) : (
+      inner
+    );
 
   // Already-viewed jobs turn grey (muted background + softened content)
   // so it's easy to spot what you haven't opened yet.
@@ -426,7 +472,7 @@ function JobCard({ job, onLocked, onOpen, onPick, active = false, fresh = false 
         }}
         className={cardClass}
       >
-        {inner}
+        {body}
       </a>
     );
   }
@@ -453,7 +499,7 @@ function JobCard({ job, onLocked, onOpen, onPick, active = false, fresh = false 
       aria-current={active || undefined}
       className={`${cardClass} cursor-pointer ${active ? '!border-brand-600 !bg-white !opacity-100 ring-2 ring-brand-600 !grayscale-0' : ''}`}
     >
-      {inner}
+      {body}
     </a>
   );
 }
@@ -956,6 +1002,9 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
   const onLocked = !authLoading && !session ? () => setAuthOpen('register') : undefined;
   // Signed out: the first jobs of any search, the rest after a free account.
   const guest = !authLoading && !session;
+  // Free users (and guests): some jobs and companies in the list are blurred, members-only.
+  const membership = useMembership();
+  const free = membership.ready && !membership.member;
 
   // Everyone sees every job: the next page, from the full list (loading it first when needed).
   // Placeholders only while something is really on its way: a search being answered, or (no search) the full list.
@@ -1373,7 +1422,7 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
                       <p className="text-sm font-bold text-ink-900">More {relatedGroup} jobs</p>
                     </div>
                   )}
-                  <JobCard job={job} onLocked={onLocked} onOpen={saveListPlace} onPick={pick} active={slugOf(job) === activeSlug} fresh={freshSet.has(job.id)} />
+                  <JobCard job={job} onLocked={onLocked} onOpen={saveListPlace} onPick={pick} active={slugOf(job) === activeSlug} fresh={freshSet.has(job.id)} lock={free && slugOf(job) !== activeSlug ? cardLock(job, i) : null} />
                 </Fragment>
               ))}
               {(loadingMore || waitingForMore) && Array.from({ length: 2 }).map((_, i) => <JobCardSkeleton key={`more-${i}`} />)}

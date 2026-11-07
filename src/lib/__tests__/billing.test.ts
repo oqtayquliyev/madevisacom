@@ -9,20 +9,20 @@ const LATER = readFileSync(new URL('../../../supabase/migrations/20261220090000_
 /** One plan: the membership ('starter') at $2.29; Pro no longer sold. */
 const MEMBERSHIP = readFileSync(new URL('../../../supabase/migrations/20261231090000_single_membership_guest_checkout.sql', import.meta.url), 'utf8');
 const UNLIMITED_DOCS = readFileSync(new URL('../../../supabase/migrations/20261231180000_unlimited_documents.sql', import.meta.url), 'utf8');
-/** The membership becomes $12.50 once, lifetime access. */
-const LIFETIME = readFileSync(new URL('../../../supabase/migrations/20261231210000_lifetime_membership.sql', import.meta.url), 'utf8');
+/** The membership is sold with the book: $27.40 for the book + 1 year. */
+const LIFETIME = readFileSync(new URL('../../../supabase/migrations/20261231280000_book_membership_bundle.sql', import.meta.url), 'utf8');
 
 describe('the plans', () => {
-  it('one membership at $12.50 once, in USD', () => {
+  it('one membership (book + 1 year) at $27.40 once, in USD', () => {
     expect(MEMBERSHIP_PLAN).toBe('starter');
     expect(PLANS.free.priceCents).toBe(0);
-    expect(PLANS.starter.priceCents).toBe(1250);
+    expect(PLANS.starter.priceCents).toBe(2740);
     expect(PLANS.starter.name).toBe('MadeVisa Membership');
     expect(PLANS.starter.currency).toBe('USD');
     expect(PLANS.starter.interval).toBe('once');
     expect(PLANS.starter.recurrence).toBe('once');
-    expect(priceLabel('starter')).toBe('$12.50 once');
-    expect(MEMBERSHIP_PRICE).toBe('$12.50');
+    expect(priceLabel('starter')).toBe('$27.40 once');
+    expect(MEMBERSHIP_PRICE).toBe('$27.40');
     expect(usd(1900)).toBe('$19');
   });
 
@@ -124,12 +124,12 @@ describe('order summary', () => {
   const starter = cat.plans.find((p) => p.id === 'starter')!;
   it('due today is the plan price, paid once', () => {
     const s = orderSummary(starter, new Date(2026, 9, 12));
-    expect(s.dueToday).toBe(1250);
+    expect(s.dueToday).toBe(2740);
     expect(s.billing).toBe('One payment');
     expect(s.confirmed).toBe(false);
   });
   it('uses the amount the server priced the checkout at once it exists', () => {
-    const s = orderSummary(starter, new Date(2026, 9, 12), 1250);
+    const s = orderSummary(starter, new Date(2026, 9, 12), 2740);
     expect(s.confirmed).toBe(true);
   });
   it('renews on the last day of a shorter month', () => {

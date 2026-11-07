@@ -4,7 +4,7 @@
 // check, network and secrets are handed in (Deps), so the same code runs in
 // the tests against a pretend Gumroad.
 
-import { isPaidPlanId, MEMBERSHIP_PLAN, MEMBERSHIP_URL, PLANS, type PaidPlanId, type Recurrence } from '../_shared/plans.ts';
+import { BOOK, isPaidPlanId, MEMBERSHIP_PLAN, MEMBERSHIP_URL, PLANS, type PaidPlanId, type Recurrence } from '../_shared/plans.ts';
 
 // deno-lint-ignore no-explicit-any
 type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -89,6 +89,26 @@ const isOneTime = (cfg: Config, productId: unknown): boolean => {
 };
 /** A one-time purchase is kept as a "membership" with this id (one per sale). */
 const ONCE_PREFIX = 'sale:';
+/** The product the membership is sold as right now (the book + membership product). */
+const currentProduct = (cfg: Config, productId: unknown): boolean => {
+  const id = productId == null ? '' : String(productId);
+  return Boolean(id) && (cfg.plans ?? []).some((p) => p.product_id === id);
+};
+
+/**
+ * Did this sale of the book product include the membership? Gumroad tells us the version the
+ * buyer picked ("Book Only" or "Book + 1 Year MadeVisa Membership"); without a version the price
+ * decides (the book alone costs BOOK.bookOnlyCents).
+ */
+export function saleIncludesMembership(sale: Json): boolean {
+  const text = [sale?.variants, sale?.variants_and_quantity, sale?.variant, sale?.option, sale?.product_variant]
+    .map((v) => (v == null ? '' : typeof v === 'string' ? v : JSON.stringify(v)))
+    .join(' ');
+  if (/membership/i.test(text)) return true;
+  if (/book\s*only/i.test(text)) return false;
+  const price = Number(sale?.price ?? 0);
+  return Number.isFinite(price) && price > BOOK.bookOnlyCents;
+}
 const planProduct = (cfg: Config, plan: PaidPlanId): PlanProduct | null => (cfg.plans ?? []).find((p) => p.plan === plan) ?? null;
 
 // ---------------------------------------------------------------------------
@@ -141,6 +161,12 @@ const iso = (v: unknown): string | null => (time(v) ? new Date(time(v)).toISOStr
 async function applyOneTime(deps: Deps, cfg: Config, input: SyncInput, sale: Json): Promise<SyncResult> {
   const plan = planForProduct(cfg, sale?.product_id);
   if (!plan) return { ok: true, note: 'A sale of another product: ignored.' };
+  // The book product: "Book Only" gives no membership; "Book + 1 Year MadeVisa Membership" gives one year.
+  // A sale of an earlier one-time product (the $12.50 lifetime access) stays for good.
+  const bundle = currentProduct(cfg, sale?.product_id);
+  if (bundle && !saleIncludesMembership(sale)) return { ok: true, note: `${String(sale?.purchase_email ?? sale?.email ?? 'A buyer')}: the book only (no membership).` };
+  const recurrence: Recurrence | 'yearly' = bundle ? 'yearly' : 'once';
+  const what = bundle ? 'book + 1 year membership' : 'lifetime access';
   const id = `${ONCE_PREFIX}${String(sale.id)}`;
   const gone = Boolean(sale.refunded || sale.chargedback);
   const status = gone ? 'ended' : 'alive';
@@ -171,7 +197,7 @@ async function applyOneTime(deps: Deps, cfg: Config, input: SyncInput, sale: Jso
       plan,
       product_id: String(sale.product_id),
       status,
-      recurrence: 'once',
+      recurrence,
       email,
       last_sale_id: String(sale.id),
       last_paid_at: gone ? null : paidAt,
@@ -195,10 +221,10 @@ async function applyOneTime(deps: Deps, cfg: Config, input: SyncInput, sale: Jso
   }
   const who = email ?? 'A buyer';
   const note = !out.linked
-    ? `${who}: lifetime access ${gone ? 'refunded' : 'bought'}, no MadeVisa account matched yet.`
+    ? `${who}: ${what} ${gone ? 'refunded' : 'bought'}, no MadeVisa account matched yet.`
     : gone
-      ? `${who}: lifetime access refunded or disputed, switched off.`
-      : `${who}: lifetime access on${created ? ' (paid without an account: one was created for this email and the welcome emails were sent)' : ''}.`;
+      ? `${who}: ${what} refunded or disputed, switched off.`
+      : `${who}: ${what} on${created ? ' (paid without an account: one was created for this email and the welcome emails were sent)' : ''}.`;
   return { ok: true, note, active: Boolean(out.active), linked: Boolean(out.linked), plan };
 }
 
@@ -224,7 +250,8 @@ export async function syncSubscription(deps: Deps, cfg: Config, input: SyncInput
     const sale = s.body.sale;
     if (!planForProduct(cfg, sale?.product_id)) return { ok: true, note: 'A sale of another product: ignored.' };
     // The one-time product: this sale IS the membership (for good, until refunded or disputed).
-    if (!sale?.subscription_id && isOneTime(cfg, sale?.product_id)) return applyOneTime(deps, cfg, input, sale);
+    // (The current book product, or an earlier one-time product such as the $12.50 lifetime access.)
+    if (!sale?.subscription_id && (isOneTime(cfg, sale?.product_id) || (cfg.previous_product_ids ?? []).includes(String(sale?.product_id)))) return applyOneTime(deps, cfg, input, sale);
     if (!sale?.subscription_id) return { ok: true, note: 'Not a membership payment: ignored.' };
     subscriptionId = String(sale.subscription_id);
     sales.set(String(sale.id), sale);
@@ -430,19 +457,29 @@ export function checkProduct(product: Json, plan: PaidPlanId): ProductCheck {
 }
 
 /**
- * The one-time product (lifetime access): a plain product, not a membership, whose price is the
- * plan's price, with no options that change the price and no "pay what you want".
+ * The one-time product: the book + membership. A plain product, not a membership, with two
+ * versions — "Book Only" at the base price, and "Book + 1 Year MadeVisa Membership" whose base price +
+ * price difference is the plan's price. (A product without versions must cost the plan's price.)
+ * No "pay what you want", no country discounts.
  */
 function checkOneTimeProduct(product: Json, plan: PaidPlanId): ProductCheck {
   const want = PLANS[plan].priceCents;
   const name = `“${product?.name ?? 'This product'}”`;
-  if (product?.is_tiered_membership) return { ok: false, reason: `${name} is a membership. The membership is now a one-time payment: create a normal (digital) product with a fixed price.` };
-  const price = Number(product?.price ?? 0);
-  if (!price) return { ok: false, reason: `${name} has no price.` };
-  if (price !== want) return { ok: false, reason: `${name} costs $${(price / 100).toFixed(2)} on Gumroad, but ${PLANS[plan].name} is $${(want / 100).toFixed(2)}. Make them the same.` };
+  if (product?.is_tiered_membership) return { ok: false, reason: `${name} is a membership. Create a normal (digital) product with a fixed price and two versions: “${BOOK.bookOnlyVersion}” and “${BOOK.bundleVersion}”.` };
+  const base = Number(product?.price ?? 0);
+  if (!base) return { ok: false, reason: `${name} has no price.` };
   if (product?.customizable_price) return { ok: false, reason: `${name} has “Pay what you want” on. Switch it off: the price on Gumroad must be the price on MadeVisa.` };
   const options = ((product?.variants ?? []) as Json[]).flatMap((v) => (v.options ?? []) as Json[]);
-  if (options.some((o) => Number(o?.price_difference ?? 0) !== 0)) return { ok: false, reason: `${name} has versions with other prices. Remove them, or make their price difference $0.` };
+  let price = base;
+  if (options.length) {
+    const withMembership = options.filter((o) => /membership/i.test(String(o?.name ?? '')));
+    if (withMembership.length !== 1) return { ok: false, reason: `${name} needs exactly one version with “Membership” in its name (“${BOOK.bundleVersion}”). It has ${withMembership.length}.` };
+    const diff = Number(withMembership[0]?.price_difference ?? 0);
+    // Gumroad gives the difference in cents; accept dollars too, just in case.
+    price = base + diff === want ? want : base + Math.round(diff * 100) === want ? want : base + diff;
+    if (withMembership[0]?.is_pay_what_you_want) return { ok: false, reason: `“${withMembership[0]?.name}” has “Pay what you want” on. Switch it off.` };
+  }
+  if (price !== want) return { ok: false, reason: `${name}${options.length ? ` (“${BOOK.bundleVersion}”)` : ''} costs $${(price / 100).toFixed(2)} on Gumroad, but ${PLANS[plan].name} is $${(want / 100).toFixed(2)}. Make them the same.` };
   if (product?.purchasing_power_parity_prices) return { ok: false, reason: `Gumroad’s “purchasing power parity” discount is on for ${name}. Switch it off: MadeVisa charges the same price everywhere.` };
   if (product?.published === false) return { ok: false, reason: `${name} is not published yet. Publish it in Gumroad.` };
   const url = String(product?.short_url ?? '');
@@ -494,6 +531,7 @@ async function checkout(deps: Deps, cfg: Config, user: { id: string; email: stri
   // Always THE membership link (MEMBERSHIP_URL), whatever short link the product has.
   const url = new URL(MEMBERSHIP_URL);
   if (checked.recurrence !== 'once') url.searchParams.set('recurrence', checked.recurrence);
+  else url.searchParams.set('variant', BOOK.bundleVersion); // the book + 1 year membership, chosen for them
   if (user.email) url.searchParams.set('email', user.email);
   // Comes back with the payment and says which account it is for (never which plan: the product says that).
   url.searchParams.set('mv', c.id);
@@ -534,6 +572,7 @@ async function guestCheckout(_deps: Deps, cfg: Config, body: Json): Promise<Resp
   const billing: Recurrence = PLANS[plan].recurrence ?? 'monthly';
   const url = new URL(MEMBERSHIP_URL);
   if (billing !== 'once') url.searchParams.set('recurrence', billing);
+  else url.searchParams.set('variant', BOOK.bundleVersion);
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
   if (EMAIL.test(email)) url.searchParams.set('email', email);
   if (source) url.searchParams.set('mvs', source);

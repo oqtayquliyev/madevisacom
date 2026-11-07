@@ -5,7 +5,7 @@ import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
 import { SEO_META } from '@/lib/seoMeta';
 import { WRAP, nav } from '@/lib/pageLayout';
-import { FEATURES_TITLE, LAUNCH_OFFER, MEMBERSHIP_PLAN, MEMBERSHIP_PRICE, MEMBERSHIP_PRICE_LABEL, MEMBERSHIP_REGULAR_PRICE, PLANS, useMyPlan } from '@/lib/plans';
+import { BOOK, BOOK_ONLY_PRICE, FEATURES_TITLE, MEMBERSHIP_PLAN, MEMBERSHIP_PRICE, MEMBERSHIP_PRICE_LABEL, PLANS, useMyPlan } from '@/lib/plans';
 import { LaunchOfferBox, MissionNote } from '@/components/pro/LaunchOffer';
 import { FeatureList } from '@/components/pro/FeatureList';
 import { trackBilling } from '@/lib/billing';
@@ -20,14 +20,14 @@ import { PRO_TESTIMONIALS } from '@/data/testimonials';
 type Props = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
 const membership = PLANS[MEMBERSHIP_PLAN];
-const CTA = `Get it for ${MEMBERSHIP_PRICE}`;
+const CTA = `Get Book + 1 Year for ${MEMBERSHIP_PRICE}`;
 
 export function PricingPage({ go, onAuth }: Props) {
   const my = useMyPlan();
 
   useSeo({
     title: SEO_META.pricing.title,
-    description: `MadeVisa Membership: ${MEMBERSHIP_PRICE_LABEL}, your job-landing partner. Jobs from company career pages, remote listings, CV match on every job, companies that sponsor visas and sponsorship documents. Pay once, use it forever — no subscription.`,
+    description: `The book “${BOOK.title}” + 1 year of MadeVisa Membership: ${MEMBERSHIP_PRICE_LABEL}. Jobs from company career pages, CV match on every job, companies that sponsor visas and sponsorship documents. Book only: ${BOOK_ONLY_PRICE}. No subscription.`,
     path: '/pricing',
   });
 
@@ -55,11 +55,11 @@ export function PricingPage({ go, onAuth }: Props) {
         <div className={`${WRAP} py-10 text-center sm:py-14`}>
           <PricingSwitch active="seekers" />
           <h1 className="mx-auto mt-6 max-w-3xl text-[34px] font-bold leading-[1.08] tracking-tight text-ink-950 sm:text-[56px]">
-            Ultimate access to everything.
-            <span className="block text-brand-700">Pay once. {MEMBERSHIP_PRICE}.</span>
+            The book + 1 year of everything.
+            <span className="block text-brand-700">{MEMBERSHIP_PRICE}. Pay once.</span>
           </h1>
           <ul className="mx-auto mt-6 flex max-w-3xl flex-wrap justify-center gap-2">
-            {['Jobs from company career pages', 'Visa sponsor proof', 'CV match on every job', 'Checked live, scam-screened'].map((t) => (
+            {['The 2026–2027 job market book', '500,000+ more jobs a month', 'Visa sponsor proof', 'CV match on every job'].map((t) => (
               <li key={t} className="flex items-center gap-1.5 rounded-full bg-ink-50 px-3.5 py-1.5 text-[14px] font-semibold text-ink-800 ring-1 ring-ink-200">
                 <CheckCircle2 className="h-4 w-4 text-brand-600" aria-hidden /> {t}
               </li>
@@ -80,12 +80,12 @@ export function PricingPage({ go, onAuth }: Props) {
         )}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start">
-          {/* The one plan: lifetime, launch price */}
+          {/* The offer: Book Only / Book + 1 Year Membership */}
           <section aria-labelledby="plan-title" className="lg:sticky lg:top-24">
             <h2 id="plan-title" className="sr-only">
-              {membership.name}: {MEMBERSHIP_PRICE} once (regular {MEMBERSHIP_REGULAR_PRICE})
+              {membership.name}: the book + 1 year for {MEMBERSHIP_PRICE}, or the book only for {BOOK_ONLY_PRICE}
             </h2>
-            <LaunchOfferBox className="shadow-soft-lg sm:px-7 sm:pt-7" onBuy={() => getStarted('pricing')}>
+            <LaunchOfferBox className="shadow-soft-lg sm:px-7 sm:pt-7" source="pricing" onBuy={() => getStarted('pricing')}>
               {my.isPaid ? (
                 <button type="button" onClick={() => nav('/jobs')} className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink-950 text-[15.5px] font-bold text-white hover:bg-ink-800">
                   Browse jobs <ArrowRight className="h-4 w-4" />
@@ -135,7 +135,7 @@ export function PricingPage({ go, onAuth }: Props) {
           <div className="mt-5">
             <Faq
               items={[
-                { q: 'How does the membership work?', a: `One payment of ${MEMBERSHIP_PRICE} gives you everything above for as long as MadeVisa runs. No subscription, nothing renews, nothing to cancel. It’s a launch price for the first ${LAUNCH_OFFER.places} customers; after that it goes up to ${MEMBERSHIP_REGULAR_PRICE} — your price stays paid.` },
+                { q: 'How does it work?', a: `Two options. Book Only (${BOOK_ONLY_PRICE}): the complete digital guide “${BOOK.title}”. Book + 1 Year MadeVisa Membership (${MEMBERSHIP_PRICE}): the book plus one year of everything above — 500,000+ more jobs and 2,000+ more companies’ jobs unlocked every month. One payment: no subscription, nothing renews, nothing to cancel.` },
                 { q: 'Is a job, an interview or a visa guaranteed?', a: 'No plan can promise that, and nobody honest will. What we do guarantee: if MadeVisa doesn’t show you at least 10 open jobs in your field at companies with an official visa-sponsor record within your first 14 days, you get a full refund. See the Subscription Terms.' },
                 { q: 'What do I get for free?', a: 'Every job on MadeVisa, with search and filters. Applying to a job, CV match and the rest of the list above are part of the membership.' },
                 { q: 'Do I need an account before I pay?', a: 'No. Press Get it and pay on Gumroad with your email. If you don’t have a MadeVisa account yet, we create one with that email and send you a sign-in link; if you do, the membership goes on it.' },
@@ -143,6 +143,7 @@ export function PricingPage({ go, onAuth }: Props) {
                 { q: 'How is the CV match worked out?', a: 'MadeVisa reads the job ad and your CV and compares the skills the ad names, whether your roles fit the job, years of experience, the ad’s wording, languages and education. It’s the same rules for every job, and it never looks at age, gender, nationality or a photo. A score shows how well your CV, as written, fits the ad; it isn’t a prediction that you’ll get the job.' },
                 { q: 'Is the price the same in every country?', a: `Yes: ${MEMBERSHIP_PRICE_LABEL}, in US dollars, everywhere. Gumroad adds sales tax or VAT at checkout where it applies, and your bank may convert the amount into your currency.` },
                 { q: 'How do I pay?', a: 'On Gumroad, our payment partner and the seller on your receipt. MadeVisa never sees your card. Your membership starts once Gumroad confirms the payment, usually within a minute.' },
+                { q: 'What happens after the year?', a: 'Your membership simply ends — nothing is charged. You keep the book. You can buy another year whenever you like.' },
                 { q: 'Can I get a refund?', a: 'There’s nothing to cancel: you pay once. Within 14 days of paying, if you haven’t used a paid feature yet, you get a full refund — write to hello@madevisa.com. See the Subscription Terms.' },
               ]}
             />

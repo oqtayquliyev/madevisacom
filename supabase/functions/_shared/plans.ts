@@ -34,11 +34,30 @@ export const PAID_PLANS: readonly PaidPlanId[] = ['starter', 'pro'];
 export const MEMBERSHIP_PLAN: PaidPlanId = 'starter';
 /**
  * THE Gumroad link for the membership. Every "Get it" button ends here (the email, and for
- * accounts a checkout id, are added to it). Since November 2026 the membership is a ONE-TIME
- * Gumroad product ("lifetime access"); the earlier 3-month membership product keeps working for
- * the people who bought it (gumroad_settings.previous_product_ids).
+ * accounts a checkout id, are added to it). Since 7 November 2026 the membership is sold WITH the
+ * book "How to Survive in the 2026–2027 Job Market", as one Gumroad product with two versions:
+ *   • "Book Only"                             $17     — the book, no membership
+ *   • "Book + 1 Year MadeVisa Membership"     $27.40  — the book and one year of the membership
+ * The version name with "Membership" in it is what switches the membership on (gumroad/core.ts).
+ * Earlier products (the 3-month membership, the $12.50 lifetime product) keep working for the
+ * people who bought them (gumroad_settings.previous_product_ids).
  */
-export const MEMBERSHIP_URL = 'https://madevisa.gumroad.com/l/lifetime?wanted=true';
+export const MEMBERSHIP_URL = 'https://madevisa.gumroad.com/l/membership?wanted=true';
+
+/** The book sold with the membership. */
+export const BOOK = {
+  title: 'How to Survive in the 2026–2027 Job Market',
+  subtitle: 'Freelancing, Remote Work & Building Your Own Digital Product',
+  cover: '/book-cover.jpg',
+  /** Gumroad version names — keep them exactly as on the Gumroad product. */
+  bookOnlyVersion: 'Book Only',
+  bundleVersion: 'Book + 1 Year MadeVisa Membership',
+  /** The "Book Only" version's price (the product's base price on Gumroad). */
+  bookOnlyCents: 1700,
+} as const;
+
+/** How long one payment of the book + membership gives the membership. */
+export const MEMBERSHIP_MONTHS = 12;
 
 /** Gumroad billing periods. 'once' = a one-time payment for lifetime access (the membership now). */
 export type Recurrence = 'monthly' | 'quarterly' | 'once';
@@ -58,6 +77,8 @@ export const LAUNCH_OFFER = { regularCents: 25000, places: 200, percentOff: 95 }
  */
 export const FEATURES_TITLE = 'Everything you need to get hired.';
 export const FEATURES: readonly { icon: string; title: string; sub: string }[] = [
+  { icon: '📘', title: 'The book included.', sub: 'How to Survive in the 2026–2027 Job Market.' },
+  { icon: '🔓', title: '500,000+ more jobs & 2,000+ more companies’ jobs unlocked every month.', sub: 'Members only.' },
   { icon: '🌐', title: '2,000+ company career websites.', sub: 'One search.' },
   { icon: '📄', title: 'Unlimited visa sponsorship documents.', sub: 'Ready to send to employers.' },
   { icon: '⚡', title: '300,000+ new job opportunities every month.', sub: 'Before LinkedIn and Indeed.' },
@@ -162,11 +183,11 @@ export const PLANS: Record<PlanId, PlanInfo> = {
   starter: {
     id: 'starter',
     name: 'MadeVisa Membership',
-    priceCents: 1250,
+    priceCents: 2740,
     currency: 'USD',
     interval: 'once',
     recurrence: 'once',
-    tagline: 'Ultimate access to everything. Pay once, use it forever.',
+    tagline: 'The book + one year of everything. One payment, nothing renews.',
     benefits: MEMBERSHIP_BENEFITS,
   },
   pro: {
@@ -197,13 +218,15 @@ export const priceLabel = (plan: PlanId): string =>
         ? `${usd(PLANS[plan].priceCents)} for 3 months`
         : `${usd(PLANS[plan].priceCents)} a month`;
 
-/** "$12.50" — the membership's price (one payment). */
+/** "$27.40" — the book + 1 year membership (one payment). */
 export const MEMBERSHIP_PRICE = usd(PLANS[MEMBERSHIP_PLAN].priceCents);
-/** "for good" — what one payment covers. */
-export const MEMBERSHIP_TERM = 'for good';
+/** "for 1 year" — what one payment covers. */
+export const MEMBERSHIP_TERM = 'for 1 year';
 /** "$12.50 once" */
 export const MEMBERSHIP_PRICE_LABEL = `${MEMBERSHIP_PRICE} once`;
-/** "$250" — the regular price, after the launch offer's places are taken. */
+/** "$17" — the book alone. */
+export const BOOK_ONLY_PRICE = usd(BOOK.bookOnlyCents);
+/** "$250" — the old lifetime regular price (kept for older screens and the downsell maths). */
 export const MEMBERSHIP_REGULAR_PRICE = usd(LAUNCH_OFFER.regularCents);
 /** Kept for older screens: the membership is one payment now, so this is the full price. */
 export const MEMBERSHIP_PER_MONTH = MEMBERSHIP_PRICE;

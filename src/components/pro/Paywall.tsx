@@ -8,7 +8,7 @@ import { useJobFacets } from '@/lib/jobFacets';
 import { classifyJob } from '@/lib/jobTaxonomy';
 import { goToMembershipCheckout } from '@/lib/gumroad';
 import { preloadGumroad } from '@/lib/gumroadOverlay';
-import { FEATURES, LAUNCH_OFFER, MEMBERSHIP_PRICE, MEMBERSHIP_REGULAR_PRICE } from '@/lib/plans';
+import { FEATURES, MEMBERSHIP_PLAN, MEMBERSHIP_PRICE, PLANS } from '@/lib/plans';
 import { LaunchOfferBox, MissionNote, useLaunchPlaces } from './LaunchOffer';
 import { trackBilling } from '@/lib/billing';
 import { trackPaywall } from '@/lib/paywallStats';
@@ -24,8 +24,8 @@ import { Blur } from '@/components/common/Blur';
 // What makes people pay, in order on the card:
 //   1. a headline about THEIR search ("1,857 more graphic designer jobs are waiting")
 //   2. up to 3 lines about THIS job: live proof, or what's locked (recruiter email masked, …)
-//   3. the offer card (LaunchOffer.tsx): $12.50 once, the launch-places bar, "Get Lifetime
-//      Access", secure checkout · pay once · no subscription, the cards, the refund guarantee
+//   3. the offer card (LaunchOffer.tsx): Book Only $17 / Book + 1 Year Membership $27.40 (best value),
+//      secure checkout · pay once · no subscription, the cards, the refund guarantee
 //   4. the five features (plans.ts FEATURES), then the mission line with a small heart
 // Leaving (Back / close / mouse to the tab bar) shows the "first month for less" offer
 // once a week, when a Gumroad offer code is set. "Subscribe" opens Gumroad's payment
@@ -252,7 +252,7 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
               </ul>
             )}
 
-            <LaunchOfferBox className="mt-4" busy={busy} onBuy={() => void subscribe()}>
+            <LaunchOfferBox className="mt-4" busy={busy} source={source} onBuy={() => void subscribe()}>
               {already ? (
                 <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2.5 text-center text-[13px] font-semibold text-emerald-800">
                   Your membership is already active.{' '}
@@ -308,7 +308,7 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
 function DownsellView({ busy, onTake, onNo }: { busy: boolean; onTake: () => void; onNo: () => void }) {
   const left = useLaunchPlaces();
   const cents = Math.round(Number(DOWNSELL_PRICE.replace(/[^0-9.]/g, '')) * 100);
-  const off = cents > 0 ? Math.round((1 - cents / LAUNCH_OFFER.regularCents) * 100) : null;
+  const off = cents > 0 && cents < PLANS[MEMBERSHIP_PLAN].priceCents ? Math.round((1 - cents / PLANS[MEMBERSHIP_PLAN].priceCents) * 100) : null;
   return (
     <div className="py-2 text-center">
       <h2 id="paywall-title" className="font-title text-[56px] font-extrabold leading-none tracking-tight">
@@ -318,7 +318,7 @@ function DownsellView({ busy, onTake, onNo }: { busy: boolean; onTake: () => voi
         before you go{left != null && left > 0 ? ` · only ${left} ${left === 1 ? 'spot' : 'spots'} left` : ''}
       </p>
       <p className="mx-auto mt-4 max-w-[340px] text-[15px] leading-6 text-ink-900">
-        Take it for {DOWNSELL_PRICE} instead of {MEMBERSHIP_PRICE}, down from <s>{MEMBERSHIP_REGULAR_PRICE}</s>. One-time payment, no subscription.
+        The book + 1 year membership for {DOWNSELL_PRICE} instead of <s>{MEMBERSHIP_PRICE}</s>. One-time payment, no subscription.
       </p>
       <button
         type="button"
