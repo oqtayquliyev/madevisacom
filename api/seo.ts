@@ -576,7 +576,7 @@ async function staticPage(slug: string): Promise<Page | null> {
     const desc = `${BOOK.title}: how AI is changing 40+ industries, which responsibilities stay human, and how to adapt with remote work, freelancing and your own digital product. eBook ${B}, or with one year of MadeVisa membership for ${M}.`;
     const reviews = DEFAULT_BOOK_PROMO.reviews.filter((r) => r.published);
     const rating = DEFAULT_BOOK_PROMO.rating;
-    const image = `${SITE}${BOOK.cover}`;
+    const image = `${SITE}${BOOK.coverOg}`;
     const offers = [
       { '@type': 'Offer', name: 'Book only', price: (BOOK.bookOnlyCents / 100).toFixed(2), priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: `${SITE}/book` },
       { '@type': 'Offer', name: 'Book + 1 year MadeVisa membership', price: (PLANS[MEMBERSHIP_PLAN].priceCents / 100).toFixed(2), priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: `${SITE}/book` },

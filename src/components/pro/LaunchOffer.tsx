@@ -108,7 +108,7 @@ type Props = {
 
 /** The book's cover, small. */
 export function BookCover({ className = '' }: { className?: string }) {
-  return <img src={BOOK.cover} alt={`${BOOK.title} — the book`} width={600} height={778} loading="lazy" decoding="async" className={`h-auto rounded-[3px] shadow-md ring-1 ring-ink-200 ${className}`} />;
+  return <img src={BOOK.cover} alt={`${BOOK.title} — the book`} width={574} height={600} loading="lazy" decoding="async" className={`h-auto ${className}`} />;
 }
 
 export function LaunchOfferBox({ busy = false, onBuy, children, className = '', source = 'offer' }: Props) {
@@ -122,44 +122,37 @@ export function LaunchOfferBox({ busy = false, onBuy, children, className = '', 
     window.setTimeout(() => setBookBusy(false), 1500);
   };
   return (
-    <div className={`rounded-2xl bg-white px-5 pb-5 pt-5 ring-1 ring-ink-200 ${className}`}>
-      <div className="flex items-center gap-4 sm:gap-5">
-        <a href="/book" className="block w-[104px] shrink-0 sm:w-[124px]" aria-label={BOOK.title}>
-          <BookCover className="w-full -rotate-2 shadow-xl" />
-        </a>
-        <div className="min-w-0 flex-1">
-          {children ?? (
-            <div className="space-y-2.5">
-              <button
-                type="button"
-                onClick={onBuy}
-                disabled={busy}
-                className="relative flex min-h-[56px] w-full flex-col items-center justify-center rounded-xl bg-ink-950 px-3 py-2 text-white transition hover:bg-ink-800 disabled:opacity-80"
-              >
-                <span className="absolute -top-2.5 right-3 rounded-full bg-[#FFD60A] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-ink-950">Best value</span>
-                {busy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                ) : (
-                  <>
-                    <span className="flex items-center gap-1.5 text-[15px] font-bold leading-5">
-                      Book + 1 Year Membership · {MEMBERSHIP_PRICE} <ArrowRight className="h-4 w-4" aria-hidden />
-                    </span>
-                    <span className="text-[11.5px] font-medium text-white/70">The book included · nothing renews</span>
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => void buyBook()}
-                disabled={bookBusy}
-                className="flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-white text-[14px] font-bold text-ink-950 ring-1 ring-ink-300 transition hover:ring-ink-700 disabled:opacity-80"
-              >
-                {bookBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <>Just the Book · {BOOK_ONLY_PRICE}</>}
-              </button>
-            </div>
-          )}
+    <div className={className}>
+      {children ?? (
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={onBuy}
+            disabled={busy}
+            className="relative flex min-h-[60px] w-full flex-col items-center justify-center rounded-xl bg-brand-600 px-4 py-2.5 text-white shadow-[0_6px_18px_rgba(37,99,235,0.35)] transition hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 disabled:opacity-80"
+          >
+            <span className="absolute -top-2.5 right-3 rounded-full bg-[#FFD60A] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-ink-950">Best value</span>
+            {busy ? (
+              <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+            ) : (
+              <>
+                <span className="flex items-center gap-2 text-[16px] font-bold leading-5">
+                  Get Full Access — {MEMBERSHIP_PRICE} <ArrowRight className="h-4 w-4" aria-hidden />
+                </span>
+                <span className="mt-0.5 text-[12px] font-medium text-white/80">Book + 12-month MadeVisa membership</span>
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => void buyBook()}
+            disabled={bookBusy}
+            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-ink-950 px-4 text-[15px] font-bold text-white transition hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-950 focus-visible:ring-offset-2 disabled:opacity-80"
+          >
+            {bookBusy ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <>Buy the Book — {BOOK_ONLY_PRICE}</>}
+          </button>
         </div>
-      </div>
+      )}
 
       <p className="mt-3 flex flex-wrap items-center justify-center gap-x-1.5 text-[12.5px] font-medium text-ink-500">
         <Lock className="h-3.5 w-3.5" aria-hidden /> Secure checkout <span aria-hidden>·</span> Pay once <span aria-hidden>·</span> No subscription

@@ -93,7 +93,7 @@ export function BuyOptions({ placement, profession, className = '' }: { placemen
         type="button"
         onClick={() => void buy(what)}
         disabled={busy != null}
-        className={`mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[15px] font-bold disabled:opacity-80 ${best ? 'bg-ink-950 text-white hover:bg-ink-800' : 'bg-white text-ink-950 ring-1 ring-ink-300 hover:ring-ink-700'}`}
+        className={`mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[15px] font-bold disabled:opacity-80 ${best ? 'bg-brand-600 text-white shadow-[0_6px_18px_rgba(37,99,235,0.35)] hover:bg-brand-700' : 'bg-ink-950 text-white hover:bg-ink-800'}`}
       >
         {busy === what ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <>{cta} <ArrowRight className="h-4 w-4" aria-hidden /></>}
       </button>
@@ -101,8 +101,8 @@ export function BuyOptions({ placement, profession, className = '' }: { placemen
   );
   return (
     <div className={`grid gap-4 sm:grid-cols-2 ${className}`}>
-      {box('book', 'Book only', BOOK_ONLY_PRICE, ['Complete digital book', 'One-time payment', 'Digital delivery'], `Get the Book · ${BOOK_ONLY_PRICE}`)}
-      {box('bundle', 'Book + 1 year MadeVisa membership', MEMBERSHIP_PRICE, ['The complete digital book is included', 'One year of MadeVisa membership', 'Access to 500,000+ more jobs a month', 'Smart CV matching and every member benefit'], `Get Book + 1 Year Membership · ${MEMBERSHIP_PRICE}`, true)}
+      {box('book', 'Book only', BOOK_ONLY_PRICE, ['Complete digital book', 'One-time payment', 'Digital delivery'], `Buy the Book — ${BOOK_ONLY_PRICE}`)}
+      {box('bundle', 'Book + 1 year MadeVisa membership', MEMBERSHIP_PRICE, ['The complete digital book is included', 'One year of MadeVisa membership', 'Access to 500,000+ more jobs a month', 'Smart CV matching and every member benefit'], `Get Full Access — ${MEMBERSHIP_PRICE}`, true)}
     </div>
   );
 }
@@ -176,7 +176,7 @@ export function CareerOutlook({ placement, compact = false, className = '' }: { 
           </div>
         </div>
         <button type="button" onClick={() => placement !== 'book' && nav('/book')} className={`shrink-0 ${compact ? 'w-[96px]' : 'w-[150px] self-center sm:w-[190px]'}`} aria-label={BOOK.title}>
-          <img src={BOOK.cover} alt={BOOK.title} width={600} height={778} loading="lazy" className="h-auto w-full -rotate-2 rounded-[3px] shadow-xl ring-1 ring-ink-200" />
+          <img src={BOOK.cover} alt={BOOK.title} width={574} height={600} loading="lazy" className="h-auto w-full" />
         </button>
       </div>
     </section>

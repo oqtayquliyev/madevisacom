@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useViewportFixed } from '@/lib/viewportFixed';
+import { BookCover } from './LaunchOffer';
+import { Stars } from '@/components/book/BookPromo';
+import { useBookPromo } from '@/lib/bookPromo';
 import { ArrowLeft, BadgeCheck, Eye, Loader2, Lock, Mail, MessageCircleReply, ShieldCheck, Sparkles, Wallet, X, Zap } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSiteStats } from '@/lib/siteStats';
@@ -84,6 +87,7 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
   const leaveAfterOffer = useRef<(() => void) | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLDivElement>(null);
+  const promo = useBookPromo();
   useViewportFixed(overlay);
   const facets = useJobFacets();
   // About THIS job's field when there is a job ("2,431 more engineering jobs"); the last search only when the job fits it.
@@ -220,8 +224,17 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
           />
         ) : (
           <>
-            <div className="sm:grid sm:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] sm:gap-8">
-            <div className="min-w-0">
+            <div className="sm:grid sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] sm:items-start sm:gap-8">
+            {/* Left: the book image exactly as it is, large, with its rating. */}
+            <div className="flex flex-col items-center justify-center sm:self-center">
+              <a href="/book" className="block w-[150px] sm:w-full sm:max-w-[330px]" aria-label="The book: How to Survive in the 2026–2027 Job Market">
+                <BookCover className="w-full" />
+              </a>
+              <a href="/book#reviews" className="mt-4 flex items-center gap-2 text-[13.5px] font-semibold text-ink-800 hover:underline">
+                <Stars value={promo.rating} size={17} /> {promo.rating.toFixed(1)} / 5 · {promo.reviews.filter((r) => r.published).length} reader reviews
+              </a>
+            </div>
+            <div className="mt-5 min-w-0 sm:mt-0">
             <h2 id="paywall-title" className="text-center font-title text-[26px] font-bold leading-[1.15] tracking-tight sm:text-[30px]">
               {reason ? (
                 REASON_TITLE[reason]
@@ -268,10 +281,8 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
                 </p>
               ) : undefined}
             </LaunchOfferBox>
-            </div>
-            <div className="min-w-0 sm:border-l sm:border-ink-100 sm:pl-8">
             {/* What the membership unlocks (first 3, the rest on "Show all"), then why it matters beyond you. */}
-            <p className="mt-5 text-[12px] font-bold uppercase tracking-[0.08em] text-ink-500 sm:mt-1">With the membership</p>
+            <p className="mt-6 border-t border-ink-100 pt-5 text-[12px] font-bold uppercase tracking-[0.08em] text-ink-500">With the membership</p>
             <ol className="mt-3 space-y-2.5 px-1" aria-label="What you get">
               {(allFeatures ? FEATURES : FEATURES.slice(0, 3)).map((f) => (
                 <li key={f.title} className="flex gap-3 text-[13.5px] leading-5 text-ink-800">

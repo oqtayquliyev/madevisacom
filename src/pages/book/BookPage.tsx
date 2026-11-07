@@ -21,7 +21,7 @@ export const BOOK_DESCRIPTION = `${BOOK.title}: how AI is changing 40+ industrie
 
 export function BookPage({ go, onAuth }: Props) {
   const c = useBookPromo();
-  useSeo({ title: `${BOOK.title} — Book | MadeVisa`, description: BOOK_DESCRIPTION, path: '/book', ogImage: `https://madevisa.com${BOOK.cover}` });
+  useSeo({ title: `${BOOK.title} — Book | MadeVisa`, description: BOOK_DESCRIPTION, path: '/book', ogImage: `https://madevisa.com${BOOK.coverOg}` });
   useEffect(() => trackBook('shown', 'page'), []);
   const published = c.reviews.filter((r) => r.published).length;
 
@@ -36,7 +36,7 @@ export function BookPage({ go, onAuth }: Props) {
         {/* Product: cover · details · buy box */}
         <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,4fr)_minmax(0,5fr)_minmax(0,3.4fr)]">
           <div className="flex justify-center lg:sticky lg:top-24 lg:self-start">
-            <img src={BOOK.cover} alt={`${BOOK.title} — book cover`} width={600} height={778} className="h-auto w-full max-w-[380px] rounded-[4px] shadow-2xl ring-1 ring-ink-200" />
+            <img src={BOOK.cover} alt={`${BOOK.title} — book cover`} width={574} height={600} className="h-auto w-full max-w-[440px]" />
           </div>
 
           <div>

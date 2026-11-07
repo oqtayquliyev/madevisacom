@@ -48,7 +48,10 @@ export const MEMBERSHIP_URL = 'https://madevisa.gumroad.com/l/membership?wanted=
 export const BOOK = {
   title: 'How to Survive in the 2026–2027 Job Market',
   subtitle: 'Freelancing, Remote Work & Building Your Own Digital Product',
-  cover: '/book-cover.jpg',
+  /** The book as it is (transparent background). */
+  cover: '/book-cover.webp',
+  /** For link previews (social, search). */
+  coverOg: '/book-cover.jpg',
   /** Gumroad version names — keep them exactly as on the Gumroad product. */
   bookOnlyVersion: 'Book Only',
   bundleVersion: 'Book + 1 Year MadeVisa Membership',

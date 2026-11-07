@@ -109,24 +109,24 @@ export function OfferNudge() {
         <X className="h-4 w-4" />
       </button>
       <a href="/book" className="mx-auto block w-[170px]" aria-label={BOOK.title}>
-        <BookCover className="w-full -rotate-2 shadow-xl" />
+        <BookCover className="w-full" />
       </a>
       <button
         type="button"
         onClick={() => void buy('bundle')}
         disabled={busy != null}
-        className="relative mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-ink-950 text-[14.5px] font-bold text-white hover:bg-ink-800 disabled:opacity-80"
+        className="relative mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-[15px] font-bold text-white shadow-[0_6px_18px_rgba(37,99,235,0.35)] hover:bg-brand-700 disabled:opacity-80"
       >
         <span className="absolute -top-2.5 right-4 rounded-full bg-[#FFD60A] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-ink-950">Best value</span>
-        {busy === 'bundle' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <>Book + 1 Year Membership · {MEMBERSHIP_PRICE} <ArrowRight className="h-4 w-4" aria-hidden /></>}
+        {busy === 'bundle' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <>Get Full Access — {MEMBERSHIP_PRICE} <ArrowRight className="h-4 w-4" aria-hidden /></>}
       </button>
       <button
         type="button"
         onClick={() => void buy('book')}
         disabled={busy != null}
-        className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-white text-[14px] font-bold text-ink-950 ring-1 ring-ink-300 hover:ring-ink-600 disabled:opacity-80"
+        className="mt-2.5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink-950 text-[15px] font-bold text-white hover:bg-ink-800 disabled:opacity-80"
       >
-        {busy === 'book' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <>Book only · {BOOK_ONLY_PRICE}</>}
+        {busy === 'book' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <>Buy the Book — {BOOK_ONLY_PRICE}</>}
       </button>
     </aside>
   );
