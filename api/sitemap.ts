@@ -77,6 +77,7 @@ export default async function handler(req: Request): Promise<Response> {
       ['/about', 'monthly', '0.6', false],
       ['/how-it-works', 'monthly', '0.6', false],
       ['/pricing', 'monthly', '0.5', false],
+      ['/book', 'weekly', '0.8', false],
       ['/official-sources', 'monthly', '0.3', false],
       // /submit-job and /employers/inbox are left out: they are forms for signed-in companies, served as the
       // bare app with the homepage's title and no content of their own — to Google, two more copies of the homepage.

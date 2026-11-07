@@ -9,6 +9,7 @@ import { SocialSection } from '@/pages/admin/SocialSection';
 import { ControlRoom } from '@/pages/admin/ControlRoom';
 import { CvsSection } from '@/pages/admin/CvsSection';
 import { PaywallSection } from '@/pages/admin/PaywallSection';
+import { BookSection } from '@/pages/admin/BookSection';
 import { TodaySection } from '@/pages/admin/TodaySection';
 import { EmailsSection } from '@/pages/admin/EmailsSection';
 import { OutreachSection } from '@/pages/admin/OutreachSection';
@@ -19,7 +20,7 @@ import { listTotpFactors } from '@/lib/mfa';
 import { UpdateAllJobsPanel } from '@/pages/admin/UpdateAllJobsPanel';
 import { FindCompaniesPanel } from '@/pages/admin/FindCompaniesPanel';
 import { PublisherFilterChips, RegisteredCompanyPanel, type PublisherFilter } from '@/pages/admin/RegisteredCompanyPanel';
-import { Sunrise, AtSign, Filter, Megaphone, CreditCard, FileSignature, FileText, Gauge, Bell, Briefcase, CheckCircle2, Loader2, XCircle, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ImageIcon, Inbox, Landmark, Mail, Newspaper, Pencil, RefreshCw, ScanSearch, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
+import { BookOpen, Sunrise, AtSign, Filter, Megaphone, CreditCard, FileSignature, FileText, Gauge, Bell, Briefcase, CheckCircle2, Loader2, XCircle, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ImageIcon, Inbox, Landmark, Mail, Newspaper, Pencil, RefreshCw, ScanSearch, Settings, ShieldAlert, ShieldPlus, Trash2, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { ImportCenter } from '@/pages/admin/ImportCenter';
@@ -121,11 +122,12 @@ const orgIcon: Record<OrgType, typeof Building2> = {
   expert: UserRound,
 };
 
-type AdminTab = 'today' | 'control' | 'funnel' | 'emails' | 'outreach' | 'inbox' | 'listings' | 'imports' | 'companies' | 'articles' | 'plans' | 'cvs' | 'offers' | 'images' | 'settings';
+type AdminTab = 'today' | 'control' | 'funnel' | 'book' | 'emails' | 'outreach' | 'inbox' | 'listings' | 'imports' | 'companies' | 'articles' | 'plans' | 'cvs' | 'offers' | 'images' | 'settings';
 const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Inbox }[] = [
   { key: 'today', label: 'Today', icon: Sunrise },
   { key: 'control', label: 'Control room', icon: Gauge },
   { key: 'funnel', label: 'Paywall', icon: Filter },
+  { key: 'book', label: 'Book', icon: BookOpen },
   { key: 'emails', label: 'Emails', icon: AtSign },
   { key: 'outreach', label: 'Outreach', icon: Megaphone },
   { key: 'inbox', label: 'Requests', icon: Inbox },
@@ -453,10 +455,11 @@ export function AdminPanelPage({ go, onAuth }: AdminPanelPageProps) {
         {tab === 'cvs' && <CvsSection />}
         {tab === 'today' && <TodaySection />}
         {tab === 'funnel' && <PaywallSection />}
+        {tab === 'book' && <BookSection />}
         {tab === 'emails' && <EmailsSection />}
         {tab === 'outreach' && <OutreachSection />}
 
-        {tab === 'today' || tab === 'control' || tab === 'funnel' || tab === 'cvs' || tab === 'emails' || tab === 'outreach' ? null : dataLoading ? (
+        {tab === 'today' || tab === 'control' || tab === 'funnel' || tab === 'book' || tab === 'cvs' || tab === 'emails' || tab === 'outreach' ? null : dataLoading ? (
           <AdminLoadingPanel parts={loadParts} startedAt={loadStartedAt} onRetry={() => loadAll()} />
         ) : (
           <>

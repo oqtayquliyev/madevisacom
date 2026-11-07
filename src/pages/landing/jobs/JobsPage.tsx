@@ -57,6 +57,7 @@ import { DirectListingBadge } from '@/components/common/DirectListingBadge';
 import { NewCompanyBadge } from '@/components/common/NewCompanyBadge';
 import { AuthDialog } from '@/components/auth/AuthDialog';
 import { useMembership } from '@/lib/plans';
+import { CareerOutlook } from '@/components/book/BookPromo';
 
 type JobsPageProps = {
   go: (view: View) => void;
@@ -1417,6 +1418,11 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
             <div className={`grid grid-cols-1 gap-4 ${split ? '' : 'mt-4 lg:grid-cols-2'}`}>
               {(guest ? visibleJobs.slice(0, GUEST_JOBS) : visibleJobs).map((job, i) => (
                 <Fragment key={job.id}>
+                  {i === 6 && !split && (
+                    <div className="lg:col-span-2">
+                      <CareerOutlook placement="jobs" compact />
+                    </div>
+                  )}
                   {i === relatedStart && (
                     <div className="mt-2 border-t border-ink-200 pt-5 lg:col-span-2">
                       <p className="text-sm font-bold text-ink-900">More {relatedGroup} jobs</p>
