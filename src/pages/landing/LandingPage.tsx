@@ -9,6 +9,7 @@ import { handleNavClick } from '@/lib/navLink';
 import { readRecent } from '@/lib/lastSearch';
 import { Logo } from '@/components/layout/Logo';
 import { LandingHeader } from './components/LandingHeader';
+import { CareerOutlook } from '@/components/book/BookPromo';
 
 type LandingProps = { go: (view: View) => void; onAuth?: (page: 'login' | 'register') => void };
 
@@ -148,6 +149,7 @@ export function LandingPage({ go, onAuth }: LandingProps) {
             </ul>
           </section>
         )}
+        <CareerOutlook placement="home" compact className="mt-12 w-full max-w-2xl" />
       </main>
 
       <footer className="border-t border-ink-100 bg-ink-50/60">

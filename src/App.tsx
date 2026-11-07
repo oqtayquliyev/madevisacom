@@ -52,6 +52,7 @@ const BlogPage = lazyPage(() => import('@/pages/blog/BlogPage').then((m) => ({ d
 const ArticlePage = lazyPage(() => import('@/pages/blog/ArticlePage').then((m) => ({ default: m.ArticlePage })));
 const SubmitJobPage = lazyPage(() => import('@/pages/submit/SubmitJobPage').then((m) => ({ default: m.SubmitJobPage })));
 const OffersPage = lazyPage(() => import('@/pages/offers/OffersPage').then((m) => ({ default: m.OffersPage })));
+const BookPage = lazyPage(() => import('@/pages/book/BookPage').then((m) => ({ default: m.BookPage })));
 const PricingPage = lazyPage(() => import('@/pages/pricing/PricingPage').then((m) => ({ default: m.PricingPage })));
 const EmployerPricingPage = lazyPage(() => import('@/pages/pricing/EmployerPricingPage').then((m) => ({ default: m.EmployerPricingPage })));
 const CheckoutPage = lazyPage(() => import('@/pages/checkout/CheckoutPage').then((m) => ({ default: m.CheckoutPage })));
@@ -367,6 +368,10 @@ export default function App() {
 
   if (path === '/offers' || path === '/offers/') {
     return <OffersPage go={go} onAuth={goToAuth} />;
+  }
+
+  if (path === '/book' || path === '/book/') {
+    return <BookPage go={go} onAuth={goToAuth} />;
   }
 
   if (path === '/pricing') {

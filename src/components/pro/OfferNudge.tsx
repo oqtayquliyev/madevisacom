@@ -5,6 +5,7 @@ import { BOOK, BOOK_ONLY_PRICE, MEMBERSHIP_PRICE, useMembership } from '@/lib/pl
 import { goToBookCheckout, goToMembershipCheckout } from '@/lib/gumroad';
 import { trackPaywall } from '@/lib/paywallStats';
 import { searchesThisVisit } from '@/lib/lastSearch';
+import { loadBookPromo } from '@/lib/bookPromo';
 import { BookCover } from './LaunchOffer';
 
 // The book popup, bottom right (bottom on a phone): the cover, "How to Survive in the 2026–2027
@@ -59,9 +60,11 @@ export function OfferNudge() {
   useEffect(() => {
     if (!ready || member) return;
     if (Date.now() - store.get(localStorage, SHOWN_KEY) < DAY) return;
+    let off = false;
+    void loadBookPromo().then((c) => (off = !c.placements.popup));
     const moment = visitMoment();
     const show = () => {
-      if (QUIET.test(window.location.pathname)) return false;
+      if (off || QUIET.test(window.location.pathname) || /^\/book/.test(window.location.pathname)) return false;
       // Not over another popup (the paywall, a sign-in box).
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return false;
       store.set(localStorage, SHOWN_KEY, Date.now());
@@ -105,14 +108,9 @@ export function OfferNudge() {
       <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="absolute right-3 top-3 rounded-full p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900">
         <X className="h-4 w-4" />
       </button>
-      <div className="flex gap-4 pr-6">
-        <BookCover className="w-[78px] shrink-0 -rotate-3" />
-        <div className="min-w-0">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-rose-600">New book · 2027 job market</p>
-          <p className="mt-1 text-[16.5px] font-bold leading-[1.25]">{BOOK.title}</p>
-          <p className="mt-1 text-[12.5px] leading-[1.4] text-ink-500">AI is reshaping hiring. Learn how to adapt, find opportunities and build income.</p>
-        </div>
-      </div>
+      <a href="/book" className="mx-auto block w-[170px]" aria-label={BOOK.title}>
+        <BookCover className="w-full -rotate-2 shadow-xl" />
+      </a>
       <button
         type="button"
         onClick={() => void buy('bundle')}

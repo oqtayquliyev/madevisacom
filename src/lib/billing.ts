@@ -46,6 +46,8 @@ export function useBillingCatalog(): Catalog | null {
 // ---------------------------------------------------------------------------
 export type BillingEvent =
   | 'pricing_viewed'
+  | 'book_promo_shown'
+  | 'book_promo_click'
   | 'checkout_viewed'
   | 'plan_selected'
   | 'checkout_started'

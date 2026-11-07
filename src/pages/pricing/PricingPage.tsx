@@ -93,6 +93,11 @@ export function PricingPage({ go, onAuth }: Props) {
               ) : undefined}
             </LaunchOfferBox>
             <MissionNote className="mt-4" />
+            <p className="mt-3 text-center text-[13.5px]">
+              <AppLink href="/book" className="font-semibold text-brand-700 hover:underline">
+                About the book →
+              </AppLink>
+            </p>
           </section>
 
           {/* What's included: the five features, numbered */}
