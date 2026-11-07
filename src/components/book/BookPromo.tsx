@@ -120,12 +120,12 @@ export function CareerOutlook({ placement, compact = false, className = '' }: { 
   const { label, insight, source, choose } = useProfession(c.insights);
   const enabled = placement === 'book' || placement === 'cv' || c.placements[placement as 'jobs' | 'home' | 'dashboard'];
   const [show, setShow] = useState(() => !compact || promoDue(placement, c.frequencyDays));
-  const visible = enabled && show && (placement === 'book' || (ready && !member));
+  // The book page and the homepage show it to everyone; elsewhere only to people who aren't members.
+  const visible = enabled && show && (placement === 'book' || placement === 'home' || (ready && !member));
 
   useEffect(() => {
     if (!visible) return;
     trackBook('shown', placement, label);
-    if (compact) markPromo(placement);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
   if (!visible) return null;
@@ -152,7 +152,7 @@ export function CareerOutlook({ placement, compact = false, className = '' }: { 
   return (
     <section className={`relative overflow-hidden rounded-2xl bg-[#F6F1E8] ring-1 ring-[#E8DFCF] ${compact ? 'p-5' : 'p-6 sm:p-8'} ${className}`} aria-label="Your career outlook">
       {compact && (
-        <button type="button" onClick={() => setShow(false)} aria-label="Dismiss" className="absolute right-3 top-3 rounded-full p-1.5 text-ink-500 hover:bg-white">
+        <button type="button" onClick={() => { setShow(false); markPromo(placement); }} aria-label="Dismiss" className="absolute right-3 top-3 rounded-full p-1.5 text-ink-500 hover:bg-white">
           <X className="h-4 w-4" />
         </button>
       )}
