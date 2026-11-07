@@ -1,7 +1,7 @@
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useEffect, useState, type ReactNode } from "react";
 import { SoonChip, SOON_VIEWS } from "@/components/common/SoonChip";
-import {
+import { BookOpen,
   BarChart3,
   Briefcase,
   Building2,
@@ -181,6 +181,23 @@ export function LandingHeader({ go, onAuth, active, search }: LandingHeaderProps
               <ScanSearch className="h-4 w-4" />
               <span className={search ? "md:max-xl:sr-only" : ""}>CV match</span>
               <span className={`rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold text-white ${search ? "md:hidden" : ""}`}>{hasCv ? "On" : "New"}</span>
+            </a>
+
+            <a
+              href="/book"
+              onClick={(event) =>
+                handleNavClick(event, () => {
+                  window.history.pushState({}, "", "/book");
+                  window.dispatchEvent(new PopStateEvent("popstate"));
+                  window.scrollTo({ top: 0 });
+                  setOpenMenu(false);
+                })
+              }
+              className={linkClass("book" as View)}
+            >
+              <BookOpen className="h-4 w-4" />
+              <span className={search ? "md:max-xl:sr-only" : ""}>Book</span>
+              <span className={`rounded-full bg-[#FFD60A] px-2 py-0.5 text-[11px] font-bold text-ink-950 ${search ? "md:hidden" : ""}`}>New</span>
             </a>
 
             {primaryLinks.slice(1).map((link) => {

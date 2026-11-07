@@ -79,6 +79,7 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
   const [busy, setBusy] = useState(false);
   const [already, setAlready] = useState<string | null>(null);
   const [offer, setOffer] = useState(false);
+  const [allFeatures, setAllFeatures] = useState(false);
   const leaveAfterOffer = useRef<(() => void) | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const facets = useJobFacets();
@@ -195,7 +196,7 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="paywall-title"
-        className="relative max-h-[94dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-6 text-ink-950 shadow-2xl outline-none sm:max-w-[440px] sm:rounded-2xl sm:px-7 sm:pb-6 sm:pt-7"
+        className="relative max-h-[94dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-6 text-ink-950 shadow-2xl outline-none sm:max-w-[880px] sm:rounded-2xl sm:px-8 sm:pb-7 sm:pt-8"
       >
         {onClose && (
           <button type="button" onClick={() => leave(onClose)} aria-label="Close" className="absolute right-3 top-3 rounded-full p-2 text-ink-400 hover:bg-ink-100 hover:text-ink-800">
@@ -216,6 +217,8 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
           />
         ) : (
           <>
+            <div className="sm:grid sm:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] sm:gap-8">
+            <div className="min-w-0">
             <h2 id="paywall-title" className="text-center font-title text-[26px] font-bold leading-[1.15] tracking-tight sm:text-[30px]">
               {reason ? (
                 REASON_TITLE[reason]
@@ -262,9 +265,12 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
                 </p>
               ) : undefined}
             </LaunchOfferBox>
-            {/* The five things it unlocks, then why it matters beyond you. */}
-            <ol className="mt-5 space-y-2.5 px-1" aria-label="What you get">
-              {FEATURES.map((f) => (
+            </div>
+            <div className="min-w-0 sm:border-l sm:border-ink-100 sm:pl-8">
+            {/* What the membership unlocks (first 3, the rest on "Show all"), then why it matters beyond you. */}
+            <p className="mt-5 text-[12px] font-bold uppercase tracking-[0.08em] text-ink-500 sm:mt-1">With the membership</p>
+            <ol className="mt-3 space-y-2.5 px-1" aria-label="What you get">
+              {(allFeatures ? FEATURES : FEATURES.slice(0, 3)).map((f) => (
                 <li key={f.title} className="flex gap-3 text-[13.5px] leading-5 text-ink-800">
                   <span className="w-5 shrink-0 text-center text-[16px] leading-5" aria-hidden>
                     {f.icon}
@@ -275,6 +281,11 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
                 </li>
               ))}
             </ol>
+            {FEATURES.length > 3 && (
+              <button type="button" onClick={() => setAllFeatures((v) => !v)} className="mt-2 px-1 text-[13px] font-semibold text-brand-700 hover:underline">
+                {allFeatures ? 'Show less' : `Show all ${FEATURES.length} benefits`}
+              </button>
+            )}
             <MissionNote className="mt-5 border-t border-ink-100 pt-4" />
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px]">
@@ -296,6 +307,8 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
             <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-ink-400">
               <Lock className="h-3 w-3" aria-hidden /> Secure checkout · Gumroad
             </p>
+            </div>
+            </div>
           </>
         )}
       </div>

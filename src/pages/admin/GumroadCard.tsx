@@ -361,7 +361,7 @@ function PlanProduct({ p, busy, onConnect, onDisconnect }: { p: PlanRow; busy: s
         <>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5 text-ink-600">
             <li>
-              The product is <strong>madevisa.gumroad.com/l/lifetime</strong>: a normal <strong>Digital product</strong> (not a Membership) priced <strong>{dollars(p.price_cents)}</strong>, with “Allow customers to pay what they want”, versions with extra prices and the purchasing-power discount all switched <strong>off</strong>. Publish it. Connecting it keeps everyone who joined on the old membership product. If Connect complains about a monthly price, the payment function is the old one: run <code>supabase functions deploy gumroad --no-verify-jwt --use-api</code>.</li>
+              The product is <strong>madevisa.gumroad.com/l/membership</strong>: a normal <strong>Digital product</strong> (not a Membership) with base price <strong>$17</strong> and two versions: <strong>Book Only</strong> (+$0) and <strong>Book + 1 Year MadeVisa Membership</strong> (+$10.40 = <strong>{dollars(p.price_cents)}</strong>). “Pay what you want” and the purchasing-power discount <strong>off</strong>. Publish it. If Connect says the membership is $12.50, or compares $17 with it, the payment function is the old one: run <code>supabase functions deploy gumroad --no-verify-jwt --use-api</code>, and run migration 20261231280000_book_membership_bundle.sql.</li>
             <li>Optional: in the product’s content, add a button to https://madevisa.com/checkout/complete so buyers can come back.</li>
             <li>Press Connect (the link is already filled in).</li>
           </ol>

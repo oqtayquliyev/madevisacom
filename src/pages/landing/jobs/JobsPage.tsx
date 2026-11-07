@@ -58,6 +58,8 @@ import { NewCompanyBadge } from '@/components/common/NewCompanyBadge';
 import { AuthDialog } from '@/components/auth/AuthDialog';
 import { useMembership } from '@/lib/plans';
 import { CareerOutlook } from '@/components/book/BookPromo';
+import { Paywall } from '@/components/pro/Paywall';
+import { DEFAULT_BOOK_PROMO } from '@/data/bookPromo';
 
 type JobsPageProps = {
   go: (view: View) => void;
@@ -347,23 +349,37 @@ function withClosedLast(jobs: Job[]): Job[] {
 }
 
 /**
- * Free users (no membership): some jobs in the list are members-only teasers — the whole card
- * blurred — and on some others the company is blurred. Which ones is picked from the job's id, so
- * the same job stays locked on every visit, and the first jobs of the list are never locked.
- * Opening one shows the membership popup, as every job does for free users.
+ * Free users (no membership): some jobs are members-only — always the same ones (picked from the
+ * job's id, ~15%), plus about half of the jobs that match what they search for or their profession.
+ * The card is blurred; clicking it opens the membership popup, not the job. The first two jobs of
+ * the list are never locked.
  */
-type CardLock = 'job' | 'company' | null;
-const LOCK_JOBS_PCT = 18;
-const LOCK_COMPANY_PCT = 20;
-function cardLock(job: Job, index: number): CardLock {
+type CardLock = 'job' | null;
+const LOCK_ALWAYS_PCT = 15;
+const LOCK_MATCH_PCT = 50;
+function cardLock(job: Job, index: number, terms: string[]): CardLock {
   if (index < 2 || job.closed || job.sourceType === 'company_submitted') return null;
   let h = 2166136261;
   for (const c of String(job.id)) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
   const n = (h >>> 0) % 100;
-  return n < LOCK_JOBS_PCT ? 'job' : n < LOCK_JOBS_PCT + LOCK_COMPANY_PCT ? 'company' : null;
+  if (n < LOCK_ALWAYS_PCT) return 'job';
+  const title = job.title.toLowerCase();
+  return n < LOCK_MATCH_PCT && terms.some((t) => title.includes(t)) ? 'job' : null;
+}
+/** Words from the search box and the visitor's chosen profession (book promo) to lock matches on. */
+function lockTerms(search: string): string[] {
+  let prof: string[] = [];
+  try {
+    const id = localStorage.getItem('mv:bookProfession');
+    if (id) prof = DEFAULT_BOOK_PROMO.insights.find((p) => p.id === id)?.keywords ?? [];
+  } catch {
+    /* private mode */
+  }
+  const words = search.toLowerCase().split(/[^a-z0-9à-ÿ+#]+/i).filter((w) => w.length >= 4);
+  return [...new Set([...words, ...prof.map((k) => k.toLowerCase())])];
 }
 
-function JobCard({ job, onLocked, onOpen, onPick, active = false, fresh = false, lock = null }: { /** Free users: a members-only teaser (see cardLock). */ lock?: CardLock; job: Job; /** Just went live (the "+N new jobs" notice). */ fresh?: boolean; /** Signed out: picking an outside listing asks for a free account first. */ onLocked?: (job: Job) => void; /** Opening it in this tab (phones). */ onOpen?: () => void; /** Desktop split view: show it in the right-hand pane. */ onPick?: (href: string) => void; /** The job showing in the pane. */ active?: boolean }) {
+function JobCard({ job, onLocked, onOpen, onPick, active = false, fresh = false, lock = null, onMembersOnly }: { /** Free users: a members-only teaser (see cardLock). */ lock?: CardLock; /** Clicking a locked card: the membership popup. */ onMembersOnly?: (job: Job) => void; job: Job; /** Just went live (the "+N new jobs" notice). */ fresh?: boolean; /** Signed out: picking an outside listing asks for a free account first. */ onLocked?: (job: Job) => void; /** Opening it in this tab (phones). */ onOpen?: () => void; /** Desktop split view: show it in the right-hand pane. */ onPick?: (href: string) => void; /** The job showing in the pane. */ active?: boolean }) {
   const isExternal = job.sourceType === 'live_feed';
   const viewed = isJobViewed(job.id);
   const closed = Boolean(job.closed);
@@ -371,19 +387,10 @@ function JobCard({ job, onLocked, onOpen, onPick, active = false, fresh = false,
   const inner = (
     <>
       <div className="flex items-start gap-3.5">
-        <div className={lock === 'company' ? 'select-none blur-[5px]' : undefined}>
-          <JobLogo job={job} size={52} />
-        </div>
+        <JobLogo job={job} size={52} />
         <div className="min-w-0 flex-1">
           <p className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-ink-500">
-            {lock === 'company' ? (
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <span className="truncate select-none blur-[4px]">{job.company}</span>
-                <Lock className="h-3 w-3 shrink-0 text-ink-400" aria-label="Company shown to members" />
-              </span>
-            ) : (
-              <span className="truncate">{job.company}</span>
-            )}
+            <span className="truncate">{job.company}</span>
             <NewCompanyBadge addedAt={job.companyAddedAt} />
             {fresh && <span className="shrink-0 rounded-full bg-brand-600 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-white">Just added</span>}
           </p>
@@ -459,6 +466,14 @@ function JobCard({ job, onLocked, onOpen, onPick, active = false, fresh = false,
         ? 'border-ink-200 bg-ink-100/70 opacity-75 grayscale-[40%] hover:opacity-100'
         : 'border-ink-900/15 bg-white'
   }`;
+
+  if (lock === 'job') {
+    return (
+      <button type="button" onClick={() => onMembersOnly?.(job)} className={`${cardClass} w-full text-left`} aria-label={`Members-only job: ${job.title}. Unlock with the membership`}>
+        {body}
+      </button>
+    );
+  }
 
   if (isExternal) {
     return (
@@ -1006,6 +1021,8 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
   // Free users (and guests): some jobs and companies in the list are blurred, members-only.
   const membership = useMembership();
   const free = membership.ready && !membership.member;
+  const terms = useMemo(() => lockTerms(searchKey), [searchKey]);
+  const [membersOnly, setMembersOnly] = useState<Job | null>(null);
 
   // Everyone sees every job: the next page, from the full list (loading it first when needed).
   // Placeholders only while something is really on its way: a search being answered, or (no search) the full list.
@@ -1428,7 +1445,7 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
                       <p className="text-sm font-bold text-ink-900">More {relatedGroup} jobs</p>
                     </div>
                   )}
-                  <JobCard job={job} onLocked={onLocked} onOpen={saveListPlace} onPick={pick} active={slugOf(job) === activeSlug} fresh={freshSet.has(job.id)} lock={free && slugOf(job) !== activeSlug ? cardLock(job, i) : null} />
+                  <JobCard job={job} onLocked={onLocked} onOpen={saveListPlace} onPick={pick} active={slugOf(job) === activeSlug} fresh={freshSet.has(job.id)} lock={free ? cardLock(job, i, terms) : null} onMembersOnly={setMembersOnly} />
                 </Fragment>
               ))}
               {(loadingMore || waitingForMore) && Array.from({ length: 2 }).map((_, i) => <JobCardSkeleton key={`more-${i}`} />)}
@@ -1493,6 +1510,7 @@ export function JobsPage({ go, onAuth, split = false, selectedJob = null }: Jobs
       </main>
 
       <AuthDialog open={Boolean(authOpen)} initial={authOpen || 'register'} onClose={() => setAuthOpen(false)} />
+      {membersOnly && <Paywall job={{ title: membersOnly.title, company: membersOnly.company }} onClose={() => setMembersOnly(null)} source="jobs_locked" />}
       <LandingFooter go={go} onAuth={onAuth} />
     </div>
   );

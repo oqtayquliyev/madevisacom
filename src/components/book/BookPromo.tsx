@@ -101,8 +101,8 @@ export function BuyOptions({ placement, profession, className = '' }: { placemen
   );
   return (
     <div className={`grid gap-4 sm:grid-cols-2 ${className}`}>
-      {box('book', 'Book only', BOOK_ONLY_PRICE, ['Complete digital book', 'One-time payment', 'Digital delivery'], 'Get the Book')}
-      {box('bundle', 'Book + 1 year MadeVisa membership', MEMBERSHIP_PRICE, ['The complete digital book is included', 'One year of MadeVisa membership', 'Access to 500,000+ more jobs a month', 'Smart CV matching and every member benefit'], 'Get the Book + 1 Year Membership', true)}
+      {box('book', 'Book only', BOOK_ONLY_PRICE, ['Complete digital book', 'One-time payment', 'Digital delivery'], `Get the Book · ${BOOK_ONLY_PRICE}`)}
+      {box('bundle', 'Book + 1 year MadeVisa membership', MEMBERSHIP_PRICE, ['The complete digital book is included', 'One year of MadeVisa membership', 'Access to 500,000+ more jobs a month', 'Smart CV matching and every member benefit'], `Get Book + 1 Year Membership · ${MEMBERSHIP_PRICE}`, true)}
     </div>
   );
 }
