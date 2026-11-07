@@ -226,7 +226,7 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
           <>
             <div className="sm:grid sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] sm:items-start sm:gap-8">
             {/* Left: the book image exactly as it is, large, with its rating. */}
-            <div className="flex flex-col items-center justify-center sm:self-center">
+            <div className="flex flex-col items-center sm:self-start">
               <a href="/book" className="block w-[150px] sm:w-full sm:max-w-[330px]" aria-label="The book: How to Survive in the 2026–2027 Job Market">
                 <BookCover className="w-full" />
               </a>
@@ -300,7 +300,10 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
                 {allFeatures ? 'Show less' : `Show all ${FEATURES.length} benefits`}
               </button>
             )}
-            <MissionNote className="mt-5 border-t border-ink-100 pt-4" />
+            </div>
+            </div>
+            {/* Under both columns, centred: why the membership matters, then the way out. */}
+            <MissionNote className="mt-6 border-t border-ink-100 pt-5" />
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px]">
               {!user && (
@@ -321,8 +324,6 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
             <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-ink-400">
               <Lock className="h-3 w-3" aria-hidden /> Secure checkout · Gumroad
             </p>
-            </div>
-            </div>
           </>
         )}
       </div>

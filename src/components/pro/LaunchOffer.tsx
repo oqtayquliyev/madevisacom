@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Heart, Loader2, Lock, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Heart, TrendingUp, Loader2, Lock, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { BOOK, BOOK_ONLY_PRICE, LAUNCH_OFFER, MEMBERSHIP_PRICE } from '@/lib/plans';
@@ -20,15 +20,15 @@ export function Underlined({ children }: { children: React.ReactNode }) {
 }
 
 /** Why buying matters beyond the buyer (shown with a small heart). */
-export const MISSION_LINE = 'Your purchase helps us connect more companies, unlock more opportunities and build one search platform for the entire career web.';
+export const MISSION_LINE = 'As a member, you get more opportunities every month. Your membership lets us add more company career pages and bring you jobs you won’t find elsewhere, so you can apply earlier, reach more employers and get hired sooner.';
 
 export function MissionNote({ className = '' }: { className?: string }) {
   return (
     <p className={`flex items-center justify-center gap-3 text-[13px] leading-[1.5] text-ink-700 ${className}`}>
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-rose-50 ring-1 ring-rose-100" aria-hidden>
-        <Heart className="h-5 w-5 fill-rose-500 text-rose-500" strokeWidth={2.5} />
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-50 ring-1 ring-brand-100" aria-hidden>
+        <TrendingUp className="h-5 w-5 text-brand-700" strokeWidth={2.5} />
       </span>
-      <span className="max-w-[330px]">{MISSION_LINE}</span>
+      <span className="max-w-[560px] text-left">{MISSION_LINE}</span>
     </p>
   );
 }
