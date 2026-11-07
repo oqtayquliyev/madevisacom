@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useViewportFixed } from '@/lib/viewportFixed';
 import { ArrowLeft, BadgeCheck, Eye, Loader2, Lock, Mail, MessageCircleReply, ShieldCheck, Sparkles, Wallet, X, Zap } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useSiteStats } from '@/lib/siteStats';
@@ -82,6 +83,8 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
   const [allFeatures, setAllFeatures] = useState(false);
   const leaveAfterOffer = useRef<(() => void) | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
+  const overlay = useRef<HTMLDivElement>(null);
+  useViewportFixed(overlay);
   const facets = useJobFacets();
   // About THIS job's field when there is a job ("2,431 more engineering jobs"); the last search only when the job fits it.
   const headline = useMemo(() => {
@@ -189,14 +192,14 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
   const backOut = onClose ? () => leave(onClose) : () => leave(() => (readJobModal() ? closeJobModal() : nav('/jobs')));
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-ink-950/55 backdrop-blur-[2px] sm:items-center sm:p-4" onClick={onClose ? (e) => e.target === e.currentTarget && leave(onClose) : undefined}>
+    <div ref={overlay} className="fixed inset-0 z-[90] flex items-end justify-center bg-ink-950/55 backdrop-blur-[2px] sm:items-center sm:p-4" onClick={onClose ? (e) => e.target === e.currentTarget && leave(onClose) : undefined}>
       <div
         ref={dialog}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="paywall-title"
-        className="relative max-h-[94dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-6 text-ink-950 shadow-2xl outline-none sm:max-w-[880px] sm:rounded-2xl sm:px-8 sm:pb-7 sm:pt-8"
+        className="relative max-h-[94dvh] w-full sm:max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-t-2xl bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-6 text-ink-950 shadow-2xl outline-none sm:max-w-[880px] sm:rounded-2xl sm:px-8 sm:pb-7 sm:pt-8"
       >
         {onClose && (
           <button type="button" onClick={() => leave(onClose)} aria-label="Close" className="absolute right-3 top-3 rounded-full p-2 text-ink-400 hover:bg-ink-100 hover:text-ink-800">
