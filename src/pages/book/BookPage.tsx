@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BookOpen, Check, Download, Globe2, ShieldCheck, Smartphone } from 'lucide-react';
 import type { View } from '@/types';
 import { useSeo } from '@/lib/seo';
@@ -6,7 +6,10 @@ import { WRAP } from '@/lib/pageLayout';
 import { BOOK, BOOK_ONLY_PRICE, MEMBERSHIP_PRICE } from '@/lib/plans';
 import { trackBook, useBookPromo } from '@/lib/bookPromo';
 import { BOOK_INSIDE } from '@/data/bookPromo';
-import { BookReviews, BuyOptions, CareerOutlook, Stars } from '@/components/book/BookPromo';
+import { BookPreviewPages, BookReviews, CareerOutlook, Stars } from '@/components/book/BookPromo';
+import { LaunchOfferBox } from '@/components/pro/LaunchOffer';
+import { goToMembershipCheckout } from '@/lib/gumroad';
+import { useAuth } from '@/lib/auth';
 import { LandingHeader } from '@/pages/landing/components/LandingHeader';
 import { LandingFooter } from '@/pages/landing/components/LandingFooter';
 
@@ -21,6 +24,15 @@ export const BOOK_DESCRIPTION = `${BOOK.title}: how AI is changing 40+ industrie
 
 export function BookPage({ go, onAuth }: Props) {
   const c = useBookPromo();
+  const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const buyBundle = async () => {
+    if (busy) return;
+    setBusy(true);
+    trackBook('click', 'page_bundle');
+    await goToMembershipCheckout({ signedIn: Boolean(user), email: user?.email ?? null, source: 'book_page' });
+    window.setTimeout(() => setBusy(false), 1500);
+  };
   useSeo({ title: `${BOOK.title} — Book | MadeVisa`, description: BOOK_DESCRIPTION, path: '/book', ogImage: `https://madevisa.com${BOOK.coverOg}` });
   useEffect(() => trackBook('shown', 'page'), []);
   const published = c.reviews.filter((r) => r.published).length;
@@ -34,9 +46,10 @@ export function BookPage({ go, onAuth }: Props) {
         </nav>
 
         {/* Product: cover · details · buy box */}
-        <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,4fr)_minmax(0,5fr)_minmax(0,3.4fr)]">
-          <div className="flex justify-center lg:sticky lg:top-24 lg:self-start">
-            <img src={BOOK.cover} alt={`${BOOK.title} — book cover`} width={574} height={600} className="h-auto w-full max-w-[440px]" />
+        <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-12">
+          <div className="flex flex-col items-center lg:self-start">
+            <img src={BOOK.cover} alt={`${BOOK.title} — book cover`} width={574} height={600} className="h-auto w-full max-w-[460px]" />
+            <BookPreviewPages className="mt-5 w-full max-w-[460px]" />
           </div>
 
           <div>
@@ -86,15 +99,12 @@ export function BookPage({ go, onAuth }: Props) {
             </dl>
           </div>
 
-          {/* Buy box */}
-          <aside id="buy" className="h-fit rounded-2xl bg-white p-5 ring-1 ring-ink-200 lg:sticky lg:top-24">
-            <p className="text-[13px] font-semibold text-emerald-700">In stock · instant digital delivery</p>
-            <BuyOptions placement="page" className="mt-4 !grid-cols-1" />
-            <p className="mt-4 flex items-center justify-center gap-1.5 text-[12px] text-ink-500">
-              <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> Secure checkout by Gumroad · pay once
-            </p>
-          </aside>
         </div>
+
+        {/* Buy: the short member line, the two buttons side by side, then cards and secure payment. */}
+        <section id="buy" className="mx-auto mt-10 max-w-[880px] scroll-mt-24 rounded-2xl bg-white p-5 ring-1 ring-ink-200 sm:p-7">
+          <LaunchOfferBox showNote source="book_page" busy={busy} onBuy={() => void buyBundle()} />
+        </section>
 
         <CareerOutlook placement="book" className="mt-14" />
 

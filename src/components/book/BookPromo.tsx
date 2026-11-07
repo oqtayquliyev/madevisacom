@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, Loader2, Star, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Loader2, Star, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { BOOK, BOOK_ONLY_PRICE, MEMBERSHIP_PRICE, useMembership } from '@/lib/plans';
 import { goToBookCheckout, goToMembershipCheckout } from '@/lib/gumroad';
@@ -131,7 +132,7 @@ export function CareerOutlook({ placement, compact = false, className = '' }: { 
   const picker = (
     <label className="mt-3 flex flex-wrap items-center gap-2 text-[14px] text-ink-700">
       <span className="font-semibold">Your specialization:</span>
-      <select value={pick?.id ?? ''} onChange={(e) => choose(e.target.value)} className="h-9 rounded-lg border border-ink-300 bg-white px-2.5 text-[14px] font-semibold text-ink-950">
+      <select value={pick?.id ?? ''} onChange={(e) => choose(e.target.value)} className="h-11 w-full rounded-lg border border-ink-300 bg-white px-3 text-[16px] font-semibold text-ink-950 sm:h-10 sm:w-auto sm:text-[14px]">
         <option value="">Choose your profession…</option>
         {c.insights.map((p) => (
           <option key={p.id} value={p.id}>
@@ -150,14 +151,14 @@ export function CareerOutlook({ placement, compact = false, className = '' }: { 
           <X className="h-4 w-4" />
         </button>
       )}
-      <div className={`flex gap-5 ${compact ? 'items-start' : 'flex-col-reverse sm:flex-row sm:items-center'}`}>
+      <div className="flex flex-col-reverse gap-5 sm:flex-row-reverse sm:items-center sm:gap-7">
         <div className="min-w-0 flex-1">
           <p className="text-[11.5px] font-extrabold uppercase tracking-[0.1em] text-rose-600">Your career outlook</p>
-          <h2 className={`mt-1.5 font-title font-bold leading-[1.15] tracking-tight text-ink-950 ${compact ? 'pr-6 text-[20px]' : 'text-[28px] sm:text-[34px]'}`}>
+          <h2 className={`mt-1.5 font-title font-bold leading-[1.15] tracking-tight text-ink-950 ${compact ? 'text-[22px]' : 'text-[28px] sm:text-[34px]'}`}>
             Your profession is changing. Here’s what comes next.
           </h2>
           {picker}
-          <blockquote className={`mt-4 rounded-xl border-l-4 border-rose-500 bg-white px-4 py-3 text-ink-800 ${compact ? 'line-clamp-4 text-[14px] leading-6' : 'text-[15.5px] leading-7'}`}>
+          <blockquote className={`mt-4 rounded-xl border-l-4 border-rose-500 bg-white px-4 py-3 text-ink-800 ${compact ? 'text-[14.5px] leading-6' : 'text-[15.5px] leading-7'}`}>
             {pick?.insight ?? GENERAL_INSIGHT}
           </blockquote>
           <p className="mt-2 text-[11.5px] text-ink-400">General industry insight — not an analysis of your CV.</p>
@@ -169,16 +170,65 @@ export function CareerOutlook({ placement, compact = false, className = '' }: { 
                 if (placement === 'book') document.getElementById('buy')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 else nav('/book');
               }}
-              className="inline-flex h-11 items-center gap-2 rounded-xl bg-ink-950 px-5 text-[14.5px] font-bold text-white hover:bg-ink-800"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 text-[15px] font-bold text-white hover:bg-brand-700 sm:w-auto"
             >
               {placement === 'book' ? 'Get your 2026–2027 career guide' : 'Explore your career outlook'} <ArrowRight className="h-4 w-4" aria-hidden />
             </button>
           </div>
         </div>
-        <button type="button" onClick={() => placement !== 'book' && nav('/book')} className={`shrink-0 ${compact ? 'w-[96px]' : 'w-[150px] self-center sm:w-[190px]'}`} aria-label={BOOK.title}>
+        <button type="button" onClick={() => placement !== 'book' && nav('/book')} className={`shrink-0 self-center ${compact ? 'w-[210px] sm:w-[230px]' : 'w-[220px] sm:w-[260px]'}`} aria-label={BOOK.title}>
           <img src={BOOK.cover} alt={BOOK.title} width={574} height={600} loading="lazy" className="h-auto w-full" />
         </button>
       </div>
     </section>
+  );
+}
+
+/** Five real pages from the book (public/book-preview/page-1…5.webp). */
+export const BOOK_PREVIEW_PAGES = [1, 2, 3, 4, 5].map((n) => `/book-preview/page-${n}.webp`);
+
+/** Small page previews under the cover; a click opens them large, with arrows to flip through. */
+export function BookPreviewPages({ className = '' }: { className?: string }) {
+  const [open, setOpen] = useState<number | null>(null);
+  useEffect(() => {
+    if (open == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(null);
+      if (e.key === 'ArrowRight') setOpen((i) => (i == null ? i : (i + 1) % BOOK_PREVIEW_PAGES.length));
+      if (e.key === 'ArrowLeft') setOpen((i) => (i == null ? i : (i - 1 + BOOK_PREVIEW_PAGES.length) % BOOK_PREVIEW_PAGES.length));
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [open]);
+  return (
+    <div className={className}>
+      <p className="text-center text-[11.5px] font-bold uppercase tracking-[0.08em] text-ink-500">Look inside</p>
+      <div className="mt-2 grid grid-cols-5 gap-1.5">
+        {BOOK_PREVIEW_PAGES.map((src, i) => (
+          <button key={src} type="button" onClick={() => { setOpen(i); trackBook('click', 'preview'); }} className="overflow-hidden rounded-[3px] ring-1 ring-ink-200 transition hover:-translate-y-0.5 hover:ring-brand-500" aria-label={`Preview page ${i + 1}`}>
+            <img src={src} alt="" width={910} height={1287} loading="lazy" className="h-auto w-full" />
+          </button>
+        ))}
+      </div>
+      {open != null &&
+        createPortal(
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-ink-950/85 p-3" onClick={(e) => e.target === e.currentTarget && setOpen(null)} role="dialog" aria-label="Book preview">
+            <button type="button" onClick={() => setOpen(null)} aria-label="Close" className="absolute right-3 top-3 rounded-full bg-white/10 p-2 text-white hover:bg-white/20">
+              <X className="h-5 w-5" />
+            </button>
+            <button type="button" onClick={() => setOpen((open - 1 + BOOK_PREVIEW_PAGES.length) % BOOK_PREVIEW_PAGES.length)} aria-label="Previous page" className="absolute left-2 rounded-full bg-white/10 p-2 text-white hover:bg-white/20 sm:left-6">
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+            <img src={BOOK_PREVIEW_PAGES[open]} alt={`Book page preview ${open + 1}`} className="max-h-[92vh] w-auto max-w-[92vw] rounded bg-white shadow-2xl" />
+            <button type="button" onClick={() => setOpen((open + 1) % BOOK_PREVIEW_PAGES.length)} aria-label="Next page" className="absolute right-2 rounded-full bg-white/10 p-2 text-white hover:bg-white/20 sm:right-6">
+              <ChevronRight className="h-6 w-6" />
+            </button>
+            <p className="absolute bottom-3 text-[13px] font-semibold text-white/80">
+              {open + 1} / {BOOK_PREVIEW_PAGES.length}
+            </p>
+          </div>,
+          document.body,
+        )}
+    </div>
   );
 }

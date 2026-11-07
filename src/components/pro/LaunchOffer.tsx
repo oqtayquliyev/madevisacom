@@ -20,7 +20,7 @@ export function Underlined({ children }: { children: React.ReactNode }) {
 }
 
 /** Why buying matters beyond the buyer (shown with a small heart). */
-export const MISSION_LINE = 'As a member, you get more opportunities every month. Your membership lets us add more company career pages and bring you jobs you won’t find elsewhere, so you can apply earlier, reach more employers and get hired sooner.';
+export const MISSION_LINE = 'Members get more jobs every month: we add more company career pages, so you apply earlier and get hired sooner.';
 
 export function MissionNote({ className = '' }: { className?: string }) {
   return (
@@ -28,7 +28,7 @@ export function MissionNote({ className = '' }: { className?: string }) {
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-50 ring-1 ring-brand-100" aria-hidden>
         <TrendingUp className="h-5 w-5 text-brand-700" strokeWidth={2.5} />
       </span>
-      <span className="max-w-[560px] text-left">{MISSION_LINE}</span>
+      <span className="max-w-[520px] text-left font-medium">{MISSION_LINE}</span>
     </p>
   );
 }
@@ -104,6 +104,8 @@ type Props = {
   className?: string;
   /** Which screen showed it (Admin → Paywall), for the "Book Only" button. */
   source?: string;
+  /** The short "why members get hired sooner" line above the buttons. */
+  showNote?: boolean;
 };
 
 /** The book's cover, small. */
@@ -111,7 +113,7 @@ export function BookCover({ className = '' }: { className?: string }) {
   return <img src={BOOK.cover} alt={`${BOOK.title} — the book`} width={574} height={600} loading="lazy" decoding="async" className={`h-auto ${className}`} />;
 }
 
-export function LaunchOfferBox({ busy = false, onBuy, children, className = '', source = 'offer' }: Props) {
+export function LaunchOfferBox({ busy = false, onBuy, children, className = '', source = 'offer', showNote = false }: Props) {
   const { user } = useAuth();
   const [bookBusy, setBookBusy] = useState(false);
   const buyBook = async () => {
@@ -123,13 +125,29 @@ export function LaunchOfferBox({ busy = false, onBuy, children, className = '', 
   };
   return (
     <div className={className}>
+      {showNote && !children && <MissionNote className="mb-4" />}
       {children ?? (
-        <div className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => void buyBook()}
+            disabled={bookBusy}
+            className="order-2 flex min-h-[62px] w-full flex-col items-center justify-center rounded-xl bg-ink-950 px-4 py-2.5 text-white transition hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-950 focus-visible:ring-offset-2 disabled:opacity-80 sm:order-1"
+          >
+            {bookBusy ? (
+              <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+            ) : (
+              <>
+                <span className="text-[16px] font-bold leading-5">Buy the Book — {BOOK_ONLY_PRICE}</span>
+                <span className="mt-0.5 text-[12px] font-medium text-white/70">Instant digital download</span>
+              </>
+            )}
+          </button>
           <button
             type="button"
             onClick={onBuy}
             disabled={busy}
-            className="relative flex min-h-[60px] w-full flex-col items-center justify-center rounded-xl bg-brand-600 px-4 py-2.5 text-white shadow-[0_6px_18px_rgba(37,99,235,0.35)] transition hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 disabled:opacity-80"
+            className="relative order-1 flex min-h-[62px] w-full flex-col items-center justify-center rounded-xl bg-brand-600 px-4 py-2.5 text-white shadow-[0_6px_18px_rgba(37,99,235,0.35)] transition hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 disabled:opacity-80 sm:order-2"
           >
             <span className="absolute -top-2.5 right-3 rounded-full bg-[#FFD60A] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-ink-950">Best value</span>
             {busy ? (
@@ -143,23 +161,14 @@ export function LaunchOfferBox({ busy = false, onBuy, children, className = '', 
               </>
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => void buyBook()}
-            disabled={bookBusy}
-            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-ink-950 px-4 text-[15px] font-bold text-white transition hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-950 focus-visible:ring-offset-2 disabled:opacity-80"
-          >
-            {bookBusy ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <>Buy the Book — {BOOK_ONLY_PRICE}</>}
-          </button>
         </div>
       )}
-
-      <p className="mt-3 flex flex-wrap items-center justify-center gap-x-1.5 text-[12.5px] font-medium text-ink-500">
-        <Lock className="h-3.5 w-3.5" aria-hidden /> Secure checkout <span aria-hidden>·</span> Pay once <span aria-hidden>·</span> No subscription
+      <CardMarks className="mt-4 justify-center" />
+      <p className="mt-2.5 flex flex-wrap items-center justify-center gap-x-1.5 text-[12.5px] font-medium text-ink-500">
+        <Lock className="h-3.5 w-3.5" aria-hidden /> Secure payment <span aria-hidden>·</span> Pay once <span aria-hidden>·</span> No subscription
       </p>
-      <CardMarks className="mt-2.5 justify-center" />
       {!children && (
-        <p className="mx-auto mt-2.5 max-w-[320px] text-balance text-center text-[12px] font-semibold leading-[1.45] text-emerald-700">
+        <p className="mx-auto mt-2 max-w-[460px] text-balance text-center text-[12px] font-semibold leading-[1.45] text-emerald-700">
           <ShieldCheck className="mr-1 inline-block h-3.5 w-3.5 align-[-2px]" aria-hidden />
           {GUARANTEE}
         </p>

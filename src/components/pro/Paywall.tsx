@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useViewportFixed } from '@/lib/viewportFixed';
 import { BookCover } from './LaunchOffer';
-import { Stars } from '@/components/book/BookPromo';
+import { BookPreviewPages, Stars } from '@/components/book/BookPromo';
+import { matchProfession } from '@/data/bookPromo';
+import { BOOK } from '@/lib/plans';
 import { useBookPromo } from '@/lib/bookPromo';
 import { ArrowLeft, BadgeCheck, Eye, Loader2, Lock, Mail, MessageCircleReply, ShieldCheck, Sparkles, Wallet, X, Zap } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -88,6 +90,14 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
   const dialog = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLDivElement>(null);
   const promo = useBookPromo();
+  // The visitor's field, for the title: a profession the book covers (from the job title), else the job's category.
+  const field = useMemo(() => {
+    if (!job?.title) return null;
+    const p = matchProfession(job.title, promo.insights);
+    if (p) return `the ${p.label} role`;
+    const cat = classifyJob(job.title, job.category ?? null);
+    return cat?.label ? `${cat.label.toLowerCase()} work` : null;
+  }, [job, promo.insights]);
   useViewportFixed(overlay);
   const facets = useJobFacets();
   // About THIS job's field when there is a job ("2,431 more engineering jobs"); the last search only when the job fits it.
@@ -233,22 +243,18 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
               <a href="/book#reviews" className="mt-4 flex items-center gap-2 text-[13.5px] font-semibold text-ink-800 hover:underline">
                 <Stars value={promo.rating} size={17} /> {promo.rating.toFixed(1)} / 5 · {promo.reviews.filter((r) => r.published).length} reader reviews
               </a>
+              <BookPreviewPages className="mt-4 w-full max-w-[330px]" />
             </div>
             <div className="mt-5 min-w-0 sm:mt-0">
-            <h2 id="paywall-title" className="text-center font-title text-[26px] font-bold leading-[1.15] tracking-tight sm:text-[30px]">
-              {reason ? (
-                REASON_TITLE[reason]
-              ) : headline ? (
-                <>
-                  {headline}
-                  <span className="block">are waiting.</span>
-                </>
-              ) : (
-                'Unlock every job.'
-              )}
+            <p className="text-center text-[12px] font-extrabold uppercase tracking-[0.1em] text-rose-600 sm:text-left">Your 2027 career outlook</p>
+            <h2 id="paywall-title" className="mt-1.5 text-center font-title text-[24px] font-bold leading-[1.18] tracking-tight sm:text-left sm:text-[28px]">
+              {field ? <>How {field} is changing in 2027 — and how to stay ahead.</> : <>How your field is changing in 2027 — and how to stay ahead.</>}
             </h2>
+            <p className="mt-2 text-center text-[14px] leading-6 text-ink-600 sm:text-left">
+              {field ? <>Your field is covered in <strong className="text-ink-900">{BOOK.title}</strong>: what AI takes over, what stays human, and where the new jobs are.</> : <>40+ industries covered in <strong className="text-ink-900">{BOOK.title}</strong>: what AI takes over, what stays human, and where the new jobs are.</>}
+            </p>
             {job?.title && (
-              <p className="mx-auto mt-2.5 w-fit max-w-full truncate rounded-full bg-ink-100 px-3.5 py-1 text-center text-[14px] font-bold text-ink-900">
+              <p className="mx-auto mt-3 w-fit max-w-full truncate rounded-full bg-ink-100 sm:mx-0 px-3.5 py-1 text-center text-[14px] font-bold text-ink-900">
                 {job.title}
                 {company ? <span className="font-semibold text-ink-500"> · {company}</span> : null}
               </p>
@@ -271,18 +277,8 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
               </ul>
             )}
 
-            <LaunchOfferBox className="mt-4" busy={busy} source={source} onBuy={() => void subscribe()}>
-              {already ? (
-                <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2.5 text-center text-[13px] font-semibold text-emerald-800">
-                  Your membership is already active.{' '}
-                  <button type="button" onClick={() => window.location.reload()} className="underline">
-                    Reload the page
-                  </button>
-                </p>
-              ) : undefined}
-            </LaunchOfferBox>
             {/* What the membership unlocks (first 3, the rest on "Show all"), then why it matters beyond you. */}
-            <p className="mt-6 border-t border-ink-100 pt-5 text-[12px] font-bold uppercase tracking-[0.08em] text-ink-500">With the membership</p>
+            <p className="mt-5 text-[12px] font-bold uppercase tracking-[0.08em] text-ink-500">With the membership</p>
             <ol className="mt-3 space-y-2.5 px-1" aria-label="What you get">
               {(allFeatures ? FEATURES : FEATURES.slice(0, 3)).map((f) => (
                 <li key={f.title} className="flex gap-3 text-[13.5px] leading-5 text-ink-800">
@@ -302,8 +298,17 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
             )}
             </div>
             </div>
-            {/* Under both columns, centred: why the membership matters, then the way out. */}
-            <MissionNote className="mt-6 border-t border-ink-100 pt-5" />
+            {/* Under both columns: the short member line, the two buttons side by side, then cards and secure payment. */}
+            <LaunchOfferBox className="mt-6 border-t border-ink-100 pt-5" showNote busy={busy} source={source} onBuy={() => void subscribe()}>
+              {already ? (
+                <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2.5 text-center text-[13px] font-semibold text-emerald-800">
+                  Your membership is already active.{' '}
+                  <button type="button" onClick={() => window.location.reload()} className="underline">
+                    Reload the page
+                  </button>
+                </p>
+              ) : undefined}
+            </LaunchOfferBox>
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px]">
               {!user && (
@@ -321,9 +326,6 @@ export function Paywall({ job, onClose, source, teaser, reason }: Props) {
                 </button>
               )}
             </div>
-            <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-ink-400">
-              <Lock className="h-3 w-3" aria-hidden /> Secure checkout · Gumroad
-            </p>
           </>
         )}
       </div>
