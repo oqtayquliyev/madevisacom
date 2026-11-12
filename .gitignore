@@ -27,3 +27,5 @@ madevisacom-ui.zip
 
 # Supabase CLI local state
 supabase/.temp
+.wrangler
+.dev.vars
