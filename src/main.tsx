@@ -8,8 +8,6 @@ import { MfaGate } from '@/components/auth/MfaGate';
 import { GuestReturn } from '@/components/pro/GuestReturn';
 import { OfferNudge } from '@/components/pro/OfferNudge';
 import { PersonalizationProvider } from '@/lib/personalization';
-import { Analytics } from '@vercel/analytics/react';
-import { SpeedInsights } from '@vercel/speed-insights/react';
 import { captureEmailClick } from '@/lib/emailAttribution';
 import './index.css';
 
@@ -70,8 +68,6 @@ createRoot(document.getElementById('root')!).render(
         </MfaGate>
         <GuestReturn />
         <OfferNudge />
-        <Analytics />
-        <SpeedInsights />
       </PersonalizationProvider>
     </AuthProvider>
     </AppErrorBoundary>

@@ -5,7 +5,8 @@
 //   • saved jobs (the limit is applied by the database: save_job()).
 
 import { useEffect, useState } from 'react';
-import { track as vercelTrack } from '@vercel/analytics';
+// Vercel Analytics was removed with the move to Cloudflare; events still go to the other trackers below.
+const vercelTrack = (_event: string, _props?: unknown) => {};
 import { supabase } from '@/lib/supabase';
 import { fallbackCatalog, type Catalog } from '@/lib/billingCore';
 
