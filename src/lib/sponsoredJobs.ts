@@ -110,6 +110,16 @@ const SUPABASE_MAX_ROWS_PER_REQUEST = 1000;
 
 /** How long a closed job stays visible (greyed out) before it's removed. */
 export const CLOSED_VISIBLE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Jobs imported from company careers pages are shown for this many days after they were shared
+ * on MadeVisa (migration 20261231300000_seven_day_jobs_capacity.sql caps expires_at the same way
+ * and deletes them after). Jobs a company posted on MadeVisa itself keep their own (paid) term.
+ */
+export const JOB_WINDOW_DAYS = 7;
+/** Company-posted jobs: at most 30 days (sponsored listing term). */
+const DIRECT_MAX_DAYS = 31;
+const isImportedJob = (j: Pick<SponsoredJob, 'origin'>) => j.origin === 'imported';
 export const isClosedJob = (j: Pick<SponsoredJob, 'status'>) => j.status === 'expired';
 
 // Closed jobs need the closed_at column (migration 20261011090000). Until
@@ -188,7 +198,7 @@ export async function fetchCurrentRelease(force = false): Promise<JobRelease | n
 }
 const IDB_NAME = 'madevisa-cache';
 const IDB_STORE = 'kv';
-const IDB_KEY = 'publishedJobs:v3'; // v1 copies could be missing jobs (see fetchPublishedFromNetwork)
+const IDB_KEY = 'publishedJobs:v4'; // v4: 7-day window (older v3 copies held ~70k jobs; dropped)
 
 let inflight: Promise<SponsoredJob[]> | null = null;
 const partialListeners = new Set<(rows: SponsoredJob[]) => void>();
@@ -295,11 +305,16 @@ function writePersistedJobs(copy: JobsCopy) {
 
 const nowIso = () => new Date().toISOString();
 
-/** Drops rows that expired since they were cached. */
+/** Drops rows that expired since they were cached (and imported jobs past the 7-day window). */
 function stillLive(rows: SponsoredJob[]): SponsoredJob[] {
   const now = nowIso();
   const closedSince = new Date(Date.now() - CLOSED_VISIBLE_MS).toISOString();
-  return rows.filter((r) => (isClosedJob(r) ? Boolean(r.closed_at && r.closed_at > closedSince) : !r.expires_at || r.expires_at > now));
+  // created_at is at most a few hours before the job was shared, so +1 day never cuts a live job.
+  const importedSince = new Date(Date.now() - (JOB_WINDOW_DAYS + 1) * 86_400_000).toISOString();
+  return rows.filter((r) => {
+    if (isImportedJob(r) && r.created_at < importedSince) return false;
+    return isClosedJob(r) ? Boolean(r.closed_at && r.closed_at > closedSince) : !r.expires_at || r.expires_at > now;
+  });
 }
 
 /**
@@ -361,21 +376,26 @@ async function catchUpCopy(copy: { data: SponsoredJob[]; fetchedAt: number; rele
 }
 
 /**
- * Every live job, loaded one day at a time (jobs live at most 30 days, so
- * 31 day-windows cover them all). Each request is small and uses the
- * created_at index — no slow "count everything" query and no deep page
- * offsets, which timed out for signed-out visitors (their database time
- * limit is shorter) and left them with only the first 1,000 jobs.
+ * Every live job, loaded one day at a time: the last JOB_WINDOW_DAYS + 1 days for every job
+ * (imported jobs live 7 days after they're shared), plus one request for jobs companies posted
+ * on MadeVisa themselves that are older than that (their paid term is 30 days — a handful of rows).
+ * Each request is small and uses the created_at index — no slow "count everything" query and no
+ * deep page offsets, which timed out for signed-out visitors (their database time limit is
+ * shorter) and left them with only the first 1,000 jobs.
  */
 async function fetchPublishedFromNetwork(onPartial: (rows: SponsoredJob[]) => void): Promise<{ rows: SponsoredJob[]; complete: boolean } | null> {
   const asOf = nowIso();
   const end = Date.parse(asOf) + 60_000;
   const DAY = 86_400_000;
-  const windows: [string, string][] = [];
-  for (let k = 0; k < 31; k++) windows.push([new Date(end - (k + 1) * DAY).toISOString(), new Date(end - k * DAY).toISOString()]);
+  // [from, to, companyPostedOnly]
+  const windows: [string, string, boolean][] = [];
+  const days = JOB_WINDOW_DAYS + 1;
+  for (let k = 0; k < days; k++) windows.push([new Date(end - (k + 1) * DAY).toISOString(), new Date(end - k * DAY).toISOString(), false]);
+  windows.push([new Date(end - DIRECT_MAX_DAYS * DAY).toISOString(), new Date(end - days * DAY).toISOString(), true]);
 
-  const query = (from: string, to: string) => {
-    const q = supabase.from('sponsored_jobs').select(closedColumnMissing ? LIST_COLUMNS : LIST_COLUMNS_WITH_CLOSED);
+  const query = (from: string, to: string, companyPostedOnly: boolean) => {
+    let q = supabase.from('sponsored_jobs').select(closedColumnMissing ? LIST_COLUMNS : LIST_COLUMNS_WITH_CLOSED);
+    if (companyPostedOnly) q = q.neq('origin', 'imported');
     return (closedColumnMissing ? q.eq('status', 'published').or(`expires_at.is.null,expires_at.gt.${asOf}`) : q.or(liveOrRecentlyClosed(asOf)))
       .gte('created_at', from)
       .lt('created_at', to)
@@ -385,17 +405,17 @@ async function fetchPublishedFromNetwork(onPartial: (rows: SponsoredJob[]) => vo
   };
 
   /** One day-window, page by page (retried). null = gave up. */
-  const loadWindow = async ([from, to]: [string, string]): Promise<SponsoredJob[] | null> => {
+  const loadWindow = async ([from, to, companyPostedOnly]: [string, string, boolean]): Promise<SponsoredJob[] | null> => {
     const out: SponsoredJob[] = [];
     for (let offset = 0; ; ) {
-      let r = await query(from, to).range(offset, offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1);
+      let r = await query(from, to, companyPostedOnly).range(offset, offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1);
       if (r.error && !closedColumnMissing && /closed_at|column|schema cache/i.test(r.error.message)) {
         closedColumnMissing = true;
-        r = await query(from, to).range(offset, offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1);
+        r = await query(from, to, companyPostedOnly).range(offset, offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1);
       }
       for (let attempt = 1; r.error && attempt < 3; attempt++) {
         await new Promise((res) => setTimeout(res, 500 * attempt));
-        r = await query(from, to).range(offset, offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1);
+        r = await query(from, to, companyPostedOnly).range(offset, offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1);
       }
       if (r.error) {
         console.error('fetchPublishedSponsoredJobs window failed', r.error);
@@ -435,7 +455,7 @@ async function fetchPublishedFromNetwork(onPartial: (rows: SponsoredJob[]) => vo
     .filter((x): x is SponsoredJob[] => Boolean(x))
     .flat()
     .filter((j) => (seen.has(j.id) ? false : (seen.add(j.id), true)));
-  return { rows, complete: results.every(Boolean) };
+  return { rows: stillLive(rows), complete: results.every(Boolean) };
 }
 
 /** Rows the server actually returns per request (its max-rows setting), learned on the fly. */

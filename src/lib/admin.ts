@@ -686,8 +686,8 @@ export function companyCountryOf(jobs: Pick<ImportJobInput, 'additionalLocations
   return dominantCountry(jobs.flatMap((j) => (j.additionalLocations?.length ? j.additionalLocations : [j.locationText])));
 }
 
-/** Jobs are shown for this long after the company posted them. */
-export const MAX_JOB_AGE_DAYS = 30;
+/** Only jobs the company posted in the last 7 days are imported (they're then shown 7 days — see JOB_WINDOW_DAYS). */
+export const MAX_JOB_AGE_DAYS = 7;
 
 /** True when the source's posting date is more than MAX_JOB_AGE_DAYS ago. */
 export function isTooOldToImport(postedIso: string | null | undefined): boolean {
@@ -796,8 +796,8 @@ export async function importJobsAsPending(
   // fills the gaps later.
   const detected = fresh.length ? await detectFactsForItems(fresh.map((j) => ({ title: j.title, description: j.description }))) : { ok: true, facts: [] };
   if (!detected.ok) console.warn('job-facts unavailable during import:', detected.error);
-  // MadeVisa only shows jobs posted in the last 30 days — older postings
-  // aren't imported at all (they'd be hidden straight away anyway).
+  // Only jobs posted in the last MAX_JOB_AGE_DAYS (7) days are imported —
+  // older postings aren't fetched at all.
   const rows = fresh
     .map((j, i) => importJobToRow(j, publisherId, countries, { ...options, companyCountry }, detected.facts[i] ?? EMPTY_FACTS))
     .filter((r) => {

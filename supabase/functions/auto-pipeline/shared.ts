@@ -110,7 +110,8 @@ export function normalizeJobUrl(raw: string | null | undefined): string {
 }
 
 export const DAY_MS = 86_400_000;
-export const MAX_JOB_AGE_DAYS = 30;
+// Only jobs posted in the last 7 days are fetched (matches the 7-day window on the site).
+export const MAX_JOB_AGE_DAYS = 7;
 
 export function parseDate(raw: string | null | undefined): string | null {
   if (!raw) return null;

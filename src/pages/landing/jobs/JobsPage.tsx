@@ -73,11 +73,12 @@ type JobsPageProps = {
   selectedJob?: string | null;
 };
 
-// MadeVisa only lists jobs posted in the last 30 days, so "Any time" = 30 days.
+// Imported jobs are listed for 7 days after they're shared (JOB_WINDOW_DAYS, enforced by the
+// database); jobs companies post here themselves last up to 30 days — so "Any time" = 30 days.
 const MAX_AGE_DAYS = 30;
-const DATE_POSTED_OPTIONS = ['Any time', 'Past 24 hours', 'Past 3 days', 'Past week', 'Past 2 weeks'] as const;
+const DATE_POSTED_OPTIONS = ['Any time', 'Past 24 hours', 'Past 3 days', 'Past week'] as const;
 type DatePostedOption = (typeof DATE_POSTED_OPTIONS)[number];
-const WINDOW_DAYS: Record<DatePostedOption, number> = { 'Any time': MAX_AGE_DAYS, 'Past 24 hours': 1, 'Past 3 days': 3, 'Past week': 7, 'Past 2 weeks': 14 };
+const WINDOW_DAYS: Record<DatePostedOption, number> = { 'Any time': MAX_AGE_DAYS, 'Past 24 hours': 1, 'Past 3 days': 3, 'Past week': 7 };
 const asDateOption = (v: string | null): DatePostedOption => (DATE_POSTED_OPTIONS as readonly string[]).includes(v ?? '') ? (v as DatePostedOption) : 'Any time';
 
 const ALL_CATEGORIES = 'All categories';
