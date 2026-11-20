@@ -72,9 +72,8 @@ code { font-family: 'Courier New', monospace; }
 .ie-page a { color: var(--link); }
 .ie-page a:visited { color: #551a8b; }
 .mast { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #999; padding-bottom: 6px; }
-.logo { font: italic 900 34px/1 'Arial Black', Arial, Helvetica, sans-serif; color: #d11 !important; text-decoration: none; letter-spacing: -1.5px; text-shadow: 1px 1px 0 #600; }
-.logo span { color: var(--blue); text-shadow: 1px 1px 0 #001a4d; }
-.logo i { color: #d11; }
+.logo { display: inline-flex; align-items: center; }
+.logo img { height: 32px; width: auto; display: block; }
 .mast-sub { font-size: 11px; color: #555; padding-bottom: 4px; }
 .mast-links { margin-left: auto; font-size: 12px; padding-bottom: 4px; }
 .topnav { font-size: 12px; padding: 5px 0 10px; }

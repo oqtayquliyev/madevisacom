@@ -138,7 +138,7 @@ export function layout(p: Page): Response {
 <nav class="ie-tools" aria-label="Browser">${TB('Back', '#', 'help', ' data-back')}${TB('Home', '/', 'computer')}${TB('Search', '/jobs', 'search')}${TB('Favorites', '/jobs/visa-sponsorship', 'visa')}${TB('History', '/job-market', 'chart')}</nav>
 <div class="ie-addr"><span>Address</span><span class="ie-url">${icon('globe')}<span>${esc(canonical)}</span></span><a class="ie-go" href="${esc(p.path)}">Go</a></div>
 <div class="ie-page">
-<header class="mast"><a class="logo" href="/" aria-label="MadeVisa home">Made<span>Visa</span><i>!</i></a><span class="mast-sub">jobs abroad · visa sponsorship</span><span class="mast-links"><a href="/how-it-works">Help</a> - <a href="/contact">Contact</a></span></header>
+<header class="mast"><a class="logo" href="/" aria-label="MadeVisa home"><img src="https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789479857/madevisa-logo-header_fqdylj.svg" alt="MadeVisa" width="147" height="32"></a><span class="mast-sub">jobs abroad · visa sponsorship</span><span class="mast-links"><a href="/how-it-works">Help</a> - <a href="/contact">Contact</a></span></header>
 <nav class="topnav" aria-label="Sections">${topNav}</nav>
 <main id="main">${p.body}</main>
 <footer class="page-foot"><p>MadeVisa lists jobs from employers’ own career pages. MadeVisa does not issue visas, act as an immigration adviser or guarantee a job or a visa.</p>
@@ -161,7 +161,8 @@ ${p.noindex ? '<meta name="robots" content="noindex">' : ''}
 <meta property="og:url" content="${esc(canonical)}"><meta property="og:image" content="${esc(img)}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#008080">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789558197/madevisa-fav_j8ot2d.png" type="image/png">
+<link rel="apple-touch-icon" href="https://res.cloudinary.com/dkvg0oo8c/image/upload/c_pad,w_180,h_180,b_white/v1789558197/madevisa-fav_j8ot2d.png">
 <link rel="stylesheet" href="/retro.css?v=${BUILD}">
 ${ld}
 </head>
