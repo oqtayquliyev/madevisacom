@@ -4,90 +4,257 @@
     "windowDays": 14,
     "maxNewPerRun": 5000,
     "maxJobs": 15000,
-    "arbeitnowPages": 25
+    "arbeitnowPages": 15
   },
   "feeds": {
     "arbeitnow": true,
     "remotive": true
   },
   "greenhouse": [
-    { "id": "stripe", "name": "Stripe" },
-    { "id": "figma", "name": "Figma" },
-    { "id": "airbnb", "name": "Airbnb" },
-    { "id": "dropbox", "name": "Dropbox" },
-    { "id": "coinbase", "name": "Coinbase" },
-    { "id": "reddit", "name": "Reddit" },
-    { "id": "pinterest", "name": "Pinterest" },
-    { "id": "twilio", "name": "Twilio" },
-    { "id": "mongodb", "name": "MongoDB" },
-    { "id": "datadog", "name": "Datadog" },
-    { "id": "gitlab", "name": "GitLab" },
-    { "id": "cloudflare", "name": "Cloudflare" },
-    { "id": "databricks", "name": "Databricks" },
-    { "id": "elastic", "name": "Elastic" },
-    { "id": "squarespace", "name": "Squarespace" },
-    { "id": "grafanalabs", "name": "Grafana Labs" },
-    { "id": "anthropic", "name": "Anthropic" },
-    { "id": "vercel", "name": "Vercel" },
-    { "id": "n26", "name": "N26" },
-    { "id": "hellofresh", "name": "HelloFresh" },
-    { "id": "getyourguide", "name": "GetYourGuide" },
-    { "id": "celonis", "name": "Celonis" },
-    { "id": "adyen", "name": "Adyen" },
-    { "id": "monzo", "name": "Monzo" },
-    { "id": "contentful", "name": "Contentful" },
-    { "id": "sumup", "name": "SumUp" },
-    { "id": "babbel", "name": "Babbel" },
-    { "id": "traderepublicbank", "name": "Trade Republic" },
-    { "id": "canonical", "name": "Canonical" },
-    { "id": "realtimeboardglobal", "name": "Miro" },
-    { "id": "intercom", "name": "Intercom" },
-    { "id": "okta", "name": "Okta" },
-    { "id": "asana", "name": "Asana" },
-    { "id": "lyft", "name": "Lyft" },
-    { "id": "instacart", "name": "Instacart" },
-    { "id": "robinhood", "name": "Robinhood" },
-    { "id": "affirm", "name": "Affirm" },
-    { "id": "brex", "name": "Brex" },
-    { "id": "discord", "name": "Discord" },
-    { "id": "duolingo", "name": "Duolingo" },
-    { "id": "samsara", "name": "Samsara" },
-    { "id": "toast", "name": "Toast" },
-    { "id": "gusto", "name": "Gusto" },
-    { "id": "doctolib", "name": "Doctolib" },
-    { "id": "mollie", "name": "Mollie" },
-    { "id": "wolt", "name": "Wolt" },
-    { "id": "bolt", "name": "Bolt" },
-    { "id": "spotify", "name": "Spotify" }
+    {
+      "id": "stripe",
+      "name": "Stripe"
+    },
+    {
+      "id": "figma",
+      "name": "Figma"
+    },
+    {
+      "id": "airbnb",
+      "name": "Airbnb"
+    },
+    {
+      "id": "dropbox",
+      "name": "Dropbox"
+    },
+    {
+      "id": "coinbase",
+      "name": "Coinbase"
+    },
+    {
+      "id": "reddit",
+      "name": "Reddit"
+    },
+    {
+      "id": "pinterest",
+      "name": "Pinterest"
+    },
+    {
+      "id": "twilio",
+      "name": "Twilio"
+    },
+    {
+      "id": "mongodb",
+      "name": "MongoDB"
+    },
+    {
+      "id": "datadog",
+      "name": "Datadog"
+    },
+    {
+      "id": "gitlab",
+      "name": "GitLab"
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare"
+    },
+    {
+      "id": "databricks",
+      "name": "Databricks"
+    },
+    {
+      "id": "elastic",
+      "name": "Elastic"
+    },
+    {
+      "id": "squarespace",
+      "name": "Squarespace"
+    },
+    {
+      "id": "grafanalabs",
+      "name": "Grafana Labs"
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic"
+    },
+    {
+      "id": "vercel",
+      "name": "Vercel"
+    },
+    {
+      "id": "n26",
+      "name": "N26"
+    },
+    {
+      "id": "hellofresh",
+      "name": "HelloFresh"
+    },
+    {
+      "id": "getyourguide",
+      "name": "GetYourGuide"
+    },
+    {
+      "id": "celonis",
+      "name": "Celonis"
+    },
+    {
+      "id": "adyen",
+      "name": "Adyen"
+    },
+    {
+      "id": "monzo",
+      "name": "Monzo"
+    },
+    {
+      "id": "contentful",
+      "name": "Contentful"
+    },
+    {
+      "id": "sumup",
+      "name": "SumUp"
+    },
+    {
+      "id": "traderepublicbank",
+      "name": "Trade Republic"
+    },
+    {
+      "id": "canonical",
+      "name": "Canonical"
+    },
+    {
+      "id": "realtimeboardglobal",
+      "name": "Miro"
+    },
+    {
+      "id": "intercom",
+      "name": "Intercom"
+    },
+    {
+      "id": "okta",
+      "name": "Okta"
+    },
+    {
+      "id": "asana",
+      "name": "Asana"
+    },
+    {
+      "id": "lyft",
+      "name": "Lyft"
+    },
+    {
+      "id": "instacart",
+      "name": "Instacart"
+    },
+    {
+      "id": "robinhood",
+      "name": "Robinhood"
+    },
+    {
+      "id": "affirm",
+      "name": "Affirm"
+    },
+    {
+      "id": "brex",
+      "name": "Brex"
+    },
+    {
+      "id": "discord",
+      "name": "Discord"
+    },
+    {
+      "id": "duolingo",
+      "name": "Duolingo"
+    },
+    {
+      "id": "samsara",
+      "name": "Samsara"
+    },
+    {
+      "id": "toast",
+      "name": "Toast"
+    },
+    {
+      "id": "gusto",
+      "name": "Gusto"
+    },
+    {
+      "id": "wolt",
+      "name": "Wolt"
+    }
   ],
   "lever": [
-    { "id": "spotify", "name": "Spotify" },
-    { "id": "palantir", "name": "Palantir" },
-    { "id": "plaid", "name": "Plaid" },
-    { "id": "mistral", "name": "Mistral AI" },
-    { "id": "pleo", "name": "Pleo" },
-    { "id": "helsing", "name": "Helsing" }
+    {
+      "id": "spotify",
+      "name": "Spotify"
+    },
+    {
+      "id": "palantir",
+      "name": "Palantir"
+    }
   ],
   "ashby": [
-    { "id": "notion", "name": "Notion" },
-    { "id": "ramp", "name": "Ramp" },
-    { "id": "linear", "name": "Linear" },
-    { "id": "openai", "name": "OpenAI" },
-    { "id": "anysphere", "name": "Cursor" },
-    { "id": "supabase", "name": "Supabase" },
-    { "id": "posthog", "name": "PostHog" },
-    { "id": "elevenlabs", "name": "ElevenLabs" },
-    { "id": "n8n", "name": "n8n" },
-    { "id": "deel", "name": "Deel" },
-    { "id": "synthesia", "name": "Synthesia" },
-    { "id": "1password", "name": "1Password" }
+    {
+      "id": "notion",
+      "name": "Notion"
+    },
+    {
+      "id": "ramp",
+      "name": "Ramp"
+    },
+    {
+      "id": "linear",
+      "name": "Linear"
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI"
+    },
+    {
+      "id": "supabase",
+      "name": "Supabase"
+    },
+    {
+      "id": "posthog",
+      "name": "PostHog"
+    },
+    {
+      "id": "elevenlabs",
+      "name": "ElevenLabs"
+    },
+    {
+      "id": "n8n",
+      "name": "n8n"
+    },
+    {
+      "id": "deel",
+      "name": "Deel"
+    },
+    {
+      "id": "synthesia",
+      "name": "Synthesia"
+    },
+    {
+      "id": "1password",
+      "name": "1Password"
+    }
   ],
   "workable": [],
   "recruitee": [],
   "personio": [],
   "smartrecruiters": [
-    { "id": "DeliveryHero", "name": "Delivery Hero" },
-    { "id": "Bosch", "name": "Bosch" },
-    { "id": "Visa", "name": "Visa" }
+    {
+      "id": "DeliveryHero",
+      "name": "Delivery Hero"
+    },
+    {
+      "id": "Bosch",
+      "name": "Bosch"
+    },
+    {
+      "id": "Visa",
+      "name": "Visa"
+    }
   ]
 }

@@ -60,7 +60,7 @@ export async function get(url: string, kind: 'json' | 'text' = 'json', timeoutMs
       if (!res.ok) {
         lastErr = String(res.status);
         if (res.status === 429 || res.status >= 500) {
-          await new Promise((r) => setTimeout(r, 3000));
+          await new Promise((r) => setTimeout(r, res.status === 429 ? 15000 : 3000));
           continue;
         }
         throw new Error(lastErr);
@@ -308,7 +308,17 @@ export async function smartrecruitersDetail(companyId: string, jobId: string): P
 async function arbeitnow(maxPages: number): Promise<SourceJob[]> {
   const out: SourceJob[] = [];
   for (let page = 1; page <= maxPages; page++) {
-    const data = await get(`https://www.arbeitnow.com/api/job-board-api?page=${page}`);
+    let data: any;
+    try {
+      data = await get(`https://www.arbeitnow.com/api/job-board-api?page=${page}`);
+    } catch (e) {
+      // They limit how fast pages may be read. Keep what we already have instead of losing it all.
+      if (out.length) {
+        console.log(`  arbeitnow: stopped at page ${page} (${e instanceof Error ? e.message : e}), keeping ${out.length} jobs`);
+        break;
+      }
+      throw e;
+    }
     const list = (data?.data ?? []) as any[];
     for (const j of list) {
       const loc = str(j.location);
@@ -328,7 +338,7 @@ async function arbeitnow(maxPages: number): Promise<SourceJob[]> {
       });
     }
     if (!data?.links?.next || list.length === 0) break;
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 2500));
   }
   return out;
 }
