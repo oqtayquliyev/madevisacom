@@ -24,7 +24,11 @@
   ],
   "vars": {
     // The GitHub repository whose daily job cycle may write into the database (worker/sync.ts).
-    "GITHUB_REPO": "oqtayquliyev/madevisacom"
+    "GITHUB_REPO": "oqtayquliyev/madevisacom",
+    // Cloudflare Access in front of /admin (Zero Trust → Access → Applications → "MadeVisa admin").
+    // Not secrets: the team address and the application's AUD tag, used to check Access's signed pass.
+    "ACCESS_TEAM_DOMAIN": "weathered-voice-e8da.cloudflareaccess.com",
+    "ACCESS_AUD": "653e9c8a1e188e1217972c97a493f0c093bf963779fb2ba393a8529a44833aa2"
   },
   "keep_vars": true,
   "observability": { "enabled": true }

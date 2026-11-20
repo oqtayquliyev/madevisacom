@@ -1,6 +1,7 @@
 import { ago, esc, fmt, icon, layout, numbers, type IconName } from '../html';
 import { newest, stats, type Env } from '../db';
 import { countryName, countryOptions, countrySlug, guideByCode, jobList } from '../parts';
+import { flag } from '../flags';
 
 const TILES: { href: string; title: string; text: string; icon: IconName }[] = [
   { href: '/jobs', title: 'FIND A JOB', text: 'Fresh jobs from company career pages.', icon: 'jobs' },
@@ -18,8 +19,14 @@ export async function home(env: Env): Promise<Response> {
     (t) => `<a class="tile" href="${t.href}">${icon(t.icon, 48)}<span><b>${t.title}</b><span>${esc(t.text)}</span></span><span class="tile-go" aria-hidden="true">▶</span></a>`
   ).join('')}</div>`;
 
-  const search = `<section class="box"><h1 class="box-h"><span>Find a job abroad. See how well you match it.</span></h1><div class="box-b">
-<p>Live jobs straight from company career pages, refreshed every day, filterable by visa sponsorship, country and remote work. Add your CV once and see your match on every job — free.</p>
+  const search = `<section class="box"><h1 class="box-h"><span>Every company’s careers page. One list. Updated daily.</span></h1><div class="box-b">
+<p class="pitch"><b>Jobs come straight from the careers pages of ${fmt(s.companies || 60)}+ companies</b> — the place they’re posted first, often days before they reach big job sites like LinkedIn or Indeed. Track them all at once instead of checking each site, and filter by visa sponsorship, country and remote work.</p>
+<ul class="why">
+<li><b>Earlier:</b> straight from the source, checked every day</li>
+<li><b>All in one place:</b> ${fmt(s.total)} live jobs, no hopping between sites</li>
+<li><b>Fresh only:</b> closed jobs removed daily, nothing older than ${s.windowDays} days</li>
+<li><b>Free:</b> no sign-up, plus a CV match on every job</li>
+</ul>
 <form class="search-row" action="/jobs" method="get" role="search">
 <label class="sr-only" for="q">Job title, skill or company</label><input id="q" name="q" type="search" placeholder="Job title, skill or company">
 <label class="sr-only" for="country">Country</label><select id="country" name="country">${countryOptions(s.byCountry)}</select>
@@ -31,14 +38,14 @@ export async function home(env: Env): Promise<Response> {
   const countries = s.byCountry.filter(([c]) => countryName.has(c)).slice(0, 15);
   const hood = countries.length
     ? `<ul class="hoods">${countries
-        .map(([c, n, v]) => `<li><a href="/jobs/in/${countrySlug(c)}">${esc(countryName.get(c))}</a><br><span>(${fmt(n)} jobs${v ? `, ${fmt(v)} visa` : ''})</span></li>`)
+        .map(([c, n, v]) => `<li${guideByCode.has(c) ? ' class="has-flag"' : ''}>${flag(c, 21)}<a href="/jobs/in/${countrySlug(c)}">${esc(countryName.get(c))}</a><br><span>(${fmt(n)} jobs${v ? `, ${fmt(v)} visa` : ''})</span></li>`)
         .join('')}</ul><p class="right"><a href="/jobs">view all...</a></p>`
     : '<p>Countries appear here after the first daily update.</p>';
   const explore = `<section class="box"><h2 class="box-h"><span>Explore Countries</span></h2><div class="box-b"><p>Find fresh jobs in one of our <b>${fmt(countries.length)}</b> busiest countries.</p>${hood}</div></section>`;
 
   const guides = [...guideByCode.values()].slice(0, 9);
   const visas = `<section class="box"><h2 class="box-h"><span>Work Visas by Country</span></h2><div class="box-b"><ul class="hoods">${guides
-    .map((g) => `<li><a href="/destinations/${g.slug}">${esc(g.name)}</a><br><span>(${g.routes.length} routes)</span></li>`)
+    .map((g) => `<li class="has-flag">${flag(g.code, 21)}<a href="/destinations/${g.slug}">${esc(g.name)}</a><br><span>(${g.routes.length} routes)</span></li>`)
     .join('')}</ul><p class="right"><a href="/destinations">all ${guideByCode.size} countries...</a></p></div></section>`;
 
   const notable = `<section class="box green"><h2 class="box-h"><span>New and Notable</span></h2><div class="box-b white">
@@ -51,8 +58,8 @@ ${numbers([[s.total, 'live jobs'], [s.visa, 'visa stated'], [s.new24h, 'new toda
   const body = `${welcome}${tiles}<div class="portal"><div class="portal-main">${search}${explore}${visas}</div><div class="portal-side">${notable}</div></div>`;
 
   return layout({
-    title: 'MadeVisa — Jobs abroad with visa sponsorship, fresh every day',
-    description: 'Find a job abroad: fresh jobs from company career pages every day, filter by visa sponsorship, country and remote work, and see how well your CV matches. Free.',
+    title: 'MadeVisa — Jobs abroad straight from company careers pages, updated daily',
+    description: 'Track jobs from company careers pages in one list — often before they reach LinkedIn or Indeed. Filter by visa sponsorship, country and remote work, and see your CV match. Free.',
     path: '/',
     active: '/',
     body,

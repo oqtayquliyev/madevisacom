@@ -35,6 +35,7 @@ export async function board(env: Env, url: URL, preset: Preset = {}): Promise<Re
   <span class="search-checks">${chk('visa', visa, 'Visa sponsorship')}${chk('remote', remote, 'Remote')}${chk('salary', salary, 'Salary shown')}</span>
   <input type="hidden" name="company" value="${esc(company)}">
 </form>
+<p class="small src-note">Straight from company careers pages, checked every day — often before these jobs reach LinkedIn or Indeed.</p>
 ${company ? `<p class="small">Company: <b>${esc(company)}</b> - <a href="${esc(url.pathname)}">[clear]</a></p>` : ''}
 </div></section>
 <section class="box white"><h2 class="box-h grey"><span>Results: <b id="board-count">${fmt(total)}</b> jobs</span><span class="box-h-right">${s.updated ? `updated ${esc(ago(s.updated))}` : 'first update tonight'}</span></h2>

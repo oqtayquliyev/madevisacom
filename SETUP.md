@@ -69,6 +69,13 @@ The first run adds at most 5,000 jobs (daily write limit); the rest come the nex
 
 ---
 
+## Admin panel
+
+**madevisa.com/admin** — live jobs, new today, visa share, companies, countries, sources, run history
+and failed feeds. Protected by Cloudflare Access (Zero Trust → Access → Applications → "MadeVisa admin"):
+only `oqtayquliyev@hotmail.com` gets in, with a one-time code sent by email (or your Cloudflare login).
+To let someone else in, add their email to the "MadeVisa owner" policy.
+
 ## Everyday use
 
 **Add or remove companies:** edit `fetcher/companies.json` on github.com (pencil icon) → Commit.

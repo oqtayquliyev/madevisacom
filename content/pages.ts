@@ -48,8 +48,21 @@ export const textPages: Record<string, TextPage> = {
     title: 'How MadeVisa works',
     description: 'How MadeVisa collects jobs every day, decides what “visa sponsorship” means for a job, and matches your CV — in plain words.',
     icon: 'help',
-    intro: 'A short tour of what happens behind the pages.',
+    intro: 'MadeVisa watches company careers pages for you, every day, and puts every new job in one list.',
     sections: [
+      {
+        heading: 'Why it’s quicker than big job sites',
+        paragraphs: [
+          'Companies post a new job on their own careers page first. It reaches LinkedIn, Indeed and other job sites later — sometimes days later, sometimes never. MadeVisa reads those careers pages directly, so a job usually shows up here soon after the company publishes it.',
+        ],
+        bullets: [
+          'Earlier: jobs come from the source, checked every day.',
+          'All at once: one list instead of opening dozens of careers pages one by one.',
+          'Fresh only: jobs that leave the company’s page are removed the next day; nothing older than 14 days.',
+          'The full ad: the original text from the company, with visa, salary, remote and experience pulled out.',
+          'You apply direct: the Apply button takes you to the company’s own page — no middleman.',
+        ],
+      },
       {
         heading: '1. Every day: fresh jobs',
         paragraphs: [

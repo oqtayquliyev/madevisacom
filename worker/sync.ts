@@ -9,53 +9,20 @@
 //   reply: { results: [rows[] for each statement] }
 
 import type { Env } from './db';
+import { audIncludes, verifyRs256 } from './jwt';
 
 const ISSUER = 'https://token.actions.githubusercontent.com';
 const AUDIENCE = 'madevisa';
 const MAX_STATEMENTS = 45;
 
-type Jwk = JsonWebKey & { kid: string };
-let jwksCache: { at: number; keys: Jwk[] } | null = null;
-
-const b64urlBytes = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
-const b64urlJson = (s: string) => JSON.parse(new TextDecoder().decode(b64urlBytes(s)));
-
-async function githubKeys(force = false): Promise<Jwk[]> {
-  if (!force && jwksCache && Date.now() - jwksCache.at < 3600_000) return jwksCache.keys;
-  const res = await fetch(`${ISSUER}/.well-known/jwks`, { headers: { 'User-Agent': 'madevisa-sync' } });
-  if (!res.ok) throw new Error(`jwks ${res.status}`);
-  const { keys } = (await res.json()) as { keys: Jwk[] };
-  jwksCache = { at: Date.now(), keys };
-  return keys;
-}
-
 /** Returns null when the token is valid for this site, otherwise the reason it isn't. */
 export async function checkGithubToken(token: string, env: Env): Promise<string | null> {
-  const parts = token.split('.');
-  if (parts.length !== 3) return 'not a token';
-  let header: { alg?: string; kid?: string };
-  let claims: { iss?: string; aud?: string | string[]; exp?: number; nbf?: number; repository?: string; ref?: string };
-  try {
-    header = b64urlJson(parts[0]);
-    claims = b64urlJson(parts[1]);
-  } catch {
-    return 'unreadable token';
-  }
-  if (header.alg !== 'RS256') return 'wrong algorithm';
-  let key = (await githubKeys()).find((k) => k.kid === header.kid);
-  if (!key) key = (await githubKeys(true)).find((k) => k.kid === header.kid);
-  if (!key) return 'unknown signing key';
-  const pub = await crypto.subtle.importKey('jwk', { kty: key.kty, n: key.n, e: key.e, alg: 'RS256', ext: true }, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
-  const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', pub, b64urlBytes(parts[2]), new TextEncoder().encode(`${parts[0]}.${parts[1]}`));
-  if (!ok) return 'bad signature';
-  const now = Math.floor(Date.now() / 1000);
-  if (claims.iss !== ISSUER) return 'wrong issuer';
-  const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-  if (!aud.includes(AUDIENCE)) return 'wrong audience';
-  if (!claims.exp || claims.exp < now - 30) return 'expired';
-  if (claims.nbf && claims.nbf > now + 60) return 'not yet valid';
-  if (!env.GITHUB_REPO || claims.repository?.toLowerCase() !== env.GITHUB_REPO.toLowerCase()) return 'wrong repository';
-  if (claims.ref !== 'refs/heads/main') return 'only the main branch may sync';
+  const c = await verifyRs256(token, `${ISSUER}/.well-known/jwks`);
+  if (typeof c === 'string') return c;
+  if (c.iss !== ISSUER) return 'wrong issuer';
+  if (!audIncludes(c, AUDIENCE)) return 'wrong audience';
+  if (!env.GITHUB_REPO || String(c.repository ?? '').toLowerCase() !== env.GITHUB_REPO.toLowerCase()) return 'wrong repository';
+  if (c.ref !== 'refs/heads/main') return 'only the main branch may sync';
   return null;
 }
 

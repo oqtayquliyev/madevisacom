@@ -8,6 +8,9 @@ export interface Env {
   ASSETS: Fetcher;
   /** owner/name of the GitHub repository whose daily job cycle may write (see worker/sync.ts). */
   GITHUB_REPO?: string;
+  /** Cloudflare Access in front of /admin: team domain (xxx.cloudflareaccess.com) and the app's AUD tag. */
+  ACCESS_TEAM_DOMAIN?: string;
+  ACCESS_AUD?: string;
   /** Local testing only — never set on Cloudflare. */
   DEV_SYNC_KEY?: string;
 }

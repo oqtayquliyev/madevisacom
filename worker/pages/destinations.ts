@@ -2,6 +2,7 @@ import { dialog, esc, fmt, icon, layout, win } from '../html';
 import { stats, type Env } from '../db';
 import { visaGuides, visaGuideBySlug, applicationStepsFor, documentsFor, REQUIREMENT_LABEL, ROUTE_KIND_LABEL } from '../../content/visa/index';
 import { countrySlug } from '../parts';
+import { flag } from '../flags';
 
 export async function destinations(env: Env): Promise<Response> {
   const s = await stats(env);
@@ -14,7 +15,7 @@ export async function destinations(env: Env): Promise<Response> {
       ([region, list]) => `<h2 class="explorer-h">${esc(region)}</h2><ul class="explorer">${list
         .map((g) => {
           const [n, v] = count.get(g.code) ?? [0, 0];
-          return `<li><a href="/destinations/${g.slug}">${icon('folder', 32)}<span class="ex-name">${esc(g.name)}</span><span class="ex-meta">${g.routes.length} routes · ${fmt(n)} jobs${v ? ` · ${fmt(v)} visa` : ''}</span></a></li>`;
+          return `<li><a href="/destinations/${g.slug}">${flag(g.code, 54) || icon('folder', 32)}<span class="ex-name">${esc(g.name)}</span><span class="ex-meta">${g.routes.length} routes · ${fmt(n)} jobs${v ? ` · ${fmt(v)} visa` : ''}</span></a></li>`;
         })
         .join('')}</ul>`
     )
@@ -78,7 +79,7 @@ ${r.employer ? `<details><summary>What the employer has to do</summary><ol>${r.e
 
   const body = `<div class="guide-wrap"><div class="guide-main">${win(
     `${esc(g.name)} — work visa guide`,
-    `<h1 class="job-h1">Working in ${esc(g.name)}: visas and routes</h1><p class="lead">${esc(g.blurb)}</p>
+    `<h1 class="job-h1 with-flag">${flag(g.code, 45)}<span>Working in ${esc(g.name)}: visas and routes</span></h1><p class="lead">${esc(g.blurb)}</p>
 <fieldset><legend>At a glance</legend>${overview}</fieldset>
 <fieldset><legend>When do you need a visa?</legend><p>${esc(g.shortStay)}</p></fieldset>
 <h2 class="sec-h">${icon('visa')} Routes (${g.routes.length})</h2>${routes}

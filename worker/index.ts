@@ -14,12 +14,13 @@ import { countryBySlug } from './parts';
 import { textPages } from '../content/pages';
 import { visaGuides } from '../content/visa/index';
 import { sync } from './sync';
+import { admin } from './admin';
 import { SITE } from './html';
 
 // Pages of the old site that no longer exist → the closest page now.
 const MOVED: [RegExp, string][] = [
   [/^\/(pricing|membership|checkout.*|subscription-terms|sponsorship-document-terms|sponsored-listing-terms|advertising-policy)$/, '/jobs'],
-  [/^\/(login|register|reset-password|verify-email|dashboard|profile|my(\/.*)?|notifications|alerts(\/.*)?|network|u\/.+|admin.*|company(\/.*)?|submit.*|employers|partners|offers(\/.*)?|brief(\/.*)?|visa-plan)$/, '/'],
+  [/^\/(login|register|reset-password|verify-email|dashboard|profile|my(\/.*)?|notifications|alerts(\/.*)?|network|u\/.+|company(\/.*)?|submit.*|employers|partners|offers(\/.*)?|brief(\/.*)?|visa-plan)$/, '/'],
   [/^\/(companies|company-scores|ghostgood|feedback)(\/.*)?$/, '/job-market'],
   [/^\/(blog|reports|programs|study|experts|official-sources|corrections|verification-policy)(\/.*)?$/, '/destinations'],
   [/^\/(visas|work-visas)$/, '/destinations'],
@@ -36,6 +37,7 @@ export default {
 
     if (path.length > 1 && path.endsWith('/')) return Response.redirect(`${url.origin}${path.replace(/\/+$/, '')}${url.search}`, 301);
     if (path === '/api/sync') return sync(req, env);
+    if (path === '/admin' || path.startsWith('/admin/')) return admin(req, env);
     if (req.method !== 'GET' && req.method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
 
     for (const [re, to] of MOVED) {

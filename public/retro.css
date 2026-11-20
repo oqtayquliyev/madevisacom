@@ -250,3 +250,18 @@ details summary { cursor: pointer; font-weight: bold; margin: 6px 0; }
   .btn, button { min-height: 34px; }
 }
 .market-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 0 14px; align-items: start; }
+
+/* pixel flags */
+.flag { image-rendering: pixelated; display: inline-block; vertical-align: middle; flex: none; box-shadow: 1px 1px 0 rgba(0, 0, 0, .25); }
+.explorer .flag { margin: 4px 0 6px; }
+.hoods li.has-flag { padding-left: 28px; }
+.hoods li.has-flag::before { content: none; }
+.hoods li.has-flag .flag { position: absolute; left: 0; top: 3px; }
+.with-flag { display: flex; align-items: center; gap: 10px; }
+
+/* positioning copy */
+.pitch { font-size: 15px; max-width: 95ch; }
+.why { list-style: none; margin: 4px 0 12px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 16px; font-size: 13px; }
+.why li { padding-left: 18px; position: relative; }
+.why li::before { content: '✔'; position: absolute; left: 0; color: var(--blue); }
+.src-note { margin: 8px 0 0; color: #333; }
