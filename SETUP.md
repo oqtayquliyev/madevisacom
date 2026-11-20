@@ -29,7 +29,7 @@ everything in the folder **except the hidden `.git` folder** → copy in all fil
 
 (Mac: press `Cmd + Shift + .` in Finder to see hidden files.)
 
-## Step 2 — Create the database (2 minutes)
+## Step 2 — Create the database (DONE: `madevisa`, id f303152e-355a-4f77-b855-595d824aca73)
 
 1. Cloudflare dashboard → left menu **Storage & databases → D1 SQL database** → **Create database**.
 2. Name: `madevisa` (exactly this). Location: *Automatic*. → **Create**.
@@ -37,7 +37,7 @@ everything in the folder **except the hidden `.git` folder** → copy in all fil
 4. In your repository open `wrangler.jsonc` (on github.com: click the file → pencil icon) and replace
    `PASTE-YOUR-D1-DATABASE-ID-HERE` with that ID → **Commit changes**.
 
-## Step 3 — Create the tables
+## Step 3 — Create the tables (DONE)
 
 1. Still on the database page → **Console** tab.
 2. Open `schema.sql` from this zip, copy all of it, paste it into the console → **Execute**.

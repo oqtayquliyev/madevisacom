@@ -19,7 +19,7 @@
     {
       "binding": "DB",
       "database_name": "madevisa",
-      "database_id": "PASTE-YOUR-D1-DATABASE-ID-HERE"
+      "database_id": "f303152e-355a-4f77-b855-595d824aca73"
     }
   ],
   // Daily backup trigger for the job cycle (05:41 UTC). Uses 1 of the 5 free cron triggers.
