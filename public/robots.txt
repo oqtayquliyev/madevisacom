@@ -1,27 +1,9 @@
 # MadeVisa — https://madevisa.com
-#
-# Public pages (jobs, companies, countries, blog, guides) are all crawlable.
-# Only private, account and admin areas are kept out of the crawl.
-#
-# NOTE: robots.txt rules are prefix matches. "Disallow: /company" would also
-# block /companies and every company page, so the private company-manager
-# page is matched exactly with "$".
-
 User-agent: *
 Allow: /
-Disallow: /admin
-Disallow: /profile
-Disallow: /dashboard
-Disallow: /company$
-Disallow: /company/
-Disallow: /submit-program
-Disallow: /login
-Disallow: /register
-Disallow: /reset-password
-Disallow: /verify-email
-Disallow: /checkout
+Disallow: /status
 Disallow: /api/
-# The jobs page loads its filter counts from here; Google needs it to render the page.
-Allow: /api/facets
+Disallow: /*?*q=
+Disallow: /*?*company=
 
 Sitemap: https://madevisa.com/sitemap.xml

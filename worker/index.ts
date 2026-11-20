@@ -1,179 +1,146 @@
-// Cloudflare Worker entry for MadeVisa — replaces vercel.json + middleware.ts.
+// MadeVisa website — one Cloudflare Worker + one D1 database, inside the free plan.
 //
-// Order is the same as on Vercel:
-//   1. middleware.ts (link-preview cards for bots, one-click unsubscribe, server-rendered homepage)
-//   2. redirects + no trailing slash
-//   3. /api/* functions
-//   4. static files from dist/
-//   5. rewrites (SEO pages, sitemaps, short links, SPA fallback)
-import middleware from '../middleware';
-import seo from '../api/seo';
-import sitemap from '../api/sitemap';
-import missingAsset from '../api/missing-asset';
-import { GET as facets } from '../api/facets';
-import socialContent from '../api/social/content';
-import ogPage from '../api/og/page';
-import ogJob from '../api/og/job';
-import ogCompany from '../api/og/company';
-import ogPost from '../api/og/post';
-import ogProfile from '../api/og/profile';
-import ogSocial from '../api/og/social';
+//   fetch()      serves every page (HTML is built here; CSS/JS/images come from public/)
+//   scheduled()  once a day: asks GitHub to start the job cycle (only if GITHUB_TOKEN is set —
+//                GitHub's own daily schedule does it anyway; this is a backup)
 
-interface Env { ASSETS: { fetch(req: Request | string): Promise<Response> } }
-type Ctx = { waitUntil(p: Promise<unknown>): void };
-type Handler = (req: Request) => Response | Promise<Response>;
+import { blobText, type Env } from './db';
+import { home } from './pages/home';
+import { board } from './pages/jobs';
+import { jobPage } from './pages/job';
+import { destination, destinations } from './pages/destinations';
+import { market, status } from './pages/market';
+import { book, cvMatch, notFound, textPage } from './pages/misc';
+import { countryBySlug } from './parts';
+import { textPages } from '../content/pages';
+import { visaGuides } from '../content/visa/index';
+import { SITE } from './html';
 
-const API: Record<string, Handler> = {
-  '/api/seo': seo,
-  '/api/sitemap': sitemap,
-  '/api/missing-asset': missingAsset,
-  '/api/facets': () => facets(),
-  '/api/social/content': socialContent,
-  '/api/og/page': ogPage,
-  '/api/og/job': ogJob,
-  '/api/og/company': ogCompany,
-  '/api/og/post': ogPost,
-  '/api/og/profile': ogProfile,
-  '/api/og/social': ogSocial,
-};
-// Responses worth keeping in Cloudflare's cache (Vercel did this via s-maxage).
-const CACHEABLE = /^\/api\/(og\/|sitemap|facets|seo)/;
-
-// ── middleware.ts matcher ──
-const MW = [/^\/$/, /^\/jobs(\/.+)?$/, /^\/programs$/, /^\/study$/, /^\/companies(\/.+)?$/, /^\/destinations(\/.+)?$/,
-  /^\/network$/, /^\/experts$/, /^\/feedback(\/.+)?$/, /^\/u\/.+$/, /^\/alerts\/unsubscribe$/];
-
-const REDIRECTS: [RegExp, (m: RegExpMatchArray) => string][] = [
-  [/^\/feedback$/, () => '/ghostgood'],
-  [/^\/feedback\/([^/]+)$/, (m) => `/ghostgood/${m[1]}`],
-  [/^\/official-partners$/, () => '/official-sources'],
+// Pages of the old site that no longer exist → the closest page now.
+const MOVED: [RegExp, string][] = [
+  [/^\/(pricing|membership|checkout.*|subscription-terms|sponsorship-document-terms|sponsored-listing-terms|advertising-policy)$/, '/jobs'],
+  [/^\/(login|register|reset-password|verify-email|dashboard|profile|my(\/.*)?|notifications|alerts(\/.*)?|network|u\/.+|admin.*|company(\/.*)?|submit.*|employers|partners|offers(\/.*)?|brief(\/.*)?|visa-plan)$/, '/'],
+  [/^\/(companies|company-scores|ghostgood|feedback)(\/.*)?$/, '/job-market'],
+  [/^\/(blog|reports|programs|study|experts|official-sources|corrections|verification-policy)(\/.*)?$/, '/destinations'],
+  [/^\/(visas|work-visas)$/, '/destinations'],
+  [/^\/visas\/([a-z-]+)$/, '/destinations/$1'],
+  [/^\/jobs\/visa$/, '/jobs/visa-sponsorship'],
 ];
 
-const PAGES = 'about|how-it-works|pricing|book|cv-match|job-market|contact|privacy|terms|cookies|disclaimer|advertising-policy|sponsored-listing-terms|subscription-terms|sponsorship-document-terms|editorial-policy|corrections|verification-policy|companies|destinations|ghostgood|network|programs|study|offers|official-sources';
-const REWRITES: [RegExp, (m: RegExpMatchArray) => string][] = [
-  [/^\/sitemap\.xml$/, () => '/api/sitemap?f=index'],
-  [/^\/sitemaps\/([^/]+)\.xml$/, (m) => `/api/sitemap?f=${m[1]}`],
-  [/^\/j\/([^/]+)$/, (m) => `/api/seo?r=short&a=${m[1]}`],
-  [/^\/$/, () => '/api/seo?r=home'],
-  [/^\/jobs$/, () => '/api/seo?r=jobs'],
-  [/^\/jobs\/([^/]+)\/([^/]+)$/, (m) => `/api/seo?r=job&a=${m[1]}&b=${m[2]}`],
-  [/^\/jobs\/([^/]+)$/, (m) => `/api/seo?r=job&a=${m[1]}`],
-  [/^\/companies\/([^/]+)$/, (m) => `/api/seo?r=company&s=${m[1]}`],
-  [/^\/destinations\/([^/]+)$/, (m) => `/api/seo?r=destination&s=${m[1]}`],
-  [/^\/blog$/, () => '/api/seo?r=blog'],
-  [/^\/blog\/([^/]+)$/, (m) => `/api/seo?r=article&s=${m[1]}`],
-  [new RegExp(`^/(${PAGES})$`), (m) => `/api/seo?r=page&s=${m[1]}`],
-  [/^\/assets\/.*/, () => '/api/missing-asset'],
-  [/^\/(?!api\/|assets\/)(.*)$/, (m) => `/api/seo?r=spa&p=${encodeURIComponent(m[1])}`],
-];
-const PROXIES: Record<string, string> = {
-  '/favicon.ico': 'https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789558197/madevisa-fav_j8ot2d.png',
-  '/apple-touch-icon.png': 'https://res.cloudinary.com/dkvg0oo8c/image/upload/c_pad,w_180,h_180,b_white/v1789558197/madevisa-fav_j8ot2d.png',
-};
-
-// The API code fetches its own site (`${origin}/index.html`, `/og-logo.png`). Inside a Worker that would loop back
-// through the internet, so same-host requests are answered straight from the static files instead.
-let ASSETS: Env['ASSETS'] | null = null;
-const selfHosts = new Set<string>();
-const realFetch = globalThis.fetch.bind(globalThis);
-globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-  const req = new Request(input as RequestInfo, init);
-  const u = new URL(req.url);
-  if (ASSETS && selfHosts.has(u.host)) {
-    if (u.pathname.startsWith('/api/')) return route(req);
-    return ASSETS.fetch(req);
-  }
-  return realFetch(req);
-}) as typeof fetch;
-
-const withQuery = (dest: string, original: URL) => {
-  const u = new URL(dest, original);
-  original.searchParams.forEach((v, k) => { if (!u.searchParams.has(k)) u.searchParams.set(k, v); });
-  return u;
-};
-
-async function api(request: Request, ctx?: Ctx): Promise<Response> {
-  const url = new URL(request.url);
-  const h = API[url.pathname.replace(/\/+$/, '')];
-  if (!h) return new Response('Not found', { status: 404 });
-  const cacheable = ctx && request.method === 'GET' && CACHEABLE.test(url.pathname);
-  const cache = (globalThis as unknown as { caches: { default: Cache } }).caches?.default;
-  if (cacheable && cache) {
-    const hit = await cache.match(request.url);
-    if (hit) return hit;
-  }
-  const res = await h(request);
-  if (cacheable && cache && res.ok && /s-maxage|max-age=[1-9]/.test(res.headers.get('cache-control') ?? '')) {
-    ctx!.waitUntil(cache.put(request.url, res.clone()));
-  }
-  return res;
-}
-
-async function route(request: Request, ctx?: Ctx): Promise<Response> {
-  const url = new URL(request.url);
-  const path = url.pathname;
-
-  if (path.startsWith('/api/')) return api(request, ctx);
-  if (PROXIES[path]) return realFetch(PROXIES[path]);
-
-  // static file?
-  if (path !== '/') {
-    const res = await ASSETS!.fetch(request);
-    if (res.status !== 404) return res;
-  }
-  for (const [re, to] of REWRITES) {
-    const m = path.match(re);
-    if (m) return api(new Request(withQuery(to(m), url), request), ctx);
-  }
-  return new Response('Not found', { status: 404 });
-}
-
-// public/_headers only covers static files; the same security headers go on Worker-made pages.
-const SECURITY: Record<string, string> = {
-  'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
-  'X-Frame-Options': 'SAMEORIGIN',
-  'X-Content-Type-Options': 'nosniff',
-  'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(self), payment=()',
-};
-function secure(res: Response): Response {
-  if (res.status >= 300 && res.status < 400) return res;
-  const out = new Response(res.body, res);
-  for (const [k, v] of Object.entries(SECURITY)) if (!out.headers.has(k)) out.headers.set(k, v);
-  return out;
-}
+const HTML_CACHE_SECONDS = 300;
 
 export default {
-  async fetch(request: Request, env: Env, ctx: Ctx): Promise<Response> {
-    return secure(await handle(request, env, ctx));
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(req.url);
+    const path = url.pathname;
+
+    if (path.length > 1 && path.endsWith('/')) return Response.redirect(`${url.origin}${path.replace(/\/+$/, '')}${url.search}`, 301);
+    if (req.method !== 'GET' && req.method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
+
+    for (const [re, to] of MOVED) {
+      const m = path.match(re);
+      if (m) return Response.redirect(`${url.origin}${to.replace('$1', m[1] ?? '')}`, 301);
+    }
+
+    // Static files (CSS, JS, images, robots.txt …).
+    if (/\.[a-z0-9]{2,5}$/i.test(path) && !path.startsWith('/api/') && path !== '/sitemap.xml' && !path.startsWith('/sitemap-')) {
+      const res = await env.ASSETS.fetch(req);
+      if (res.status !== 404) return res;
+      return notFound(path);
+    }
+
+    // Short-lived edge cache for pages and data: most visitors never touch the database.
+    const cacheable = path !== '/status';
+    const cache = (caches as unknown as { default: Cache }).default;
+    const key = new Request(url.toString(), { method: 'GET' });
+    if (cacheable) {
+      const hit = await cache.match(key);
+      if (hit) return hit;
+    }
+
+    const res = await route(path, url, env);
+    if (cacheable && res.status === 200) {
+      const copy = new Response(res.clone().body, res);
+      copy.headers.set('Cache-Control', `public, max-age=${HTML_CACHE_SECONDS}`);
+      ctx.waitUntil(cache.put(key, copy));
+    }
+    return res;
+  },
+
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) return;
+    ctx.waitUntil(
+      fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'madevisa-cron',
+        },
+        body: JSON.stringify({ event_type: 'daily-jobs' }),
+      }).then(async (r) => {
+        if (!r.ok) console.log('GitHub dispatch failed', r.status, await r.text());
+      })
+    );
   },
 };
 
-async function handle(request: Request, env: Env, ctx: Ctx): Promise<Response> {
-  {
-    ASSETS = env.ASSETS;
-    const url = new URL(request.url);
-    selfHosts.add(url.host);
-    const path = url.pathname;
+async function route(path: string, url: URL, env: Env): Promise<Response> {
+  if (path === '/') return home(env);
+  if (path === '/jobs') return board(env, url);
+  if (path === '/jobs/visa-sponsorship') return board(env, url, { visa: true });
 
-    // trailingSlash: false
-    if (path.length > 1 && path.endsWith('/')) {
-      url.pathname = path.replace(/\/+$/, '');
-      return Response.redirect(url.toString(), 308);
-    }
-    for (const [re, to] of REDIRECTS) {
-      const m = path.match(re);
-      if (m) return Response.redirect(new URL(to(m) + url.search, url).toString(), 308);
-    }
-
-    // middleware.ts
-    if (MW.some((re) => re.test(path))) {
-      const r = await middleware(request);
-      const rewriteTo = r.headers.get('x-middleware-rewrite');
-      if (rewriteTo) return api(new Request(rewriteTo, request), ctx);
-      if (!r.headers.get('x-middleware-next')) return r;
-    }
-    return route(request, ctx);
+  let m = path.match(/^\/jobs\/in\/([a-z-]+)$/);
+  if (m) {
+    const code = countryBySlug.get(m[1]);
+    return code ? board(env, url, { country: code }) : notFound(path);
   }
+  m = path.match(/^\/jobs\/([^/]+)\/([^/]+)$/) ?? path.match(/^\/jobs\/([^/]+)$/);
+  if (m) return jobPage(env, url, m[2] ?? m[1]);
+
+  if (path === '/destinations') return destinations(env);
+  m = path.match(/^\/destinations\/([a-z-]+)$/);
+  if (m) return (await destination(env, m[1])) ?? notFound(path);
+
+  if (path === '/job-market') return market(env);
+  if (path === '/status') return status(env);
+  if (path === '/cv-match') return cvMatch();
+  if (path === '/book') return book();
+
+  if (path === '/api/jobs.json') return blobResponse(env, 'jobs', 'application/json');
+  if (path === '/api/stats.json') return blobResponse(env, 'stats', 'application/json');
+  if (path === '/sitemap.xml') return sitemapIndex();
+  if (path === '/sitemap-pages.xml') return sitemapPages();
+  if (path === '/sitemap-jobs.xml') {
+    const b = await blobText(env, 'sitemap-jobs');
+    return xml(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${b?.body ?? ''}\n</urlset>`);
+  }
+
+  const slug = path.slice(1);
+  if (textPages[slug]) return textPage(slug)!;
+  return notFound(path);
+}
+
+async function blobResponse(env: Env, key: string, type: string): Promise<Response> {
+  const b = await blobText(env, key);
+  if (!b) return new Response(key === 'jobs' ? '{"v":1,"updated":"","jobs":[]}' : '{}', { headers: { 'Content-Type': type } });
+  return new Response(b.body, { headers: { 'Content-Type': `${type}; charset=utf-8`, 'Cache-Control': 'public, max-age=600' } });
+}
+
+const xml = (body: string) => new Response(body, { headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' } });
+
+function sitemapIndex(): Response {
+  return xml(`<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<sitemap><loc>${SITE}/sitemap-pages.xml</loc></sitemap>
+<sitemap><loc>${SITE}/sitemap-jobs.xml</loc></sitemap>
+</sitemapindex>`);
+}
+
+function sitemapPages(): Response {
+  const paths = ['/', '/jobs', '/jobs/visa-sponsorship', '/destinations', '/job-market', '/cv-match', '/book', ...Object.keys(textPages).map((s) => `/${s}`), ...visaGuides.map((g) => `/destinations/${g.slug}`)];
+  return xml(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${paths.map((p) => `<url><loc>${SITE}${p}</loc></url>`).join('\n')}
+</urlset>`);
 }

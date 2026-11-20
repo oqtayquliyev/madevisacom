@@ -1,26 +1,11 @@
 # MadeVisa
 
-> MadeVisa (madevisa.com) is a job search platform for people who want to work abroad. It lists live jobs taken directly from employers' own career pages (with the original posting date), shows which jobs state visa sponsorship, which companies reply to applicants (Company Scores built from real applicant outcomes), live job-market data, and visa routes for 20+ countries with official sources. Candidates can attach a Visa Plan — a one-page sponsorship proposal — to an application. MadeVisa is not a government body or immigration adviser and does not guarantee jobs or visas. Searching jobs is free.
+> MadeVisa (madevisa.com) is a free job search site for people who want to work in another country. Every day it collects jobs posted in the last 14 days from companies' own career pages and open job boards, marks the jobs whose ads state visa sponsorship, and publishes work-visa guides for 21 countries. It does not issue visas, act as an immigration adviser or guarantee a job or a visa.
 
 ## Main pages
-- [Jobs](https://madevisa.com/jobs): live jobs from company career pages; filter by country, visa sponsorship, remote/hybrid, salary, experience.
-- [Company Scores](https://madevisa.com/companies): reply rates and hiring activity per company.
-- [Job market insights](https://madevisa.com/job-market): who is hiring, where and how — updated hourly.
-- [Visas by country](https://madevisa.com/destinations): work, talent and job-search visa routes with official sources.
-- [Visa Plan](https://madevisa.com/offers): a sponsorship proposal candidates attach to a job application.
-- [CV match](https://madevisa.com/cv-match): how well a CV fits a job.
-- [Pricing](https://madevisa.com/pricing)
-- [Blog](https://madevisa.com/blog): weekly hiring reports and visa guides.
-
-## About
-- [What is MadeVisa](https://madevisa.com/about)
-- [How it works](https://madevisa.com/how-it-works)
-- [Editorial policy](https://madevisa.com/editorial-policy)
-- [Verification policy](https://madevisa.com/verification-policy)
-- [Disclaimer](https://madevisa.com/disclaimer)
-- [Contact](https://madevisa.com/contact)
-- [Privacy policy](https://madevisa.com/privacy)
-
-## For crawlers
-- [Sitemap](https://madevisa.com/sitemap.xml) lists every live job, company, article and country page.
-- Job pages: https://madevisa.com/jobs/<company>/<title>-<id>. Each links to the employer's original posting.
+- [Jobs abroad](https://madevisa.com/jobs): all live jobs, filter by country, visa sponsorship, remote, salary
+- [Jobs that state visa sponsorship](https://madevisa.com/jobs/visa-sponsorship)
+- [Work visas by country](https://madevisa.com/destinations): routes, requirements, time to permanent residence, official links
+- [Job market, live](https://madevisa.com/job-market): jobs by country and company, visa sponsorship share
+- [CV match](https://madevisa.com/cv-match): compares a CV with each job, in the browser only
+- [How MadeVisa works](https://madevisa.com/how-it-works)

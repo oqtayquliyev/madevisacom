@@ -1,0 +1,51 @@
+# The daily job cycle: reads every company feed in fetcher/companies.json, adds new jobs to the
+# Cloudflare D1 database, removes closed / old ones and rebuilds the lists the site serves.
+#
+# Runs every day at 02:23 UTC (06:23 in Baku), when the Cloudflare cron asks for it, and by hand:
+# GitHub → Actions → "Daily jobs" → "Run workflow".
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions → New repository secret):
+#   CLOUDFLARE_API_TOKEN   a Cloudflare API token with "D1: Edit" (SETUP.md, step 4)
+#   CLOUDFLARE_ACCOUNT_ID  1a752544339eab3bf8a3bb7a633df2df
+name: Daily jobs
+
+on:
+  schedule:
+    - cron: '23 2 * * *'
+  repository_dispatch:
+    types: [daily-jobs]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Run even if a run finished in the last 18 hours'
+        type: boolean
+        default: true
+
+concurrency:
+  group: daily-jobs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check the secrets are there
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Add the repository secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (see SETUP.md, step 4)."
+            exit 1
+          fi
+      - name: Fetch fresh jobs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx tsx fetcher/run.ts ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '--force' || '' }}

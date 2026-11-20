@@ -1,3 +1,6 @@
-# madevisacom
+# MadeVisa
 
-[![Open in Bolt](https://bolt.new/static/open-in-bolt.svg)](https://bolt.new/~/sb1-ik5tfek5)
+Jobs abroad with visa sponsorship, fresh every day — madevisa.com.
+
+Cloudflare Worker + D1 database + a daily job cycle on GitHub Actions, all on free plans.
+**Start with [SETUP.md](SETUP.md).**

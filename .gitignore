@@ -29,3 +29,5 @@ madevisacom-ui.zip
 supabase/.temp
 .wrangler
 .dev.vars
+public/js/
+fetcher/.out/

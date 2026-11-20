@@ -2,19 +2,33 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "madevisacom",
   "main": "worker/index.ts",
+  "account_id": "1a752544339eab3bf8a3bb7a633df2df",
   "compatibility_date": "2026-09-01",
-  "compatibility_flags": ["nodejs_compat"],
+  // Builds public/js (the small browser scripts) before every `wrangler deploy` / `wrangler dev`.
+  "build": { "command": "npm run build" },
   "assets": {
-    "directory": "./dist",
+    "directory": "./public",
     "binding": "ASSETS",
-    // the Worker decides routing (middleware, SEO rewrites) exactly like vercel.json did
-    "run_worker_first": true,
+    // Files in public/ are served straight away (free, no Worker request); everything else runs the Worker.
+    "run_worker_first": false,
     "html_handling": "none",
     "not_found_handling": "none"
   },
-  // share images: Cloudflare-compatible stand-in for @vercel/og (same API)
-  "alias": { "@vercel/og": "./worker/og.ts" },
-  "rules": [{ "type": "Data", "globs": ["**/*.ttf"], "fallthrough": true }],
+  // The database. Create it once (SETUP.md, step 2) and paste its "Database ID" here.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "madevisa",
+      "database_id": "PASTE-YOUR-D1-DATABASE-ID-HERE"
+    }
+  ],
+  // Daily backup trigger for the job cycle (05:41 UTC). Uses 1 of the 5 free cron triggers.
+  // It only does something when the GITHUB_TOKEN secret is set (SETUP.md, step 6).
+  "triggers": { "crons": ["41 5 * * *"] },
+  "vars": {
+    // Your GitHub repository, as owner/name.
+    "GITHUB_REPO": "oqtayquliyev/madevisacom"
+  },
   "keep_vars": true,
   "observability": { "enabled": true }
 }
