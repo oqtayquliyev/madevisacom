@@ -1,39 +1,33 @@
-import { ago, esc, fmt, icon, layout, progress, win } from '../html';
+import { ago, esc, fmt, icon, layout, numbers, win } from '../html';
 import { runs, stats, type Env } from '../db';
-import { countryName, countrySlug, lcd } from '../parts';
-
-/** Winamp equalizer: one slider per item, height = share of the biggest. */
-function equalizer(items: { label: string; value: number; title: string; href?: string }[]): string {
-  const max = Math.max(1, ...items.map((i) => i.value));
-  return `<div class="eq" role="list">${items
-    .map((i) => {
-      const pct = Math.round((i.value / max) * 100);
-      const inner = `<span class="eq-val">${fmt(i.value)}</span><span class="eq-track"><span class="eq-fill" style="height:${pct}%"></span><span class="eq-knob" style="bottom:calc(${pct}% - 5px)"></span></span><span class="eq-label">${esc(i.label)}</span>`;
-      return `<div class="eq-band" role="listitem" title="${esc(i.title)}">${i.href ? `<a href="${esc(i.href)}">${inner}</a>` : inner}</div>`;
-    })
-    .join('')}</div>`;
-}
+import { countryName, countrySlug } from '../parts';
 
 export async function market(env: Env): Promise<Response> {
   const [s, history] = await Promise.all([stats(env), runs(env, 14)]);
   const share = (n: number) => (s.total ? Math.round((n / s.total) * 100) : 0);
 
-  const monitor = `<section class="winamp" aria-labelledby="mm"><div class="wa-title"><h1 id="mm">JOB MARKET MONITOR</h1></div>
-<div class="wa-screen pad"><div class="lcd-row">${lcd(s.total, 'live jobs')}${lcd(s.visa, 'visa sponsorship stated')}${lcd(s.new24h, 'new in 24 h')}${lcd(s.remote, 'remote')}${lcd(s.companies, 'companies')}</div></div>
-<div class="wa-title sub"><h2>COUNTRIES — TOP 12</h2></div>
-${equalizer(s.byCountry.slice(0, 12).map(([c, n]) => ({ label: c, value: n, title: `${countryName.get(c) ?? c}: ${fmt(n)} jobs`, href: `/jobs/in/${countrySlug(c)}` })))}
-<div class="wa-title sub"><h2>JOBS BY DAY POSTED</h2></div>
-${equalizer(s.perDay.map(([d, n]) => ({ label: d.slice(8, 10), value: n, title: `${d}: ${fmt(n)} jobs` })))}
-<div class="wa-foot"><span class="wa-info">${s.updated ? `UPDATED ${esc(ago(s.updated).toUpperCase())}` : 'FIRST UPDATE PENDING'}</span><a class="wa-btn" href="/jobs">JOBS ▶</a></div></section>`;
+  const monitor = win(
+    'Job Market Today',
+    `${numbers([[s.total, 'live jobs'], [s.visa, 'visa sponsorship stated'], [s.new24h, 'new in 24 h'], [s.remote, 'remote'], [s.companies, 'companies']])}
+<p class="small">${s.updated ? `Updated ${esc(ago(s.updated))}.` : 'The first update has not run yet.'} Jobs posted in the last ${s.windowDays} days. <a href="/jobs">Browse the jobs »</a></p>`,
+    { heading: 'h1' }
+  );
 
   const shares = win(
     'What the ads say',
-    `<p>Visa sponsorship stated: <b>${share(s.visa)}%</b></p>${progress(share(s.visa), 'Visa sponsorship stated')}
-<p>Right to work required (no sponsorship): <b>${share(s.notVisa)}%</b></p>${progress(share(s.notVisa), 'No sponsorship')}
-<p>Remote: <b>${share(s.remote)}%</b></p>${progress(share(s.remote), 'Remote')}
-<p>Salary shown: <b>${share(s.salary)}%</b></p>${progress(share(s.salary), 'Salary shown')}
-<p class="small">Most ads say nothing about visas — “not stated” isn’t “no”.</p>`,
-    { icon: 'chart' }
+    `<table class="grid plain"><tbody>
+<tr><td>Visa sponsorship stated</td><td><b>${share(s.visa)}%</b></td><td>${fmt(s.visa)} jobs</td></tr>
+<tr><td>Right to work required (no sponsorship)</td><td><b>${share(s.notVisa)}%</b></td><td>${fmt(s.notVisa)} jobs</td></tr>
+<tr><td>Remote</td><td><b>${share(s.remote)}%</b></td><td>${fmt(s.remote)} jobs</td></tr>
+<tr><td>Salary shown in the ad</td><td><b>${share(s.salary)}%</b></td><td>${fmt(s.salary)} jobs</td></tr>
+</tbody></table><p class="small">Most ads say nothing about visas — “not stated” isn’t “no”.</p>`,
+    {}
+  );
+
+  const days = win(
+    'Jobs by day posted',
+    `<table class="grid plain"><thead><tr><th>Day</th><th>Jobs posted</th></tr></thead><tbody>${[...s.perDay].reverse().map(([d, n]) => `<tr><td>${esc(d)}</td><td>${fmt(n)}</td></tr>`).join('')}</tbody></table>`,
+    { cls: 'white' }
   );
 
   const table = (head: string[], rows: string[][]) =>
@@ -74,7 +68,7 @@ ${equalizer(s.perDay.map(([d, n]) => ({ label: d.slice(8, 10), value: n, title: 
     description: `${fmt(s.total)} live jobs from company career pages: which countries and companies hire most, how many state visa sponsorship (${share(s.visa)}%), remote share and salary transparency. Updated daily.`,
     path: '/job-market',
     active: '/job-market',
-    body: `<div class="market">${monitor}<div class="market-grid">${shares}${sponsors}${countries}${companies}${log}</div><p class="small center">${icon('info')} Counts describe the jobs on MadeVisa (posted in the last ${s.windowDays} days), not a whole country’s job market.</p></div>`,
+    body: `<div class="market">${monitor}<div class="market-grid">${shares}${sponsors}${countries}${companies}${days}${log}</div><p class="small center">${icon('info')} Counts describe the jobs on MadeVisa (posted in the last ${s.windowDays} days), not a whole country’s job market.</p></div>`,
   });
 }
 
@@ -85,7 +79,7 @@ export async function status(env: Env): Promise<Response> {
   const failed = (last?.failed_list ?? '').split('\n').filter(Boolean);
   const body = `<div class="center-wide">${win(
     'System status',
-    `<div class="lcd-row">${lcd(s.total, 'live jobs')}${lcd(last?.added ?? 0, 'added last run')}${lcd(last?.removed ?? 0, 'removed last run')}${lcd(last?.sources_ok ?? 0, 'feeds OK')}${lcd(last?.sources_failed ?? 0, 'feeds failed')}</div>
+    `${numbers([[s.total, 'live jobs'], [last?.added ?? 0, 'added last run'], [last?.removed ?? 0, 'removed last run'], [last?.sources_ok ?? 0, 'feeds OK'], [last?.sources_failed ?? 0, 'feeds failed']])}
 <p>${last ? `Last run started ${esc(ago(last.started_at))}${last.finished_at ? `, finished ${esc(ago(last.finished_at))}` : ' and has not finished'}.` : 'No run yet — start one on GitHub: Actions → Daily jobs → Run workflow.'}</p>
 ${last?.note ? `<p>${icon('info')} ${esc(last.note)}</p>` : ''}
 <fieldset><legend>Feeds that failed in the last run (${failed.length})</legend>${failed.length ? `<ul class="mono">${failed.map((f) => `<li>${esc(f)}</li>`).join('')}</ul><p class="small">Fix the id or remove the company in <code>fetcher/companies.json</code>.</p>` : '<p>None.</p>'}</fieldset>

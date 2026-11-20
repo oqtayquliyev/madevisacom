@@ -111,17 +111,17 @@ function render() {
   if (count) count.textContent = fmt(found.length);
 
   list.innerHTML = slice.length
-    ? `<ol class="playlist" start="${start + 1}">${slice
-        .map((r, i) => {
+    ? `<ol class="joblist" start="${start + 1}">${slice
+        .map((r) => {
           const href = jobPath({ id: r[0], title: r[1], company: r[2] });
-          return `<li><a href="${esc(href)}"><span class="pl-n">${start + i + 1}.</span><span class="pl-t"><b>${esc(r[1])}</b> <span class="pl-c">— ${esc(r[2])}</span><span class="pl-p">${esc(place(r))}</span></span><span class="pl-b">${badges(r)}</span><span class="pl-time">${ago(r[7])}</span></a></li>`;
+          return `<li><a class="jl-t" href="${esc(href)}">${esc(r[1])}</a>${badges(r)}<br><span class="jl-m"><b>${esc(r[2])}</b> · ${esc(place(r))} · ${ago(r[7])}</span></li>`;
         })
         .join('')}</ol>`
-    : `<p class="pl-empty">No jobs match. Try fewer words, another country, or untick a filter.</p>`;
+    : `<p class="empty">No jobs match. Try fewer words, another country, or untick a filter.</p>`;
 
-  const btn = (label: string, to: number, aria: string, off: boolean) =>
-    `<button type="button" class="wa-btn" data-page="${to}" aria-label="${aria}"${off ? ' disabled' : ''}>${label}</button>`;
-  pager.innerHTML = `${btn('|◀', 1, 'First page', page === 1)}${btn('◀◀', page - 1, 'Previous page', page === 1)}<span class="wa-info">${found.length ? `${fmt(start + 1)}–${fmt(start + slice.length)} OF ${fmt(found.length)}` : '0 JOBS'} · PAGE ${page}/${pages}</span>${btn('▶▶', page + 1, 'Next page', page === pages)}${btn('▶|', pages, 'Last page', page === pages)}`;
+  const btn = (label: string, to: number, off: boolean) =>
+    `<button type="button" class="btn" data-page="${to}"${off ? ' disabled' : ''}>${label}</button>`;
+  pager.innerHTML = `${btn('« Previous', page - 1, page === 1)}<span>${found.length ? `${fmt(start + 1)}–${fmt(start + slice.length)} of ${fmt(found.length)}` : 'No jobs'} · page ${page} of ${pages}</span>${btn('Next »', page + 1, page === pages)}`;
 
   // Keep the address in step, so a search can be shared or bookmarked.
   const q = new URLSearchParams();

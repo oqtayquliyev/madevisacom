@@ -33,19 +33,15 @@ export function badges(j: { visa: string | null; remote: number; arrangement?: s
   return b.join('');
 }
 
-/** Winamp playlist of jobs. Server-rendered; the board script re-renders it with filters. */
-export function playlist(rows: ListRow[], start = 0, now = Date.now()): string {
-  if (!rows.length) return '<p class="pl-empty">No jobs here yet. The list refreshes every day.</p>';
-  return `<ol class="playlist" start="${start + 1}">${rows
+/** Classic list of jobs: underlined blue title, then company · place · when. The board script renders the same markup. */
+export function jobList(rows: ListRow[], start = 0, now = Date.now()): string {
+  if (!rows.length) return '<p class="empty">No jobs here yet. The list refreshes every day.</p>';
+  return `<ol class="joblist" start="${start + 1}">${rows
     .map(
-      (j, i) => `<li><a href="${esc(jobPath(j))}"><span class="pl-n">${start + i + 1}.</span><span class="pl-t"><b>${esc(j.title)}</b> <span class="pl-c">— ${esc(j.company)}</span><span class="pl-p">${esc(placeOf(j))}</span></span><span class="pl-b">${badges(j)}</span><span class="pl-time">${esc(ago(j.posted_at, now))}</span></a></li>`
+      (j) => `<li><a class="jl-t" href="${esc(jobPath(j))}">${esc(j.title)}</a>${badges(j)}<br><span class="jl-m"><b>${esc(j.company)}</b> · ${esc(placeOf(j))} · ${esc(ago(j.posted_at, now))}</span></li>`
     )
     .join('')}</ol>`;
 }
-
-/** The LCD number display (Winamp time counter look). */
-export const lcd = (value: string | number, label: string) =>
-  `<div class="lcd-box"><div class="lcd-num">${typeof value === 'number' ? fmt(value) : esc(value)}</div><div class="lcd-label">${esc(label)}</div></div>`;
 
 export function countryOptions(byCountry: [string, number, number][], selected = ''): string {
   return [

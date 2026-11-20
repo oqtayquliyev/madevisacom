@@ -7,25 +7,26 @@ export const BOOK_URL = 'https://madevisa.gumroad.com/';
 export const BOOK_TITLE = 'How to Survive in the 2026–2027 Job Market';
 
 export function cvMatch(): Response {
-  const wizard = `<section class="window wizard" aria-labelledby="cv-h">
-<div class="title-bar"><h1 class="title-bar-text" id="cv-h">${icon('cv')}<span>CV Match Setup Wizard</span></h1><div class="title-bar-controls" aria-hidden="true"><span class="tb-btn">×</span></div></div>
-<div class="window-body wizard-body"><div class="wizard-art" aria-hidden="true">${icon('cv', 64)}</div>
-<div class="wizard-main" id="cv-app">
-  <h2 class="wiz-h">Welcome to CV Match</h2>
-  <p>Add your CV once. Every job page then shows how well it fits: skills, role, experience, languages and education — with the reasons.</p>
+  const wizard = win(
+    'CV Match — see how well your CV fits each job',
+    `<div class="cv-page"><div class="cv-art" aria-hidden="true">${icon('cv', 64)}</div>
+<div id="cv-app">
+  <h2 class="wiz-h">Add your CV once</h2>
+  <p>Every job page then shows how well it fits: skills, role, experience, languages and education — with the reasons.</p>
   <p><b>Your CV never leaves this computer.</b> It is read and saved in your browser only. MadeVisa never sees it.</p>
   <div class="field-row-stacked"><label for="cv-file">Your CV (PDF, Word .docx, .odt, .rtf or .txt — up to 5 MB)</label><input type="file" id="cv-file" accept=".pdf,.docx,.odt,.rtf,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"></div>
-  <p class="small">Or paste the text: <a href="#" id="cv-paste-link">paste CV text</a></p>
+  <p class="small">Or <a href="#" id="cv-paste-link">paste the text of your CV</a>.</p>
   <div id="cv-paste" hidden><label for="cv-text" class="sr-only">CV text</label><textarea id="cv-text" rows="8" placeholder="Paste your CV here…"></textarea><p><button type="button" class="btn" id="cv-paste-go">Use this text</button></p></div>
   <noscript><p>CV match needs JavaScript.</p></noscript>
-</div></div>
-<div class="wizard-foot"><a class="btn" href="/jobs">Browse jobs</a></div></section>`;
+</div></div>`,
+    { heading: 'h1' }
+  );
   return layout({
     title: 'CV match — see how well your CV fits each job | MadeVisa',
     description: 'Add your CV once and see your match on every job abroad: skills, experience, languages and education. Your CV stays in your browser. Free.',
     path: '/cv-match',
     active: '/cv-match',
-    body: `<div class="center-col">${wizard}</div>`,
+    body: wizard,
     scripts: ['/js/cv.js'],
   });
 }
@@ -39,7 +40,7 @@ export function book(): Response {
   const pages = [1, 2, 3, 4, 5].map((n) => `<img src="/book-preview/page-${n}.webp" alt="Preview page ${n}" loading="lazy" width="180">`).join('');
 
   const body = `<div class="book-wrap">${win(
-    `${BOOK_TITLE}.exe`,
+    BOOK_TITLE,
     `<div class="book-top"><img class="book-cover" src="/book-cover.webp" alt="Book cover: ${esc(BOOK_TITLE)}" width="240">
 <div><h1 class="job-h1">${esc(BOOK_TITLE)}</h1>
 <p class="stars" aria-label="Rated ${promo.rating} out of 5">${'★'.repeat(Math.round(promo.rating))}${'☆'.repeat(5 - Math.round(promo.rating))} <span class="small">${promo.rating} · ${promo.ratingCount} reviews</span></p>
@@ -76,10 +77,10 @@ export function textPage(slug: string): Response | null {
     .map((x) => `<li><a href="/${x.slug}">${icon(x.icon)} ${esc(x.title)}</a></li>`)
     .join('');
   const body = `<div class="guide-wrap"><div class="guide-main">${win(
-    `${esc(p.title)} — Notepad`,
+    esc(p.title),
     `<div class="notepad doc"><h1 class="job-h1">${esc(p.title)}</h1><p class="lead">${esc(p.intro)}</p>${sections}</div>`,
-    { icon: p.icon, toolbar: '<span class="menu-item">File</span><span class="menu-item">Edit</span><span class="menu-item">Search</span><span class="menu-item">Help</span>' }
-  )}</div><aside class="guide-side">${win('More', `<ul class="tree">${others}</ul>`, { icon: 'folder', inactive: true })}</aside></div>`;
+    { cls: 'white' }
+  )}</div><aside class="guide-side">${win('More', `<ul class="tree">${others}</ul>`, {})}</aside></div>`;
   return layout({ title: `${p.title} | MadeVisa`, description: p.description, path: `/${p.slug}`, body });
 }
 

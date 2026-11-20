@@ -129,15 +129,14 @@ function matchHtml(m: MatchResult): string {
   const cls = m.score >= 65 ? 'good' : m.score >= 45 ? 'mid' : 'low';
   const parts = m.parts
     .filter((p) => p.score !== null)
-    .map((p) => `<li><span class="part-name">${esc(p.name)}</span><span class="part-bar"><span style="width:${p.score}%"></span></span><span class="part-val">${p.score}</span></li>`)
+    .map((p) => `<tr><td>${esc(p.name)}</td><td><b>${p.score}</b> / 100</td></tr>`)
     .join('');
   const matched = m.skills.matched.slice(0, 12).map((s) => `<span class="chip ok">✓ ${esc(s)}</span>`).join('');
   const missing = m.skills.missing.slice(0, 10).map((s) => `<span class="chip no">✗ ${esc(s.name)}${s.required ? '' : ' (nice)'}</span>`).join('');
   const fixes = m.fixes.slice(0, 4).map((f) => `<li>${esc(f)}</li>`).join('');
-  return `<div class="match ${cls}"><div class="match-score"><span class="lcd-num">${m.score}%</span><b>${esc(m.label)}</b></div>
-<div class="progress" role="progressbar" aria-valuenow="${m.score}" aria-valuemin="0" aria-valuemax="100" aria-label="Match"><div class="progress-fill" style="width:${m.score}%"></div></div>
+  return `<div class="match ${cls}"><p class="match-score">Your match: <b>${m.score}%</b> — ${esc(m.label)}</p>
 ${m.capReason ? `<p class="small">${esc(m.capReason)}</p>` : ''}
-<ul class="parts">${parts}</ul>
+<table class="grid plain parts"><tbody>${parts}</tbody></table>
 ${matched ? `<p class="req-h">Skills you have:</p><div class="chips">${matched}</div>` : ''}
 ${missing ? `<p class="req-h">Asked for, not in your CV:</p><div class="chips">${missing}</div>` : ''}
 ${fixes ? `<details><summary>How to improve your CV for this job</summary><ul>${fixes}</ul></details>` : ''}
@@ -149,7 +148,7 @@ function pickerHtml(id: string, label: string): string {
 }
 
 async function addFromFile(file: File, status: HTMLElement): Promise<Stored | null> {
-  status.innerHTML = '<p>Reading your CV…</p><div class="progress busy"><div class="progress-fill"></div></div>';
+  status.innerHTML = '<p><b>Reading your CV…</b> please wait.</p>';
   try {
     const text = tidy(await fileText(file));
     if (text.length < 200) throw new Error('Not much text could be read from this file. If it’s a scanned PDF, use the paste option instead.');

@@ -1,7 +1,7 @@
 import { ago, button, dialog, esc, icon, layout, SITE, win } from '../html';
 import { job, sameCompany, type Env, type JobRow } from '../db';
 import { jobPath, JOB_ID_RE } from '../../shared/jobs';
-import { countryName, guideByCode, placeOf, playlist, visaWord } from '../parts';
+import { countryName, guideByCode, placeOf, jobList, visaWord } from '../parts';
 
 /** /jobs/<company>/<title>-<id> and the old one-part form /jobs/<slug>-<id>. */
 export async function jobPage(env: Env, url: URL, lastSegment: string): Promise<Response> {
@@ -36,7 +36,7 @@ export async function jobPage(env: Env, url: URL, lastSegment: string): Promise<
     `${esc(j.title)} — ${esc(j.company)}`,
     `<h1 class="job-h1">${esc(j.title)}</h1><p class="job-sub"><b>${esc(j.company)}</b> · ${esc(place)} · posted ${esc(ago(j.posted_at))}</p>${description}
 <p class="small">Source: the company’s own job page (${esc(host)}). MadeVisa doesn’t edit ads — check the details there before applying.</p>`,
-    { icon: 'doc', cls: 'w-job', toolbar, status: [`Posted ${esc(j.posted_at.slice(0, 10))}`, j.salary ? 'Salary stated' : 'Salary not stated', j.visa === 'offered' ? 'Visa: offered' : 'Visa: see ad'] }
+    { icon: 'doc', cls: 'white w-job', toolbar, status: [`Posted ${esc(j.posted_at.slice(0, 10))}`, j.salary ? 'Salary stated' : 'Salary not stated', j.visa === 'offered' ? 'Visa: offered' : 'Visa: see ad'] }
   );
 
   const props = win(
@@ -67,7 +67,7 @@ ${fact('Posted', esc(ago(j.posted_at)))}
 
   const others = await sameCompany(env, j.company, j.id, 6);
   const similar = others.length
-    ? `<section class="winamp mini" aria-labelledby="more-co"><div class="wa-title"><h2 id="more-co">MORE AT ${esc(j.company.toUpperCase())}</h2></div><div class="wa-screen">${playlist(others)}</div></section>`
+    ? win(`More jobs at ${esc(j.company)}`, jobList(others), { cls: 'white' })
     : '';
 
   const ld = jobPostingLd(j, canonical);

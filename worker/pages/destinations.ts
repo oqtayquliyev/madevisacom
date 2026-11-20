@@ -21,9 +21,9 @@ export async function destinations(env: Env): Promise<Response> {
     .join('');
 
   const body = `<div class="center-wide">${win(
-    'C:\\MadeVisa\\Work visas',
-    `<h1 class="sr-only">Work visas by country</h1><p class="lead">The main work and residence routes for ${visaGuides.length} countries: what each asks for, how long until permanent residence, and the official links. Open a folder.</p>${folders}`,
-    { icon: 'folder', toolbar: `<span class="addr">Address</span><span class="addr-box">C:\\MadeVisa\\Work visas</span>`, status: [`${visaGuides.length} object(s)`, 'Checked against official sources'] }
+    'Work Visas by Country',
+    `<p class="lead">The main work and residence routes for ${visaGuides.length} countries: what each asks for, how long until permanent residence, and the official links. Open a country.</p>${folders}`,
+    { heading: 'h1', status: [`${visaGuides.length} countries`, 'Checked against official sources'] }
   )}</div>`;
 
   return layout({
@@ -77,7 +77,7 @@ ${r.employer ? `<details><summary>What the employer has to do</summary><ol>${r.e
   );
 
   const body = `<div class="guide-wrap"><div class="guide-main">${win(
-    `${esc(g.name)} — Work visa guide`,
+    `${esc(g.name)} — work visa guide`,
     `<h1 class="job-h1">Working in ${esc(g.name)}: visas and routes</h1><p class="lead">${esc(g.blurb)}</p>
 <fieldset><legend>At a glance</legend>${overview}</fieldset>
 <fieldset><legend>When do you need a visa?</legend><p>${esc(g.shortStay)}</p></fieldset>
@@ -85,7 +85,7 @@ ${r.employer ? `<details><summary>What the employer has to do</summary><ol>${r.e
 <h2 class="sec-h">${icon('doc')} How to apply</h2>${steps}
 <h2 class="sec-h">${icon('folder')} Documents you’ll usually need</h2>${docs}
 <h2 class="sec-h">${icon('globe')} Official sources</h2>${links}`,
-    { icon: 'globe', toolbar: `<a class="btn" href="/destinations">◀ All countries</a>`, status: [`Last checked ${esc(g.reviewed)}`, 'Not legal advice — confirm on the official site'] }
+    { cls: 'white', toolbar: `<a href="/destinations">« All countries</a>`, status: [`Last checked ${esc(g.reviewed)}`, 'Not legal advice — confirm on the official site'] }
   )}</div><aside class="guide-side">${jobsBox}${dialog('Rules change', 'warn', '<p>This guide is general information, checked against official sources on the date shown. Always confirm on the official site or with a licensed adviser before you apply.</p>')}</aside></div>`;
 
   return layout({

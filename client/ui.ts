@@ -9,6 +9,12 @@ setInterval(tick, 20_000);
 
 document.addEventListener('click', (e) => {
   const t = e.target as HTMLElement;
+  const back = t.closest<HTMLElement>('[data-back]');
+  if (back) {
+    e.preventDefault();
+    if (history.length > 1) history.back();
+    else location.href = '/';
+  }
   const copy = t.closest<HTMLElement>('[data-copy]');
   if (copy) {
     const text = copy.dataset.copy ?? location.href;

@@ -51,36 +51,36 @@ export function icon(name: IconName, size = 16, label = ''): string {
 export type { IconName };
 
 // ---------------------------------------------------------------------------
-// Windows and dialogs
+// Portal boxes (blue title strip + light-yellow body, like an old 1999 home page portal)
 // ---------------------------------------------------------------------------
 
 type WinOpts = { icon?: IconName; cls?: string; id?: string; status?: string[]; toolbar?: string; inactive?: boolean; heading?: 'h1' | 'h2' | 'div' };
 
-/** A 98-style window. The title is the window's heading (h2 by default). */
+/** A portal section: coloured title strip, then the content. `inactive` = grey strip, cls "green" = green strip, cls "white" = white body. */
 export function win(title: string, body: string, o: WinOpts = {}): string {
   const H = o.heading ?? 'h2';
-  const status = o.status?.length ? `<div class="status-bar">${o.status.map((s) => `<p class="status-bar-field">${s}</p>`).join('')}</div>` : '';
-  return `<section class="window ${o.cls ?? ''}"${o.id ? ` id="${o.id}"` : ''}>
-<div class="title-bar${o.inactive ? ' inactive' : ''}"><${H} class="title-bar-text">${o.icon ? icon(o.icon) : ''}<span>${title}</span></${H}><div class="title-bar-controls" aria-hidden="true"><span class="tb-btn">_</span><span class="tb-btn">□</span><span class="tb-btn">×</span></div></div>
-${o.toolbar ? `<div class="toolbar">${o.toolbar}</div>` : ''}<div class="window-body">${body}</div>${status}</section>`;
+  const tone = o.inactive ? ' grey' : '';
+  const status = o.status?.length ? `<p class="box-foot">${o.status.join(' &nbsp;|&nbsp; ')}</p>` : '';
+  return `<section class="box${tone} ${o.cls ?? ''}"${o.id ? ` id="${o.id}"` : ''}><${H} class="box-h"><span>${title}</span></${H}>
+${o.toolbar ? `<div class="box-bar">${o.toolbar}</div>` : ''}<div class="box-b">${body}</div>${status}</section>`;
 }
 
-/** A message box: icon on the left, text, buttons. */
+/** A small note box with an icon on the left. */
 export function dialog(title: string, ico: IconName, text: string, buttons = '', cls = ''): string {
-  return `<section class="window dialog ${cls}" role="note"><div class="title-bar"><div class="title-bar-text"><span>${title}</span></div><div class="title-bar-controls" aria-hidden="true"><span class="tb-btn">×</span></div></div>
-<div class="window-body"><div class="msg">${icon(ico, 32)}<div>${text}</div></div>${buttons ? `<div class="dialog-buttons">${buttons}</div>` : ''}</div></section>`;
+  return `<section class="box note ${cls}"><h2 class="box-h"><span>${title}</span></h2><div class="box-b"><div class="msg">${icon(ico, 32)}<div>${text}</div></div>${buttons ? `<div class="dialog-buttons">${buttons}</div>` : ''}</div></section>`;
 }
 
 export const button = (label: string, href: string, cls = '') => `<a class="btn ${cls}" href="${esc(href)}">${label}</a>`;
 
-/** Segmented progress bar (0–100). */
-export function progress(pct: number, label: string): string {
-  const p = Math.max(0, Math.min(100, Math.round(pct)));
-  return `<div class="progress" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(label)}"><div class="progress-fill" style="width:${p}%"></div></div>`;
+/** A row of big numbers (no charts). */
+export function numbers(items: [value: number | string, label: string][]): string {
+  return `<table class="numbers"><tr>${items
+    .map(([v, l]) => `<td><b>${typeof v === 'number' ? fmt(v) : esc(v)}</b><span>${esc(l)}</span></td>`)
+    .join('')}</tr></table>`;
 }
 
 // ---------------------------------------------------------------------------
-// Page shell
+// Page shell: Windows 98 desktop + taskbar, with each page in an old browser window
 // ---------------------------------------------------------------------------
 
 export const NAV: { href: string; label: string; icon: IconName; short: string }[] = [
@@ -112,18 +112,41 @@ export type Page = {
   scripts?: string[];
   image?: string;
   status?: number;
+  /** Desktop icons to the left of the browser window (home page). */
+  desktop?: string;
 };
+
+const TB = (label: string, href: string, ico: IconName, extra = '') =>
+  `<a class="tb" href="${href}"${extra}>${icon(ico)}<span>${label}</span></a>`;
 
 export function layout(p: Page): Response {
   const canonical = `${SITE}${p.path}`;
   const img = p.image ?? `${SITE}/og-logo.png`;
   const ld = (p.jsonLd ?? []).map((d) => `<script type="application/ld+json">${JSON.stringify(d).replace(/</g, '\\u003c')}</script>`).join('');
   const tasks = NAV.map(
-    (n) => `<a class="task${p.active === n.href ? ' active' : ''}" href="${n.href}"${p.active === n.href ? ' aria-current="page"' : ''}>${icon(n.icon)}<span>${n.short}</span></a>`
+    (n) => `<a class="task${p.active === n.href ? ' active' : ''}" href="${n.href}" title="${esc(n.label)}"${p.active === n.href ? ' aria-current="page"' : ''}>${icon(n.icon)}<span class="sr-only">${n.short}</span></a>`
   ).join('');
   const menu = [...NAV, ...MORE]
     .map((n, i) => `${i === NAV.length ? '<li class="sep" role="separator"></li>' : ''}<li><a href="${n.href}">${icon(n.icon, 24)}<span>${esc(n.label)}</span></a></li>`)
     .join('');
+  const short = p.title.split(' | ')[0].split(' — ')[0];
+  const topNav = NAV.map((n) => `<a href="${n.href}"${p.active === n.href ? ' class="on"' : ''}>${esc(n.short)}</a>`).join(' | ');
+
+  const browser = `<div class="ie">
+<div class="ie-title"><span class="ie-title-text">${icon('globe')}<span>${esc(short)} - MadeVisa Explorer</span></span><span class="title-bar-controls" aria-hidden="true"><span class="tb-btn">_</span><span class="tb-btn">□</span><span class="tb-btn">×</span></span></div>
+<div class="ie-menu" aria-hidden="true"><span>File</span><span>Edit</span><span>View</span><span>Favorites</span><span>Tools</span><span>Help</span></div>
+<nav class="ie-tools" aria-label="Browser">${TB('Back', '#', 'help', ' data-back')}${TB('Home', '/', 'computer')}${TB('Search', '/jobs', 'search')}${TB('Favorites', '/jobs/visa-sponsorship', 'visa')}${TB('History', '/job-market', 'chart')}</nav>
+<div class="ie-addr"><span>Address</span><span class="ie-url">${icon('globe')}<span>${esc(canonical)}</span></span><a class="ie-go" href="${esc(p.path)}">Go</a></div>
+<div class="ie-page">
+<header class="mast"><a class="logo" href="/" aria-label="MadeVisa home">Made<span>Visa</span><i>!</i></a><span class="mast-sub">jobs abroad · visa sponsorship</span><span class="mast-links"><a href="/how-it-works">Help</a> - <a href="/contact">Contact</a></span></header>
+<nav class="topnav" aria-label="Sections">${topNav}</nav>
+<main id="main">${p.body}</main>
+<footer class="page-foot"><p>MadeVisa lists jobs from employers’ own career pages. MadeVisa does not issue visas, act as an immigration adviser or guarantee a job or a visa.</p>
+<p>${MORE.map((m) => `<a href="${m.href}">${esc(m.label.replace(' MadeVisa', '').replace('MadeVisa ', ''))}</a>`).join(' - ')} - <a href="/cookies">Cookies</a> - <a href="/disclaimer">Disclaimer</a></p><p class="copy">Copyright © 2026 MadeVisa. All rights reserved.</p></footer>
+</div>
+<div class="ie-status"><span>${icon('doc')} Done</span><span>${icon('globe')} Internet</span></div>
+</div>`;
+
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -144,14 +167,11 @@ ${ld}
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<div class="desktop"><main id="main">${p.body}</main>
-<footer class="foot-note"><p>MadeVisa lists jobs from employers’ own career pages. MadeVisa does not issue visas, act as an immigration adviser or guarantee a job or a visa.</p>
-<p>${MORE.map((m) => `<a href="${m.href}">${esc(m.label.replace(' MadeVisa', '').replace('MadeVisa ', ''))}</a>`).join(' · ')} · <a href="/cookies">Cookies</a> · <a href="/disclaimer">Disclaimer</a></p></footer>
-</div>
+<div class="desktop${p.desktop ? ' with-icons' : ''}">${p.desktop ?? ''}${browser}</div>
 <nav class="taskbar" aria-label="Main">
 <details class="start"><summary class="start-btn">${icon('computer')}<span>Start</span></summary>
 <div class="start-menu"><div class="start-side" aria-hidden="true">Made<b>Visa</b> 98</div><ul>${menu}</ul></div></details>
-<a class="task task-home${p.active === '/' ? ' active' : ''}" href="/" aria-label="MadeVisa home"><b>MadeVisa</b></a>
+<a class="task task-ie active" href="${esc(p.path)}">${icon('globe')}<span>${esc(short)}</span></a>
 <div class="tasks">${tasks}</div>
 <div class="tray"><span class="tray-ico" title="Jobs refresh every day">${icon('ok')}</span><time class="clock" aria-hidden="true"></time></div>
 </nav>

@@ -129,9 +129,10 @@ job alert emails, outreach / email finder, social media and Telegram posting, tr
 panel, OG image generator. Old addresses redirect to the closest page; old job links show
 "This job has closed".
 
-**New look:** Windows 98 desktop with a Winamp-style jobs player — taskbar + Start menu
-navigation, equalizer charts on the market page, Notepad-style policy pages, an Explorer view for
-visa guides, and a setup-wizard for CV match.
+**New look:** a Windows 98 desktop (taskbar, Start menu, desktop icons) with every page inside an
+old-style browser window (menu, toolbar, address bar, status bar). The page itself is a classic
+1999 web portal: blue title strips, light-yellow boxes, a green "New and Notable" column, underlined
+blue links. No charts — numbers and tables only.
 
 ## Files
 
