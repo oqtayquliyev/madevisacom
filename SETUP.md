@@ -48,8 +48,7 @@ everything in the folder **except the hidden `.git` folder** → copy in all fil
 2. Name: `madevisa-jobs`. Permissions: **Account · D1 · Edit**. Account Resources: *Include → your account*.
    → **Continue to summary → Create Token** → copy the token (shown once).
 3. GitHub → your repository → **Settings → Secrets and variables → Actions → New repository secret**:
-   - Name `CLOUDFLARE_API_TOKEN`, value: the token.
-   - Name `CLOUDFLARE_ACCOUNT_ID`, value: `1a752544339eab3bf8a3bb7a633df2df`
+   Name `CLOUDFLARE_API_TOKEN`, value: the token. (The account id is already in `wrangler.jsonc`.)
 
 ## Step 5 — Deploy the website
 
