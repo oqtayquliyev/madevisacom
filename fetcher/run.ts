@@ -7,8 +7,9 @@
 //   5. Rebuilds the ready-made lists the website serves (all jobs, statistics, sitemap).
 //
 // Runs every day on GitHub Actions (.github/workflows/daily-jobs.yml) — free, and without the
-// 10 ms CPU limit Cloudflare's free plan puts on Workers. Start it by hand there with
-// "Run workflow", or on your computer with `npm run jobs:run`.
+// 10 ms CPU limit Cloudflare's free plan puts on Workers. It writes through the website's
+// /api/sync door using GitHub's own sign-in token, so no API key is needed anywhere.
+// Start it by hand on GitHub: Actions → Daily jobs → Run workflow.
 //
 // Options: --local (the database copy used by `npm run dev`), --force (run even if a run
 // finished in the last 18 hours), --fixtures=<folder> (test answers instead of the internet),
@@ -18,7 +19,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { D1, lit } from './d1.ts';
+import { LocalD1, SyncD1, lit, type Database } from './d1.ts';
 import { fetchSource, smartrecruitersDetail, sourcesFrom, useFixtures, type Source, type SourceJob } from './sources.ts';
 import { analyse, companyCountryOf, isJunk, normalizeUrl } from './analyse.ts';
 import { DAY_MS, jobPath, type BoardRow, type Stats } from '../shared/jobs.ts';
@@ -69,7 +70,8 @@ async function main() {
   const maxNew = config.settings?.maxNewPerRun ?? 5000;
   const maxJobs = config.settings?.maxJobs ?? 15000;
   const arbeitnowPages = config.settings?.arbeitnowPages ?? 25;
-  const db = new D1(local, join(here, '.out'));
+  const syncUrl = process.env.SYNC_URL ?? 'https://madevisa.com/api/sync';
+  const db: Database = local ? new LocalD1(join(here, '.out')) : new SyncD1(syncUrl, process.env.SYNC_KEY);
 
   const fixtures = opt('fixtures');
   if (fixtures) {
@@ -79,7 +81,7 @@ async function main() {
 
   // Two triggers (GitHub's schedule + the Cloudflare cron) may both start a run; one a day is enough.
   if (!flag('force')) {
-    const last = db.query<{ finished_at: string }>("SELECT finished_at FROM runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1")[0];
+    const last = (await db.query<{ finished_at: string }>("SELECT finished_at FROM runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1"))[0];
     if (last && Date.now() - Date.parse(last.finished_at) < 18 * 3600_000) {
       log(`A run finished at ${last.finished_at} — less than 18 hours ago. Nothing to do (use --force to run anyway).`);
       return;
@@ -109,7 +111,7 @@ async function main() {
   });
 
   // 2. What's in the database now.
-  const existing = db.query<Existing>(
+  const existing = await db.queryAll<Existing>(
     "SELECT id, source, posted_at, url, lower(company) || '|' || lower(title) AS dup FROM jobs"
   );
   const existingIds = new Set(existing.map((e) => e.id));
@@ -195,15 +197,15 @@ async function main() {
   const deletes = [...toDelete];
   const delStatements: string[] = [];
   for (let i = 0; i < deletes.length; i += 200) delStatements.push(`DELETE FROM jobs WHERE id IN (${deletes.slice(i, i + 200).map(lit).join(',')});`);
-  db.execMany(delStatements, 'delete');
-  db.execMany(inserts, 'insert');
+  await db.execMany(delStatements, 'delete');
+  await db.execMany(inserts, 'insert');
   log(`wrote ${inserts.length} new, ${deletes.length} removed`);
 
   // 6. Ready-made lists for the website.
   type Live = { id: string; title: string; company: string; country: string | null; city: string | null; remote: number; visa: string | null; posted_at: string; arrangement: string | null; has_salary: number };
-  const live = db.query<Live>(
-    'SELECT id, title, company, country, city, remote, visa, posted_at, arrangement, salary IS NOT NULL AS has_salary FROM jobs ORDER BY posted_at DESC'
-  );
+  const live = (await db.queryAll<Live>(
+    'SELECT id, title, company, country, city, remote, visa, posted_at, arrangement, salary IS NOT NULL AS has_salary FROM jobs'
+  )).sort((a, b) => b.posted_at.localeCompare(a.posted_at));
   const rows: BoardRow[] = live.map((j) => [
     j.id, j.title, j.company, j.country ?? '', j.city ?? '', j.remote ? 1 : 0,
     j.visa === 'offered' ? 1 : j.visa === 'not_offered' ? 2 : 0,
@@ -217,11 +219,16 @@ async function main() {
     .join('\n');
 
   const blobStatements: string[] = [];
+  // Parts are written under "<key>.next" first and swapped in at the end, so the site never
+  // serves a half-written list while the parts are on their way.
+  const swaps: string[] = [];
   const putBlob = (key: string, body: string) => {
-    blobStatements.push(`DELETE FROM blobs WHERE key = ${lit(key)};`);
+    const next = `${key}.next`;
+    blobStatements.push(`DELETE FROM blobs WHERE key = ${lit(next)};`);
     chunks(body, BLOB_PART).forEach((part, i) =>
-      blobStatements.push(`INSERT INTO blobs (key, part, body, updated_at) VALUES (${lit(key)}, ${i}, ${lit(part)}, ${lit(updated)});`)
+      blobStatements.push(`INSERT INTO blobs (key, part, body, updated_at) VALUES (${lit(next)}, ${i}, ${lit(part)}, ${lit(updated)});`)
     );
+    swaps.push(`DELETE FROM blobs WHERE key = ${lit(key)};`, `UPDATE blobs SET key = ${lit(key)} WHERE key = ${lit(next)};`);
   };
   putBlob('jobs', JSON.stringify({ v: 1, updated, jobs: rows }));
   putBlob('stats', JSON.stringify(stats));
@@ -234,7 +241,8 @@ async function main() {
     // Keep 90 days of run history.
     `DELETE FROM runs WHERE started_at < ${lit(new Date(now - 90 * DAY_MS).toISOString())};`
   );
-  db.execMany(blobStatements, 'blobs');
+  await db.execMany(blobStatements, 'blobs');
+  await db.execMany(swaps, 'swap');
 
   log(`done: ${rows.length} live jobs (${stats.visa} with visa sponsorship), ${failed.length} feeds failed`);
   if (failed.length) log(`failed feeds:\n  ${failed.join('\n  ')}`);

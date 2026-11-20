@@ -1,8 +1,7 @@
 // MadeVisa website — one Cloudflare Worker + one D1 database, inside the free plan.
 //
 //   fetch()      serves every page (HTML is built here; CSS/JS/images come from public/)
-//   scheduled()  once a day: asks GitHub to start the job cycle (only if GITHUB_TOKEN is set —
-//                GitHub's own daily schedule does it anyway; this is a backup)
+//   /api/sync    where the daily job cycle on GitHub writes new jobs (worker/sync.ts)
 
 import { blobText, type Env } from './db';
 import { home } from './pages/home';
@@ -14,6 +13,7 @@ import { book, cvMatch, notFound, textPage } from './pages/misc';
 import { countryBySlug } from './parts';
 import { textPages } from '../content/pages';
 import { visaGuides } from '../content/visa/index';
+import { sync } from './sync';
 import { SITE } from './html';
 
 // Pages of the old site that no longer exist → the closest page now.
@@ -35,6 +35,7 @@ export default {
     const path = url.pathname;
 
     if (path.length > 1 && path.endsWith('/')) return Response.redirect(`${url.origin}${path.replace(/\/+$/, '')}${url.search}`, 301);
+    if (path === '/api/sync') return sync(req, env);
     if (req.method !== 'GET' && req.method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
 
     for (const [re, to] of MOVED) {
@@ -67,22 +68,6 @@ export default {
     return res;
   },
 
-  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) return;
-    ctx.waitUntil(
-      fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${env.GITHUB_TOKEN}`,
-          Accept: 'application/vnd.github+json',
-          'User-Agent': 'madevisa-cron',
-        },
-        body: JSON.stringify({ event_type: 'daily-jobs' }),
-      }).then(async (r) => {
-        if (!r.ok) console.log('GitHub dispatch failed', r.status, await r.text());
-      })
-    );
-  },
 };
 
 async function route(path: string, url: URL, env: Env): Promise<Response> {

@@ -1,4 +1,4 @@
-// HTML building blocks for every page: the retro desktop layout, windows, dialogs and icons.
+// HTML building blocks for every page: layout, boxes, buttons and icons in the old-web style kit.
 // Styles: public/retro.css. Small browser scripts: client/*.ts (built into public/js/).
 
 export const SITE = 'https://madevisa.com';
@@ -80,24 +80,26 @@ export function numbers(items: [value: number | string, label: string][]): strin
 }
 
 // ---------------------------------------------------------------------------
-// Page shell: Windows 98 desktop + taskbar, with each page in an old browser window
+// Page shell: header (logo + navigation), full-width content, footer
 // ---------------------------------------------------------------------------
 
 export const NAV: { href: string; label: string; icon: IconName; short: string }[] = [
   { href: '/jobs', label: 'Browse jobs abroad', icon: 'jobs', short: 'Jobs' },
   { href: '/jobs/visa-sponsorship', label: 'Jobs that state visa sponsorship', icon: 'visa', short: 'Visa jobs' },
-  { href: '/destinations', label: 'Work visas by country', icon: 'globe', short: 'Visas' },
+  { href: '/destinations', label: 'Work visas by country', icon: 'globe', short: 'Work visas' },
   { href: '/cv-match', label: 'CV match', icon: 'cv', short: 'CV match' },
-  { href: '/job-market', label: 'The job market, live', icon: 'chart', short: 'Market' },
+  { href: '/job-market', label: 'The job market, live', icon: 'chart', short: 'Job market' },
   { href: '/book', label: 'Book: How to Survive in the 2026–2027 Job Market', icon: 'book', short: 'Book' },
 ];
-const MORE: { href: string; label: string; icon: IconName }[] = [
-  { href: '/about', label: 'About MadeVisa', icon: 'info' },
-  { href: '/how-it-works', label: 'How MadeVisa works', icon: 'help' },
-  { href: '/editorial-policy', label: 'Editorial policy', icon: 'doc' },
-  { href: '/contact', label: 'Contact', icon: 'mail' },
-  { href: '/privacy', label: 'Privacy', icon: 'shield' },
-  { href: '/terms', label: 'Terms', icon: 'doc' },
+const MORE: { href: string; label: string }[] = [
+  { href: '/about', label: 'About' },
+  { href: '/how-it-works', label: 'How it works' },
+  { href: '/editorial-policy', label: 'Editorial policy' },
+  { href: '/contact', label: 'Contact' },
+  { href: '/privacy', label: 'Privacy' },
+  { href: '/terms', label: 'Terms' },
+  { href: '/cookies', label: 'Cookies' },
+  { href: '/disclaimer', label: 'Disclaimer' },
 ];
 
 export type Page = {
@@ -105,47 +107,24 @@ export type Page = {
   description: string;
   path: string;
   body: string;
-  /** Which taskbar button is pressed. */
+  /** Which navigation item is current. */
   active?: string;
   noindex?: boolean;
   jsonLd?: unknown[];
   scripts?: string[];
   image?: string;
   status?: number;
-  /** Desktop icons to the left of the browser window (home page). */
-  desktop?: string;
 };
 
-const TB = (label: string, href: string, ico: IconName, extra = '') =>
-  `<a class="tb" href="${href}"${extra}>${icon(ico)}<span>${label}</span></a>`;
+const LOGO = 'https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789479857/madevisa-logo-header_fqdylj.svg';
 
 export function layout(p: Page): Response {
   const canonical = `${SITE}${p.path}`;
   const img = p.image ?? `${SITE}/og-logo.png`;
   const ld = (p.jsonLd ?? []).map((d) => `<script type="application/ld+json">${JSON.stringify(d).replace(/</g, '\\u003c')}</script>`).join('');
-  const tasks = NAV.map(
-    (n) => `<a class="task${p.active === n.href ? ' active' : ''}" href="${n.href}" title="${esc(n.label)}"${p.active === n.href ? ' aria-current="page"' : ''}>${icon(n.icon)}<span class="sr-only">${n.short}</span></a>`
+  const nav = NAV.map(
+    (n) => `<a class="nav-btn${p.active === n.href ? ' on' : ''}" href="${n.href}"${p.active === n.href ? ' aria-current="page"' : ''}>${icon(n.icon)}<span>${n.short}</span></a>`
   ).join('');
-  const menu = [...NAV, ...MORE]
-    .map((n, i) => `${i === NAV.length ? '<li class="sep" role="separator"></li>' : ''}<li><a href="${n.href}">${icon(n.icon, 24)}<span>${esc(n.label)}</span></a></li>`)
-    .join('');
-  const short = p.title.split(' | ')[0].split(' — ')[0];
-  const topNav = NAV.map((n) => `<a href="${n.href}"${p.active === n.href ? ' class="on"' : ''}>${esc(n.short)}</a>`).join(' | ');
-
-  const browser = `<div class="ie">
-<div class="ie-title"><span class="ie-title-text">${icon('globe')}<span>${esc(short)} - MadeVisa Explorer</span></span><span class="title-bar-controls" aria-hidden="true"><span class="tb-btn">_</span><span class="tb-btn">□</span><span class="tb-btn">×</span></span></div>
-<div class="ie-menu" aria-hidden="true"><span>File</span><span>Edit</span><span>View</span><span>Favorites</span><span>Tools</span><span>Help</span></div>
-<nav class="ie-tools" aria-label="Browser">${TB('Back', '#', 'help', ' data-back')}${TB('Home', '/', 'computer')}${TB('Search', '/jobs', 'search')}${TB('Favorites', '/jobs/visa-sponsorship', 'visa')}${TB('History', '/job-market', 'chart')}</nav>
-<div class="ie-addr"><span>Address</span><span class="ie-url">${icon('globe')}<span>${esc(canonical)}</span></span><a class="ie-go" href="${esc(p.path)}">Go</a></div>
-<div class="ie-page">
-<header class="mast"><a class="logo" href="/" aria-label="MadeVisa home"><img src="https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789479857/madevisa-logo-header_fqdylj.svg" alt="MadeVisa" width="147" height="32"></a><span class="mast-sub">jobs abroad · visa sponsorship</span><span class="mast-links"><a href="/how-it-works">Help</a> - <a href="/contact">Contact</a></span></header>
-<nav class="topnav" aria-label="Sections">${topNav}</nav>
-<main id="main">${p.body}</main>
-<footer class="page-foot"><p>MadeVisa lists jobs from employers’ own career pages. MadeVisa does not issue visas, act as an immigration adviser or guarantee a job or a visa.</p>
-<p>${MORE.map((m) => `<a href="${m.href}">${esc(m.label.replace(' MadeVisa', '').replace('MadeVisa ', ''))}</a>`).join(' - ')} - <a href="/cookies">Cookies</a> - <a href="/disclaimer">Disclaimer</a></p><p class="copy">Copyright © 2026 MadeVisa. All rights reserved.</p></footer>
-</div>
-<div class="ie-status"><span>${icon('doc')} Done</span><span>${icon('globe')} Internet</span></div>
-</div>`;
 
   const html = `<!doctype html>
 <html lang="en">
@@ -160,7 +139,7 @@ ${p.noindex ? '<meta name="robots" content="noindex">' : ''}
 <meta property="og:title" content="${esc(p.title)}"><meta property="og:description" content="${esc(p.description)}">
 <meta property="og:url" content="${esc(canonical)}"><meta property="og:image" content="${esc(img)}">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#008080">
+<meta name="theme-color" content="#003399">
 <link rel="icon" href="https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789558197/madevisa-fav_j8ot2d.png" type="image/png">
 <link rel="apple-touch-icon" href="https://res.cloudinary.com/dkvg0oo8c/image/upload/c_pad,w_180,h_180,b_white/v1789558197/madevisa-fav_j8ot2d.png">
 <link rel="stylesheet" href="/retro.css?v=${BUILD}">
@@ -168,14 +147,20 @@ ${ld}
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<div class="desktop${p.desktop ? ' with-icons' : ''}">${p.desktop ?? ''}${browser}</div>
-<nav class="taskbar" aria-label="Main">
-<details class="start"><summary class="start-btn">${icon('computer')}<span>Start</span></summary>
-<div class="start-menu"><div class="start-side" aria-hidden="true">Made<b>Visa</b> 98</div><ul>${menu}</ul></div></details>
-<a class="task task-ie active" href="${esc(p.path)}">${icon('globe')}<span>${esc(short)}</span></a>
-<div class="tasks">${tasks}</div>
-<div class="tray"><span class="tray-ico" title="Jobs refresh every day">${icon('ok')}</span><time class="clock" aria-hidden="true"></time></div>
-</nav>
+<header class="site-head">
+  <div class="head-row">
+    <a class="logo" href="/" aria-label="MadeVisa home"><img src="${LOGO}" alt="MadeVisa" width="147" height="32"></a>
+    <span class="head-tag">Jobs abroad · visa sponsorship · fresh every day</span>
+    <span class="head-links"><a href="/how-it-works">Help</a> - <a href="/contact">Contact</a></span>
+  </div>
+  <nav class="nav" aria-label="Main">${nav}</nav>
+</header>
+<main id="main" class="page">${p.body}</main>
+<footer class="site-foot">
+<p>MadeVisa lists jobs from employers’ own career pages. MadeVisa does not issue visas, act as an immigration adviser or guarantee a job or a visa.</p>
+<p>${MORE.map((m) => `<a href="${m.href}">${esc(m.label)}</a>`).join(' - ')}</p>
+<p class="copy">Copyright © 2026 MadeVisa. All rights reserved.</p>
+</footer>
 <script src="/js/ui.js?v=${BUILD}" defer></script>
 ${(p.scripts ?? []).map((s) => `<script src="${s}?v=${BUILD}" defer></script>`).join('')}
 </body>

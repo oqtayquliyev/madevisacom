@@ -6,9 +6,10 @@ import type { Stats } from '../shared/jobs';
 export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
-  /** Optional: lets the daily Cloudflare cron start the GitHub job cycle (see SETUP.md, step 6). */
-  GITHUB_TOKEN?: string;
+  /** owner/name of the GitHub repository whose daily job cycle may write (see worker/sync.ts). */
   GITHUB_REPO?: string;
+  /** Local testing only — never set on Cloudflare. */
+  DEV_SYNC_KEY?: string;
 }
 
 export type JobRow = {

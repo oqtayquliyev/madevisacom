@@ -22,11 +22,8 @@
       "database_id": "f303152e-355a-4f77-b855-595d824aca73"
     }
   ],
-  // Daily backup trigger for the job cycle (05:41 UTC). Uses 1 of the 5 free cron triggers.
-  // It only does something when the GITHUB_TOKEN secret is set (SETUP.md, step 6).
-  "triggers": { "crons": ["41 5 * * *"] },
   "vars": {
-    // Your GitHub repository, as owner/name.
+    // The GitHub repository whose daily job cycle may write into the database (worker/sync.ts).
     "GITHUB_REPO": "oqtayquliyev/madevisacom"
   },
   "keep_vars": true,

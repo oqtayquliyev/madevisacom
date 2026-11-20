@@ -7,7 +7,6 @@ Supabase is gone. Everything now runs on things you already have:
 | Website | Cloudflare Worker `madevisacom` | 100,000 requests/day | ~10–20k/day (pages are cached 5 min) |
 | Database | Cloudflare **D1** `madevisa` | 500 MB, 5M rows read/day, 100k rows written/day | ~60–120 MB, reads are tiny, ~25k writes/day |
 | Daily job cycle | **GitHub Actions** (in your repo) | 2,000 minutes/month (private repo) | ~5–10 min/day |
-| Backup daily trigger | Cloudflare Cron Trigger | 5 per account | 1 |
 
 **Why the job cycle runs on GitHub and not inside Cloudflare:** a free Cloudflare Worker may use only
 10 ms of CPU per run — too little to read thousands of job ads. GitHub Actions is free, has no such
@@ -42,13 +41,11 @@ everything in the folder **except the hidden `.git` folder** → copy in all fil
 1. Still on the database page → **Console** tab.
 2. Open `schema.sql` from this zip, copy all of it, paste it into the console → **Execute**.
 
-## Step 4 — Let GitHub write into the database
+## Step 4 — Let GitHub write into the database (nothing to do)
 
-1. Cloudflare → top right person icon → **My Profile → API Tokens → Create Token → Create Custom Token**.
-2. Name: `madevisa-jobs`. Permissions: **Account · D1 · Edit**. Account Resources: *Include → your account*.
-   → **Continue to summary → Create Token** → copy the token (shown once).
-3. GitHub → your repository → **Settings → Secrets and variables → Actions → New repository secret**:
-   Name `CLOUDFLARE_API_TOKEN`, value: the token. (The account id is already in `wrangler.jsonc`.)
+No API key is needed. The daily run proves it comes from this repository with GitHub's own
+short-lived sign-in token (OIDC); madevisa.com/api/sync checks it and only accepts runs of
+`oqtayquliyev/madevisacom` on the `main` branch (`GITHUB_REPO` in `wrangler.jsonc`).
 
 ## Step 5 — Deploy the website
 
@@ -69,20 +66,6 @@ It takes about 5–10 minutes. Then open **madevisa.com/status**: you see how ma
 which company feeds failed. From now on it runs **every day at 06:23 Baku time** by itself.
 
 The first run adds at most 5,000 jobs (daily write limit); the rest come the next day.
-
-## Step 7 (optional, recommended) — Cloudflare backup trigger
-
-GitHub turns off schedules in public repositories that have no commits for 60 days. The Worker's
-daily cron (05:41 UTC) can start the cycle instead:
-
-1. GitHub → your photo → **Settings → Developer settings → Personal access tokens → Fine-grained
-   tokens → Generate new token**. Repository access: *Only select repositories → madevisacom*.
-   Permissions → Repository → **Contents: Read and write**. → Generate → copy.
-2. Cloudflare → **Workers & Pages → madevisacom → Settings → Variables and Secrets → Add** →
-   type **Secret**, name `GITHUB_TOKEN`, value: the token → **Deploy**.
-3. Check `GITHUB_REPO` in `wrangler.jsonc` is your repository (`owner/name`).
-
-If both triggers fire on one day, the second run sees the first and stops.
 
 ---
 
@@ -128,10 +111,9 @@ job alert emails, outreach / email finder, social media and Telegram posting, tr
 panel, OG image generator. Old addresses redirect to the closest page; old job links show
 "This job has closed".
 
-**New look:** a Windows 98 desktop (taskbar, Start menu, desktop icons) with every page inside an
-old-style browser window (menu, toolbar, address bar, status bar). The page itself is a classic
-1999 web portal: blue title strips, light-yellow boxes, a green "New and Notable" column, underlined
-blue links. No charts — numbers and tables only.
+**Look:** a normal full-width website built from a classic 1999 web-portal style kit — blue title
+strips, light-yellow boxes, grey bevelled buttons, sunken inputs, underlined blue links, the original
+MadeVisa logo. No charts. Works on phones.
 
 ## Files
 

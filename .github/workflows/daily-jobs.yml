@@ -1,25 +1,25 @@
 # The daily job cycle: reads every company feed in fetcher/companies.json, adds new jobs to the
 # Cloudflare D1 database, removes closed / old ones and rebuilds the lists the site serves.
 #
-# Runs every day at 02:23 UTC (06:23 in Baku), when the Cloudflare cron asks for it, and by hand:
-# GitHub → Actions → "Daily jobs" → "Run workflow".
+# Runs every day at 02:23 UTC (06:23 in Baku), and by hand: Actions → "Daily jobs" → "Run workflow".
 #
-# Needs one repository secret (Settings → Secrets and variables → Actions → New repository secret):
-#   CLOUDFLARE_API_TOKEN   a Cloudflare API token with "D1: Edit" (SETUP.md, step 4)
-# (The account id is already in wrangler.jsonc.)
+# No secrets needed: the run proves it comes from this repository with GitHub's own short-lived
+# sign-in token (OIDC), and madevisa.com/api/sync checks it (worker/sync.ts).
 name: Daily jobs
 
 on:
   schedule:
     - cron: '23 2 * * *'
-  repository_dispatch:
-    types: [daily-jobs]
   workflow_dispatch:
     inputs:
       force:
         description: 'Run even if a run finished in the last 18 hours'
         type: boolean
         default: true
+
+permissions:
+  contents: read
+  id-token: write
 
 concurrency:
   group: daily-jobs
@@ -28,7 +28,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,15 +36,5 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Check the secrets are there
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::error::Add the repository secret CLOUDFLARE_API_TOKEN (see SETUP.md, step 4)."
-            exit 1
-          fi
       - name: Fetch fresh jobs
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: npx tsx fetcher/run.ts ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '--force' || '' }}

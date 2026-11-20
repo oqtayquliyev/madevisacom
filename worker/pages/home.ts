@@ -2,27 +2,15 @@ import { ago, esc, fmt, icon, layout, numbers, type IconName } from '../html';
 import { newest, stats, type Env } from '../db';
 import { countryName, countryOptions, countrySlug, guideByCode, jobList } from '../parts';
 
-const SHORTCUTS: { href: string; label: string; icon: IconName }[] = [
-  { href: '/jobs', label: 'Jobs abroad', icon: 'jobs' },
-  { href: '/jobs/visa-sponsorship', label: 'Visa sponsorship', icon: 'visa' },
-  { href: '/destinations', label: 'Work visas', icon: 'folder' },
-  { href: '/cv-match', label: 'CV match', icon: 'cv' },
-  { href: '/job-market', label: 'Job market', icon: 'chart' },
-  { href: '/book', label: 'The book', icon: 'book' },
-];
-
 const TILES: { href: string; title: string; text: string; icon: IconName }[] = [
   { href: '/jobs', title: 'FIND A JOB', text: 'Fresh jobs from company career pages.', icon: 'jobs' },
   { href: '/jobs/visa-sponsorship', title: 'VISA JOBS', text: 'Ads that state visa sponsorship.', icon: 'visa' },
   { href: '/cv-match', title: 'CV MATCH', text: 'See how well your CV fits each job.', icon: 'cv' },
+  { href: '/destinations', title: 'WORK VISAS', text: 'Visa routes for 21 countries.', icon: 'globe' },
 ];
 
 export async function home(env: Env): Promise<Response> {
   const [s, rows] = await Promise.all([stats(env), newest(env, { limit: 10 })]);
-
-  const desktop = `<nav class="desk-icons" aria-label="Shortcuts">${SHORTCUTS.map(
-    (x) => `<a class="desk-icon" href="${x.href}">${icon(x.icon, 32)}<span>${esc(x.label)}</span></a>`
-  ).join('')}</nav>`;
 
   const welcome = `<div class="welcome"><span><b>Welcome!</b> ${s.updated ? `Jobs updated ${esc(ago(s.updated))}` : 'The first job update runs tonight'} - <a href="/how-it-works">[How it works]</a></span><a href="/cv-match">Add your CV free ${icon('cv')}</a></div>`;
 
@@ -68,7 +56,6 @@ ${numbers([[s.total, 'live jobs'], [s.visa, 'visa stated'], [s.new24h, 'new toda
     path: '/',
     active: '/',
     body,
-    desktop,
     jsonLd: [
       { '@context': 'https://schema.org', '@type': 'WebSite', name: 'MadeVisa', url: 'https://madevisa.com/', potentialAction: { '@type': 'SearchAction', target: 'https://madevisa.com/jobs?q={q}', 'query-input': 'required name=q' } },
       { '@context': 'https://schema.org', '@type': 'Organization', name: 'MadeVisa', url: 'https://madevisa.com/', logo: 'https://madevisa.com/og-logo.png' },
