@@ -1,6 +1,6 @@
 # The daily job cycle: reads every company feed in fetcher/companies.json, adds new jobs to the
 # Cloudflare D1 database, removes closed / old ones and rebuilds the lists the site serves.
-#
+# Schedule set by the repository owner.
 # Runs every 15 minutes, and by hand: Actions → "Daily jobs" → "Run workflow".
 # The repository is public, so GitHub Actions minutes are free and unlimited.
 # (If it is ever made private again, change the cron back to '17 * * * *' to stay inside 2,000 free minutes.)
