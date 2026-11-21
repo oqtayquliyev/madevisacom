@@ -1,9 +1,12 @@
-# The daily job cycle: reads every company feed in fetcher/companies.json, adds new jobs to the
+# The job cycle: reads every company feed in fetcher/companies.json, adds new jobs to the
 # Cloudflare D1 database, removes closed / old ones and rebuilds the lists the site serves.
-# Schedule set by the repository owner.
-# Runs every 15 minutes, and by hand: Actions → "Daily jobs" → "Run workflow".
-# The repository is public, so GitHub Actions minutes are free and unlimited.
-# (If it is ever made private again, change the cron back to '17 * * * *' to stay inside 2,000 free minutes.)
+#
+# It keeps itself going: one run fetches jobs every 15 minutes for about 5½ hours, then starts
+# the next run before it ends (GitHub's own timer never fired for this repository, so it isn't
+# relied on; it stays below only as a backup that restarts the chain if it ever stops).
+# Start it by hand any time: Actions → "Daily jobs" → "Run workflow".
+# The repository is public, so GitHub Actions minutes are free and unlimited. Don't make it private:
+# this would use far more than a private repository's 2,000 free minutes a month.
 #
 # No secrets needed: the run proves it comes from this repository with GitHub's own short-lived
 # sign-in token (OIDC), and madevisa.com/api/sync checks it (worker/sync.ts).
@@ -11,17 +14,18 @@ name: Daily jobs
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '7 */3 * * *'
   workflow_dispatch:
     inputs:
       force:
-        description: 'Run even if a run finished in the last 10 minutes (and read every feed)'
+        description: 'Read every feed on the first round, even if a run finished in the last 10 minutes'
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: read
   id-token: write
+  actions: write   # lets a run start the next one
 
 concurrency:
   group: daily-jobs
@@ -30,7 +34,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,5 +42,22 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Fetch fresh jobs
-        run: npx tsx fetcher/run.ts ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '--force' || '' }}
+      - name: Fetch fresh jobs every 15 minutes
+        env:
+          FORCE: ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '--force' || '' }}
+        run: |
+          end=$(( $(date +%s) + 320*60 ))
+          flag="$FORCE"
+          while :; do
+            started=$(date +%s)
+            npx tsx fetcher/run.ts $flag || echo "::warning::This round failed; trying again in 15 minutes."
+            flag=""
+            next=$(( started + 15*60 ))
+            [ "$next" -ge "$end" ] && break
+            sleep $(( next - $(date +%s) > 0 ? next - $(date +%s) : 0 ))
+          done
+      - name: Start the next run
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run daily-jobs.yml --repo "${{ github.repository }}" --ref main

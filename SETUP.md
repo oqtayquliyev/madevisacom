@@ -99,9 +99,9 @@ The starting list was made without internet access, so some ids may be wrong: af
 
 **Run now:** GitHub → Actions → Daily jobs → Run workflow.
 
-**Every 15 minutes:** works because the repository is public (GitHub Actions is free and unlimited for
-public repositories). If it is ever made private again, change the `cron` line in
-`.github/workflows/daily-jobs.yml` back to `'17 * * * *'` (hourly fits a private repo's 2,000 free minutes).
+**Every 15 minutes:** each "Daily jobs" run fetches every 15 minutes for about 5½ hours, then starts the
+next run itself (GitHub's own timer never fired for this repository). If the chain ever stops, press
+**Run workflow** once to restart it. This only stays free while the repository is public.
 
 **The free book:** the corner box and /book link to `BOOK_URL` in `worker/html.ts`.
 
