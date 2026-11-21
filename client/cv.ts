@@ -168,7 +168,7 @@ function wizard(app: HTMLElement) {
     if (!cv) return;
     const p = parseCv(cv.text);
     app.innerHTML = `<h2 class="wiz-h">Your CV is ready</h2><p>Open any job: its page now shows your match.</p>${cvSummary(cv, p)}
-<p class="btn-row"><a class="btn btn-primary" href="/jobs">Browse jobs ▶</a><label class="btn" for="cv-file">Replace CV</label><button type="button" class="btn" id="cv-remove">Remove my CV</button></p>
+<p class="btn-row"><a class="btn btn-primary" href="/">Browse jobs ▶</a><label class="btn" for="cv-file">Replace CV</label><button type="button" class="btn" id="cv-remove">Remove my CV</button></p>
 <input type="file" id="cv-file" class="sr-only" accept=".pdf,.docx,.odt,.rtf,.txt,.md"><div id="cv-status"></div>`;
     bind();
   };

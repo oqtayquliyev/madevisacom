@@ -156,14 +156,14 @@ ${failed.length ? `<h3>Failed feeds (${failed.length})</h3><ul class="fails">${f
 </div>
 <div class="card"><div class="card-h"><h2>Sources</h2><a href="https://github.com/${esc(repo)}/edit/main/fetcher/companies.json" target="_blank" rel="noopener">Edit companies ↗</a></div>
 ${table(['Platform', 'Jobs', 'Companies', 'Visa', 'Today'], d.platforms.map((p) => [esc(PLATFORM[p.k ?? ''] ?? p.k ?? '—'), fmt(p.n), fmt(p.c ?? 0), fmt(p.v ?? 0), p.t ? `+${fmt(p.t)}` : '—']))}</div>
-<div class="card"><div class="card-h"><h2>Newest jobs</h2><a href="/jobs" target="_blank" rel="noopener">Board ↗</a></div>
+<div class="card"><div class="card-h"><h2>Newest jobs</h2><a href="/" target="_blank" rel="noopener">Board ↗</a></div>
 <ul class="newest">${d.newest
     .map((j) => `<li><a href="/jobs/x/x-${esc(j.id)}" target="_blank" rel="noopener">${esc(j.title)}</a><span>${esc(j.company)}${j.country ? ` · ${esc(countryName.get(j.country) ?? j.country)}` : ''}${j.visa === 'offered' ? ' · <b class="visa">visa</b>' : ''} · ${esc(ago(j.first_seen))}</span></li>`)
     .join('')}</ul></div>
 </section>
 
 <section class="grid2">
-<div class="card"><div class="card-h"><h2>Top companies</h2></div>${table(['Company', 'Jobs', 'Visa', 'Today'], d.companies.map((c) => [`<a href="/jobs?company=${encodeURIComponent(c.k ?? '')}" target="_blank" rel="noopener">${esc(c.k)}</a>`, fmt(c.n), c.v ? fmt(c.v) : '—', c.t ? `+${fmt(c.t)}` : '—']))}</div>
+<div class="card"><div class="card-h"><h2>Top companies</h2></div>${table(['Company', 'Jobs', 'Visa', 'Today'], d.companies.map((c) => [`<a href="/?company=${encodeURIComponent(c.k ?? '')}" target="_blank" rel="noopener">${esc(c.k)}</a>`, fmt(c.n), c.v ? fmt(c.v) : '—', c.t ? `+${fmt(c.t)}` : '—']))}</div>
 <div class="card"><div class="card-h"><h2>Countries</h2></div>${table(['Country', 'Jobs', 'Visa', 'Today'], d.countries.map((c) => [esc(c.k ? countryName.get(c.k) ?? c.k : 'Unclear / several'), fmt(c.n), c.v ? `${fmt(c.v)} <span class="muted">(${pct(c.v, c.n)}%)</span>` : '—', c.t ? `+${fmt(c.t)}` : '—']))}</div>
 </section>
 

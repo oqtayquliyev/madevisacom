@@ -1,10 +1,15 @@
 {
-  "_help": "The companies the daily job cycle reads. Add a company by putting its job-board id in the list of the platform it uses (the part of its careers address after the platform name, e.g. boards.greenhouse.io/STRIPE -> \"stripe\", jobs.lever.co/SPOTIFY -> \"spotify\", jobs.ashbyhq.com/NOTION -> \"notion\", apply.workable.com/ID, ID.recruitee.com, ID.jobs.personio.de, jobs.smartrecruiters.com/ID). Use {\"id\": \"...\", \"name\": \"Shown name\"} when the id isn't a nice name. A company whose id is wrong is skipped and listed under 'Feeds that failed' on madevisa.com/status, so you can fix or remove it.",
+  "_help": "The companies the daily job cycle reads. Add a company by putting its job-board id in the list of the platform it uses (the part of its careers address after the platform name, e.g. boards.greenhouse.io/STRIPE -> \"stripe\", jobs.lever.co/SPOTIFY -> \"spotify\", jobs.ashbyhq.com/NOTION -> \"notion\", apply.workable.com/ID, ID.recruitee.com, ID.jobs.personio.de, jobs.smartrecruiters.com/ID). Use {\"id\": \"...\", \"name\": \"Shown name\"} when the id isn't a nice name. A company whose id is wrong is skipped and listed under 'Feeds that failed' on madevisa.com/status, so you can fix or remove it. Settings: windowDays = how old a job may be (older ones are removed); everyHours = read that feed only every N hours (Remotive asks for at most 4 reads a day).",
   "settings": {
-    "windowDays": 14,
+    "windowDays": 7,
     "maxNewPerRun": 5000,
     "maxJobs": 15000,
-    "arbeitnowPages": 15
+    "arbeitnowPages": 8,
+    "minMinutesBetweenRuns": 20,
+    "everyHours": {
+      "remotive": 6,
+      "arbeitnow": 2
+    }
   },
   "feeds": {
     "arbeitnow": true,

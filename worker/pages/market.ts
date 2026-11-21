@@ -9,7 +9,7 @@ export async function market(env: Env): Promise<Response> {
   const monitor = win(
     'Job Market Today',
     `${numbers([[s.total, 'live jobs'], [s.visa, 'visa sponsorship stated'], [s.new24h, 'new in 24 h'], [s.remote, 'remote'], [s.companies, 'companies']])}
-<p class="small">${s.updated ? `Updated ${esc(ago(s.updated))}.` : 'The first update has not run yet.'} Jobs posted in the last ${s.windowDays} days. <a href="/jobs">Browse the jobs »</a></p>`,
+<p class="small">${s.updated ? `Updated ${esc(ago(s.updated))}.` : 'The first update has not run yet.'} Jobs posted in the last ${s.windowDays} days. <a href="/">Browse the jobs »</a></p>`,
     { heading: 'h1' }
   );
 
@@ -45,7 +45,7 @@ export async function market(env: Env): Promise<Response> {
   );
   const companies = win(
     'Companies hiring most',
-    table(['Company', 'Jobs', 'Visa stated'], s.topCompanies.slice(0, 20).map(([c, n, v]) => [`<a href="/jobs?company=${encodeURIComponent(c)}">${esc(c)}</a>`, fmt(n), v ? fmt(v) : '—'])),
+    table(['Company', 'Jobs', 'Visa stated'], s.topCompanies.slice(0, 20).map(([c, n, v]) => [`<a href="/?company=${encodeURIComponent(c)}">${esc(c)}</a>`, fmt(n), v ? fmt(v) : '—'])),
     { icon: 'jobs' }
   );
   const sponsors = win(

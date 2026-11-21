@@ -4,7 +4,6 @@
 //   /api/sync    where the daily job cycle on GitHub writes new jobs (worker/sync.ts)
 
 import { blobText, type Env } from './db';
-import { home } from './pages/home';
 import { board } from './pages/jobs';
 import { jobPage } from './pages/job';
 import { destination, destinations } from './pages/destinations';
@@ -19,7 +18,7 @@ import { SITE } from './html';
 
 // Pages of the old site that no longer exist → the closest page now.
 const MOVED: [RegExp, string][] = [
-  [/^\/(pricing|membership|checkout.*|subscription-terms|sponsorship-document-terms|sponsored-listing-terms|advertising-policy)$/, '/jobs'],
+  [/^\/(pricing|membership|checkout.*|subscription-terms|sponsorship-document-terms|sponsored-listing-terms|advertising-policy)$/, '/'],
   [/^\/(login|register|reset-password|verify-email|dashboard|profile|my(\/.*)?|notifications|alerts(\/.*)?|network|u\/.+|company(\/.*)?|submit.*|employers|partners|offers(\/.*)?|brief(\/.*)?|visa-plan)$/, '/'],
   [/^\/(companies|company-scores|ghostgood|feedback)(\/.*)?$/, '/job-market'],
   [/^\/(blog|reports|programs|study|experts|official-sources|corrections|verification-policy)(\/.*)?$/, '/destinations'],
@@ -73,8 +72,8 @@ export default {
 };
 
 async function route(path: string, url: URL, env: Env): Promise<Response> {
-  if (path === '/') return home(env);
-  if (path === '/jobs') return board(env, url);
+  if (path === '/') return board(env, url);
+  if (path === '/jobs') return Response.redirect(`${url.origin}/${url.search}`, 301);
   if (path === '/jobs/visa-sponsorship') return board(env, url, { visa: true });
 
   let m = path.match(/^\/jobs\/in\/([a-z-]+)$/);
@@ -125,7 +124,7 @@ function sitemapIndex(): Response {
 }
 
 function sitemapPages(): Response {
-  const paths = ['/', '/jobs', '/jobs/visa-sponsorship', '/destinations', '/job-market', '/cv-match', '/book', ...Object.keys(textPages).map((s) => `/${s}`), ...visaGuides.map((g) => `/destinations/${g.slug}`)];
+  const paths = ['/', '/jobs/visa-sponsorship', '/destinations', '/job-market', '/cv-match', '/book', ...Object.keys(textPages).map((s) => `/${s}`), ...visaGuides.map((g) => `/destinations/${g.slug}`)];
   return xml(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${paths.map((p) => `<url><loc>${SITE}${p}</loc></url>`).join('\n')}

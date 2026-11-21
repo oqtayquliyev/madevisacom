@@ -1,12 +1,12 @@
 // The daily job cycle.
 //
 //   1. Reads every company board and job feed in fetcher/companies.json.
-//   2. Keeps only jobs posted in the last `windowDays` days.
+//   2. Keeps only jobs posted in the last `windowDays` days (7) — older ones are removed.
 //   3. Adds the new ones to the D1 database (cleaned text + visa / remote / salary facts).
 //   4. Removes jobs that left the company's page, and jobs older than the window.
 //   5. Rebuilds the ready-made lists the website serves (all jobs, statistics, sitemap).
 //
-// Runs every day on GitHub Actions (.github/workflows/daily-jobs.yml) — free, and without the
+// Runs every hour on GitHub Actions (.github/workflows/daily-jobs.yml) — free, and without the
 // 10 ms CPU limit Cloudflare's free plan puts on Workers. It writes through the website's
 // /api/sync door using GitHub's own sign-in token, so no API key is needed anywhere.
 // Start it by hand on GitHub: Actions → Daily jobs → Run workflow.
@@ -35,7 +35,7 @@ const CONCURRENCY = 6;
 const SR_DETAILS_PER_SOURCE = 250;
 
 type Config = {
-  settings?: { windowDays?: number; maxNewPerRun?: number; maxJobs?: number; arbeitnowPages?: number };
+  settings?: { windowDays?: number; maxNewPerRun?: number; maxJobs?: number; arbeitnowPages?: number; minMinutesBetweenRuns?: number; everyHours?: Record<string, number> };
   [k: string]: unknown;
 };
 
@@ -66,7 +66,7 @@ function chunks(text: string, size: number): string[] {
 async function main() {
   const local = flag('local');
   const config = JSON.parse(readFileSync(join(here, 'companies.json'), 'utf8')) as Config;
-  const windowDays = config.settings?.windowDays ?? 14;
+  const windowDays = config.settings?.windowDays ?? 7;
   const maxNew = config.settings?.maxNewPerRun ?? 5000;
   const maxJobs = config.settings?.maxJobs ?? 15000;
   const arbeitnowPages = config.settings?.arbeitnowPages ?? 25;
@@ -79,13 +79,24 @@ async function main() {
     useFixtures(fixtureFetcher(fixtures));
   }
 
-  // Two triggers (GitHub's schedule + the Cloudflare cron) may both start a run; one a day is enough.
+  // A run started by hand right after the scheduled one has nothing new to find.
+  const minGapMin = config.settings?.minMinutesBetweenRuns ?? 20;
   if (!flag('force')) {
     const last = (await db.query<{ finished_at: string }>("SELECT finished_at FROM runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1"))[0];
-    if (last && Date.now() - Date.parse(last.finished_at) < 18 * 3600_000) {
-      log(`A run finished at ${last.finished_at} — less than 18 hours ago. Nothing to do (use --force to run anyway).`);
+    if (last && Date.now() - Date.parse(last.finished_at) < minGapMin * 60_000) {
+      log(`A run finished at ${last.finished_at} — less than ${minGapMin} minutes ago. Nothing to do (use --force to run anyway).`);
       return;
     }
+  }
+
+  // Some feeds ask to be read only a few times a day (see "everyHours" in companies.json).
+  const everyHours = (config.settings?.everyHours ?? {}) as Record<string, number>;
+  let lastFetched: Record<string, string> = {};
+  try {
+    const row = (await db.query<{ body: string }>("SELECT body FROM blobs WHERE key = 'source-state' AND part = 0"))[0];
+    if (row) lastFetched = JSON.parse(row.body);
+  } catch {
+    lastFetched = {};
   }
 
   const startedAt = new Date().toISOString();
@@ -94,6 +105,14 @@ async function main() {
   let sources: Source[] = sourcesFrom(config);
   const only = opt('only');
   if (only) sources = sources.filter((s) => s.key === only);
+  const due = (key: string) => {
+    const h = everyHours[key];
+    const at = lastFetched[key] ? Date.parse(lastFetched[key]) : 0;
+    return !h || flag('force') || Date.now() - at >= h * 3600_000 - 5 * 60_000;
+  };
+  const resting = sources.filter((src) => !due(src.key)).map((src) => src.key);
+  sources = sources.filter((src) => due(src.key));
+  if (resting.length) log(`resting this run (read every few hours): ${resting.join(', ')}`);
   log(`${sources.length} sources, keeping jobs posted in the last ${windowDays} days`);
 
   // 1. Read every source.
@@ -103,6 +122,7 @@ async function main() {
     const res = await fetchSource(src, { arbeitnowPages });
     if (res.ok) {
       fetched.set(src.key, res.jobs.filter((j) => !isJunk(j)));
+      lastFetched[src.key] = new Date().toISOString();
       log(`  ✓ ${src.key}: ${res.jobs.length} jobs`);
     } else {
       failed.push(`${src.key} (${res.error})`);
@@ -125,7 +145,7 @@ async function main() {
   const toDelete = new Set<string>();
   const bySource = new Map<string, Existing[]>();
   for (const e of existing) {
-    if (Date.parse(e.posted_at) < cutoff - DAY_MS) toDelete.add(e.id);
+    if (Date.parse(e.posted_at) < cutoff) toDelete.add(e.id); // older than the window → gone
     (bySource.get(e.source) ?? bySource.set(e.source, []).get(e.source)!).push(e);
   }
   for (const [key, rows] of bySource) {
@@ -140,7 +160,7 @@ async function main() {
     for (const r of gone) toDelete.add(r.id);
   }
   // Sources taken out of companies.json: their jobs go.
-  const configured = new Set(sources.map((s) => s.key));
+  const configured = new Set([...sources.map((s) => s.key), ...resting]);
   if (!only) for (const e of existing) if (!configured.has(e.source)) toDelete.add(e.id);
 
   // 4. New jobs.
@@ -233,13 +253,14 @@ async function main() {
   putBlob('jobs', JSON.stringify({ v: 1, updated, jobs: rows }));
   putBlob('stats', JSON.stringify(stats));
   putBlob('sitemap-jobs', sitemap);
+  blobStatements.push(`DELETE FROM blobs WHERE key = 'source-state';`, `INSERT INTO blobs (key, part, body, updated_at) VALUES ('source-state', 0, ${lit(JSON.stringify(lastFetched))}, ${lit(updated)});`);
   blobStatements.push(
     `INSERT INTO runs (started_at, finished_at, added, removed, total, sources_ok, sources_failed, failed_list, note) VALUES (${[
       startedAt, new Date().toISOString(), inserts.length, deletes.length, rows.length, fetched.size, failed.length, failed.sort().join('\n') || null,
       candidates.length > chosen.length ? `${candidates.length - chosen.length} new jobs left for the next run (daily limit)` : null,
     ].map(lit).join(', ')});`,
-    // Keep 90 days of run history.
-    `DELETE FROM runs WHERE started_at < ${lit(new Date(now - 90 * DAY_MS).toISOString())};`
+    // Keep 30 days of run history.
+    `DELETE FROM runs WHERE started_at < ${lit(new Date(now - 30 * DAY_MS).toISOString())};`
   );
   await db.execMany(blobStatements, 'blobs');
   await db.execMany(swaps, 'swap');

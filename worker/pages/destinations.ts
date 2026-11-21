@@ -87,7 +87,7 @@ ${r.employer ? `<details><summary>What the employer has to do</summary><ol>${r.e
 <h2 class="sec-h">${icon('folder')} Documents you’ll usually need</h2>${docs}
 <h2 class="sec-h">${icon('globe')} Official sources</h2>${links}`,
     { cls: 'white', toolbar: `<a href="/destinations">« All countries</a>`, status: [`Last checked ${esc(g.reviewed)}`, 'Not legal advice — confirm on the official site'] }
-  )}</div><aside class="guide-side">${jobsBox}${dialog('Rules change', 'warn', '<p>This guide is general information, checked against official sources on the date shown. Always confirm on the official site or with a licensed adviser before you apply.</p>')}</aside></div>`;
+  )}</div><aside class="guide-side xp-side">${jobsBox}${dialog('Rules change', 'warn', '<p>This guide is general information, checked against official sources on the date shown. Always confirm on the official site or with a licensed adviser before you apply.</p>')}</aside></div>`;
 
   return layout({
     title: `${g.name} work visa — routes, requirements and time to PR | MadeVisa`,

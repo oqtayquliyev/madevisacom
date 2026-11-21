@@ -25,8 +25,11 @@ export function placeOf(j: { city: string | null; country: string | null; remote
 }
 
 /** Badges after a job title. */
-export function badges(j: { visa: string | null; remote: number; arrangement?: string | null }): string {
+export const NEW_HOURS = 6;
+
+export function badges(j: { visa: string | null; remote: number; arrangement?: string | null; posted_at?: string }, now = Date.now()): string {
   const b: string[] = [];
+  if (j.posted_at && now - Date.parse(j.posted_at) < NEW_HOURS * 3600_000) b.push('<span class="tag tag-new" title="Posted in the last 6 hours">NEW</span>');
   if (j.visa === 'offered') b.push('<span class="tag tag-visa" title="The ad says the company sponsors visas">VISA</span>');
   if (j.remote || j.arrangement === 'remote') b.push('<span class="tag tag-remote">REMOTE</span>');
   else if (j.arrangement === 'hybrid') b.push('<span class="tag">HYBRID</span>');
@@ -36,9 +39,9 @@ export function badges(j: { visa: string | null; remote: number; arrangement?: s
 /** Classic list of jobs: underlined blue title, then company · place · when. The board script renders the same markup. */
 export function jobList(rows: ListRow[], start = 0, now = Date.now()): string {
   if (!rows.length) return '<p class="empty">No jobs here yet. The list refreshes every day.</p>';
-  return `<ol class="joblist" start="${start + 1}">${rows
+  return `<ol class="joblist" start="${start + 1}" style="counter-reset: job ${start}">${rows
     .map(
-      (j) => `<li><a class="jl-t" href="${esc(jobPath(j))}">${esc(j.title)}</a>${badges(j)}<br><span class="jl-m"><b>${esc(j.company)}</b> · ${esc(placeOf(j))} · ${esc(ago(j.posted_at, now))}</span></li>`
+      (j) => `<li><a class="jl-t" href="${esc(jobPath(j))}">${esc(j.title)}</a>${badges(j, now)}<br><span class="jl-m"><b>${esc(j.company)}</b> · ${esc(placeOf(j))} · ${esc(ago(j.posted_at, now))}</span></li>`
     )
     .join('')}</ol>`;
 }

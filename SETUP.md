@@ -62,8 +62,8 @@ Old settings you can delete (Worker → Settings → Variables and Secrets): eve
 ## Step 6 — Run the first job cycle
 
 GitHub → your repository → **Actions** → **Daily jobs** → **Run workflow** → **Run workflow**.
-It takes about 5–10 minutes. Then open **madevisa.com/status**: you see how many jobs were added and
-which company feeds failed. From now on it runs **every day at 06:23 Baku time** by itself.
+It takes a few minutes. Then open **madevisa.com/admin**: you see how many jobs were added and
+which company feeds failed. From now on it runs **every hour** by itself (jobs older than 7 days are removed).
 
 The first run adds at most 5,000 jobs (daily write limit); the rest come the next day.
 
@@ -94,10 +94,16 @@ Put the company's job-board id under the platform it uses:
 The starting list was made without internet access, so some ids may be wrong: after the first run,
 **madevisa.com/status** lists every feed that failed — fix or delete those lines.
 
-**Settings** (top of `companies.json`): `windowDays` (how old a job may be, default 14),
+**Settings** (top of `companies.json`): `windowDays` (how old a job may be, default 7), `everyHours` (read a feed only every N hours),
 `maxNewPerRun` (5,000), `maxJobs` (15,000 — keeps the database far under 500 MB).
 
 **Run now:** GitHub → Actions → Daily jobs → Run workflow.
+
+**Every 15 minutes instead of hourly:** only if the repository is public (GitHub Actions is free and
+unlimited for public repositories; a private one gets 2,000 minutes a month, enough for hourly). Change
+the `cron` line in `.github/workflows/daily-jobs.yml` to `'*/15 * * * *'`.
+
+**The free book:** the corner box and /book link to `BOOK_URL` in `worker/html.ts`.
 
 **Change texts:** `content/pages.ts` (About, Privacy, Terms …), `content/visa/countries/*.ts`
 (visa guides), `content/bookPromo.ts` (book reviews). The book's buy link is `BOOK_URL` in

@@ -1,10 +1,7 @@
-import { button, dialog, esc, icon, layout, win } from '../html';
+import { BOOK_TITLE, BOOK_URL, button, dialog, esc, icon, layout, win } from '../html';
 import { textPages } from '../../content/pages';
 import { BOOK_INSIDE, DEFAULT_BOOK_PROMO, GENERAL_INSIGHT } from '../../content/bookPromo';
 
-/** Where "Buy the book" goes. Change it to the book's own Gumroad link if it has one. */
-export const BOOK_URL = 'https://madevisa.gumroad.com/';
-export const BOOK_TITLE = 'How to Survive in the 2026–2027 Job Market';
 
 export function cvMatch(): Response {
   const wizard = win(
@@ -46,8 +43,8 @@ export function book(): Response {
 <p class="stars" aria-label="Rated ${promo.rating} out of 5">${'★'.repeat(Math.round(promo.rating))}${'☆'.repeat(5 - Math.round(promo.rating))} <span class="small">${promo.rating} · ${promo.ratingCount} reviews</span></p>
 <p>${esc(GENERAL_INSIGHT)}</p>
 <fieldset><legend>What’s inside</legend><ul class="checks">${BOOK_INSIDE.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></fieldset>
-<p><a class="btn btn-primary btn-big" href="${BOOK_URL}" target="_blank" rel="noopener">${icon('book')} Get the book</a></p>
-<p class="small">Sold and delivered by Gumroad. Digital download (PDF).</p></div></div>
+<p><a class="btn-apply" href="${BOOK_URL}" target="_blank" rel="noopener"><span>Download free PDF</span><small>on Gumroad ▶</small></a></p>
+<p class="small">The book is free. On Gumroad you can enter $0 — or pay what you want if you’d like to support MadeVisa and keep it free for everyone.</p></div></div>
 <h2 class="sec-h">Preview</h2><div class="book-pages sunken">${pages}</div>
 <h2 class="sec-h">Reviews</h2>${reviews}`,
     { icon: 'book' }
@@ -80,7 +77,7 @@ export function textPage(slug: string): Response | null {
     esc(p.title),
     `<div class="notepad doc"><h1 class="job-h1">${esc(p.title)}</h1><p class="lead">${esc(p.intro)}</p>${sections}</div>`,
     { cls: 'white' }
-  )}</div><aside class="guide-side">${win('More', `<ul class="tree">${others}</ul>`, {})}</aside></div>`;
+  )}</div><aside class="guide-side xp-side">${win('More', `<ul class="tree">${others}</ul>`, {})}</aside></div>`;
   return layout({ title: `${p.title} | MadeVisa`, description: p.description, path: `/${p.slug}`, body });
 }
 
@@ -89,7 +86,7 @@ export function notFound(path: string): Response {
     'MadeVisa',
     'error',
     `<h1 class="dialog-h1">Page not found</h1><p>Cannot find <code>${esc(path)}</code>. Make sure the address is right, or start from one of these.</p>`,
-    `${button('Jobs', '/jobs', 'btn-default')}${button('Work visas', '/destinations')}${button('Home', '/')}`
+    `${button('Jobs', '/', 'btn-default')}${button('Work visas', '/destinations')}${button('Home', '/')}`
   )}</div>`;
   return layout({ title: 'Page not found | MadeVisa', description: 'This page does not exist.', path, body, noindex: true, status: 404 });
 }

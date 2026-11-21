@@ -94,6 +94,7 @@ function apply(f: Filters): BoardRow[] {
 
 function badges(r: BoardRow): string {
   let b = '';
+  if (Date.now() / 1000 - r[7] < 6 * 3600) b += '<span class="tag tag-new" title="Posted in the last 6 hours">NEW</span>';
   if (r[6] === 1) b += '<span class="tag tag-visa" title="The ad says the company sponsors visas">VISA</span>';
   if (r[5] === 1 || r[8] === 'remote') b += '<span class="tag tag-remote">REMOTE</span>';
   else if (r[8] === 'hybrid') b += '<span class="tag">HYBRID</span>';
@@ -111,7 +112,7 @@ function render() {
   if (count) count.textContent = fmt(found.length);
 
   list.innerHTML = slice.length
-    ? `<ol class="joblist" start="${start + 1}">${slice
+    ? `<ol class="joblist" start="${start + 1}" style="counter-reset: job ${start}">${slice
         .map((r) => {
           const href = jobPath({ id: r[0], title: r[1], company: r[2] });
           return `<li><a class="jl-t" href="${esc(href)}">${esc(r[1])}</a>${badges(r)}<br><span class="jl-m"><b>${esc(r[2])}</b> · ${esc(place(r))} · ${ago(r[7])}</span></li>`;

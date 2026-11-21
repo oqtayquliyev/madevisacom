@@ -84,7 +84,7 @@ export function numbers(items: [value: number | string, label: string][]): strin
 // ---------------------------------------------------------------------------
 
 export const NAV: { href: string; label: string; icon: IconName; short: string }[] = [
-  { href: '/jobs', label: 'Browse jobs abroad', icon: 'jobs', short: 'Jobs' },
+  { href: '/', label: 'Browse jobs abroad', icon: 'jobs', short: 'Jobs' },
   { href: '/jobs/visa-sponsorship', label: 'Jobs that state visa sponsorship', icon: 'visa', short: 'Visa jobs' },
   { href: '/destinations', label: 'Work visas by country', icon: 'globe', short: 'Work visas' },
   { href: '/cv-match', label: 'CV match', icon: 'cv', short: 'CV match' },
@@ -118,12 +118,16 @@ export type Page = {
 
 const LOGO = 'https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789479857/madevisa-logo-header_fqdylj.svg';
 
+/** The book on Gumroad (free, pay-what-you-want). Put the book's own Gumroad link here when it's live. */
+export const BOOK_URL = 'https://madevisa.gumroad.com/';
+export const BOOK_TITLE = 'How to Survive in the 2026–2027 Job Market';
+
 export function layout(p: Page): Response {
   const canonical = `${SITE}${p.path}`;
   const img = p.image ?? `${SITE}/og-logo.png`;
   const ld = (p.jsonLd ?? []).map((d) => `<script type="application/ld+json">${JSON.stringify(d).replace(/</g, '\\u003c')}</script>`).join('');
   const nav = NAV.map(
-    (n) => `<a class="nav-btn${p.active === n.href ? ' on' : ''}" href="${n.href}"${p.active === n.href ? ' aria-current="page"' : ''}>${icon(n.icon)}<span>${n.short}</span></a>`
+    (n, i) => `<a class="xp-btn${i === 0 ? ' xp-start' : ''}${p.active === n.href ? ' on' : ''}" href="${n.href}"${p.active === n.href ? ' aria-current="page"' : ''}>${icon(n.icon)}<span>${n.short}</span></a>`
   ).join('');
 
   const html = `<!doctype html>
@@ -150,17 +154,20 @@ ${ld}
 <header class="site-head">
   <div class="head-row">
     <a class="logo" href="/" aria-label="MadeVisa home"><img src="${LOGO}" alt="MadeVisa" width="147" height="32"></a>
-    <span class="head-tag">Jobs abroad · visa sponsorship · fresh every day</span>
-    <span class="head-links"><a href="/how-it-works">Help</a> - <a href="/contact">Contact</a></span>
+    <span class="head-tag">Jobs abroad, straight from company careers pages</span>
+    <span class="head-links"><a href="/how-it-works">Help</a> <a href="/contact">Contact</a></span>
   </div>
-  <nav class="nav" aria-label="Main">${nav}</nav>
+  <nav class="xp-bar" aria-label="Main">${nav}</nav>
 </header>
 <main id="main" class="page">${p.body}</main>
 <footer class="site-foot">
-<p>MadeVisa lists jobs from employers’ own career pages. MadeVisa does not issue visas, act as an immigration adviser or guarantee a job or a visa.</p>
-<p>${MORE.map((m) => `<a href="${m.href}">${esc(m.label)}</a>`).join(' - ')}</p>
-<p class="copy">Copyright © 2026 MadeVisa. All rights reserved.</p>
+<div class="foot-main">
+<p class="foot-links">${MORE.map((m) => `<a href="${m.href}">${esc(m.label)}</a>`).join('')}</p>
+<p>MadeVisa lists jobs from employers’ own careers pages. MadeVisa does not issue visas, act as an immigration adviser or guarantee a job or a visa.</p>
+</div>
+<p class="foot-tray"><span>${icon('ok')} Jobs checked every hour</span><span>© 2026 MadeVisa</span></p>
 </footer>
+${p.path === '/book' ? '' : bookPopup()}
 <script src="/js/ui.js?v=${BUILD}" defer></script>
 ${(p.scripts ?? []).map((s) => `<script src="${s}?v=${BUILD}" defer></script>`).join('')}
 </body>
@@ -169,4 +176,16 @@ ${(p.scripts ?? []).map((s) => `<script src="${s}?v=${BUILD}" defer></script>`).
     status: p.status ?? 200,
     headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': p.noindex ? 'no-store' : 'public, max-age=120' },
   });
+}
+
+/** Small corner box offering the free book (shown after a few seconds; closing hides it for a week). */
+function bookPopup(): string {
+  return `<aside class="book-pop" id="book-pop" hidden aria-label="Free book">
+<section class="box"><h2 class="box-h"><span>${icon('book')} Free PDF book</span><button type="button" class="pop-x" aria-label="Close" data-pop-close>×</button></h2>
+<div class="box-b"><a href="/book" class="pop-cover"><img src="/book-cover.webp" alt="" width="74" height="104" loading="lazy"></a><div>
+<p class="pop-title">${esc(BOOK_TITLE)}</p>
+<p class="small">How AI is changing 40+ industries — and how to adapt with remote work, freelancing and your own product.</p>
+<a class="btn-apply btn-pop" href="${BOOK_URL}" target="_blank" rel="noopener" data-pop-done><span>Download free PDF</span></a>
+<p class="tiny">Free on Gumroad. If it helps you, you can pay what you want to support MadeVisa.</p>
+</div></div></section></aside>`;
 }

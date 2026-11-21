@@ -17,8 +17,10 @@ export async function jobPage(env: Env, url: URL, lastSegment: string): Promise<
     value ? `<div class="fact"><dt>${label}</dt><dd>${value}</dd></div>` : '';
   const arrangement = j.arrangement ? j.arrangement.replace('onsite', 'On-site').replace(/^./, (c) => c.toUpperCase()) : j.remote ? 'Remote' : null;
 
-  const toolbar = `<a class="btn btn-primary" href="${esc(j.url)}" target="_blank" rel="noopener nofollow">${icon('jobs')} Apply on ${esc(j.company)}’s site</a>
-<a class="btn" href="/jobs">◀ All jobs</a><a class="btn" href="/jobs?company=${encodeURIComponent(j.company)}">More at ${esc(j.company)}</a>
+  const apply = (where: string) =>
+    `<a class="btn-apply" href="${esc(j.url)}" target="_blank" rel="noopener nofollow" data-apply="${where}"><span>Apply now</span><small>on ${esc(j.company)}’s careers page ▶</small></a>`;
+  const toolbar = `${apply('top')}
+<a class="btn" href="/">◀ All jobs</a><a class="btn" href="/?company=${encodeURIComponent(j.company)}">More at ${esc(j.company)}</a>
 <button class="btn" type="button" data-copy="${esc(SITE + canonical)}">Copy link</button>`;
 
   const host = (() => {
@@ -34,8 +36,8 @@ export async function jobPage(env: Env, url: URL, lastSegment: string): Promise<
 
   const main = win(
     `${esc(j.title)} — ${esc(j.company)}`,
-    `<h1 class="job-h1">${esc(j.title)}</h1><p class="job-sub"><b>${esc(j.company)}</b> · ${esc(place)} · posted ${esc(ago(j.posted_at))}</p>${description}
-<p class="small">Source: the company’s own job page (${esc(host)}). MadeVisa doesn’t edit ads — check the details there before applying.</p>`,
+    `<h1 class="job-h1">${esc(j.title)}</h1><p class="job-sub">${Date.now() - Date.parse(j.posted_at) < 6 * 3600_000 ? '<span class="tag tag-new">NEW</span> ' : ''}<b>${esc(j.company)}</b> · ${esc(place)} · posted ${esc(ago(j.posted_at))}</p>${description}
+<div class="apply-bottom">${apply('bottom')}<p class="small">You apply directly with ${esc(j.company)} — on their own job page (${esc(host)}). MadeVisa doesn’t edit ads; check the details there before applying.</p></div>`,
     { icon: 'doc', cls: 'white w-job', toolbar, status: [`Posted ${esc(j.posted_at.slice(0, 10))}`, j.salary ? 'Salary stated' : 'Salary not stated', j.visa === 'offered' ? 'Visa: offered' : 'Visa: see ad'] }
   );
 
@@ -75,8 +77,8 @@ ${fact('Posted', esc(ago(j.posted_at)))}
     title: `${j.title} at ${j.company} — ${place} | MadeVisa`,
     description: `${j.title} at ${j.company}, ${place}.${j.visa === 'offered' ? ' Visa sponsorship stated.' : ''} Posted ${ago(j.posted_at)}. Read the ad, check your CV match and apply on the company’s site.`,
     path: canonical,
-    active: '/jobs',
-    body: `<div class="job-wrap"><div class="job-main">${main}${similar}</div><aside class="job-side">${props}${cv}${more}${dialog('Before you apply', 'warn', '<p>MadeVisa doesn’t issue visas, act as an immigration adviser or guarantee a job or a visa. You apply on the company’s own site. Never pay anyone to apply for a job.</p>')}</aside></div>`,
+    active: '/',
+    body: `<div class="job-wrap"><div class="job-main">${main}${similar}</div><aside class="job-side xp-side">${props}${cv}${more}${dialog('Before you apply', 'warn', '<p>MadeVisa doesn’t issue visas, act as an immigration adviser or guarantee a job or a visa. You apply on the company’s own site. Never pay anyone to apply for a job.</p>')}</aside></div>`,
     jsonLd: [ld],
     scripts: ['/js/cv.js'],
   });
@@ -116,7 +118,7 @@ export async function closed(_env: Env, url: URL): Promise<Response> {
     'Job not found',
     'error',
     `<h1 class="dialog-h1">This job has closed</h1><p>The company took this job down, or it’s an old link. MadeVisa only keeps jobs that are still on the company’s page and were posted in the last two weeks.</p>`,
-    `${guess && url.pathname.split('/').length > 3 ? button(`Jobs at “${esc(guess)}”`, `/jobs?q=${encodeURIComponent(guess)}`) : ''}${button('Browse fresh jobs', '/jobs', 'btn-default')}`
+    `${guess && url.pathname.split('/').length > 3 ? button(`Jobs at “${esc(guess)}”`, `/?q=${encodeURIComponent(guess)}`) : ''}${button('Browse fresh jobs', '/', 'btn-default')}`
   )}</div>`;
-  return layout({ title: 'This job has closed | MadeVisa', description: 'This job is no longer available.', path: url.pathname, body, noindex: true, status: 410, active: '/jobs' });
+  return layout({ title: 'This job has closed | MadeVisa', description: 'This job is no longer available.', path: url.pathname, body, noindex: true, status: 410, active: '/' });
 }
