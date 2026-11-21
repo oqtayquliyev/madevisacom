@@ -165,7 +165,7 @@ ${ld}
 <p class="foot-links">${MORE.map((m) => `<a href="${m.href}">${esc(m.label)}</a>`).join('')}</p>
 <p>MadeVisa lists jobs from employers’ own careers pages. MadeVisa does not issue visas, act as an immigration adviser or guarantee a job or a visa.</p>
 </div>
-<p class="foot-tray"><span>${icon('ok')} Jobs checked every hour</span><span>© 2026 MadeVisa</span></p>
+<p class="foot-tray"><span>${icon('ok')} Jobs checked every 15 minutes</span><span>© 2026 MadeVisa</span></p>
 </footer>
 ${p.path === '/book' ? '' : bookPopup()}
 <script src="/js/ui.js?v=${BUILD}" defer></script>

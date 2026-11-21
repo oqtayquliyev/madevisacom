@@ -1,9 +1,9 @@
 # The daily job cycle: reads every company feed in fetcher/companies.json, adds new jobs to the
 # Cloudflare D1 database, removes closed / old ones and rebuilds the lists the site serves.
 #
-# Runs every hour (at :17), and by hand: Actions → "Daily jobs" → "Run workflow".
-# Hourly keeps a private repository inside GitHub's 2,000 free minutes a month. If the repository
-# is public (Actions are free and unlimited there), change the cron to '*/15 * * * *'.
+# Runs every 15 minutes, and by hand: Actions → "Daily jobs" → "Run workflow".
+# The repository is public, so GitHub Actions minutes are free and unlimited.
+# (If it is ever made private again, change the cron back to '17 * * * *' to stay inside 2,000 free minutes.)
 #
 # No secrets needed: the run proves it comes from this repository with GitHub's own short-lived
 # sign-in token (OIDC), and madevisa.com/api/sync checks it (worker/sync.ts).
@@ -11,11 +11,11 @@ name: Daily jobs
 
 on:
   schedule:
-    - cron: '17 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
       force:
-        description: 'Run even if a run finished in the last 20 minutes (and read every feed)'
+        description: 'Run even if a run finished in the last 10 minutes (and read every feed)'
         type: boolean
         default: true
 

@@ -5,7 +5,7 @@
     "maxNewPerRun": 5000,
     "maxJobs": 15000,
     "arbeitnowPages": 8,
-    "minMinutesBetweenRuns": 20,
+    "minMinutesBetweenRuns": 10,
     "everyHours": {
       "remotive": 6,
       "arbeitnow": 2

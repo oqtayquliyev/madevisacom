@@ -57,7 +57,7 @@ export async function market(env: Env): Promise<Response> {
   );
   return layout({
     title: 'Job market, live — jobs abroad and visa sponsorship by country | MadeVisa',
-    description: `Jobs from company careers pages: ${fmt(s.new24h)} new in the last 24 hours, which countries and companies hire most, how many state visa sponsorship (${share(s.visa)}%), remote share and salary transparency. Updated hourly.`,
+    description: `Jobs from company careers pages: ${fmt(s.new24h)} new in the last 24 hours, which countries and companies hire most, how many state visa sponsorship (${share(s.visa)}%), remote share and salary transparency. Updated every 15 minutes.`,
     path: '/job-market',
     active: '/job-market',
     body: `<div class="market">${monitor}<div class="market-grid">${shares}${sponsors}${countries}${companies}${days}</div><p class="small center">${icon('info')} Counts describe the jobs on MadeVisa (posted in the last ${s.windowDays} days), not a whole country’s job market.</p></div>`,

@@ -63,7 +63,7 @@ Old settings you can delete (Worker → Settings → Variables and Secrets): eve
 
 GitHub → your repository → **Actions** → **Daily jobs** → **Run workflow** → **Run workflow**.
 It takes a few minutes. Then open **madevisa.com/admin**: you see how many jobs were added and
-which company feeds failed. From now on it runs **every hour** by itself (jobs older than 7 days are removed).
+which company feeds failed. From now on it runs **every 15 minutes** by itself (jobs older than 7 days are removed).
 
 The first run adds at most 5,000 jobs (daily write limit); the rest come the next day.
 
@@ -99,9 +99,9 @@ The starting list was made without internet access, so some ids may be wrong: af
 
 **Run now:** GitHub → Actions → Daily jobs → Run workflow.
 
-**Every 15 minutes instead of hourly:** only if the repository is public (GitHub Actions is free and
-unlimited for public repositories; a private one gets 2,000 minutes a month, enough for hourly). Change
-the `cron` line in `.github/workflows/daily-jobs.yml` to `'*/15 * * * *'`.
+**Every 15 minutes:** works because the repository is public (GitHub Actions is free and unlimited for
+public repositories). If it is ever made private again, change the `cron` line in
+`.github/workflows/daily-jobs.yml` back to `'17 * * * *'` (hourly fits a private repo's 2,000 free minutes).
 
 **The free book:** the corner box and /book link to `BOOK_URL` in `worker/html.ts`.
 

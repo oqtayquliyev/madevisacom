@@ -35,7 +35,7 @@ export async function board(env: Env, url: URL, preset: Preset = {}): Promise<Re
   const searchBox = `<section class="box search-hero" id="board" data-country="${esc(country)}" data-visa="${visa ? 1 : 0}">
 <h1 class="box-h"><span>${esc(heading)}</span></h1>
 <div class="box-b">
-<div class="hero-row"><p class="hero-sub">Straight from companies’ own careers pages, checked every hour — often before these jobs reach LinkedIn or Indeed.${s.updated ? ` Updated ${esc(ago(s.updated))}.` : ''}</p>${newToday(s.new24h)}</div>
+<div class="hero-row"><p class="hero-sub">Straight from companies’ own careers pages, checked every 15 minutes — often before these jobs reach LinkedIn or Indeed.${s.updated ? ` Updated ${esc(ago(s.updated))}.` : ''}</p>${newToday(s.new24h)}</div>
 <form class="search-big" id="filters" action="${esc(url.pathname)}" method="get" role="search">
   <label class="sr-only" for="f-q">Job title, skill, company or city</label>
   <input id="f-q" type="search" name="q" value="${esc(q)}" placeholder="Job title, skill, company or city" autocomplete="off">
@@ -75,8 +75,8 @@ ${company ? `<p class="small">Company: <b>${esc(company)}</b> - <a href="${esc(u
 
   const path = url.pathname;
   return layout({
-    title: isHome ? 'MadeVisa — Jobs abroad straight from company careers pages, updated hourly' : `${heading} — fresh jobs, updated hourly | MadeVisa`,
-    description: `${isHome ? 'Jobs abroad' : heading} straight from company careers pages, checked every hour — ${fmt(s.new24h)} new in the last 24 hours, often before they reach LinkedIn or Indeed. Filter by visa sponsorship, country, remote work and salary.`,
+    title: isHome ? 'MadeVisa — Jobs abroad straight from company careers pages, updated every 15 minutes' : `${heading} — fresh jobs, updated every 15 minutes | MadeVisa`,
+    description: `${isHome ? 'Jobs abroad' : heading} straight from company careers pages, checked every 15 minutes — ${fmt(s.new24h)} new in the last 24 hours, often before they reach LinkedIn or Indeed. Filter by visa sponsorship, country, remote work and salary.`,
     path: path + (path === '/' && country ? `?country=${country}` : ''),
     active: visa && !country ? '/jobs/visa-sponsorship' : '/',
     body: `${searchBox}<div class="board-wrap"><div class="board-main">${results}</div><aside class="board-side xp-side">${side}</aside></div>`,
