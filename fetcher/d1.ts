@@ -100,16 +100,29 @@ export class SyncD1 implements Database {
 
   private async send(statements: { sql: string; params?: unknown[] }[]): Promise<unknown[][]> {
     for (let attempt = 1; ; attempt++) {
-      const res = await fetch(this.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await this.bearer()}`, 'User-Agent': 'madevisa-jobs' },
-        body: JSON.stringify({ statements }),
-      });
+      let res: Response;
+      try {
+        res = await fetch(this.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await this.bearer()}`, 'User-Agent': 'madevisa-jobs' },
+          body: JSON.stringify({ statements }),
+          signal: AbortSignal.timeout(60_000),
+        });
+      } catch (e) {
+        // Network hiccup (connection reset, timeout): wait and try again.
+        if (attempt < 6) {
+          console.log(`  sync: network error (${e instanceof Error ? e.message : e}), retrying in ${3 * attempt}s`);
+          await new Promise((r) => setTimeout(r, 3000 * attempt));
+          continue;
+        }
+        throw e;
+      }
       const text = await res.text();
       if (res.ok) return (JSON.parse(text) as { results: unknown[][] }).results;
-      // Retry hiccups (rate limits, deploys in progress); fail fast on real errors.
-      if (attempt < 4 && (res.status === 429 || res.status >= 502)) {
-        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      // Retry hiccups (rate limits, deploys in progress, expired token); fail fast on real errors.
+      if (attempt < 6 && (res.status === 429 || res.status >= 500 || res.status === 401)) {
+        if (res.status === 401) this.tokenAt = 0; // get a fresh sign-in token
+        await new Promise((r) => setTimeout(r, 3000 * attempt));
         continue;
       }
       throw new Error(`sync ${res.status}: ${text.slice(0, 500)}`);

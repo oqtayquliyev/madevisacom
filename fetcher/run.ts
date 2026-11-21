@@ -323,7 +323,7 @@ export function buildStats(rows: BoardRow[], updated: string, windowDays: number
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   main().catch((e) => {
-    console.error(e instanceof Error ? e.message : e);
+    console.error(e instanceof Error ? `${e.message}${(e as { cause?: unknown }).cause ? ` (cause: ${String((e as { cause?: unknown }).cause)})` : ''}` : e);
     process.exit(1);
   });
 }
