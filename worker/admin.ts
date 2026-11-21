@@ -13,7 +13,7 @@ import { audIncludes, verifyRs256 } from './jwt';
 import { BUILD } from './build-id';
 
 const TZ_HOURS = 4; // Baku (UTC+4, no daylight saving) — "today" means today in Baku
-const DAYS = 14;
+const DAYS = 7;
 
 async function allowed(req: Request, env: Env): Promise<{ email: string } | string> {
   if (env.DEV_SYNC_KEY && new URL(req.url).hostname === '127.0.0.1') return { email: 'local@dev' };
@@ -136,7 +136,7 @@ export async function admin(req: Request, env: Env): Promise<Response> {
 <span class="status ${st.tone}"><span class="dot"></span>${esc(st.text)}</span></section>
 
 <section class="kpis">
-${kpi('Live jobs', fmt(t.n ?? 0), `${t.week ? `+${fmt(t.week)} in the last 7 days` : 'posted in the last 14 days'}`)}
+${kpi('Live jobs', fmt(t.n ?? 0), `${t.week ? `+${fmt(t.week)} in the last 7 days` : 'posted in the last 7 days'}`)}
 ${kpi('New today', fmt(t.today ?? 0), `${fmt(t.yesterday ?? 0)} yesterday`, (t.today ?? 0) > 0 ? 'up' : '')}
 ${kpi('Visa sponsorship', fmt(t.visa ?? 0), `${pct(t.visa, t.n)}% of live jobs · ${fmt(t.visa_today ?? 0)} new today`)}
 ${kpi('Companies', fmt(t.companies ?? 0), `${fmt(t.countries ?? 0)} countries`)}
@@ -151,7 +151,7 @@ ${kpi('Salary shown', fmt(t.salary ?? 0), `${pct(t.salary, t.n)}% of live jobs`)
 
 <section class="grid3">
 <div class="card"><div class="card-h"><h2>Daily job fetch</h2><a href="https://github.com/${esc(repo)}/actions" target="_blank" rel="noopener">GitHub Actions ↗</a></div>
-${last ? `<dl class="facts"><div><dt>Last run</dt><dd>${esc(ago(last.started_at))}</dd></div><div><dt>Added</dt><dd>+${fmt(last.added)}</dd></div><div><dt>Removed (closed / old)</dt><dd>−${fmt(last.removed)}</dd></div><div><dt>Feeds OK / failed</dt><dd>${last.sources_ok} / ${last.sources_failed}</dd></div><div><dt>Site list rebuilt</dt><dd>${d.listUpdated ? esc(ago(d.listUpdated)) : '—'}</dd></div><div><dt>Next run</dt><dd>Daily 06:23 Baku</dd></div></dl>${last.note ? `<p class="note">${esc(last.note)}</p>` : ''}` : '<p class="muted">No run yet.</p>'}
+${last ? `<dl class="facts"><div><dt>Last run</dt><dd>${esc(ago(last.started_at))}</dd></div><div><dt>Added</dt><dd>+${fmt(last.added)}</dd></div><div><dt>Removed (closed / old)</dt><dd>−${fmt(last.removed)}</dd></div><div><dt>Feeds OK / failed</dt><dd>${last.sources_ok} / ${last.sources_failed}</dd></div><div><dt>Site list rebuilt</dt><dd>${d.listUpdated ? esc(ago(d.listUpdated)) : '—'}</dd></div><div><dt>Schedule</dt><dd>Every hour (:17)</dd></div></dl>${last.note ? `<p class="note">${esc(last.note)}</p>` : ''}` : '<p class="muted">No run yet.</p>'}
 ${failed.length ? `<h3>Failed feeds (${failed.length})</h3><ul class="fails">${failed.slice(0, 6).map((f) => `<li>${esc(f)}</li>`).join('')}</ul>${failed.length > 6 ? `<details><summary class="small">Show ${failed.length - 6} more</summary><ul class="fails">${failed.slice(6).map((f) => `<li>${esc(f)}</li>`).join('')}</ul></details>` : ''}<p class="muted small">Fix or remove them in <a href="https://github.com/${esc(repo)}/edit/main/fetcher/companies.json" target="_blank" rel="noopener">companies.json ↗</a></p>` : ''}
 </div>
 <div class="card"><div class="card-h"><h2>Sources</h2><a href="https://github.com/${esc(repo)}/edit/main/fetcher/companies.json" target="_blank" rel="noopener">Edit companies ↗</a></div>
