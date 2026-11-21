@@ -7,7 +7,7 @@ import { blobText, type Env } from './db';
 import { board } from './pages/jobs';
 import { jobPage } from './pages/job';
 import { destination, destinations } from './pages/destinations';
-import { market, status } from './pages/market';
+import { market } from './pages/market';
 import { book, cvMatch, notFound, textPage } from './pages/misc';
 import { countryBySlug } from './parts';
 import { textPages } from '../content/pages';
@@ -89,7 +89,7 @@ async function route(path: string, url: URL, env: Env): Promise<Response> {
   if (m) return (await destination(env, m[1])) ?? notFound(path);
 
   if (path === '/job-market') return market(env);
-  if (path === '/status') return status(env);
+  if (path === '/status') return Response.redirect(`${url.origin}/admin`, 302);
   if (path === '/cv-match') return cvMatch();
   if (path === '/book') return book();
 

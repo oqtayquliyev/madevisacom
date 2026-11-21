@@ -12,6 +12,7 @@ const form = document.getElementById('filters') as HTMLFormElement | null;
 const list = document.getElementById('board-list');
 const pager = document.getElementById('board-pager');
 const count = document.getElementById('board-count');
+const countWrap = document.getElementById('board-count-wrap');
 const names: Record<string, string> = JSON.parse(document.getElementById('country-names')?.textContent || '{}');
 
 const presetCountry = board?.dataset.country ?? '';
@@ -109,7 +110,10 @@ function render() {
   page = Math.min(page, pages);
   const start = (page - 1) * PAGE;
   const slice = found.slice(start, start + PAGE);
+  // The total isn't shown; the number appears only for a search or filter.
+  const filtered = Boolean(f.q || (!presetCountry && f.country) || f.days || (!presetVisa && f.visa) || f.remote || f.salary || f.company);
   if (count) count.textContent = fmt(found.length);
+  if (countWrap) countWrap.hidden = !filtered;
 
   list.innerHTML = slice.length
     ? `<ol class="joblist" start="${start + 1}" style="counter-reset: job ${start}">${slice
@@ -122,7 +126,7 @@ function render() {
 
   const btn = (label: string, to: number, off: boolean) =>
     `<button type="button" class="btn" data-page="${to}"${off ? ' disabled' : ''}>${label}</button>`;
-  pager.innerHTML = `${btn('« Previous', page - 1, page === 1)}<span>${found.length ? `${fmt(start + 1)}–${fmt(start + slice.length)} of ${fmt(found.length)}` : 'No jobs'} · page ${page} of ${pages}</span>${btn('Next »', page + 1, page === pages)}`;
+  pager.innerHTML = `${btn('« Previous', page - 1, page === 1)}<span>${found.length ? `Page ${page}` : 'No jobs'}</span>${btn('Next »', page + 1, page === pages)}`;
 
   // Keep the address in step, so a search can be shared or bookmarked.
   const q = new URLSearchParams();

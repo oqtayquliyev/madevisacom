@@ -62,3 +62,14 @@ export const visaWord = (v: string | null) =>
     : v === 'not_offered'
       ? `${icon('error')} <span><b>Not offered</b> — the ad asks for an existing right to work.</span>`
       : `${icon('help')} <span><b>Not stated</b> — the ad doesn’t say. Ask the company before applying.</span>`;
+
+/**
+ * The highlighted "new in the last 24 hours" box (the site shows this instead of a total).
+ * The rising-bars arrow is a decorative icon, not a chart of real numbers.
+ */
+export function newToday(n: number, label = 'new jobs in the last 24 hours'): string {
+  return `<div class="new24"><svg class="new24-ico" viewBox="0 0 48 40" width="58" height="48" aria-hidden="true" shape-rendering="crispEdges">
+<rect x="2" y="30" width="7" height="8" fill="#7fd36f"/><rect x="12" y="24" width="7" height="14" fill="#5cc24a"/><rect x="22" y="17" width="7" height="21" fill="#3faa2e"/><rect x="32" y="10" width="7" height="28" fill="#2b8a24"/>
+<path d="M3 26 L15 19 L25 12 L37 5" stroke="#e00000" stroke-width="3" fill="none" shape-rendering="geometricPrecision"/><path d="M33 2 L44 2 L41 12 Z" fill="#e00000" shape-rendering="geometricPrecision"/></svg>
+<div><b class="new24-n">+${fmt(n)}</b><span class="new24-l">${esc(label)}</span></div></div>`;
+}

@@ -4,7 +4,7 @@
 
 import { ago, esc, fmt, layout } from '../html';
 import { newest, stats, type Env } from '../db';
-import { countryName, countryOptions, countrySlug, guideByCode, jobList } from '../parts';
+import { countryName, countryOptions, countrySlug, guideByCode, jobList, newToday } from '../parts';
 import { flag } from '../flags';
 import { visaGuides } from '../../content/visa/index';
 
@@ -26,7 +26,6 @@ export async function board(env: Env, url: URL, preset: Preset = {}): Promise<Re
   const [s, rows] = await Promise.all([stats(env), newest(env, { country: country || undefined, visa, remote, limit: 50 })]);
   const cName = country ? countryName.get(country) ?? country : '';
   const heading = visa && cName ? `Jobs in ${cName} with visa sponsorship` : visa ? 'Jobs that state visa sponsorship' : cName ? `Jobs in ${cName}` : 'Jobs abroad, straight from company careers pages';
-  const total = country ? s.byCountry.find((c) => c[0] === country)?.[visa ? 2 : 1] ?? 0 : visa ? s.visa : s.total;
   const needsJs = Boolean(q || days || salary || company);
 
   const opt = (v: string, label: string) => `<option value="${v}"${days === v ? ' selected' : ''}>${label}</option>`;
@@ -36,7 +35,7 @@ export async function board(env: Env, url: URL, preset: Preset = {}): Promise<Re
   const searchBox = `<section class="box search-hero" id="board" data-country="${esc(country)}" data-visa="${visa ? 1 : 0}">
 <h1 class="box-h"><span>${esc(heading)}</span></h1>
 <div class="box-b">
-<p class="hero-sub"><b>${fmt(s.total)} live jobs</b> from <b>${fmt(s.companies)} companies</b>, checked every hour — straight from their own careers pages, often before they reach LinkedIn or Indeed.${s.updated ? ` Updated ${esc(ago(s.updated))}.` : ''}</p>
+<div class="hero-row"><p class="hero-sub">Straight from companies’ own careers pages, checked every hour — often before these jobs reach LinkedIn or Indeed.${s.updated ? ` Updated ${esc(ago(s.updated))}.` : ''}</p>${newToday(s.new24h)}</div>
 <form class="search-big" id="filters" action="${esc(url.pathname)}" method="get" role="search">
   <label class="sr-only" for="f-q">Job title, skill, company or city</label>
   <input id="f-q" type="search" name="q" value="${esc(q)}" placeholder="Job title, skill, company or city" autocomplete="off">
@@ -49,10 +48,10 @@ export async function board(env: Env, url: URL, preset: Preset = {}): Promise<Re
 ${company ? `<p class="small">Company: <b>${esc(company)}</b> - <a href="${esc(url.pathname)}">[clear]</a></p>` : ''}
 </div></section>`;
 
-  const results = `<section class="box white results"><h2 class="box-h grey"><span>Results: <b id="board-count">${fmt(total)}</b> jobs</span><span class="box-h-right"><span class="tag tag-new">NEW</span> = posted in the last 6 hours</span></h2>
+  const results = `<section class="box white results"><h2 class="box-h grey"><span>Newest jobs first<span id="board-count-wrap" hidden> · <b id="board-count"></b> match your search</span></span><span class="box-h-right"><span class="tag tag-new">NEW</span> = posted in the last 6 hours</span></h2>
 <div class="box-b white" id="board-list" aria-live="polite">${needsJs ? '<noscript><p class="empty">Search and these filters need JavaScript. Showing the newest jobs instead.</p></noscript>' : ''}${jobList(rows)}</div>
 <script type="application/json" id="country-names">${JSON.stringify(Object.fromEntries(s.byCountry.map(([c]) => [c, countryName.get(c) ?? c]))).replace(/</g, '\\u003c')}</script>
-<div class="pager" id="board-pager">${rows.length < total ? `Newest ${rows.length} of ${fmt(total)}` : `${fmt(rows.length)} jobs`}</div>
+<div class="pager" id="board-pager">Newest jobs first</div>
 </section>`;
 
   const guide = country ? guideByCode.get(country) : undefined;
@@ -76,8 +75,8 @@ ${company ? `<p class="small">Company: <b>${esc(company)}</b> - <a href="${esc(u
 
   const path = url.pathname;
   return layout({
-    title: isHome ? 'MadeVisa — Jobs abroad straight from company careers pages, updated hourly' : `${heading} — ${fmt(total)} fresh jobs | MadeVisa`,
-    description: `${fmt(total)} ${isHome ? 'jobs abroad' : heading.toLowerCase()} from company careers pages, posted in the last ${s.windowDays} days — often before they reach LinkedIn or Indeed. Filter by visa sponsorship, country, remote work and salary.`,
+    title: isHome ? 'MadeVisa — Jobs abroad straight from company careers pages, updated hourly' : `${heading} — fresh jobs, updated hourly | MadeVisa`,
+    description: `${isHome ? 'Jobs abroad' : heading} straight from company careers pages, checked every hour — ${fmt(s.new24h)} new in the last 24 hours, often before they reach LinkedIn or Indeed. Filter by visa sponsorship, country, remote work and salary.`,
     path: path + (path === '/' && country ? `?country=${country}` : ''),
     active: visa && !country ? '/jobs/visa-sponsorship' : '/',
     body: `${searchBox}<div class="board-wrap"><div class="board-main">${results}</div><aside class="board-side xp-side">${side}</aside></div>`,
