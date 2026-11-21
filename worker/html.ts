@@ -118,8 +118,8 @@ export type Page = {
 
 const LOGO = 'https://res.cloudinary.com/dkvg0oo8c/image/upload/v1789479857/madevisa-logo-header_fqdylj.svg';
 
-/** The book on Gumroad (free, pay-what-you-want). Put the book's own Gumroad link here when it's live. */
-export const BOOK_URL = 'https://madevisa.gumroad.com/';
+/** The book on Gumroad (free, pay what you want). ?wanted=true opens the checkout straight away. */
+export const BOOK_URL = 'https://madevisa.gumroad.com/l/book?wanted=true';
 export const BOOK_TITLE = 'How to Survive in the 2026–2027 Job Market';
 
 export function layout(p: Page): Response {
